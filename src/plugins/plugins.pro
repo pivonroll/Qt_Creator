@@ -54,7 +54,8 @@ SUBDIRS   = \
     winrt \
     qmlprofiler \
     updateinfo \
-    welcome
+    welcome \
+    vcprojectmanager
 
 DO_NOT_BUILD_QMLDESIGNER = $$(DO_NOT_BUILD_QMLDESIGNER)
 isEmpty(DO_NOT_BUILD_QMLDESIGNER) {

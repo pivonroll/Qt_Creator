@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>
+  <mime-type type="text/x-vc-project">
+    <sub-class-of type="application/xml"/>
+    <comment>Visual Studio Project file</comment>
+    <glob pattern="*.vcproj"/>
+  </mime-type>
+  <mime-type type="text/x-vcx-project">
+      <sub-class-of type="application/xml"/>
+      <comment>Visual Studio X project file</comment>
+      <glob pattern="*.vcxproj"/>
+    </mime-type>
+</mime-info>
