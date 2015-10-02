@@ -37,9 +37,9 @@ namespace Internal {
 namespace VisualStudioProjectX {
 
 class ItemGroup;
-class Project;
 class Item;
 class ItemMetaData;
+class Project;
 
 class Utils
 {
@@ -51,6 +51,7 @@ public:
     static bool itemGroupContainsItemName(const QString &itemName, ItemGroup *itemGroup);
     static ItemMetaData *findItemMetaWithName(const QString &name, const Item *findInItem);
     static ItemGroup *findItemGroupWithLabel(const QString &label, Project *project);
+    static Item *findFilterItemForFileExtension(const QString &fileExtension, Project *project);
 };
 
 } // namespace VisualStudioProjectX

@@ -32,7 +32,9 @@ HEADERS +=  \
     vcprojectxmodel/vcxproj/tools/tool_constantsx.h \
     vcprojectxmodel/vcxproj/filecontainerx.h \
     vcprojectxmodel/vcxproj/vcprojx_constants.h \
-    $$PWD/utilsx.h
+    $$PWD/utilsx.h \
+    $$PWD/projectfactoriesx.h \
+    $$PWD/filefactoryx.h
 
 SOURCES +=  \
     vcprojectxmodel/vcxproj/private/when.cpp \
@@ -65,7 +67,9 @@ SOURCES +=  \
     vcprojectxmodel/vcxproj/filesx.cpp \
     vcprojectxmodel/vcxproj/filex.cpp \
     vcprojectxmodel/vcxproj/filecontainerx.cpp \
-    $$PWD/utilsx.cpp
+    $$PWD/utilsx.cpp \
+    $$PWD/projectfactoriesx.cpp \
+    $$PWD/filefactoryx.cpp
 
 OTHER_FILES += \
     vcprojectxmodel/vcxproj/tools/xml_definitions/BscmakeTool.xml \

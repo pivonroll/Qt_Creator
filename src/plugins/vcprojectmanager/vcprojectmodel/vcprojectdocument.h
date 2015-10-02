@@ -76,6 +76,7 @@ public:
     IAttributeContainer *attributeContainer() const;
     VcNodeWidget *createSettingsWidget();
     IConfiguration *createDefaultBuildConfiguration(const QString &fullConfigName) const;
+    IProjectFactories *projectFactories() const;
 
 protected:
     void processDocumentNode(const QDomNode &node);
@@ -101,6 +102,7 @@ protected:
     ToolFiles *m_toolFiles;
     PublishingData *m_publishingData;
     GeneralAttributeContainer* m_attributeContainer;
+
 };
 
 class VcProjectDocumentWidget : public VcNodeWidget

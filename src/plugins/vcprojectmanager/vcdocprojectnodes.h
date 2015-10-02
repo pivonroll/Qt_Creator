@@ -40,8 +40,6 @@ class IFileContainer;
 class IFile;
 class VcDocProjectNode;
 
-QString fileRelativePath(const QString &fullProjectPath, const QString &fullFilePath);
-
 class VcFileNode : public ProjectExplorer::FileNode
 {
     friend class VcDocProjectNode;
@@ -96,7 +94,7 @@ public:
     /*!
      * \brief Adds a file node to this file container.
      */
-//    void addFileNode(const QString &filePath);
+    void addFileNode(const QString &relativeFilePath);
 
     /*!
      * \brief Appends a file node to the list of file nodes in this container.
@@ -108,7 +106,7 @@ public:
     /*!
      * \brief Adds a file container node to this file container.
      */
-//    void addFileContainerNode(const QString &name, VcContainerType type = VcContainerType_Filter);
+    void addFileContainerNode(const QString &name, VcContainerType type = VcContainerType_Filter);
 
     /*!
      * \brief Appends a file container node to the list of file container
@@ -209,8 +207,8 @@ public:
      */
     QString projectDirectory() const;
 
-//    void addFileNode(const QString &filePath);
-//    void addFileContainerNode(const QString &name, VcFileContainerNode::VcContainerType type);
+    void addFileNode(const QString &filePath);
+    void addFileContainerNode(const QString &name, VcFileContainerNode::VcContainerType type);
     bool appendFileContainerNode(VcFileContainerNode *fileContainerNode);
     bool appendFileNode(VcFileNode *fileNode);
     void removeFileNode(VcFileNode *fileNode);

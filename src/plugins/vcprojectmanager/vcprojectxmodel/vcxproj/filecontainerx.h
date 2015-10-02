@@ -45,6 +45,7 @@ class Project;
 class FileContainerX : public IFileContainer
 {
     friend class FilesX;
+    friend class FileFactoryX;
 public:
     FileContainerX(const FileContainerX &fileCont);
     FileContainerX &operator=(const FileContainerX &fileCont);
@@ -70,9 +71,6 @@ public:
     QString relativePath() const;
     void setRelativePath(const QString &relativePath);
 
-    IFile *createNewFile(const QString &relativePath, ProjectExplorer::FileType fileType);
-    IFileContainer *createNewFileContainer(const QString &containerType, const QString &displayName);
-
     // IVcProjectXMLNode interface
     void processNode(const QDomNode &node);
     VcNodeWidget *createSettingsWidget();
@@ -80,11 +78,6 @@ public:
 
 private:
     FileContainerX();
-
-    ItemGroup *findProperItemGroup(const QString &itemName, Project *docProject) const;
-    ItemGroup *findItemGroup(Item *item, Project *docProject) const;
-    bool groupContainsItem(Item *item, ItemGroup *itemGroup) const;
-    bool itemGroupContainsItemName(const QString &itemName, ItemGroup *itemGroup)const;
 
     void removeAllFilesInAFilter(const QString &fullFilterName, QStringList &relativePaths);
     void removeAllFilesInAFilter(ItemGroup *itemGroup, const QString &fullFilterName, QStringList &relativePaths);

@@ -38,16 +38,17 @@
 namespace VcProjectManager {
 namespace Internal {
 
-class IConfigurations;
-class IPlatforms;
-class IGlobals;
-class IReferences;
-class IFiles;
-class ISettingsWidget;
-class IToolFiles;
-class IPublishingData;
 class IAttributeContainer;
 class IConfiguration;
+class IConfigurations;
+class IFiles;
+class IGlobals;
+class IPlatforms;
+class IProjectFactories;
+class IPublishingData;
+class IReferences;
+class ISettingsWidget;
+class IToolFiles;
 
 class IVisualStudioProject : public IVcProjectXMLNode
 {
@@ -118,6 +119,8 @@ public:
      * Note: It is up to a user to destroy the object.
      */
     virtual IConfiguration *createDefaultBuildConfiguration(const QString &fullConfigName) const = 0;
+
+    virtual IProjectFactories *projectFactories() const = 0;
 };
 
 } // namespace Internal

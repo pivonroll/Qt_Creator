@@ -2,9 +2,14 @@
 
 #include "vcschemamanager.h"
 
+#include <projectexplorer/projectexplorerconstants.h>
+#include <utils/mimetypes/mimedatabase.h>
+
 #include <QFile>
 #include <QXmlSchema>
 #include <QXmlSchemaValidator>
+#include <QFileInfo>
+#include <QDir>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -112,6 +117,37 @@ VcDocConstants::DocumentVersion getProjectVersion(const QString &projectPath)
         return VcDocConstants::DV_MSVC_2008;
 
     return VcDocConstants::DV_UNRECOGNIZED;
+}
+
+ProjectExplorer::FileType getFileType(const ::Utils::FileName &canonicalFilePath)
+{
+    ::Utils::MimeDatabase mdb;
+    QString mimeType = mdb.mimeTypeForFile(canonicalFilePath.toString()).name();
+
+    if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
+            || mimeType == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
+        return ProjectExplorer::SourceType;
+    if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
+            || mimeType == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
+        return ProjectExplorer::HeaderType;
+    if (mimeType == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
+        return ProjectExplorer::ResourceType;
+    if (mimeType == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
+        return ProjectExplorer::FormType;
+    if (mimeType == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
+        return ProjectExplorer::QMLType;
+
+    return ProjectExplorer::UnknownFileType;
+}
+
+QString fileRelativePath(const QString &topPath, const QString &innerPath)
+{
+    QString relativePath = QFileInfo(topPath).absoluteDir().relativeFilePath(innerPath).replace(QLatin1String("/"), QLatin1String("\\"));
+
+    if (!relativePath.startsWith(QLatin1String("..")))
+        relativePath.prepend(QLatin1String(".\\"));
+
+    return relativePath;
 }
 
 } // namespace Utils

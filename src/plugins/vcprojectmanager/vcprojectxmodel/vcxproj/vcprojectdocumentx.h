@@ -40,10 +40,13 @@ namespace Internal {
 namespace VisualStudioProjectX {
     class Project;
     class ConfigurationsX;
+    class ProjectFactoriesX;
+    class FileFactoryX;
 }
 
 class VcProjectDocumentX : public IVisualStudioProject
 {
+    friend class VisualStudioProjectX::FileFactoryX;
 public:
     VcProjectDocumentX(const QString &filePath);
     ~VcProjectDocumentX();
@@ -66,6 +69,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
     IConfiguration *createDefaultBuildConfiguration(const QString &fullConfigName) const;
+    IProjectFactories *projectFactories() const;
 
 private:
     void processFilterDoc();
@@ -77,6 +81,7 @@ private:
     QDomProcessingInstruction m_projectProcInstructionNode;
     QDomProcessingInstruction m_filtersProcInstructionNode;
     IFiles *m_files;
+    VisualStudioProjectX::ProjectFactoriesX *m_projectFactories;
 };
 
 } // namespace Internal

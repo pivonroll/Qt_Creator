@@ -36,6 +36,7 @@
 #include "configurationcontainerx.h"
 #include "tools/tool_constantsx.h"
 #include "vcprojx_constants.h"
+#include "../../utils.h"
 
 #include "../../vcprojectmodel/tools/toolattributes/tooldescriptiondatamanager.h"
 #include "../../interfaces/iconfigurationbuildtool.h"
@@ -46,8 +47,7 @@
 #include <QFileInfo>
 #include <QDomNode>
 
-#include <utils/mimetypes/mimedatabase.h>
-#include <projectexplorer/projectexplorerconstants.h>
+#include <utils/fileutils.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -80,10 +80,10 @@ QString FileX::relativePath() const
     return QString();
 }
 
-void FileX::setRelativePath(const QString &path)
+void FileX::setRelativePath(const QString &relativePath)
 {
     if (m_item)
-        m_item->setInclude(path);
+        m_item->setInclude(relativePath);
 }
 
 QString FileX::canonicalPath() const
@@ -114,23 +114,7 @@ IFile *FileX::clone() const
 
 ProjectExplorer::FileType FileX::fileType() const
 {
-    ::Utils::MimeDatabase mdb;
-    QString mimeType = mdb.mimeTypeForFile(canonicalPath()).name();
-
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
-            || mimeType == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
-        return ProjectExplorer::SourceType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
-            || mimeType == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
-        return ProjectExplorer::HeaderType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
-        return ProjectExplorer::ResourceType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
-        return ProjectExplorer::FormType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
-        return ProjectExplorer::QMLType;
-
-    return ProjectExplorer::UnknownFileType;
+    return VcProjectManager::Internal::Utils::getFileType(::Utils::FileName::fromString(canonicalPath()));
 }
 
 IConfiguration *FileX::createDefaultBuildConfiguration(const QString &configName, const QString &platformName) const

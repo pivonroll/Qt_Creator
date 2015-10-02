@@ -46,10 +46,10 @@
 #include "../widgets/fileconfigurationseditwidget.h"
 #include "tools/tool_constants.h"
 #include "tools/toolattributes/tooldescriptiondatamanager.h"
+#include "../utils.h"
 
 #include <coreplugin/icore.h>
-#include <utils/mimetypes/mimedatabase.h>
-#include <projectexplorer/projectexplorerconstants.h>
+#include <utils/fileutils.h>
 
 #include <QDomNode>
 #include <QFileInfo>
@@ -168,23 +168,7 @@ IFile *File::clone() const
 
 ProjectExplorer::FileType File::fileType() const
 {
-    ::Utils::MimeDatabase mdb;
-    QString mimeType = mdb.mimeTypeForFile(canonicalPath()).name();
-
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
-            || mimeType == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
-        return ProjectExplorer::SourceType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
-            || mimeType == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
-        return ProjectExplorer::HeaderType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
-        return ProjectExplorer::ResourceType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
-        return ProjectExplorer::FormType;
-    if (mimeType == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
-        return ProjectExplorer::QMLType;
-
-    return ProjectExplorer::UnknownFileType;
+    return VcProjectManager::Internal::Utils::getFileType(::Utils::FileName::fromString(canonicalPath()));
 }
 
 QString File::canonicalPath() const

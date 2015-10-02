@@ -46,14 +46,16 @@ class FileX : public IFile
 {
     friend class FileContainerX;
     friend class FilesX;
+    friend class FileFactoryX;
 
 public:
+    FileX();
     FileX(const FileX &file);
     ~FileX();
 
     // IFile interface
     QString relativePath() const;
-    void setRelativePath(const QString &path);
+    void setRelativePath(const QString &relativePath);
     QString canonicalPath() const;
     IConfigurationContainer *configurationContainer() const;
     IAttributeContainer *attributeContainer() const;
@@ -67,8 +69,6 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
-    FileX();
-
     Item *m_item;
     Item *m_filterItem;
     Project *m_project;

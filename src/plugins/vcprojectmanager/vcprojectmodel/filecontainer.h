@@ -73,9 +73,6 @@ public:
     QString relativePath() const;
     void setRelativePath(const QString &relativePath);
 
-    IFile *createNewFile(const QString &relativePath, ProjectExplorer::FileType fileType);
-    IFileContainer *createNewFileContainer(const QString &containerType, const QString &displayName);
-
 private:
     void processFile(const QDomNode &fileNode);
     void processFilter(const QDomNode &filterNode);

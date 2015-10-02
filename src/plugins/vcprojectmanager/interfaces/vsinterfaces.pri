@@ -31,7 +31,9 @@ HEADERS += \
     interfaces/ipublishingdata.h \
     interfaces/ivisualstudioproject.h \
     interfaces/ivcprojectnodemodel.h \
-    interfaces/iconfigurationcontainer.h
+    interfaces/iconfigurationcontainer.h \
+    $$PWD/iprojectfactories.h \
+    $$PWD/ifilefactory.h
 
 SOURCES += \
     interfaces/iconfigurationcontainer.cpp

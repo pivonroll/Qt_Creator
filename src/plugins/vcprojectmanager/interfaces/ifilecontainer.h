@@ -123,9 +123,6 @@ public:
 
     virtual QString relativePath() const = 0;
     virtual void setRelativePath(const QString &relativePath) = 0;
-
-    virtual IFile *createNewFile(const QString &relativePath, ProjectExplorer::FileType fileType) = 0;
-    virtual IFileContainer *createNewFileContainer(const QString &containerType, const QString &displayName) = 0;
 };
 
 } // namespace Internal

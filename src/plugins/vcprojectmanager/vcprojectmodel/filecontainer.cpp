@@ -126,20 +126,6 @@ void FileContainer::setRelativePath(const QString &relativePath)
     m_relativePath = list.join(QLatin1Char('\\'));
 }
 
-IFile *FileContainer::createNewFile(const QString &relativePath, ProjectExplorer::FileType fileType)
-{
-    Q_UNUSED(relativePath)
-    Q_UNUSED(fileType)
-    return 0;
-}
-
-IFileContainer *FileContainer::createNewFileContainer(const QString &containerType, const QString &displayName)
-{
-    Q_UNUSED(containerType)
-    Q_UNUSED(displayName)
-    return 0;
-}
-
 void FileContainer::addFile(IFile *file)
 {
     if (m_files.contains(file))

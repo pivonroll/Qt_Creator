@@ -311,6 +311,11 @@ IConfiguration *VcProjectDocument::createDefaultBuildConfiguration(const QString
     return newConfig;
 }
 
+IProjectFactories *VcProjectDocument::projectFactories() const
+{
+    return 0;
+}
+
 void VcProjectDocument::processDocumentNode(const QDomNode &node)
 {
     if (node.isNull())

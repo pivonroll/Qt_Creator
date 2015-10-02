@@ -42,7 +42,9 @@ HEADERS += \
     vcprojectmodel/tools.h \
     vcprojectmodel/debuggertools.h \
     vcprojectmodel/filecontainer.h \
-    vcprojectmodel/filebuildconfiguration.h
+    vcprojectmodel/filebuildconfiguration.h \
+    $$PWD/projectfactories.h \
+    $$PWD/filefactory.h
 
 SOURCES += \
     vcprojectmodel/vcprojectdocument.cpp \
@@ -87,7 +89,9 @@ SOURCES += \
     vcprojectmodel/tools.cpp \
     vcprojectmodel/debuggertools.cpp \
     vcprojectmodel/filecontainer.cpp \
-    vcprojectmodel/filebuildconfiguration.cpp
+    vcprojectmodel/filebuildconfiguration.cpp \
+    $$PWD/projectfactories.cpp \
+    $$PWD/filefactory.cpp
 
 OTHER_FILES += \
     vcprojectmodel/tools/xml_definitions/VCXMLDataGeneratorTool.xml \

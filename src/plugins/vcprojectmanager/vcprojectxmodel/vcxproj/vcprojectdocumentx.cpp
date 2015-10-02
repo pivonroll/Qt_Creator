@@ -45,6 +45,7 @@
 #include "private/project.h"
 #include "private/propertygroup.h"
 #include "configurationsx.h"
+#include "projectfactoriesx.h"
 
 namespace VcProjectManager {
 namespace Internal {
@@ -56,7 +57,8 @@ class ItemGroup;
 VcProjectDocumentX::VcProjectDocumentX(const QString &filePath)
     : m_filePath(filePath),
       m_project(new VisualStudioProjectX::Project),
-      m_filters(new VisualStudioProjectX::Project)
+      m_filters(new VisualStudioProjectX::Project),
+      m_projectFactories(new VisualStudioProjectX::ProjectFactoriesX(this))
 {
     if (filePath.isEmpty())
         return;
@@ -81,6 +83,7 @@ VcProjectDocumentX::~VcProjectDocumentX()
     delete m_project;
     delete m_filters;
     delete m_files;
+    delete m_projectFactories;
 }
 
 IConfigurations *VcProjectDocumentX::configurations() const
@@ -247,6 +250,11 @@ IConfiguration *VcProjectDocumentX::createDefaultBuildConfiguration(const QStrin
     newConfig->m_itemDefinitionGroup->setCondition(condition);
 
     return newConfig;
+}
+
+IProjectFactories *VcProjectDocumentX::projectFactories() const
+{
+    return 0;
 }
 
 void VcProjectDocumentX::processFilterDoc()
