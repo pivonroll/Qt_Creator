@@ -55,6 +55,7 @@ public:
     bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
 
     VcDocProjectNode *createProjectNode() const;
+    IVisualStudioProject *visualStudioProject() const;
 
 private:
     IVisualStudioProject *m_visualStudioProject;

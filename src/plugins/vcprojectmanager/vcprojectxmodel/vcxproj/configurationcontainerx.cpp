@@ -358,13 +358,12 @@ void ConfigurationContainerX::addConfigurationToProject(const ConfigurationX *co
 
     ItemGroup *itemGroup = Utils::findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS), m_project);
 
-    if (itemGroup)
-        itemGroup->addItem(configX->m_item);
-    else {
-        ItemGroup *newItemGroup = createConfigurationItemGroup();
-        m_project->addItemGroup(newItemGroup);
-        newItemGroup->addItem(configX->m_item);
+    if (!itemGroup) {
+        itemGroup = createConfigurationItemGroup();
+        m_project->addItemGroup(itemGroup);
     }
+
+    itemGroup->addItem(configX->m_item);
 }
 
 int ConfigurationContainerX::findPropertyGroupWithConfiguration(const QString &configFullName)

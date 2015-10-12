@@ -43,6 +43,7 @@
 #include "../../interfaces/iconfigurationbuildtools.h"
 #include "../../interfaces/itools.h"
 #include "../../interfaces/itooldescription.h"
+#include "utilsx.h"
 
 #include <QFileInfo>
 #include <QDomNode>
@@ -71,7 +72,13 @@ FileX::FileX(const FileX &file)
 }
 
 FileX::~FileX()
-{}
+{
+    if (!Utils::findItemGroupContainingItem(m_item, m_project))
+        delete m_item;
+
+    if (!Utils::findItemGroupContainingItem(m_filterItem, m_filters))
+        delete m_filterItem;
+}
 
 QString FileX::relativePath() const
 {

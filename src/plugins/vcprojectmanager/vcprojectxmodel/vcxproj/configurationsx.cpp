@@ -83,24 +83,23 @@ QDomNode ConfigurationsX::toXMLDomNode(QDomDocument &domXMLDocument) const
 
 void ConfigurationsX::processItemGroup()
 {
-    if (m_itemGroup) {
-        int count = m_itemGroup->itemCount();
+    if (!m_itemGroup)
+        return;
 
-        for (int i = 0; i < count; ++i) {
-            Item *item = m_itemGroup->item(i);
+    for (int i = 0; i < m_itemGroup->itemCount(); ++i) {
+        Item *item = m_itemGroup->item(i);
 
-            if (!item)
-                continue;
+        if (!item)
+            continue;
 
-            QString configName = findConfigName(item);
-            QString configPlatform = findConfigPlatform(item);
+        QString configName = findConfigName(item);
+        QString configPlatform = findConfigPlatform(item);
 
-            ConfigurationX *config = m_configurationContainer->createConfiguration(item,
-                                                                                   findConfigurationDefGroup(configName, configPlatform),
-                                                                                   findConfigurationPropertyGroups(configName, configPlatform),
-                                                                                   findConfigurationImportGroups(configName, configPlatform));
-            m_configurationContainer->m_configs.append(config);
-        }
+        ConfigurationX *config = m_configurationContainer->createConfiguration(item,
+                                                                               findConfigurationDefGroup(configName, configPlatform),
+                                                                               findConfigurationPropertyGroups(configName, configPlatform),
+                                                                               findConfigurationImportGroups(configName, configPlatform));
+        m_configurationContainer->m_configs.append(config);
     }
 }
 
@@ -206,7 +205,7 @@ QList<ItemMetaData *> ConfigurationsX::findConfigurationItemMetaData(const QStri
 
 QString ConfigurationsX::findConfigName(Item *item)
 {
-    if (item)
+    if (!item)
         return QString();
 
     for (int i = 0; i < item->itemMetaDataCount(); ++i) {
@@ -221,13 +220,14 @@ QString ConfigurationsX::findConfigName(Item *item)
 
 QString ConfigurationsX::findConfigPlatform(Item *item)
 {
-    if (item) {
-        for (int i = 0; i < item->itemMetaDataCount(); ++i) {
-            ItemMetaData *itemMetaData = item->itemMetaData(i);
+    if (!item)
+        return QString();
 
-            if (itemMetaData && itemMetaData->name() == QLatin1String(PLATFORM))
-                return itemMetaData->value();
-        }
+    for (int i = 0; i < item->itemMetaDataCount(); ++i) {
+        ItemMetaData *itemMetaData = item->itemMetaData(i);
+
+        if (itemMetaData && itemMetaData->name() == QLatin1String(PLATFORM))
+            return itemMetaData->value();
     }
 
     return QString();

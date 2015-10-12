@@ -137,6 +137,15 @@ VcProjectDocument::VcProjectDocument(const QString &filePath, VcDocConstants::Do
       m_publishingData(new PublishingData),
       m_attributeContainer(new GeneralAttributeContainer)
 {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+
+    QDomDocument document(filePath);
+    if (!document.setContent(&file))
+        return;
+
+    processNode(document);
 }
 
 VcProjectDocument::VcProjectDocument(const VcProjectDocument &vcDoc)

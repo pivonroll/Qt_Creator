@@ -138,62 +138,64 @@ void FileContainerX::removeFile(IFile *file)
 {
     FileX *fileX = dynamic_cast<FileX *>(file);
 
-    if (fileX) {
-        if (fileX->m_filterItem) {
-            ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupContainingItem(fileX->m_filterItem, m_filters);
+    if (!fileX)
+        return;
 
-            if (itemGroup)
-                itemGroup->removeItem(fileX->m_filterItem);
+    if (fileX->m_filterItem) {
+        ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupContainingItem(fileX->m_filterItem, m_filters);
 
-            if (!itemGroup->itemCount())
-                m_filters->removeItemGroup(itemGroup);
+        if (itemGroup)
+            itemGroup->removeItem(fileX->m_filterItem);
 
-            itemGroup = VisualStudioProjectX::Utils::findItemGroupContainingItem(fileX->m_filterItem, m_project);
+        if (!itemGroup->itemCount())
+            m_filters->removeItemGroup(itemGroup);
 
-            if (itemGroup)
-                itemGroup->removeItem(fileX->m_filterItem);
+        itemGroup = VisualStudioProjectX::Utils::findItemGroupContainingItem(fileX->m_filterItem, m_project);
 
-            if (!itemGroup->itemCount())
-                m_project->removeItemGroup(itemGroup);
-        }
-        m_files.removeOne(fileX);
+        if (itemGroup)
+            itemGroup->removeItem(fileX->m_filterItem);
+
+        if (!itemGroup->itemCount())
+            m_project->removeItemGroup(itemGroup);
     }
+    m_files.removeOne(fileX);
 }
 
 void FileContainerX::addFileContainer(IFileContainer *fileContainer)
 {
     FileContainerX *fileContX = dynamic_cast<FileContainerX *>(fileContainer);
 
-    if (fileContX) {
-        QTC_ASSERT(fileContX->m_filterItem, return);
+    if (!fileContX)
+        return;
 
-        fileContX->m_filters = m_filters;
-        fileContX->m_project = m_project;
-        fileContX->m_parentContainer = this;
+    QTC_ASSERT(fileContX->m_filterItem, return);
 
-        FileContainerX *parentCont = m_parentContainer;
-        QString relativePath;
-        while (parentCont) {
-            relativePath.prepend(parentCont->displayName() + QLatin1Char('\\'));
-            parentCont = parentCont->m_parentContainer;
-        }
+    fileContX->m_filters = m_filters;
+    fileContX->m_project = m_project;
+    fileContX->m_parentContainer = this;
 
-        fileContX->m_filterItem->setName(QLatin1String(FILTER_ITEM));
-
-        // if for some reason some other file container created fileContX file container we need to set include path properly
-        QStringList stringList = fileContX->m_filterItem->include().split(QLatin1Char('\\'));
-        fileContX->m_filterItem->setInclude(relativePath + QLatin1Char('\\') + stringList.last());
-
-        ItemGroup *filterGroup = VisualStudioProjectX::Utils::findItemGroupWithName(QLatin1String(FILTER_ITEM), m_filters);
-
-        if (!filterGroup) {
-            filterGroup = new ItemGroup;
-            m_filters->addItemGroup(filterGroup);
-        }
-
-        filterGroup->addItem(fileContX->m_filterItem);
-        m_fileContainers.append(fileContainer);
+    FileContainerX *parentCont = m_parentContainer;
+    QString relativePath;
+    while (parentCont) {
+        relativePath.prepend(parentCont->displayName() + QLatin1Char('\\'));
+        parentCont = parentCont->m_parentContainer;
     }
+
+    fileContX->m_filterItem->setName(QLatin1String(FILTER_ITEM));
+
+    // if for some reason some other file container created fileContX file container we need to set include path properly
+    QStringList stringList = fileContX->m_filterItem->include().split(QLatin1Char('\\'));
+    fileContX->m_filterItem->setInclude(relativePath + QLatin1Char('\\') + stringList.last());
+
+    ItemGroup *filterGroup = VisualStudioProjectX::Utils::findItemGroupWithName(QLatin1String(FILTER_ITEM), m_filters);
+
+    if (!filterGroup) {
+        filterGroup = new ItemGroup;
+        m_filters->addItemGroup(filterGroup);
+    }
+
+    filterGroup->addItem(fileContX->m_filterItem);
+    m_fileContainers.append(fileContainer);
 }
 
 int FileContainerX::childCount() const
@@ -211,21 +213,22 @@ void FileContainerX::removeFileContainer(IFileContainer *fileContainer)
 {
     FileContainerX *fileContainerX = dynamic_cast<FileContainerX *>(fileContainer);
 
-    if (fileContainerX) {
-        // remove all files and filters that belong to this filter
-        QString include;
-        FileContainerX *parentCont = fileContainerX->m_parentContainer;
+    if (!fileContainerX)
+        return;
 
-        while (parentCont) {
-            include.prepend(parentCont->displayName() + QLatin1Char('\\'));
-            parentCont = parentCont->m_parentContainer;
-        }
+    // remove all files and filters that belong to this filter
+    QString include;
+    FileContainerX *parentCont = fileContainerX->m_parentContainer;
 
-        QStringList relativePaths;
-        removeAllFilesInAFilter(include, relativePaths);
-        removeAllFiltersInAFilter(include);
-        removeFilesFromProject(relativePaths);
+    while (parentCont) {
+        include.prepend(parentCont->displayName() + QLatin1Char('\\'));
+        parentCont = parentCont->m_parentContainer;
     }
+
+    QStringList relativePaths;
+    removeAllFilesInAFilter(include, relativePaths);
+    removeAllFiltersInAFilter(include);
+    removeFilesFromProject(relativePaths);
 }
 
 IAttributeContainer *FileContainerX::attributeContainer() const
@@ -235,11 +238,11 @@ IAttributeContainer *FileContainerX::attributeContainer() const
 
 QString FileContainerX::displayName() const
 {
-    if (m_filterItem) {
-        QStringList stringList = m_filterItem->include().split(QLatin1Char('\\'));
-        return stringList.last();
-    }
-    return QString();
+    if (!m_filterItem)
+        return QString();
+
+    QStringList stringList = m_filterItem->include().split(QLatin1Char('\\'));
+    return stringList.last();
 }
 
 void FileContainerX::setDisplayName(const QString &displayName)
@@ -318,37 +321,38 @@ void FileContainerX::removeAllFilesInAFilter(const QString &fullFilterName, QStr
     for (int i = 0; i < m_filters->itemGroupCount(); ++i) {
         ItemGroup *itemGroup = m_filters->itemGroup(i);
 
-        if (itemGroup) {
+        if (itemGroup)
             removeAllFilesInAFilter(itemGroup, fullFilterName, relativePaths);
-        }
     }
 }
 
 void FileContainerX::removeAllFilesInAFilter(ItemGroup *itemGroup, const QString &fullFilterName, QStringList &relativePaths)
 {
-    if (itemGroup) {
-        for (int i = 0; i < itemGroup->itemCount();) {
-            Item *item = itemGroup->item(i);
+    if (!itemGroup)
+        return;
 
-            if (item && isFileInAFilter(item, fullFilterName)) {
-                relativePaths.append(item->include());
-                itemGroup->removeItem(item);
-            }
-            else
-                ++i;
+    for (int i = 0; i < itemGroup->itemCount();) {
+        Item *item = itemGroup->item(i);
+
+        if (item && isFileInAFilter(item, fullFilterName)) {
+            relativePaths.append(item->include());
+            itemGroup->removeItem(item);
         }
+        else
+            ++i;
     }
 }
 
 bool FileContainerX::isFileInAFilter(Item *item, const QString &fullFilterName)
 {
-    if (item) {
-        for (int i = 0; i < item->itemMetaDataCount(); ++i) {
-            ItemMetaData *itemMetaData = item->itemMetaData(i);
+    if (!item)
+        return false;
 
-            if (itemMetaData && itemMetaData->name() == QLatin1String(FILTER_ITEM) && itemMetaData->value().startsWith(fullFilterName))
-                return true;
-        }
+    for (int i = 0; i < item->itemMetaDataCount(); ++i) {
+        ItemMetaData *itemMetaData = item->itemMetaData(i);
+
+        if (itemMetaData && itemMetaData->name() == QLatin1String(FILTER_ITEM) && itemMetaData->value().startsWith(fullFilterName))
+            return true;
     }
 
     return false;
@@ -358,16 +362,17 @@ void FileContainerX::removeAllFiltersInAFilter(const QString &fullFilterName)
 {
     ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupWithName(QLatin1String(FILTER_ITEM), m_filters);
 
-    if (itemGroup) {
-        for (int i = 0; i < itemGroup->itemCount();) {
-            Item *item = itemGroup->item(i);
+    if (!itemGroup)
+        return;
 
-            if (item && item->include().startsWith(fullFilterName))
-                itemGroup->removeItem(item);
+    for (int i = 0; i < itemGroup->itemCount();) {
+        Item *item = itemGroup->item(i);
 
-            else
-                ++i;
-        }
+        if (item && item->include().startsWith(fullFilterName))
+            itemGroup->removeItem(item);
+
+        else
+            ++i;
     }
 }
 
@@ -376,23 +381,23 @@ void FileContainerX::removeFilesFromProject(const QStringList &relativePaths)
     for (int i = 0; i < m_project->itemGroupCount(); ++i) {
         ItemGroup *itemGroup = m_project->itemGroup(i);
 
-        if (itemGroup) {
+        if (itemGroup)
             removeFileFromItemGroup(itemGroup, relativePaths);
-        }
     }
 }
 
 void FileContainerX::removeFileFromItemGroup(ItemGroup *itemGroup, const QStringList &relativePaths)
 {
-    if (itemGroup) {
-        for (int i = 0; i < itemGroup->itemCount();) {
-            Item *item = itemGroup->item(i);
+    if (!itemGroup)
+        return;
 
-            if (item && relativePaths.contains(item->include()))
-                itemGroup->removeItem(item);
-            else
-                ++i;
-        }
+    for (int i = 0; i < itemGroup->itemCount();) {
+        Item *item = itemGroup->item(i);
+
+        if (item && relativePaths.contains(item->include()))
+            itemGroup->removeItem(item);
+        else
+            ++i;
     }
 }
 

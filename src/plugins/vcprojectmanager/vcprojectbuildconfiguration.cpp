@@ -29,7 +29,6 @@
 ****************************************************************************/
 #include "vcmakestep.h"
 
-#include "interfaces/ivisualstudioproject.h"
 #include "interfaces/iconfiguration.h"
 #include "interfaces/iconfigurations.h"
 #include "interfaces/iconfigurationcontainer.h"
@@ -42,6 +41,8 @@
 #include "vcprojectmanagerconstants.h"
 #include "utils.h"
 #include "vcprojectmodel/vcdocumentmodel.h"
+#include "vcprojectmodel/vcprojectdocument.h"
+#include "vcxprojectfile.h"
 
 #include <utils/mimetypes/mimedatabase.h>
 #include <projectexplorer/buildinfo.h>
@@ -53,6 +54,7 @@
 #include <projectexplorer/target.h>
 #include <projectexplorer/toolchain.h>
 #include <qtsupport/qtkitinformation.h>
+#include <projectexplorer/session.h>
 
 #include <utils/fileutils.h>
 #include <utils/qtcassert.h>
@@ -71,7 +73,7 @@ namespace Internal {
 VcProjectBuildConfiguration::VcProjectBuildConfiguration(Target *parent) :
     BuildConfiguration(parent, Core::Id(VC_PROJECT_BC_ID))
 {
-    QFileInfo info(static_cast<VcProjectFile *>(parent->project()->document())->documentModel()->vcProjectDocument()->filePath());
+    QFileInfo info(static_cast<VcProjectFile *>(parent->project()->document())->visualStudioProject()->filePath());
     m_buildDirectory = info.canonicalPath() + QLatin1String("-build");
 }
 
@@ -160,7 +162,7 @@ QList<BuildInfo *> VcProjectBuildConfigurationFactory::availableBuilds(const Tar
     VcProjectFile *vcProjectFile = qobject_cast<VcProjectFile *>(parent->project()->document());
     QTC_ASSERT(vcProjectFile, return result);
 
-    IVisualStudioProject *vsProject = vcProjectFile->documentModel()->vcProjectDocument();
+    IVisualStudioProject *vsProject = vcProjectFile->visualStudioProject();
     QTC_ASSERT(vsProject, return result);
 
     QTC_ASSERT(vsProject->configurations(), return result);
@@ -182,15 +184,13 @@ QList<BuildInfo *> VcProjectBuildConfigurationFactory::availableSetups(
     QList<BuildInfo *> result;
 
     VcDocConstants::DocumentVersion docVersion = Utils::getProjectVersion(projectPath);
-    VcDocumentModel documentModel = VcDocumentModel(projectPath, docVersion);
-    IVisualStudioProject *vsProject = documentModel.vcProjectDocument();
-    QTC_ASSERT(vsProject, return result);
+    VcProjectDocument vsProject = VcProjectDocument(projectPath, docVersion);
 
-    QTC_ASSERT(vsProject->configurations(), return result);
-    QTC_ASSERT(vsProject->configurations()->configurationContainer(), return result);
+    QTC_ASSERT(vsProject.configurations(), return result);
+    QTC_ASSERT(vsProject.configurations()->configurationContainer(), return result);
 
-    for (int i = 0; i < vsProject->configurations()->configurationContainer()->configurationCount(); ++i) {
-        IConfiguration *config = vsProject->configurations()->configurationContainer()->configuration(i);
+    for (int i = 0; i < vsProject.configurations()->configurationContainer()->configurationCount(); ++i) {
+        IConfiguration *config = vsProject.configurations()->configurationContainer()->configuration(i);
         QTC_ASSERT(config, continue);
 
         result << createBuildInfo(k, config);
@@ -245,6 +245,27 @@ VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::clone(Target *p
 
     VcProjectBuildConfiguration *old = static_cast<VcProjectBuildConfiguration *>(source);
     return new VcProjectBuildConfiguration(parent, old);
+}
+
+IVisualStudioProject *VcProjectBuildConfigurationFactory::findVisualStudioProject(const QString &projectPath) const
+{
+    foreach(Project *project, SessionManager::projects()) {
+        if (project && project->projectFilePath().toString() == projectPath) {
+            Core::IDocument *document = project->document();
+
+            VcProjectFile *vcProjectFile = dynamic_cast<VcProjectFile *>(document);
+
+            if (vcProjectFile)
+                return vcProjectFile->visualStudioProject();
+
+            VcXProjectFile *vcXProjectFile = dynamic_cast<VcXProjectFile *>(document);
+
+            if (vcXProjectFile)
+                return vcXProjectFile->visualStudioProject();
+        }
+    }
+
+    return 0;
 }
 
 bool VcProjectBuildConfigurationFactory::canRestore(const Target *parent, const QVariantMap &map) const

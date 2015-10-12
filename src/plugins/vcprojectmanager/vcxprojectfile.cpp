@@ -32,6 +32,8 @@
 #include "vcdocprojectnodes.h"
 #include "vcprojectxmodel/vcxproj/vcprojectdocumentx.h"
 
+#include <QFileInfo>
+
 namespace VcProjectManager {
 namespace Internal {
 
@@ -56,12 +58,12 @@ bool VcXProjectFile::save(QString *errorString, const QString &fileName, bool au
 
 QString VcXProjectFile::defaultPath() const
 {
-    return QString();
+    return m_visualStudioProject->filePath();
 }
 
 QString VcXProjectFile::suggestedFileName() const
 {
-    return QString();
+    return QFileInfo(m_visualStudioProject->filePath()).fileName();
 }
 
 bool VcXProjectFile::isModified() const
@@ -85,6 +87,11 @@ bool VcXProjectFile::reload(QString *errorString, Core::IDocument::ReloadFlag fl
 VcDocProjectNode *VcXProjectFile::createProjectNode() const
 {
     return new VcDocProjectNode(m_visualStudioProject);
+}
+
+IVisualStudioProject *VcXProjectFile::visualStudioProject() const
+{
+    return m_visualStudioProject;
 }
 
 } // namespace Internal

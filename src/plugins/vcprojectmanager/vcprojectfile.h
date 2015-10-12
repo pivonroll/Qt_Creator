@@ -39,6 +39,7 @@ namespace Internal {
 
 class VcDocProjectNode;
 class VcDocumentModel;
+class IVisualStudioProject;
 
 class VcProjectFile : public Core::IDocument
 {
@@ -60,9 +61,9 @@ public:
 
     VcDocProjectNode *createVcDocNode() const;
     void reloadVcDoc();
-    VcDocumentModel *documentModel() const;
+    IVisualStudioProject *visualStudioProject() const;
 private:
-    VcDocumentModel *m_documentModel;
+    IVisualStudioProject *m_documentModel;
 };
 
 } // namespace Internal

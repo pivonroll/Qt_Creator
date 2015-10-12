@@ -205,12 +205,12 @@ void MenuHandler::onAddFolder()
         if (node) {
             if (node->nodeType() == ProjectExplorer::FolderNodeType) {
                 VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
-//                folderNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
+                folderNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
             }
 
             if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
                 VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
-//                projectNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
+                projectNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
             }
         }
     }
@@ -230,12 +230,12 @@ void MenuHandler::onAddFilter()
         if (node) {
             if (node->nodeType() == ProjectExplorer::FolderNodeType) {
                 VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
-//                folderNode->addFileContainerNode(filterName);
+                folderNode->addFileContainerNode(filterName);
             }
 
             if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
                 VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
-//                projectNode->addFileContainerNode(filterName, VcFileContainerNode::VcContainerType_Filter);
+                projectNode->addFileContainerNode(filterName, VcFileContainerNode::VcContainerType_Filter);
             }
         }
     }

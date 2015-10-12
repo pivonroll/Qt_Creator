@@ -31,8 +31,9 @@
 
 #include "vcdocprojectnodes.h"
 #include "vcprojectmanagerconstants.h"
-#include "vcprojectmodel/vcdocumentmodel.h"
 #include "vcprojectmodel/vcprojectdocument.h"
+
+#include <QFileInfo>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -40,7 +41,7 @@ namespace Internal {
 VcProjectFile::VcProjectFile(const QString &filePath, VcDocConstants::DocumentVersion docVersion)
 {
     setFilePath(Utils::FileName::fromString(filePath));
-    m_documentModel = new VcDocumentModel(filePath, docVersion);
+    m_documentModel = new VcProjectDocument(filePath, docVersion);
 }
 
 VcProjectFile::~VcProjectFile()
@@ -59,14 +60,12 @@ bool VcProjectFile::save(QString *errorString, const QString &fileName, bool aut
 
 QString VcProjectFile::defaultPath() const
 {
-    // TODO: what's this for?
-    return QString();
+    return m_documentModel->filePath();
 }
 
 QString VcProjectFile::suggestedFileName() const
 {
-    // TODO: what's this for?
-    return QString();
+    return QFileInfo(m_documentModel->filePath()).fileName();
 }
 
 bool VcProjectFile::isModified() const
@@ -98,7 +97,7 @@ bool VcProjectFile::reload(QString *errorString, Core::IDocument::ReloadFlag fla
 VcDocProjectNode *VcProjectFile::createVcDocNode() const
 {
     if (m_documentModel)
-        return new VcDocProjectNode(m_documentModel->vcProjectDocument());
+        return new VcDocProjectNode(m_documentModel);
     return 0;
 }
 
@@ -107,16 +106,12 @@ VcDocProjectNode *VcProjectFile::createVcDocNode() const
  */
 void VcProjectFile::reloadVcDoc()
 {
-    VcDocConstants::DocumentVersion docVersion = m_documentModel->vcProjectDocument()->documentVersion();
+    VcDocConstants::DocumentVersion docVersion = m_documentModel->documentVersion();
     delete m_documentModel;
-    m_documentModel = new VcDocumentModel(filePath().toString(), docVersion);
+    m_documentModel = new VcProjectDocument(filePath().toString(), docVersion);
 }
 
-/*!
- * \return an object (VcDocumentModel) that contains document
- * object model of loaded Visual Studio project.
- */
-VcDocumentModel *VcProjectFile::documentModel() const
+IVisualStudioProject *VcProjectFile::visualStudioProject() const
 {
     return m_documentModel;
 }

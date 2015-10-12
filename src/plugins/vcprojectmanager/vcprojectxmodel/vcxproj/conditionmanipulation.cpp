@@ -76,27 +76,29 @@ bool ConditionManipulation::evaluate(const EvaluateArguments &evalArgs) const
 
 Expression *ConditionManipulation::findVariableEqRightExpr(Expression *startExp, const QString &variable) const
 {
-    if (startExp) {
-        if (startExp->type() == Expression::STRING_COMPARE) {
-            StringCompare *strCmpExpr = static_cast<StringCompare *>(startExp);
-            return findStrCmpRightExpr(strCmpExpr, variable);
-        }
-        if (startExp->type() == Expression::NOT) {
-            NotExpression *expr = static_cast<NotExpression *>(startExp);
-            return findVariableEqRightExpr(expr->expression(), variable);
-        }
-        if (startExp->type() == Expression::BRACKET) {
-            BracketExpression *expr = static_cast<BracketExpression *>(startExp);
-            return findVariableEqRightExpr(expr->expression(), variable);
-        }
-        if (startExp->type() == Expression::LOGICAL_BINARY) {
-            LogicalBinaryExpression *logBinExpr = static_cast<LogicalBinaryExpression *>(startExp);
+    if (!startExp)
+        return 0;
 
-            if (logBinExpr->leftOperand() && logBinExpr->leftOperand()->type() == Expression::VARIABLE)
-                return logBinExpr->rightOperand();
-            return findVariableEqRightExpr(logBinExpr->leftOperand(), variable);
-        }
+    if (startExp->type() == Expression::STRING_COMPARE) {
+        StringCompare *strCmpExpr = static_cast<StringCompare *>(startExp);
+        return findStrCmpRightExpr(strCmpExpr, variable);
     }
+    if (startExp->type() == Expression::NOT) {
+        NotExpression *expr = static_cast<NotExpression *>(startExp);
+        return findVariableEqRightExpr(expr->expression(), variable);
+    }
+    if (startExp->type() == Expression::BRACKET) {
+        BracketExpression *expr = static_cast<BracketExpression *>(startExp);
+        return findVariableEqRightExpr(expr->expression(), variable);
+    }
+    if (startExp->type() == Expression::LOGICAL_BINARY) {
+        LogicalBinaryExpression *logBinExpr = static_cast<LogicalBinaryExpression *>(startExp);
+
+        if (logBinExpr->leftOperand() && logBinExpr->leftOperand()->type() == Expression::VARIABLE)
+            return logBinExpr->rightOperand();
+        return findVariableEqRightExpr(logBinExpr->leftOperand(), variable);
+    }
+
     return 0;
 }
 
@@ -104,91 +106,97 @@ Expression *ConditionManipulation::findStrCmpRightExpr(StringCompare *strCmpExpr
 {
     Expression *leftOp = strCmpExpr->leftOperand();
 
-    if (leftOp) {
-        if (leftOp->type() == Expression::VARIABLE) {
-            Variable *var = static_cast<Variable *>(leftOp);
-            if (var->stringExp() == variable)
-                return strCmpExpr->rightOperand();
-        }
+    if (!leftOp)
+        return nullptr;
 
-        if (leftOp->type() == Expression::VARIABLE_PIPE) {
-            VariablePipe *varPipe = static_cast<VariablePipe *>(leftOp);
-            int index = 0;
+    if (leftOp->type() == Expression::VARIABLE) {
+        Variable *var = static_cast<Variable *>(leftOp);
+        if (var->stringExp() == variable)
+            return strCmpExpr->rightOperand();
+    }
 
-            if (findInVariablePipeExpression(varPipe, variable, index)) {
-                Expression *rightOp = strCmpExpr->rightOperand();
+    if (leftOp->type() == Expression::VARIABLE_PIPE) {
+        VariablePipe *varPipe = static_cast<VariablePipe *>(leftOp);
+        int index = 0;
 
-                if (rightOp && rightOp->type() == Expression::VARIABLE_PIPE) {
-                    varPipe = static_cast<VariablePipe *>(rightOp);
+        if (findInVariablePipeExpression(varPipe, variable, index)) {
+            Expression *rightOp = strCmpExpr->rightOperand();
 
-                    return getVariablePipeLiteral(varPipe, index);
-                }
+            if (rightOp && rightOp->type() == Expression::VARIABLE_PIPE) {
+                varPipe = static_cast<VariablePipe *>(rightOp);
+
+                return getVariablePipeLiteral(varPipe, index);
             }
         }
     }
-    return 0;
+
+    return nullptr;
 }
 
 bool ConditionManipulation::findInVariablePipeExpression(VariablePipe *varPipeExpr, const QString &variable, int &index) const
 {
-    if (varPipeExpr) {
-        Expression* leftOp = varPipeExpr->leftOperand();
-        if (leftOp && leftOp->type() == Expression::VARIABLE) {
-            Variable *varExpr = static_cast<Variable *>(leftOp);
+    if (varPipeExpr)
+        return false;
 
-            if (varExpr->stringExp() == variable)
-                return true;
-        }
+    Expression* leftOp = varPipeExpr->leftOperand();
+    if (leftOp && leftOp->type() == Expression::VARIABLE) {
+        Variable *varExpr = static_cast<Variable *>(leftOp);
 
-        index++;
-
-        Expression *rightOp = varPipeExpr->rightOperand();
-        if (rightOp && rightOp->type() == Expression::VARIABLE) {
-            Variable *varExpr = static_cast<Variable *>(rightOp);
-
-            if (varExpr->stringExp() == variable)
-                return true;
-        }
-
-        if (rightOp->type() == Expression::VARIABLE_PIPE) {
-            VariablePipe *varExpr = static_cast<VariablePipe *>(rightOp);
-            return findInVariablePipeExpression(varExpr, variable, index);
-        }
+        if (varExpr->stringExp() == variable)
+            return true;
     }
+
+    index++;
+
+    Expression *rightOp = varPipeExpr->rightOperand();
+    if (rightOp && rightOp->type() == Expression::VARIABLE) {
+        Variable *varExpr = static_cast<Variable *>(rightOp);
+
+        if (varExpr->stringExp() == variable)
+            return true;
+    }
+
+    if (rightOp->type() == Expression::VARIABLE_PIPE) {
+        VariablePipe *varExpr = static_cast<VariablePipe *>(rightOp);
+        return findInVariablePipeExpression(varExpr, variable, index);
+    }
+
     return false;
 }
 
 StringLiteral *ConditionManipulation::getVariablePipeLiteral(VariablePipe *varPipeExpr, int index) const
 {
-    if (varPipeExpr) {
+    if (varPipeExpr)
+        return 0;
+
+    if (!index) {
+        Expression* leftOp = varPipeExpr->leftOperand();
+        if (leftOp && leftOp->type() == Expression::STRING_LITERAL) {
+            StringLiteral *stringLiteralExpr = static_cast<StringLiteral *>(leftOp);
+            return stringLiteralExpr;
+        } else
+            return 0;
+    }
+
+    index--;
+
+    Expression *rightOp = varPipeExpr->rightOperand();
+
+    if (rightOp) {
         if (!index) {
-            Expression* leftOp = varPipeExpr->leftOperand();
-            if (leftOp && leftOp->type() == Expression::STRING_LITERAL) {
-                StringLiteral *stringLiteralExpr = static_cast<StringLiteral *>(leftOp);
+            if (rightOp->type() == Expression::STRING_LITERAL) {
+                StringLiteral *stringLiteralExpr = static_cast<StringLiteral *>(rightOp);
                 return stringLiteralExpr;
             } else
                 return 0;
         }
 
-        index--;
-
-        Expression *rightOp = varPipeExpr->rightOperand();
-
-        if (rightOp) {
-            if (!index) {
-                if (rightOp->type() == Expression::STRING_LITERAL) {
-                    StringLiteral *stringLiteralExpr = static_cast<StringLiteral *>(rightOp);
-                    return stringLiteralExpr;
-                } else
-                    return 0;
-            }
-
-            else if (rightOp->type() == Expression::VARIABLE_PIPE) {
-                VariablePipe *varExpr = static_cast<VariablePipe *>(rightOp);
-                return getVariablePipeLiteral(varExpr, index);
-            }
+        else if (rightOp->type() == Expression::VARIABLE_PIPE) {
+            VariablePipe *varExpr = static_cast<VariablePipe *>(rightOp);
+            return getVariablePipeLiteral(varExpr, index);
         }
     }
+
     return 0;
 }
 

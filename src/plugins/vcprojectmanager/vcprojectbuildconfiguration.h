@@ -38,6 +38,8 @@
 namespace VcProjectManager {
 namespace Internal {
 
+class IVisualStudioProject;
+
 class VcProjectBuildConfiguration : public ProjectExplorer::BuildConfiguration
 {
     Q_OBJECT
@@ -86,6 +88,7 @@ public:
     VcProjectBuildConfiguration* clone(ProjectExplorer::Target *parent, ProjectExplorer::BuildConfiguration *source);
 
 private:
+    IVisualStudioProject *findVisualStudioProject(const QString &projectPath) const;
     bool canHandle(const ProjectExplorer::Target *t) const;
     ProjectExplorer::BuildInfo *createBuildInfo(const ProjectExplorer::Kit *k,
                                                 IConfiguration *config) const;

@@ -39,19 +39,8 @@ namespace VcProjectManager {
 namespace Internal {
 
 VcDocumentModel::VcDocumentModel(const QString &filePath, VcDocConstants::DocumentVersion version)
-    : m_vcProjectDocument(0)
 {
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly))
-        return;
-
-    QDomDocument document(filePath);
-    if (!document.setContent(&file))
-        return;
-
     m_vcProjectDocument = new VcProjectDocument(filePath, version);
-    if (m_vcProjectDocument)
-        m_vcProjectDocument->processNode(document);
 }
 
 VcDocumentModel::~VcDocumentModel()

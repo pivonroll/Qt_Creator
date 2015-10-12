@@ -92,13 +92,13 @@ VcProject::VcProject(VcManager *projectManager, const QString &projectFilePath, 
     : m_projectManager(projectManager)
     , m_projectFile(new VcProjectFile(projectFilePath, docVersion))
 {
-    if (m_projectFile->documentModel()->vcProjectDocument()->documentVersion() == VcDocConstants::DV_MSVC_2005)
+    if (m_projectFile->visualStudioProject()->documentVersion() == VcDocConstants::DV_MSVC_2005)
         setProjectContext(Core::Context(Constants::VC_PROJECT_2005_ID));
     else
         setProjectContext(Core::Context(Constants::VC_PROJECT_ID));
     m_rootNode = m_projectFile->createVcDocNode();
 
-    if (m_projectFile->documentModel()->vcProjectDocument()->documentVersion() != VcDocConstants::DV_MSVC_2005)
+    if (m_projectFile->visualStudioProject()->documentVersion() != VcDocConstants::DV_MSVC_2005)
         setId(Core::Id(Constants::VC_PROJECT_ID));
     else
         setId(Core::Id(Constants::VC_PROJECT_2005_ID));
@@ -141,7 +141,7 @@ QStringList VcProject::files(Project::FilesMode fileMode) const
     Q_UNUSED(fileMode);
     // TODO: respect the mode
     QStringList sl;
-    if (m_projectFile && m_projectFile->documentModel() && m_projectFile->documentModel()->vcProjectDocument())
+    if (m_projectFile && m_projectFile->visualStudioProject())
         allProjectFile(sl);
 
     return sl;
@@ -190,8 +190,8 @@ void VcProject::reloadProjectNodes()
  */
 void VcProject::onSettingsDialogAccepted()
 {
-    m_projectFile->documentModel()->saveToFile(m_projectFile->filePath().toString());
-    IConfigurations *configs = m_projectFile->documentModel()->vcProjectDocument()->configurations();
+    m_projectFile->visualStudioProject()->saveToFile(m_projectFile->filePath().toString());
+    IConfigurations *configs = m_projectFile->visualStudioProject()->configurations();
 
     if (configs) {
         QList<ProjectExplorer::Target *> targetList = targets();
@@ -278,7 +278,7 @@ void VcProject::updateCodeModels()
         QTC_ASSERT(vbc, return);
 
         QString configName = vbc->displayName();
-        IConfiguration *configModel = m_projectFile->documentModel()->vcProjectDocument()->configurations()->configurationContainer()->configuration(configName);
+        IConfiguration *configModel = m_projectFile->visualStudioProject()->configurations()->configurationContainer()->configuration(configName);
 
         if (configModel) {
             IConfigurationBuildTool *configTool = configModel->tools()->configurationBuildTools()->tool(QLatin1String(ToolConstants::strVCCLCompilerTool));
@@ -348,15 +348,15 @@ void VcProject::importBuildConfigurations()
  */
 void VcProject::allProjectFile(QStringList &allFiles) const
 {
-    if (m_projectFile && m_projectFile->documentModel() && m_projectFile->documentModel()->vcProjectDocument()) {
-        for (int i = 0; i < m_projectFile->documentModel()->vcProjectDocument()->files()->fileContainerCount(); ++i) {
-            IFileContainer *fileContainer = m_projectFile->documentModel()->vcProjectDocument()->files()->fileContainer(i);
+    if (m_projectFile && m_projectFile->visualStudioProject()) {
+        for (int i = 0; i < m_projectFile->visualStudioProject()->files()->fileContainerCount(); ++i) {
+            IFileContainer *fileContainer = m_projectFile->visualStudioProject()->files()->fileContainer(i);
             if (fileContainer)
                 fileContainer->allFiles(allFiles);
         }
 
-        for (int i = 0; i < m_projectFile->documentModel()->vcProjectDocument()->files()->fileCount(); ++i) {
-            IFile *file = m_projectFile->documentModel()->vcProjectDocument()->files()->file(i);
+        for (int i = 0; i < m_projectFile->visualStudioProject()->files()->fileCount(); ++i) {
+            IFile *file = m_projectFile->visualStudioProject()->files()->file(i);
             if (file)
                 allFiles.append(file->canonicalPath());
         }

@@ -87,12 +87,13 @@ void setConfiguraitionName(Task *node, const QString &oldName, const QString &ne
 
 void setConfiguraitionName(Choose *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        setConfiguraitionName(node->otherwise(), oldName, newName);
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->whenElementCount(); ++i)
-            setConfiguraitionName(node->whenElement(i), oldName, newName);
-    }
+    setConfiguraitionName(node->otherwise(), oldName, newName);
+
+    for (int i = 0; i < node->whenElementCount(); ++i)
+        setConfiguraitionName(node->whenElement(i), oldName, newName);
 }
 
 void setConfiguraitionName(Import *node, const QString &oldName, const QString &newName)
@@ -103,50 +104,54 @@ void setConfiguraitionName(Import *node, const QString &oldName, const QString &
 
 void setConfiguraitionName(ImportGroup *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->importElementCount(); ++i)
-            setConfiguraitionName(node->importElement(i), oldName, newName);
-    }
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+
+    for (int i = 0; i < node->importElementCount(); ++i)
+        setConfiguraitionName(node->importElement(i), oldName, newName);
 }
 
 void setConfiguraitionName(Item *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
 
-        for (int i = 0; i < node->itemMetaDataCount(); ++i)
-            setConfiguraitionName(node->itemMetaData(i), oldName, newName);
-    }
+    for (int i = 0; i < node->itemMetaDataCount(); ++i)
+        setConfiguraitionName(node->itemMetaData(i), oldName, newName);
 }
 
 void setConfiguraitionName(ItemDefinition *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        for (int i = 0; i < node->metaDataCount(); ++i)
-            setConfiguraitionName(node->metaData(i), oldName, newName);
-    }
+    if (!node)
+        return;
+
+    for (int i = 0; i < node->metaDataCount(); ++i)
+        setConfiguraitionName(node->metaData(i), oldName, newName);
 }
 
 void setConfiguraitionName(ItemDefinitionGroup *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->itemDefinitionCount(); ++i)
-            setConfiguraitionName(node->itemDefinition(i), oldName, newName);
-    }
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+
+    for (int i = 0; i < node->itemDefinitionCount(); ++i)
+        setConfiguraitionName(node->itemDefinition(i), oldName, newName);
 }
 
 void setConfiguraitionName(ItemGroup *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->itemCount(); ++i)
-            setConfiguraitionName(node->item(i), oldName, newName);
-    }
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+
+    for (int i = 0; i < node->itemCount(); ++i)
+        setConfiguraitionName(node->item(i), oldName, newName);
 }
 
 void setConfiguraitionName(ItemMetaData *node, const QString &oldName, const QString &newName)
@@ -163,16 +168,17 @@ void setConfiguraitionName(OnError *node, const QString &oldName, const QString 
 
 void setConfiguraitionName(Otherwise *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        for (int i = 0; i < node->chooseElementCount(); ++i)
-            setConfiguraitionName(node->chooseElement(i), oldName, newName);
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->itemGroupElementCount(); ++i)
-            setConfiguraitionName(node->itemGroupElement(i), oldName, newName);
+    for (int i = 0; i < node->chooseElementCount(); ++i)
+        setConfiguraitionName(node->chooseElement(i), oldName, newName);
 
-        for (int i = 0; i < node->propertyGroupElementCount(); ++i)
-            setConfiguraitionName(node->propertyGroupElement(i), oldName, newName);
-    }
+    for (int i = 0; i < node->itemGroupElementCount(); ++i)
+        setConfiguraitionName(node->itemGroupElement(i), oldName, newName);
+
+    for (int i = 0; i < node->propertyGroupElementCount(); ++i)
+        setConfiguraitionName(node->propertyGroupElement(i), oldName, newName);
 }
 
 void setConfiguraitionName(Output *node, const QString &oldName, const QString &newName)
@@ -213,41 +219,44 @@ void setConfiguraitionName(Property *node, const QString &oldName, const QString
 
 void setConfiguraitionName(PropertyGroup *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->propertyCount(); ++i)
-            setConfiguraitionName(node->property(i), oldName, newName);
-    }
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+
+    for (int i = 0; i < node->propertyCount(); ++i)
+        setConfiguraitionName(node->property(i), oldName, newName);
 }
 
 void setConfiguraitionName(Target *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->taskCount(); ++i)
-            setConfiguraitionName(node->task(i), oldName, newName);
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
 
-        for (int i = 0; i < node->propertyGroupCount(); ++i)
-            setConfiguraitionName(node->propertyGroup(i), oldName, newName);
+    for (int i = 0; i < node->taskCount(); ++i)
+        setConfiguraitionName(node->task(i), oldName, newName);
 
-        for (int i = 0; i < node->itemGroupCount(); ++i)
-            setConfiguraitionName(node->itemGroup(i), oldName, newName);
+    for (int i = 0; i < node->propertyGroupCount(); ++i)
+        setConfiguraitionName(node->propertyGroup(i), oldName, newName);
 
-        for (int i = 0; i < node->onErrorElementCount(); ++i)
-            setConfiguraitionName(node->onErrorElement(i), oldName, newName);
-    }
+    for (int i = 0; i < node->itemGroupCount(); ++i)
+        setConfiguraitionName(node->itemGroup(i), oldName, newName);
+
+    for (int i = 0; i < node->onErrorElementCount(); ++i)
+        setConfiguraitionName(node->onErrorElement(i), oldName, newName);
 }
 
 void setConfiguraitionName(Task *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->outputCount(); ++i)
-            setConfiguraitionName(node->output(i), oldName, newName);
-    }
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+
+    for (int i = 0; i < node->outputCount(); ++i)
+        setConfiguraitionName(node->output(i), oldName, newName);
 }
 
 void setConfiguraitionName(UsingTask *node, const QString &oldName, const QString &newName)
@@ -258,18 +267,19 @@ void setConfiguraitionName(UsingTask *node, const QString &oldName, const QStrin
 
 void setConfiguraitionName(When *node, const QString &oldName, const QString &newName)
 {
-    if (node) {
-        node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
+    if (!node)
+        return;
 
-        for (int i = 0; i < node->chooseElementCount(); ++i)
-            setConfiguraitionName(node->chooseElement(i), oldName, newName);
+    node->setCondition(newConditionConfiguration(node->condition(), oldName, newName));
 
-        for (int i = 0; i < node->itemGroupCount(); ++i)
-            setConfiguraitionName(node->itemGroup(i), oldName, newName);
+    for (int i = 0; i < node->chooseElementCount(); ++i)
+        setConfiguraitionName(node->chooseElement(i), oldName, newName);
 
-        for (int i = 0; i < node->propertyGroupCount(); ++i)
-            setConfiguraitionName(node->propertyGroup(i), oldName, newName);
-    }
+    for (int i = 0; i < node->itemGroupCount(); ++i)
+        setConfiguraitionName(node->itemGroup(i), oldName, newName);
+
+    for (int i = 0; i < node->propertyGroupCount(); ++i)
+        setConfiguraitionName(node->propertyGroup(i), oldName, newName);
 }
 
 
@@ -285,8 +295,7 @@ QString ConfigurationX::fullName() const
 
 QString ConfigurationX::displayname() const
 {
-    for (int i = 0; i < m_item->itemMetaDataCount(); ++i)
-    {
+    for (int i = 0; i < m_item->itemMetaDataCount(); ++i) {
         ItemMetaData* metaData = m_item->itemMetaData(i);
 
         if (metaData && metaData->name() == QLatin1String(CONFIGURATION))
@@ -402,19 +411,18 @@ void ConfigurationX::findAssociatedTools()
 
 void ConfigurationX::processToolDefGrp(ItemDefinitionGroup *itemDefGrp)
 {
-    if (itemDefGrp) {
-        int count = itemDefGrp->itemDefinitionCount();
+    if (itemDefGrp)
+        return;
 
-        for (int i = 0; i < count; ++i) {
-            ItemDefinition *itemDef = itemDefGrp->itemDefinition(i);
+    for (int i = 0; i < itemDefGrp->itemDefinitionCount(); ++i) {
+        ItemDefinition *itemDef = itemDefGrp->itemDefinition(i);
 
-            if (itemDef) {
-                QString toolKey = itemDef->name();
+        if (itemDef) {
+            QString toolKey = itemDef->name();
 
-                // TODO(Radovan):
-                // check if the tool key belongs to the build configuration tools
-                // if so, use ToolDescriptionDataManager to create the tool adn add that tool into ITools interface
-            }
+            // TODO(Radovan):
+            // check if the tool key belongs to the build configuration tools
+            // if so, use ToolDescriptionDataManager to create the tool adn add that tool into ITools interface
         }
     }
 }
