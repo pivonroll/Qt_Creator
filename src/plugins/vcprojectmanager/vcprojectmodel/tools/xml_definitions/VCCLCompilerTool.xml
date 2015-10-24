@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <ToolInfo
     Name="C/C++ Compiler"
-    Key="VCCLCompilerTool"
+    Keys="VCCLCompilerTool"
     >
     <Section Name="General"
         >

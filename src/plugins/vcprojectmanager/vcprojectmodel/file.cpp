@@ -33,20 +33,21 @@
 #include "filebuildconfiguration.h"
 #include "generalattributecontainer.h"
 #include "vcprojectdocument.h"
-#include "../interfaces/iattributedescriptiondataitem.h"
-#include "../interfaces/iconfigurationbuildtool.h"
-#include "../interfaces/iconfigurationbuildtools.h"
-#include "../interfaces/isectioncontainer.h"
-#include "../interfaces/itoolattribute.h"
-#include "../interfaces/itoolattributecontainer.h"
-#include "../interfaces/itooldescription.h"
-#include "../interfaces/itools.h"
-#include "../interfaces/itoolsection.h"
-#include "../interfaces/itoolsectiondescription.h"
-#include "../widgets/fileconfigurationseditwidget.h"
 #include "tools/tool_constants.h"
 #include "tools/toolattributes/tooldescriptiondatamanager.h"
 #include "../utils.h"
+
+#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/iconfigurationbuildtools.h>
+#include <visualstudiointerfaces/isectioncontainer.h>
+#include <visualstudiointerfaces/itoolattribute.h>
+#include <visualstudiointerfaces/itoolattributecontainer.h>
+#include <visualstudiointerfaces/itooldescription.h>
+#include <visualstudiointerfaces/itools.h>
+#include <visualstudiointerfaces/itoolsection.h>
+#include <visualstudiointerfaces/itoolsectiondescription.h>
+#include <visualstudiowidgets/fileconfigurationseditwidget.h>
 
 #include <coreplugin/icore.h>
 #include <utils/fileutils.h>

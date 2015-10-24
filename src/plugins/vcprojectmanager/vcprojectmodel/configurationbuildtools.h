@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_CONFIGURATIONBUILDTOOLS_H
 #define VCPROJECTMANAGER_INTERNAL_CONFIGURATIONBUILDTOOLS_H
 
-#include "../interfaces/iconfigurationbuildtools.h"
+#include <visualstudiointerfaces/iconfigurationbuildtools.h>
 
 #include <QList>
 

@@ -28,7 +28,7 @@
 **
 ****************************************************************************/
 #include "configurationcontainer.h"
-#include "../interfaces/iconfiguration.h"
+#include <visualstudiointerfaces/iconfiguration.h>
 
 #include <QDomNode>
 

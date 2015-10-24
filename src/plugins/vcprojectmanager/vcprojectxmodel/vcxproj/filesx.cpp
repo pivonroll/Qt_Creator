@@ -31,7 +31,7 @@
 
 #include <QDomNode>
 
-#include "../../interfaces/ifile.h"
+#include <visualstudiointerfaces/ifile.h>
 #include "private/project.h"
 #include "private/itemgroup.h"
 #include "private/item.h"

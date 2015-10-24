@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef TOOL_CONSTANTSX_H
-#define TOOL_CONSTANTSX_H
+#ifndef VCPROJECTMANAGER_INTERNAL_TOOL_CONSTANTSX_H
+#define VCPROJECTMANAGER_INTERNAL_TOOL_CONSTANTSX_H
 
 namespace VcProjectManager {
 namespace Internal {
@@ -48,4 +48,4 @@ const char TOOL_XDC_MAKE [] = "Xdcmake";
 } // Internal
 } // VcProjectManager
 
-#endif // TOOL_CONSTANTSX_H
+#endif // VCPROJECTMANAGER_INTERNAL_TOOL_CONSTANTSX_H

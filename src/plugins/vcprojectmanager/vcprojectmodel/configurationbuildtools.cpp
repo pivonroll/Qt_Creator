@@ -28,10 +28,12 @@
 **
 ****************************************************************************/
 #include "configurationbuildtools.h"
-#include "../interfaces/iconfigurationbuildtool.h"
-#include "../interfaces/itooldescription.h"
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/itooldescription.h>
 
 #include <QDomElement>
+
+#include <utils/qtcassert.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -81,9 +83,8 @@ void ConfigurationBuildTools::removeTool(IConfigurationBuildTool *tool)
 IConfigurationBuildTool *ConfigurationBuildTools::tool(const QString &toolKey) const
 {
     foreach (IConfigurationBuildTool *toolPtr, m_tools) {
-        if (toolPtr->toolDescription()->toolKey() == toolKey) {
+        if (toolPtr->toolDescription()->toolKey() == toolKey)
             return toolPtr;
-        }
     }
 
     return 0;
@@ -91,10 +92,8 @@ IConfigurationBuildTool *ConfigurationBuildTools::tool(const QString &toolKey) c
 
 IConfigurationBuildTool *ConfigurationBuildTools::tool(int index) const
 {
-    if (0 <= index && index < m_tools.size())
-        return m_tools[index];
-
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_tools.size(), return 0);
+    return m_tools[index];
 }
 
 int ConfigurationBuildTools::toolCount() const

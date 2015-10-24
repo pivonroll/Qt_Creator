@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_PLATFORM_H
 #define VCPROJECTMANAGER_INTERNAL_PLATFORM_H
 
-#include "../interfaces/iplatform.h"
+#include <visualstudiointerfaces/iplatform.h>
 
 #include <QString>
 

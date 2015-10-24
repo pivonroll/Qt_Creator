@@ -36,7 +36,10 @@
 #include "tooldescription.h"
 #include "tooldescriptiondatamanager.h"
 #include "../../../vcschemamanager.h"
-#include "../toolsectiondescription.h"
+
+#include "toolsectiondescription.h"
+
+#include <utils/qtcassert.h>
 
 #include <QDomNode>
 #include <QFile>
@@ -203,6 +206,9 @@ void ToolDescriptionDataManager::processXMLDoc(const QDomDocument &xmlDoc)
 void ToolDescriptionDataManager::processDomNode(const QDomNode &node)
 {
     IToolDescription *toolDesc = readToolDescription(node);
+
+    QTC_ASSERT(toolDesc != nullptr, return);
+
     m_toolDescriptions.append(toolDesc);
 
     if (node.hasChildNodes())

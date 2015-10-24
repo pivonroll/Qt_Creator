@@ -30,7 +30,7 @@
 #ifndef GENERALTOOLATTRIBUTECONTAINER_H
 #define GENERALTOOLATTRIBUTECONTAINER_H
 
-#include "../../interfaces/itoolattributecontainer.h"
+#include <visualstudiointerfaces/itoolattributecontainer.h>
 
 #include <QList>
 

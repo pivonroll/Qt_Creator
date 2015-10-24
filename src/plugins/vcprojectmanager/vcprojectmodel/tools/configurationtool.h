@@ -30,9 +30,9 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_ICONFIGURATIONTOOL_H
 #define VCPROJECTMANAGER_INTERNAL_ICONFIGURATIONTOOL_H
 
-#include "../../interfaces/iconfigurationbuildtool.h"
-#include "../../interfaces/ivcprojectnodemodel.h"
-#include "../../widgets/toolwidgets/toolsettingswidget.h"
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/ivcprojectnodemodel.h>
+#include <visualstudiowidgets/toolwidgets/toolsettingswidget.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;

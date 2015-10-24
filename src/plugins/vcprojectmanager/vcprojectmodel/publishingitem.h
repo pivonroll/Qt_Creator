@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_PUBLISHINGITEM_H
 #define VCPROJECTMANAGER_INTERNAL_PUBLISHINGITEM_H
 
-#include "../interfaces/ipublishingitem.h"
+#include <visualstudiointerfaces/ipublishingitem.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;

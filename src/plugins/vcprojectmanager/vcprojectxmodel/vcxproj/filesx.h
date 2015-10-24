@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILESX_H
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILESX_H
 
-#include "../../interfaces/ifiles.h"
+#include <visualstudiointerfaces/ifiles.h>
 
 #include <projectexplorer/projectnodes.h>
 

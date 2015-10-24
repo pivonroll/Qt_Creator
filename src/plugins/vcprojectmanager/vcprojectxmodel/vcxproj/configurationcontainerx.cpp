@@ -42,7 +42,7 @@
 #include "vcprojx_constants.h"
 #include "utilsx.h"
 
-#include "../../interfaces/iconfiguration.h"
+#include <visualstudiointerfaces/iconfiguration.h>
 #include "../../condition_parser/expression/evaluatearguments.h"
 
 #include <utils/qtcassert.h>

@@ -198,8 +198,7 @@ MsBuildInformation *MsBuildVersionManager::createMsBuildInfo(const QString &exec
     int i = 0;
 
     // if there is a id collision continue to generate id until unique id is created
-    while (info)
-    {
+    while (info) {
         QString argument = QString::number(i);
         QString temp = newMsBuild->m_executable + newMsBuild->m_versionString + argument;
         Core::Id newId(temp.toStdString().c_str());

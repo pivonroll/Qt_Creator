@@ -28,8 +28,9 @@
 **
 ****************************************************************************/
 #include "generaltoolattributecontainer.h"
-#include "../../interfaces/iattributedescriptiondataitem.h"
-#include "../../interfaces/itoolattribute.h"
+
+#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiointerfaces/itoolattribute.h>
 
 namespace VcProjectManager {
 namespace Internal {

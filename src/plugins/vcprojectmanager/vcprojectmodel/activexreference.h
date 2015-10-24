@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_ACTIVEXREFERENCE_H
 #define VCPROJECTMANAGER_INTERNAL_ACTIVEXREFERENCE_H
 
-#include "../interfaces/ireference.h"
+#include <visualstudiointerfaces/ireference.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;
@@ -39,8 +39,8 @@ QT_END_NAMESPACE
 namespace VcProjectManager {
 namespace Internal {
 
-class GeneralAttributeContainer;
 class ConfigurationContainer;
+class GeneralAttributeContainer;
 
 class ActiveXReference : public IReference
 {

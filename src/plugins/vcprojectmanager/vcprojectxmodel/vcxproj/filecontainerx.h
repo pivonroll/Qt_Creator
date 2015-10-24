@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILECONTAINERX_H
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILECONTAINERX_H
 
-#include "../../interfaces/ifilecontainer.h"
+#include <visualstudiointerfaces/ifilecontainer.h>
 
 #include <QList>
 

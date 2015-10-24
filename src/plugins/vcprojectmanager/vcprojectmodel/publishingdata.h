@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_PUBLISHINGDATA_H
 #define VCPROJECTMANAGER_INTERNAL_PUBLISHINGDATA_H
 
-#include "../interfaces/ipublishingdata.h"
+#include <visualstudiointerfaces/ipublishingdata.h>
 
 #include <QList>
 

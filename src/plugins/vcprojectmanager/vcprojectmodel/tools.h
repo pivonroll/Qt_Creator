@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_TOOLS_H
 #define VCPROJECTMANAGER_INTERNAL_TOOLS_H
 
-#include "../interfaces/itools.h"
+#include <visualstudiointerfaces/itools.h>
 
 namespace VcProjectManager {
 namespace Internal {

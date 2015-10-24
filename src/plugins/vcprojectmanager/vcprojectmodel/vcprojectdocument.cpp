@@ -28,18 +28,21 @@
 **
 ****************************************************************************/
 #include "configuration.h"
+
 #include "generalattributecontainer.h"
 #include "vcprojectdocument.h"
-#include "../interfaces/iattributecontainer.h"
-#include "../interfaces/iconfigurationbuildtool.h"
-#include "../interfaces/iconfigurationbuildtools.h"
-#include "../interfaces/iconfigurationcontainer.h"
-#include "../interfaces/itooldescription.h"
-#include "../interfaces/itools.h"
-#include "../widgets/configurationseditwidget.h"
-#include "../widgets/projectsettingswidget.h"
 #include "tools/tool_constants.h"
-#include "tools/toolattributes/tooldescriptiondatamanager.h"
+#include "tools/configurationtool.h"
+
+#include <visualstudiointerfaces/iattributecontainer.h>
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/iconfigurationbuildtools.h>
+#include <visualstudiointerfaces/iconfigurationcontainer.h>
+#include <visualstudiointerfaces/itooldescription.h>
+#include <visualstudiointerfaces/itools.h>
+#include <visualstudiowidgets/configurationseditwidget.h>
+#include <visualstudiowidgets/projectsettingswidget.h>
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <coreplugin/mainwindow.h>
 
@@ -223,10 +226,8 @@ void VcProjectDocument::addToolToConfiguration(IConfiguration *config, const QSt
     IToolDescription *toolDesc = tDDM->toolDescription(toolKey);
 
     if (toolDesc) {
-        IConfigurationBuildTool *tool = toolDesc->createTool();
-
-        if (tool)
-            config->tools()->configurationBuildTools()->addTool(tool);
+        IConfigurationBuildTool *tool = new ConfigurationTool(toolDesc);
+        config->tools()->configurationBuildTools()->addTool(tool);
     }
 }
 

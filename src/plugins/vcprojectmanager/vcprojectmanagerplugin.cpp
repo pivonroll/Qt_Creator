@@ -37,7 +37,8 @@
 #include "vcxprojectmanager.h"
 #include "vcprojectmanagerplugin.h"
 #include "vcschemamanager.h"
-#include "vcprojectmodel/tools/toolattributes/tooldescriptiondatamanager.h"
+
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <utils/mimetypes/mimedatabase.h>
 #include <projectexplorer/kitmanager.h>

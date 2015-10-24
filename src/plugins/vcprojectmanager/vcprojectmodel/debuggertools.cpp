@@ -28,7 +28,7 @@
 **
 ****************************************************************************/
 #include "debuggertools.h"
-#include "../interfaces/idebuggertool.h"
+#include <visualstudiointerfaces/idebuggertool.h>
 
 #include <utils/qtcassert.h>
 

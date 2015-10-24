@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_DEPLOYMENTTOOLS_H
 #define VCPROJECTMANAGER_INTERNAL_DEPLOYMENTTOOLS_H
 
-#include "../interfaces/ideploymenttools.h"
+#include <visualstudiointerfaces/ideploymenttools.h>
 
 #include <QList>
 

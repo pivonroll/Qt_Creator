@@ -31,7 +31,7 @@
 #include "toolfile.h"
 #include "toolfiles.h"
 #include "vcprojectdocument_constants.h"
-#include "../interfaces/iattributecontainer.h"
+#include <visualstudiointerfaces/iattributecontainer.h>
 
 #include <utils/qtcassert.h>
 

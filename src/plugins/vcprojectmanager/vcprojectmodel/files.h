@@ -32,8 +32,8 @@
 
 #include "file.h"
 #include "filecontainer.h"
-#include "../interfaces/ifiles.h"
-#include "../interfaces/ivcprojectnodemodel.h"
+#include <visualstudiointerfaces/ifiles.h>
+#include <visualstudiointerfaces/ivcprojectnodemodel.h>
 
 #include <QList>
 

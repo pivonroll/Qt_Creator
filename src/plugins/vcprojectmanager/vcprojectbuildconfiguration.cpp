@@ -29,11 +29,11 @@
 ****************************************************************************/
 #include "vcmakestep.h"
 
-#include "interfaces/iconfiguration.h"
-#include "interfaces/iconfigurations.h"
-#include "interfaces/iconfigurationcontainer.h"
-#include "interfaces/ifile.h"
-#include "interfaces/ifilecontainer.h"
+#include <visualstudiointerfaces/iconfiguration.h>
+#include <visualstudiointerfaces/iconfigurations.h>
+#include <visualstudiointerfaces/iconfigurationcontainer.h>
+#include <visualstudiointerfaces/ifile.h>
+#include <visualstudiointerfaces/ifilecontainer.h>
 
 #include "vcmakestep.h"
 #include "vcprojectbuildconfiguration.h"

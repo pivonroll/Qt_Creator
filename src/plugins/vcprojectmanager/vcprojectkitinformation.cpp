@@ -30,7 +30,7 @@
 #include "msbuildversionmanager.h"
 #include "vcprojectkitinformation.h"
 #include "vcprojectmanagerconstants.h"
-#include "widgets/vcprojectkitconfigwidget.h"
+#include <visualstudiowidgets/vcprojectkitconfigwidget.h>
 
 #include <projectexplorer/projectexplorerconstants.h>
 
@@ -85,14 +85,13 @@ QVariant VcProjectKitInformation::defaultValue(Kit *) const
 QList<Task> VcProjectKitInformation::validate(const Kit *k) const
 {
     QList<Task> result;
-
     const MsBuildInformation* msBuild = msBuildInfo(k);
-    if (!msBuild) {
-        result << Task(Task::Error, tr("No MS Build in kit."),
-                       Utils::FileName(), -1, Core::Id(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM));
-    } else {
+
+    if (!msBuild)
+        result << Task(Task::Error, tr("No MS Build in kit."), Utils::FileName(), -1, Core::Id(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM));
+    else
         result << QList<Task>();
-    }
+
     return result;
 }
 

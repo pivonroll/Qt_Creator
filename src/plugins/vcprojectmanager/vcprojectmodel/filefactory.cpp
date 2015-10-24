@@ -15,6 +15,8 @@ FileFactory::FileFactory(IVisualStudioProject *project)
 
 IFile *FileFactory::createFile(const QString &relativeFilePath, ProjectExplorer::FileType fileType) const
 {
+    Q_UNUSED(fileType)
+
     QTC_ASSERT(m_project != nullptr, return 0);
     File *newFile = new File(m_project);
     newFile->setRelativePath(relativeFilePath);
@@ -23,6 +25,8 @@ IFile *FileFactory::createFile(const QString &relativeFilePath, ProjectExplorer:
 
 IFileContainer *FileFactory::createFileContainer(const QString &containerPath, const QString &containerType) const
 {
+    Q_UNUSED(containerPath)
+    Q_UNUSED(containerType)
     return 0;
 }
 

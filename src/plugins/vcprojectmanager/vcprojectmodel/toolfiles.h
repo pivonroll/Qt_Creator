@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_TOOLFILES_H
 #define VCPROJECTMANAGER_INTERNAL_TOOLFILES_H
 
-#include "../interfaces/itoolfiles.h"
+#include <visualstudiointerfaces/itoolfiles.h>
 
 #include <QList>
 

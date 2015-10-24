@@ -163,7 +163,6 @@ ItemDefinitionGroup *ConfigurationsX::findConfigurationDefGroup(const QString &c
 
         if (condMan.evaluate(evalArgs))
             return itemDefGroup;
-
     }
 
     return 0;

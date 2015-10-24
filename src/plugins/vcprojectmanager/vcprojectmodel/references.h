@@ -30,12 +30,14 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_REFERENCES_H
 #define VCPROJECTMANAGER_INTERNAL_REFERENCES_H
 
-#include "../interfaces/ireferences.h"
+#include <visualstudiointerfaces/ireferences.h>
 
 #include <QList>
 
 namespace VcProjectManager {
 namespace Internal {
+
+class VcProjectDocument;
 
 class References : public IReferences
 {

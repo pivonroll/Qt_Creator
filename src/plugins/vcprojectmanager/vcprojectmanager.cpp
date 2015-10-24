@@ -49,7 +49,9 @@ namespace Internal {
  * it will create an instance of this class.
  */
 VcManager::VcManager(VcProjectBuildOptionsPage *configPage)
-{}
+{
+    Q_UNUSED(configPage)
+}
 
 QString VcManager::mimeType() const
 {

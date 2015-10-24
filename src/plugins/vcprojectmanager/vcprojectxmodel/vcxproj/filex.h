@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILEX_H
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILEX_H
 
-#include "../../interfaces/ifile.h"
+#include <visualstudiointerfaces/ifile.h>
 
 namespace VcProjectManager {
 namespace Internal {

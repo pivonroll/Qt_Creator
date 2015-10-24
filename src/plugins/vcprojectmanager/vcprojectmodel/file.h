@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_FILE_H
 #define VCPROJECTMANAGER_INTERNAL_FILE_H
 
-#include "../interfaces/ifile.h"
+#include <visualstudiointerfaces/ifile.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;

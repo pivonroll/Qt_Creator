@@ -37,18 +37,21 @@
 #include "tools/tool_constantsx.h"
 #include "vcprojx_constants.h"
 #include "../../utils.h"
+#include "tools/configurationtoolx.h"
 
-#include "../../vcprojectmodel/tools/toolattributes/tooldescriptiondatamanager.h"
-#include "../../interfaces/iconfigurationbuildtool.h"
-#include "../../interfaces/iconfigurationbuildtools.h"
-#include "../../interfaces/itools.h"
-#include "../../interfaces/itooldescription.h"
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
+
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/iconfigurationbuildtools.h>
+#include <visualstudiointerfaces/itools.h>
+#include <visualstudiointerfaces/itooldescription.h>
+
 #include "utilsx.h"
+
+#include <utils/fileutils.h>
 
 #include <QFileInfo>
 #include <QDomNode>
-
-#include <utils/fileutils.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -136,10 +139,8 @@ IConfiguration *FileX::createDefaultBuildConfiguration(const QString &configName
         ToolDescriptionDataManager *tDDM = ToolDescriptionDataManager::instance();
         IToolDescription *toolDesc = tDDM->toolDescription(QLatin1String(ToolConstantsx::TOOL_CL_COMPILE));
 
-        if (toolDesc) {
-            IConfigurationBuildTool *tool = toolDesc->createTool();
-            config->tools()->configurationBuildTools()->addTool(tool);
-        }
+        if (toolDesc)
+            config->tools()->configurationBuildTools()->addTool(new ConfigurationToolX(toolDesc));
     }
     return config;
 }

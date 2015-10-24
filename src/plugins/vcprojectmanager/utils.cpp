@@ -24,9 +24,8 @@ bool checkIfVersion2003(const QString &filePath)
     VcSchemaManager *schemaMgr = VcSchemaManager::instance();
     QString vc2003Schema = schemaMgr->documentSchema(Constants::SV_2003);
 
-    if (vc2003Schema.isEmpty()) {
+    if (vc2003Schema.isEmpty())
         return false;
-    }
 
     QFile schemaFile(vc2003Schema);
     schemaFile.open(QIODevice::ReadOnly);

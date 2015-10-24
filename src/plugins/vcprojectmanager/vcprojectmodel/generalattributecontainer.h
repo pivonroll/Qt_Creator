@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_GENERALATTRIBUTEHANDLER_H
 #define VCPROJECTMANAGER_INTERNAL_GENERALATTRIBUTEHANDLER_H
 
-#include "../interfaces/iattributecontainer.h"
+#include <visualstudiointerfaces/iattributecontainer.h>
 
 #include <QHash>
 

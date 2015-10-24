@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_DEBUGGERTOOL_H
 #define VCPROJECTMANAGER_INTERNAL_DEBUGGERTOOL_H
 
-#include "../interfaces/idebuggertool.h"
+#include <visualstudiointerfaces/idebuggertool.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;

@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_PLATFORMS_H
 #define VCPROJECTMANAGER_INTERNAL_PLATFORMS_H
 
-#include "../interfaces/iplatforms.h"
+#include <visualstudiointerfaces/iplatforms.h>
 
 #include <QList>
 

@@ -32,23 +32,26 @@
 #include "filebuildconfiguration.h"
 #include "generalattributecontainer.h"
 #include "tools.h"
-#include "../interfaces/iattributedescriptiondataitem.h"
-#include "../interfaces/iconfiguration.h"
-#include "../interfaces/iconfigurationbuildtool.h"
-#include "../interfaces/iconfigurationbuildtools.h"
-#include "../interfaces/iconfigurationcontainer.h"
-#include "../interfaces/iconfigurations.h"
-#include "../interfaces/idebuggertools.h"
-#include "../interfaces/ideploymenttools.h"
-#include "../interfaces/isectioncontainer.h"
-#include "../interfaces/itoolattribute.h"
-#include "../interfaces/itoolattributecontainer.h"
-#include "../interfaces/itoolsection.h"
-#include "../interfaces/itoolsectiondescription.h"
-#include "../interfaces/ivisualstudioproject.h"
-#include "../widgets/fileconfigurationsettingswidget.h"
-#include "tools/toolattributes/tooldescription.h"
-#include "tools/toolattributes/tooldescriptiondatamanager.h"
+#include "tools/configurationtool.h"
+
+#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiointerfaces/iconfiguration.h>
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/iconfigurationbuildtools.h>
+#include <visualstudiointerfaces/iconfigurationcontainer.h>
+#include <visualstudiointerfaces/iconfigurations.h>
+#include <visualstudiointerfaces/idebuggertools.h>
+#include <visualstudiointerfaces/ideploymenttools.h>
+#include <visualstudiointerfaces/isectioncontainer.h>
+#include <visualstudiointerfaces/itoolattribute.h>
+#include <visualstudiointerfaces/itoolattributecontainer.h>
+#include <visualstudiointerfaces/itoolsection.h>
+#include <visualstudiointerfaces/itoolsectiondescription.h>
+#include <visualstudiointerfaces/ivisualstudioproject.h>
+#include <visualstudiowidgets/fileconfigurationsettingswidget.h>
+
+#include <visualstudiotoolattributes/tooldescription.h>
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <utils/qtcassert.h>
 
@@ -134,16 +137,14 @@ void FileBuildConfiguration::processToolNode(const QDomNode &toolNode)
                     ToolDescriptionDataManager *tDDM = ToolDescriptionDataManager::instance();
                     IToolDescription *toolDesc = tDDM->toolDescription(domAttribute.value());
 
-                    if (toolDesc)
-                        toolConf = toolDesc->createTool();
+                    if (toolDesc) {
+                        IConfigurationBuildTool *toolConf = new ConfigurationTool(toolDesc);
+                        toolConf->processNode(toolNode);
+                        m_tools->configurationBuildTools()->addTool(toolConf);
+                    }
                     break;
                 }
             }
-        }
-
-        if (toolConf) {
-            toolConf->processNode(toolNode);
-            m_tools->configurationBuildTools()->addTool(toolConf);
         }
     }
 

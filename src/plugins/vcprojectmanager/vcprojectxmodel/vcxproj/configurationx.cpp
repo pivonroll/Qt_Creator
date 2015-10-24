@@ -357,7 +357,7 @@ void ConfigurationX::setPlatform(const QString &platform)
 
 ITools *ConfigurationX::tools() const
 {
-    return 0;
+    return nullptr;
 }
 
 IConfiguration *ConfigurationX::clone() const
@@ -398,32 +398,34 @@ void ConfigurationX::findAssociatedTools()
     for (int i = 0; i < m_project->itemDefinitionGroupCount(); ++i) {
         ItemDefinitionGroup *itemDefGrp = m_project->itemDefinitionGroup(i);
 
-        if (itemDefGrp) {
-            QString condition = itemDefGrp->condition();
-            ConditionManipulation condManip(condition);
+        if (!itemDefGrp)
+            continue;
 
-            if (condManip.evaluate(evalArgs)) {
-                processToolDefGrp(itemDefGrp);
-            }
-        }
+        QString condition = itemDefGrp->condition();
+        ConditionManipulation condManip(condition);
+
+        if (condManip.evaluate(evalArgs))
+            processToolDefGrp(itemDefGrp);
     }
 }
 
 void ConfigurationX::processToolDefGrp(ItemDefinitionGroup *itemDefGrp)
 {
-    if (itemDefGrp)
+    if (!itemDefGrp)
         return;
 
     for (int i = 0; i < itemDefGrp->itemDefinitionCount(); ++i) {
         ItemDefinition *itemDef = itemDefGrp->itemDefinition(i);
 
-        if (itemDef) {
-            QString toolKey = itemDef->name();
+        if (!itemDef)
+            continue;
 
-            // TODO(Radovan):
-            // check if the tool key belongs to the build configuration tools
-            // if so, use ToolDescriptionDataManager to create the tool adn add that tool into ITools interface
-        }
+        QString toolKey = itemDef->name();
+
+
+        // TODO(Radovan):
+        // check if the tool key belongs to the build configuration tools
+        // if so, use ToolDescriptionDataManager to create the tool adn add that tool into ITools interface
     }
 }
 

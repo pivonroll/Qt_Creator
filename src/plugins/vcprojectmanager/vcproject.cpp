@@ -36,20 +36,21 @@
 #include "vcprojectkitinformation.h"
 #include "vcprojectmanager.h"
 #include "vcprojectmanagerconstants.h"
-#include "interfaces/iattributedescriptiondataitem.h"
-#include "interfaces/iconfigurationbuildtool.h"
-#include "interfaces/iconfigurationbuildtools.h"
-#include "interfaces/iconfigurationcontainer.h"
-#include "interfaces/iconfigurations.h"
-#include "interfaces/ifile.h"
-#include "interfaces/ifilecontainer.h"
-#include "interfaces/ifiles.h"
-#include "interfaces/isectioncontainer.h"
-#include "interfaces/itoolattribute.h"
-#include "interfaces/itoolattributecontainer.h"
-#include "interfaces/itools.h"
-#include "interfaces/itoolsection.h"
-#include "interfaces/ivisualstudioproject.h"
+
+#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/iconfigurationbuildtools.h>
+#include <visualstudiointerfaces/iconfigurationcontainer.h>
+#include <visualstudiointerfaces/iconfigurations.h>
+#include <visualstudiointerfaces/ifile.h>
+#include <visualstudiointerfaces/ifilecontainer.h>
+#include <visualstudiointerfaces/ifiles.h>
+#include <visualstudiointerfaces/isectioncontainer.h>
+#include <visualstudiointerfaces/itoolattribute.h>
+#include <visualstudiointerfaces/itoolattributecontainer.h>
+#include <visualstudiointerfaces/itools.h>
+#include <visualstudiointerfaces/itoolsection.h>
+#include <visualstudiointerfaces/ivisualstudioproject.h>
 #include "vcprojectmodel/tools/tool_constants.h"
 #include "vcprojectmodel/vcdocumentmodel.h"
 
@@ -193,31 +194,32 @@ void VcProject::onSettingsDialogAccepted()
     m_projectFile->visualStudioProject()->saveToFile(m_projectFile->filePath().toString());
     IConfigurations *configs = m_projectFile->visualStudioProject()->configurations();
 
-    if (configs) {
-        QList<ProjectExplorer::Target *> targetList = targets();
+    if (!configs)
+        return;
 
-        // remove all deleted configurations
-        foreach (ProjectExplorer::Target *target, targetList) {
-            if (target) {
-                QList<ProjectExplorer::BuildConfiguration *> buildConfigurationList = target->buildConfigurations();
+    QList<ProjectExplorer::Target *> targetList = targets();
 
-                foreach (ProjectExplorer::BuildConfiguration *bc, buildConfigurationList) {
-                    VcProjectBuildConfiguration *vcBc = qobject_cast<VcProjectBuildConfiguration *>(bc);
-                    if (vcBc) {
-                        IConfiguration *lookFor = configs->configurationContainer()->configuration(vcBc->displayName());
-                        if (!lookFor)
-                            target->removeBuildConfiguration(vcBc);
-                    }
+    // remove all deleted configurations
+    foreach (ProjectExplorer::Target *target, targetList) {
+        if (target) {
+            QList<ProjectExplorer::BuildConfiguration *> buildConfigurationList = target->buildConfigurations();
+
+            foreach (ProjectExplorer::BuildConfiguration *bc, buildConfigurationList) {
+                VcProjectBuildConfiguration *vcBc = qobject_cast<VcProjectBuildConfiguration *>(bc);
+                if (vcBc) {
+                    IConfiguration *lookFor = configs->configurationContainer()->configuration(vcBc->displayName());
+                    if (!lookFor)
+                        target->removeBuildConfiguration(vcBc);
                 }
             }
         }
+    }
 
-        // add all new build configurations
-        foreach (ProjectExplorer::Target *target, targetList) {
-            if (target) {
-                target->updateDefaultBuildConfigurations();
-                target->updateDefaultDeployConfigurations();
-            }
+    // add all new build configurations
+    foreach (ProjectExplorer::Target *target, targetList) {
+        if (target) {
+            target->updateDefaultBuildConfigurations();
+            target->updateDefaultDeployConfigurations();
         }
     }
 }
@@ -286,15 +288,16 @@ void VcProject::updateCodeModels()
                 for (int i = 0; i < configTool->sectionContainer()->sectionCount(); ++i) {
                     IToolSection *toolSection = configTool->sectionContainer()->section(i);
 
-                    if (toolSection) {
-                        IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(QLatin1String("PreprocessorDefinitions"));
+                    if (!toolSection)
+                        continue;
 
-                        if (toolAttr) {
-                            toolAttr->descriptionDataItem();
-                            QStringList preprocDefs = toolAttr->value().split(toolAttr->descriptionDataItem()->optionalValue(QLatin1String("separator")));
+                    IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(QLatin1String("PreprocessorDefinitions"));
 
-                            pPart->projectDefines += preprocDefs.join(QLatin1String("\n")).toLatin1();
-                        }
+                    if (toolAttr) {
+                        toolAttr->descriptionDataItem();
+                        QStringList preprocDefs = toolAttr->value().split(toolAttr->descriptionDataItem()->optionalValue(QLatin1String("separator")));
+
+                        pPart->projectDefines += preprocDefs.join(QLatin1String("\n")).toLatin1();
                     }
                 }
             }

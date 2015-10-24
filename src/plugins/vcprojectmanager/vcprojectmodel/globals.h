@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_GLOBALS_H
 #define VCPROJECTMANAGER_INTERNAL_GLOBALS_H
 
-#include "../interfaces/iglobals.h"
+#include <visualstudiointerfaces/iglobals.h>
 
 #include <QList>
 

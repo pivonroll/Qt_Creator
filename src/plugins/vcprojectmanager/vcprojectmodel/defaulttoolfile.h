@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_DEFAULTTOOLFILE_H
 #define VCPROJECTMANAGER_INTERNAL_DEFAULTTOOLFILE_H
 
-#include "../interfaces/itoolfile.h"
+#include <visualstudiointerfaces/itoolfile.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;

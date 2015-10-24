@@ -55,7 +55,7 @@ ProjectExplorer::Project *VcXProjectManager::openProject(const QString &fileName
         if (errorString)
             *errorString = tr("Failed opening project '%1': Project file does not exist").
                 arg(QDir::toNativeSeparators(fileName));
-        return 0;
+        return nullptr;
     }
 
     return new VcXProject(this, canonicalFilePath);

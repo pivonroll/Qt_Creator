@@ -30,8 +30,9 @@
 #include "msbuildversionmanager.h"
 #include "vcprojectbuildoptionspage.h"
 #include "vcschemamanager.h"
-#include "widgets/schemaoptionswidget.h"
-#include "widgets/toolschemawidget.h"
+
+#include <visualstudiowidgets/schemaoptionswidget.h>
+#include <visualstudiowidgets/toolschemawidget.h>
 
 #include <projectexplorer/projectexplorerconstants.h>
 
@@ -504,9 +505,8 @@ void VcProjectBuildOptionsPage::saveSettings()
  */
 void VcProjectBuildOptionsPage::startVersionCheck()
 {
-    if (m_validator.m_executable.isEmpty()) {
+    if (m_validator.m_executable.isEmpty())
         return;
-    }
 
     m_validator.m_process = new QProcess();
     connect(m_validator.m_process, SIGNAL(finished(int)),
@@ -524,16 +524,17 @@ void VcProjectBuildOptionsPage::addNewMsBuild()
 {
     QString newMsBuild = QFileDialog::getOpenFileName(0, tr("Select Ms Build"), QString(), QLatin1String("*.exe"));
 
-    if (m_optionsWidget && !newMsBuild.isEmpty()) {
-        if (m_optionsWidget->exists(newMsBuild)) {
-            QMessageBox::information(0, tr("Ms Build already present"), tr("Selected MSBuild.exe is already present in the list."));
-            return;
-        }
+    if (!m_optionsWidget || newMsBuild.isEmpty())
+        return;
 
-        m_validator.m_executable = newMsBuild;
-        m_validator.m_requestType = VcProjectValidator::ValidationRequest_Add;
-        startVersionCheck();
+    if (m_optionsWidget->exists(newMsBuild)) {
+        QMessageBox::information(0, tr("Ms Build already present"), tr("Selected MSBuild.exe is already present in the list."));
+        return;
     }
+
+    m_validator.m_executable = newMsBuild;
+    m_validator.m_requestType = VcProjectValidator::ValidationRequest_Add;
+    startVersionCheck();
 }
 
 /*!
@@ -543,25 +544,27 @@ void VcProjectBuildOptionsPage::addNewMsBuild()
  */
 void VcProjectBuildOptionsPage::editMsBuild()
 {
-    if (m_optionsWidget) {
-        MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
-        MsBuildInformation *currentSelectedMsBuild = msBVM->msBuildInformation(m_optionsWidget->currentSelectedBuildId());
+    if (!m_optionsWidget)
+        return;
 
-        if (currentSelectedMsBuild) {
-            m_validator.m_originalMsInfoID = currentSelectedMsBuild->getId();
+    MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
+    MsBuildInformation *currentSelectedMsBuild = msBVM->msBuildInformation(m_optionsWidget->currentSelectedBuildId());
 
-            VcProjectEditMsBuildDialog editDialog;
-            editDialog.setPath(currentSelectedMsBuild->m_executable);
+    if (!currentSelectedMsBuild)
+        return;
 
-            if (editDialog.exec() == QDialog::Accepted) {
-                if (editDialog.path() == currentSelectedMsBuild->m_executable)
-                    return;
+    m_validator.m_originalMsInfoID = currentSelectedMsBuild->getId();
 
-                m_validator.m_requestType = VcProjectValidator::ValidationRequest_Edit;
-                m_validator.m_executable = editDialog.path();
-                startVersionCheck();
-            }
-        }
+    VcProjectEditMsBuildDialog editDialog;
+    editDialog.setPath(currentSelectedMsBuild->m_executable);
+
+    if (editDialog.exec() == QDialog::Accepted) {
+        if (editDialog.path() == currentSelectedMsBuild->m_executable)
+            return;
+
+        m_validator.m_requestType = VcProjectValidator::ValidationRequest_Edit;
+        m_validator.m_executable = editDialog.path();
+        startVersionCheck();
     }
 }
 
@@ -581,26 +584,27 @@ void VcProjectBuildOptionsPage::deleteMsBuild()
  */
 void VcProjectBuildOptionsPage::versionCheckFinished()
 {
-    if (m_validator.m_process) {
-        QString response = QVariant(m_validator.m_process->readAll()).toString();
-        QStringList splitData = response.split(QLatin1Char('\n'));
+    if (!m_validator.m_process)
+        return;
 
-        if (m_validator.m_requestType == VcProjectValidator::ValidationRequest_Add) {
-            MsBuildInformation *newMsBuild = MsBuildVersionManager::createMsBuildInfo(m_validator.m_executable, splitData.last());
-            m_optionsWidget->insertMSBuild(newMsBuild);
-        }
+    QString response = QVariant(m_validator.m_process->readAll()).toString();
+    QStringList splitData = response.split(QLatin1Char('\n'));
 
-        else if (m_validator.m_requestType == VcProjectValidator::ValidationRequest_Edit) {
-            MsBuildInformation *newMsBuildInfo = MsBuildVersionManager::createMsBuildInfo(m_validator.m_executable, splitData.last());
-
-            // update table data
-            if (m_optionsWidget)
-                m_optionsWidget->replaceMsBuild(m_validator.m_originalMsInfoID, newMsBuildInfo);
-        }
-
-        m_validator.m_process->deleteLater();
-        m_validator.m_process = 0;
+    if (m_validator.m_requestType == VcProjectValidator::ValidationRequest_Add) {
+        MsBuildInformation *newMsBuild = MsBuildVersionManager::createMsBuildInfo(m_validator.m_executable, splitData.last());
+        m_optionsWidget->insertMSBuild(newMsBuild);
     }
+
+    else if (m_validator.m_requestType == VcProjectValidator::ValidationRequest_Edit) {
+        MsBuildInformation *newMsBuildInfo = MsBuildVersionManager::createMsBuildInfo(m_validator.m_executable, splitData.last());
+
+        // update table data
+        if (m_optionsWidget)
+            m_optionsWidget->replaceMsBuild(m_validator.m_originalMsInfoID, newMsBuildInfo);
+    }
+
+    m_validator.m_process->deleteLater();
+    m_validator.m_process = nullptr;
 }
 
 } // namespace Internal

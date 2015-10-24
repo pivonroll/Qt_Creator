@@ -35,11 +35,14 @@
 #include "deploymenttools.h"
 #include "generalattributecontainer.h"
 #include "tools.h"
-#include "../widgets/configurationbasewidget.h"
 #include "tools/configurationtool.h"
 #include "tools/tool_constants.h"
 #include "tools/toolattributes/tooldescription.h"
-#include "tools/toolattributes/tooldescriptiondatamanager.h"
+#include "vcprojectdocument.h"
+
+#include <visualstudiowidgets/configurationbasewidget.h>
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
+#include <visualstudiointerfaces/iprojectfactories.h>
 
 #include <QDomNode>
 
@@ -183,7 +186,6 @@ VcNodeWidget *Configuration::createSettingsWidget()
 
 void Configuration::processToolNode(const QDomNode &toolNode)
 {
-    IConfigurationBuildTool *toolConf = 0;
     QDomNamedNodeMap namedNodeMap = toolNode.toElement().attributes();
 
     for (int i = 0; i < namedNodeMap.size(); ++i) {
@@ -195,21 +197,19 @@ void Configuration::processToolNode(const QDomNode &toolNode)
                 ToolDescriptionDataManager *tDDM = ToolDescriptionDataManager::instance();
                 IToolDescription *toolDesc = tDDM->toolDescription(domAttribute.value());
 
-                if (toolDesc)
-                    toolConf = toolDesc->createTool();
+                if (toolDesc) {
+                    IConfigurationBuildTool *toolConf = new ConfigurationTool(toolDesc);
+                    toolConf->processNode(toolNode);
+                    m_tools->configurationBuildTools()->addTool(toolConf);
+
+                    // process next sibling
+                    QDomNode nextSibling = toolNode.nextSibling();
+                    if (!nextSibling.isNull())
+                        processToolNode(nextSibling);
+                }
                 break;
             }
         }
-    }
-
-    if (toolConf) {
-        toolConf->processNode(toolNode);
-        m_tools->configurationBuildTools()->addTool(toolConf);
-
-        // process next sibling
-        QDomNode nextSibling = toolNode.nextSibling();
-        if (!nextSibling.isNull())
-            processToolNode(nextSibling);
     }
 }
 

@@ -30,7 +30,8 @@
 #include "menuhandler.h"
 #include "vcdocprojectnodes.h"
 #include "vcprojectmanagerconstants.h"
-#include "widgets/vcenternamedialog.h"
+
+#include <visualstudiowidgets/vcenternamedialog.h>
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
@@ -202,16 +203,17 @@ void MenuHandler::onAddFolder()
         QString folderName = dlg.contanerName();
         ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-        if (node) {
-            if (node->nodeType() == ProjectExplorer::FolderNodeType) {
-                VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
-                folderNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
-            }
+        if (!node)
+            return;
 
-            if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
-                VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
-                projectNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
-            }
+        if (node->nodeType() == ProjectExplorer::FolderNodeType) {
+            VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
+            folderNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
+        }
+
+        if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
+            VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
+            projectNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
         }
     }
 }
@@ -227,16 +229,17 @@ void MenuHandler::onAddFilter()
         QString filterName = dlg.contanerName();
         ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-        if (node) {
-            if (node->nodeType() == ProjectExplorer::FolderNodeType) {
-                VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
-                folderNode->addFileContainerNode(filterName);
-            }
+        if (!node)
+            return;
 
-            if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
-                VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
-                projectNode->addFileContainerNode(filterName, VcFileContainerNode::VcContainerType_Filter);
-            }
+        if (node->nodeType() == ProjectExplorer::FolderNodeType) {
+            VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
+            folderNode->addFileContainerNode(filterName);
+        }
+
+        if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
+            VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
+            projectNode->addFileContainerNode(filterName, VcFileContainerNode::VcContainerType_Filter);
         }
     }
 }

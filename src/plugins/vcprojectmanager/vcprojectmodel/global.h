@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_GLOBAL_H
 #define VCPROJECTMANAGER_INTERNAL_GLOBAL_H
 
-#include "../interfaces/iglobal.h"
+#include <visualstudiointerfaces/iglobal.h>
 
 #include <QString>
 

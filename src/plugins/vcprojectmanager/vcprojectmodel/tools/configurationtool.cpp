@@ -28,14 +28,17 @@
 **
 ****************************************************************************/
 #include "configurationtool.h"
+
 #include "toolsection.h"
-#include "toolsectiondescription.h"
-#include "../../interfaces/iattributedescriptiondataitem.h"
-#include "../../interfaces/itoolattribute.h"
-#include "../../interfaces/itoolattributecontainer.h"
-#include "toolattributes/tooldescription.h"
-#include "toolattributes/tooldescriptiondatamanager.h"
-#include "toolattributes/toolsectioncontainer.h"
+
+#include <visualstudiotoolattributes/tooldescription.h>
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
+#include <visualstudiotoolattributes/toolsectioncontainer.h>
+#include <visualstudiotoolattributes/toolsectiondescription.h>
+
+#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiointerfaces/itoolattribute.h>
+#include <visualstudiointerfaces/itoolattributecontainer.h>
 
 #include <QDomNode>
 
@@ -130,8 +133,8 @@ void ConfigurationTool::processNodeAttributes(const QDomElement &domElement)
             QDomAttr domElement = domNode.toAttr();
 
             if (domElement.name() != QLatin1String("Name")) {
-                for (int i = 0; i < m_sectionContainer->sectionCount(); ++i) {
-                    IToolSection *toolSection = m_sectionContainer->section(i);
+                for (int j = 0; i < m_sectionContainer->sectionCount(); ++j) {
+                    IToolSection *toolSection = m_sectionContainer->section(j);
                     if (toolSection) {
                         IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(domElement.name());
 

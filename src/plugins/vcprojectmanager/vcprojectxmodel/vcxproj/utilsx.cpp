@@ -34,6 +34,8 @@
 #include "private/itemmetadata.h"
 #include "private/itemgroup.h"
 
+#include <QMap>
+
 namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {

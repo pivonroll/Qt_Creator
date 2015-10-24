@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_DEPLOYMENTTOOL_H
 #define VCPROJECTMANAGER_INTERNAL_DEPLOYMENTTOOL_H
 
-#include "../interfaces/ideploymenttool.h"
+#include <visualstudiointerfaces/ideploymenttool.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;

@@ -1,7 +1,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILEFACTORY_H
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_FILEFACTORY_H
 
-#include "../../interfaces/ifilefactory.h"
+#include <visualstudiointerfaces/ifilefactory.h>
 
 namespace VcProjectManager {
 namespace Internal {

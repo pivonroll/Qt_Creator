@@ -32,7 +32,7 @@
 
 #include <QDomProcessingInstruction>
 
-#include "../../interfaces/ivisualstudioproject.h"
+#include <visualstudiointerfaces/ivisualstudioproject.h>
 
 namespace VcProjectManager {
 namespace Internal {

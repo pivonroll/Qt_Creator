@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_CONFIGURATION_H
 #define VCPROJECTMANAGER_INTERNAL_CONFIGURATION_H
 
-#include "../interfaces/iconfiguration.h"
+#include <visualstudiointerfaces/iconfiguration.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;
@@ -41,6 +41,7 @@ namespace Internal {
 
 class GeneralAttributeContainer;
 class Tools;
+class VcProjectDocument;
 
 class Configuration : public IConfiguration
 {

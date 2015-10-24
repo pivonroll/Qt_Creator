@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_DEBUGGERTOOLS_H
 #define VCPROJECTMANAGER_INTERNAL_DEBUGGERTOOLS_H
 
-#include "../interfaces/idebuggertools.h"
+#include <visualstudiointerfaces/idebuggertools.h>
 
 #include <QList>
 

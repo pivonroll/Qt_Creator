@@ -38,9 +38,10 @@
 #include "publishingdata.h"
 #include "references.h"
 #include "toolfiles.h"
-#include "../interfaces/ivisualstudioproject.h"
 #include "../msbuildversionmanager.h"
-#include "../widgets/vcnodewidget.h"
+
+#include <visualstudiointerfaces/ivisualstudioproject.h>
+#include <visualstudiowidgets/vcnodewidget.h>
 
 #include <QtGlobal>
 

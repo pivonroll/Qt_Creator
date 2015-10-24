@@ -29,14 +29,15 @@
 ****************************************************************************/
 #include "vcprojectmanagerconstants.h"
 #include "vcdocprojectnodes.h"
-#include "widgets/filesettingswidget.h"
 
-#include "interfaces/ifile.h"
-#include "interfaces/ifilecontainer.h"
-#include "interfaces/ifilefactory.h"
-#include "interfaces/ifiles.h"
-#include "interfaces/iprojectfactories.h"
-#include "interfaces/ivisualstudioproject.h"
+#include <visualstudiowidgets/filesettingswidget.h>
+
+#include <visualstudiointerfaces/ifile.h>
+#include <visualstudiointerfaces/ifilecontainer.h>
+#include <visualstudiointerfaces/ifilefactory.h>
+#include <visualstudiointerfaces/ifiles.h>
+#include <visualstudiointerfaces/iprojectfactories.h>
+#include <visualstudiointerfaces/ivisualstudioproject.h>
 #include "utils.h"
 
 #include <projectexplorer/projectexplorer.h>
@@ -359,7 +360,7 @@ bool VcDocProjectNode::addFiles(const QStringList &filePaths, QStringList *notAd
                     filesNotAdded << filePath;
 
                 else {
-                    //                    vcContainerNode->addFileNode(filePath);
+                    vcContainerNode->addFileNode(filePath);
                     anyFileAdded = true;
                 }
             }
@@ -378,7 +379,7 @@ bool VcDocProjectNode::addFiles(const QStringList &filePaths, QStringList *notAd
                     filesNotAdded << filePath;
 
                 else {
-                    //                    projectNode->addFileNode(relativeFilePath);
+                    projectNode->addFileNode(relativeFilePath);
                     anyFileAdded = true;
                 }
             }

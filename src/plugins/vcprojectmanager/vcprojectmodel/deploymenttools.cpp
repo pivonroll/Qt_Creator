@@ -28,7 +28,7 @@
 **
 ****************************************************************************/
 #include "deploymenttools.h"
-#include "../interfaces/ideploymenttool.h"
+#include <visualstudiointerfaces/ideploymenttool.h>
 
 #include <utils/qtcassert.h>
 

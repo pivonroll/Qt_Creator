@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_CONFIGURATIONS_H
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_CONFIGURATIONS_H
 
-#include "../../interfaces/iconfigurations.h"
+#include <visualstudiointerfaces/iconfigurations.h>
 
 namespace VcProjectManager {
 namespace Internal {

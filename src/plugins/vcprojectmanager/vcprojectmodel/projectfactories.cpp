@@ -10,7 +10,7 @@ ProjectFactories::ProjectFactories()
 
 IFileFactory *ProjectFactories::fileFactory() const
 {
-
+    return nullptr;
 }
 
 } // namespace Internal

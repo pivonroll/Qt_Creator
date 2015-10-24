@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_CONFIGURATIONCONTAINERX_H
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_CONFIGURATIONCONTAINERX_H
 
-#include "../../interfaces/iconfigurationcontainer.h"
+#include <visualstudiointerfaces/iconfigurationcontainer.h>
 
 #include <QList>
 
