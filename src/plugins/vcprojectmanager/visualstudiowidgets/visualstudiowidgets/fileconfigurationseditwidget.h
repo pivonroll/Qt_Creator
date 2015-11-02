@@ -70,12 +70,7 @@ private:
     void readFileBuildConfigurations();
     void readFileBuildConfigurations(IFileContainer *container);
     void readFileBuildConfigurations(IFile *file);
-    void leaveOnlyCppTool(IConfiguration *config) const;
     void cleanUpConfig(IConfiguration *config);
-    void cleanUpConfigAttributes(IConfiguration *config, IConfiguration *projectConfig);
-    void cleanUpConfigTools(IConfiguration *config, IConfiguration *projectConfig);
-    void cleanUpConfigTool(IConfigurationBuildTool *tool, IConfigurationBuildTool *projTool);
-    void cleanUpConfigToolSection(IToolSection *tool, IToolSection *projTool);
 
     IFile *m_file;
     IVisualStudioProject *m_vsProject;

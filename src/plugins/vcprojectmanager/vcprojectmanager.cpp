@@ -72,7 +72,7 @@ ProjectExplorer::Project *VcManager::openProject(const QString &fileName, QStrin
 
     // check if project is a valid vc project
     // versions supported are 2003, 2005 and 2008
-    VcDocConstants::DocumentVersion docVersion = Utils::getProjectVersion(canonicalFilePath);
+    VcDocConstants::DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(canonicalFilePath);
 
     if (docVersion != VcDocConstants::DV_UNRECOGNIZED) {
         if (errorString)

@@ -49,6 +49,7 @@ class ConfigurationX : public IConfiguration
 
 public:
     // IConfiguration interface
+    ConfigurationVersion version() const;
     IAttributeContainer *attributeContainer() const;
     QString fullName() const;
     QString displayname() const;

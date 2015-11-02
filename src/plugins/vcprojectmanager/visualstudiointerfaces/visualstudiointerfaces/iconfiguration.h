@@ -45,8 +45,16 @@ class IConfiguration : public QObject, public IVcProjectXMLNode
     Q_OBJECT
 
 public:
+    enum ConfigurationVersion
+    {
+        ConfigurationVersion_pre2010,
+        ConfigurationVersion_post2010
+    };
+
     IConfiguration(QObject *parent = 0) : QObject(parent) {}
     IConfiguration(const IConfiguration &) : QObject(0) {}
+
+    virtual ConfigurationVersion version() const = 0;
 
     /*!
      * \return a container used to store attributes for this configuration.

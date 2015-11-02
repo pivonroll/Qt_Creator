@@ -169,7 +169,7 @@ IFile *File::clone() const
 
 ProjectExplorer::FileType File::fileType() const
 {
-    return VcProjectManager::Internal::Utils::getFileType(::Utils::FileName::fromString(canonicalPath()));
+    return VcProjectManager::Internal::VisualStudioUtils::getFileType(::Utils::FileName::fromString(canonicalPath()));
 }
 
 QString File::canonicalPath() const

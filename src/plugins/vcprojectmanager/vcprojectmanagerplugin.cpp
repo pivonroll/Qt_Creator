@@ -37,6 +37,7 @@
 #include "vcxprojectmanager.h"
 #include "vcprojectmanagerplugin.h"
 #include "vcschemamanager.h"
+#include "visualstudiosolutionmanager.h"
 
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
@@ -86,6 +87,7 @@ bool VcProjectManagerPlugin::initialize(const QStringList &arguments, QString *e
     addAutoReleasedObject(new VcSchemaManager);
     addAutoReleasedObject(new MenuHandler);
     addAutoReleasedObject(new ToolDescriptionDataManager);
+    addAutoReleasedObject(new VisualStudioSolutionManager);
 
     ProjectExplorer::KitManager::registerKitInformation(new VcProjectKitInformation);
 

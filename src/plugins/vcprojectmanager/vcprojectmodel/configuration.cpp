@@ -86,6 +86,11 @@ Configuration::~Configuration()
     delete m_tools;
 }
 
+IConfiguration::ConfigurationVersion Configuration::version() const
+{
+    return ConfigurationVersion_pre2010;
+}
+
 void Configuration::processNode(const QDomNode &node)
 {
     if (node.isNull())

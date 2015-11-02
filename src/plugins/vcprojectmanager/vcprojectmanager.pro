@@ -20,6 +20,10 @@ HEADERS = \
     $$PWD/vcxproject.h \
     $$PWD/vcxprojectfile.h \
     $$PWD/vcdocprojectnodes.h \
+    visualstudiosolutionmanager.h \
+    visualstudiosolutionfile.h \
+    visualstudiosolutionnode.h \
+    visualstudioproject.h \
 
 SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/vcprojectmanager.cpp \
@@ -38,6 +42,10 @@ SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/vcxproject.cpp \
     $$PWD/vcxprojectfile.cpp \
     $$PWD/vcdocprojectnodes.cpp \
+    visualstudiosolutionmanager.cpp \
+    visualstudiosolutionfile.cpp \
+    visualstudiosolutionnode.cpp \
+    visualstudioproject.cpp \
 
 OTHER_FILES += \
     $$PWD/VcProject.mimetypes.xml \
@@ -52,3 +60,4 @@ include($$PWD/visualstudiotoolattributes/visualstudiotoolattributes.pri)
 include($$PWD/vcprojectmodel/vcprojectmodel.pri)
 include($$PWD/vcprojectxmodel/vcprojectxmodel.pri)
 include($$PWD/visualstudiowidgets/visualstudiowidgets.pri)
+include($$PWD/visualstudiosolution/visualstudiosolution.pri)

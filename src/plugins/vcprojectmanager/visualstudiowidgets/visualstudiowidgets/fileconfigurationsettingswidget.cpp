@@ -30,6 +30,8 @@
 #include "fileconfigurationsettingswidget.h"
 #include "ui_fileconfigurationsettingswidget.h"
 
+#include "../vcprojectmodel/vcprojectdocument_constants.h"
+
 #include <visualstudiointerfaces/iattributecontainer.h>
 #include <visualstudiointerfaces/iconfiguration.h>
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
@@ -41,7 +43,8 @@
 #include <visualstudiointerfaces/ivisualstudioproject.h>
 
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
-#include "../vcprojectmodel/vcprojectdocument_constants.h"
+
+#include <utils/qtcassert.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -113,22 +116,33 @@ void FileConfigurationSettingsWidget::saveData()
     if (m_toolSettingsWidget)
         m_toolSettingsWidget->saveData();
 
-    if (m_fileBuildConfig) {
-        if (ITools *tools = m_fileBuildConfig->tools()) {
-            if (IConfigurationBuildTools *buildTools = tools->configurationBuildTools()) {
-                IConfigurationBuildTool *tool = buildTools->tool(0);
-                if (const IToolDescription *toolDescription = tool->toolDescription()) {
-                    const QString currentTool = ui->m_tool->itemData(ui->m_tool->currentIndex()).toString();
-                    if (toolDescription->toolKey() != currentTool) {
-                        buildTools->removeTool(tool);
-                        delete tool;
-                        tool = m_toolMap[currentTool];
-                        if (tool)
-                            buildTools->addTool(tool);
-                    }
-                }
-            }
-        }
+    QTC_ASSERT(m_fileBuildConfig, return);
+    QTC_ASSERT(ui->m_tool, return);
+
+    ITools *tools = m_fileBuildConfig->tools();
+
+    QTC_ASSERT(tools, return);
+
+    IConfigurationBuildTools *buildTools = tools->configurationBuildTools();
+
+    QTC_ASSERT(buildTools, return);
+
+    IConfigurationBuildTool *tool = buildTools->tool(0);
+
+    QTC_ASSERT(tool, return);
+
+    const IToolDescription *toolDescription = tool->toolDescription();
+
+    QTC_ASSERT(toolDescription, return);
+
+    const QString currentTool = ui->m_tool->itemData(ui->m_tool->currentIndex()).toString();
+
+    if (toolDescription->toolKey() != currentTool) {
+        buildTools->removeTool(tool);
+        delete tool;
+        tool = m_toolMap[currentTool];
+        if (tool)
+            buildTools->addTool(tool);
     }
 }
 

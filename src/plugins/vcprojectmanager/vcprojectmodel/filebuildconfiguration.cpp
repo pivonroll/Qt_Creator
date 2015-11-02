@@ -125,7 +125,6 @@ QDomNode FileBuildConfiguration::toXMLDomNode(QDomDocument &domXMLDocument) cons
 void FileBuildConfiguration::processToolNode(const QDomNode &toolNode)
 {
     if (toolNode.nodeName() == QLatin1String("Tool")) {
-        IConfigurationBuildTool *toolConf = 0;
         QDomNamedNodeMap namedNodeMap = toolNode.toElement().attributes();
 
         for (int i = 0; i < namedNodeMap.size(); ++i) {

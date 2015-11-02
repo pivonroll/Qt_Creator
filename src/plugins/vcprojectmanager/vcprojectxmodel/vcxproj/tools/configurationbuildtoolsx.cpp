@@ -22,16 +22,18 @@ void ConfigurationBuildToolsX::addTool(IConfigurationBuildTool *tool)
 
 void ConfigurationBuildToolsX::removeTool(IConfigurationBuildTool *tool)
 {
-
+    Q_UNUSED(tool)
 }
 
 IConfigurationBuildTool *ConfigurationBuildToolsX::tool(const QString &toolKey) const
 {
+    Q_UNUSED(toolKey)
     return nullptr;
 }
 
 IConfigurationBuildTool *ConfigurationBuildToolsX::tool(int index) const
 {
+    Q_UNUSED(index)
     return nullptr;
 }
 
@@ -42,6 +44,8 @@ int ConfigurationBuildToolsX::toolCount() const
 
 void ConfigurationBuildToolsX::appendToXMLNode(QDomElement &domElement, QDomDocument &domDocument) const
 {
+    Q_UNUSED(domElement)
+    Q_UNUSED(domDocument)
 }
 
 } // namespace VisualStudioProjectX

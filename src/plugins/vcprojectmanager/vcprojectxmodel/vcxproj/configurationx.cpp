@@ -283,6 +283,11 @@ void setConfiguraitionName(When *node, const QString &oldName, const QString &ne
 }
 
 
+IConfiguration::ConfigurationVersion ConfigurationX::version() const
+{
+    return ConfigurationVersion_post2010;
+}
+
 IAttributeContainer *ConfigurationX::attributeContainer() const
 {
     return 0;

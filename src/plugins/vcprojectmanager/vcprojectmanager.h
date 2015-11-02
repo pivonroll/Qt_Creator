@@ -31,7 +31,6 @@
 #define VCPROJECTMANAGER_H
 
 #include <projectexplorer/iprojectmanager.h>
-#include <projectexplorer/projectnodes.h>
 
 namespace VcProjectManager {
 namespace Internal {

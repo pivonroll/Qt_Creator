@@ -51,6 +51,8 @@ public:
     Configuration& operator=(const Configuration &config);
     ~Configuration();
 
+    ConfigurationVersion version() const;
+
     void processNode(const QDomNode &node);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 

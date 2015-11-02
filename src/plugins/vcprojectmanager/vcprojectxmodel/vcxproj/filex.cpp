@@ -124,7 +124,7 @@ IFile *FileX::clone() const
 
 ProjectExplorer::FileType FileX::fileType() const
 {
-    return VcProjectManager::Internal::Utils::getFileType(::Utils::FileName::fromString(canonicalPath()));
+    return VcProjectManager::Internal::VisualStudioUtils::getFileType(::Utils::FileName::fromString(canonicalPath()));
 }
 
 IConfiguration *FileX::createDefaultBuildConfiguration(const QString &configName, const QString &platformName) const

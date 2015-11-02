@@ -106,8 +106,9 @@ VcFileContainerNode::VcContainerType VcFileContainerNode::containerType() const
 
 void VcFileContainerNode::addFileNode(const QString &filePath)
 {
-    QString relativeFilePath = Utils::fileRelativePath(m_parentVcDocProjNode->m_vcProjectModel->filePath(), filePath);
-    IFile *file = m_parentVcDocProjNode->m_vcProjectModel->projectFactories()->fileFactory()->createFile(relativeFilePath, Utils::getFileType(::Utils::FileName::fromString(filePath)));
+    QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_parentVcDocProjNode->m_vcProjectModel->filePath(), filePath);
+    IFile *file = m_parentVcDocProjNode->m_vcProjectModel->projectFactories()->fileFactory()->createFile(relativeFilePath,
+                                                                                                         VisualStudioUtils::getFileType(::Utils::FileName::fromString(filePath)));
 
     if (!file)
         return;
@@ -353,7 +354,7 @@ bool VcDocProjectNode::addFiles(const QStringList &filePaths, QStringList *notAd
 
         if (vcContainerNode) {
             foreach (const QString &filePath, filePaths) {
-                QString relativeFilePath = Utils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
+                QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
 
                 // if file is already in the project don't add it
                 if (m_vcProjectModel->files()->fileExists(relativeFilePath))
@@ -372,7 +373,7 @@ bool VcDocProjectNode::addFiles(const QStringList &filePaths, QStringList *notAd
 
         if (projectNode) {
             foreach (const QString &filePath, filePaths) {
-                QString relativeFilePath = Utils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
+                QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
 
                 // if file is already in the project don't add it
                 if (m_vcProjectModel->files()->fileExists(relativeFilePath))
@@ -400,7 +401,7 @@ bool VcDocProjectNode::removeFiles(const QStringList &filePaths, QStringList *no
     QStringList filesNotRemoved;
 
     foreach (const QString &filePath, filePaths) {
-        QString relativeFilePath = Utils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
+        QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
 
         if (m_vcProjectModel->files()->fileExists(relativeFilePath)) {
             VcFileNode *fileNode = static_cast<VcFileNode *>(findFileNode(filePath));
@@ -460,8 +461,9 @@ QString VcDocProjectNode::projectDirectory() const
 
 void VcDocProjectNode::addFileNode(const QString &filePath)
 {
-    QString relativeFilePath = Utils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
-    IFile *file = m_vcProjectModel->projectFactories()->fileFactory()->createFile(relativeFilePath, Utils::getFileType(::Utils::FileName::fromString(filePath)));
+    QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
+    IFile *file = m_vcProjectModel->projectFactories()->fileFactory()->createFile(relativeFilePath,
+                                                                                  VisualStudioUtils::getFileType(::Utils::FileName::fromString(filePath)));
 
     if (!file)
         return;

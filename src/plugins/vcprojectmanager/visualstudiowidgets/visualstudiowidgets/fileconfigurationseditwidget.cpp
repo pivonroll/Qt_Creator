@@ -28,8 +28,11 @@
 **
 ****************************************************************************/
 #include "configurationbasewidget.h"
+
 #include "configurationswidget.h"
 #include "fileconfigurationseditwidget.h"
+#include "../utils.h"
+#include "../vcprojectmodel/tools/tool_constants.h"
 
 #include <visualstudiointerfaces/iattributecontainer.h>
 #include <visualstudiointerfaces/iattributedescriptiondataitem.h>
@@ -51,8 +54,6 @@
 #include <visualstudiointerfaces/itoolsection.h>
 #include <visualstudiointerfaces/itoolsectiondescription.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
-
-#include "../vcprojectmodel/tools/tool_constants.h"
 
 #include <utils/qtcassert.h>
 
@@ -223,17 +224,19 @@ void FileConfigurationsEditWidget::onRemoveConfig(QString configNameWithPlatform
 
     for (int i = 0; i < platforms->platformCount(); ++i) {
         IPlatform *platform = platforms->platform(i);
-        if (platform) {
-            QString configName = copyFromConfigName + QLatin1Char('|') + platform->displayName();
-            m_buildConfigurations->removeConfiguration(configName);
-            m_configsWidget->removeConfiguration(configName);
 
-            QMapIterator<IFile*, IConfigurationContainer*> it(m_fileConfigurations);
+        if (!platform)
+            continue;
 
-            while (it.hasNext()) {
-                it.next();
-                it.value()->removeConfiguration(configName);
-            }
+        QString configName = copyFromConfigName + QLatin1Char('|') + platform->displayName();
+        m_buildConfigurations->removeConfiguration(configName);
+        m_configsWidget->removeConfiguration(configName);
+
+        QMapIterator<IFile*, IConfigurationContainer*> it(m_fileConfigurations);
+
+        while (it.hasNext()) {
+            it.next();
+            it.value()->removeConfiguration(configName);
         }
     }
 }
@@ -263,6 +266,8 @@ void FileConfigurationsEditWidget::addConfigToProjectBuild(const QString &newCon
 
 void FileConfigurationsEditWidget::addConfigToFiles(const QString &newConfigName, const QString &copyFrom)
 {
+    QTC_ASSERT(newConfigName.isEmpty(), return);
+
     QMapIterator<IFile *, IConfigurationContainer *> it(m_fileConfigurations);
 
     while (it.hasNext()) {
@@ -273,9 +278,10 @@ void FileConfigurationsEditWidget::addConfigToFiles(const QString &newConfigName
             continue;
 
         if (copyFrom.isEmpty()) {
-            IConfiguration *config = m_vsProject->configurations()->configurationContainer()->configuration(newConfigName);
-            leaveOnlyCppTool(config);
-            container->addConfiguration(config);
+            QStringList list = newConfigName.split(QLatin1Char('|'));
+            IConfiguration *newConfig = m_buildConfigurations->createNewConfiguration(list[0], list[1]);
+            VisualStudioUtils::leaveOnlyCppTool(newConfig);
+            container->addConfiguration(newConfig);
         } else {
             IConfiguration *config = container->configuration(copyFrom);
 
@@ -337,24 +343,6 @@ void FileConfigurationsEditWidget::readFileBuildConfigurations(IFile *file)
     m_fileConfigurations[file] = configCont;
 }
 
-void FileConfigurationsEditWidget::leaveOnlyCppTool(IConfiguration *config) const
-{
-    QTC_ASSERT(config && config->tools() && config->tools()->configurationBuildTools(), return);
-
-    int i = 0;
-    while (config->tools()->configurationBuildTools()->toolCount() > 1) {
-        IConfigurationBuildTool *tool = config->tools()->configurationBuildTools()->tool(i);
-
-        if (tool->toolDescription()->toolKey() != QLatin1String(ToolConstants::strVCCLCompilerTool)) {
-            config->tools()->configurationBuildTools()->removeTool(tool);
-            delete tool;
-        }
-
-        else
-            ++i;
-    }
-}
-
 void FileConfigurationsEditWidget::cleanUpConfig(IConfiguration *config)
 {
     QTC_ASSERT(config, return);
@@ -366,96 +354,8 @@ void FileConfigurationsEditWidget::cleanUpConfig(IConfiguration *config)
 
     IConfiguration *projectConfig = m_vsProject->configurations()->configurationContainer()->configuration(config->fullName());
 
-    if (projectConfig) {
-        cleanUpConfigAttributes(config, projectConfig);
-        cleanUpConfigTools(config, projectConfig);
-    }
-}
-
-void FileConfigurationsEditWidget::cleanUpConfigAttributes(IConfiguration *config, IConfiguration *projectConfig)
-{
-    QTC_ASSERT(config && projectConfig, return);
-
-    IAttributeContainer *configAttrCont = config->attributeContainer();
-    IAttributeContainer *projConfigAttrCont = projectConfig->attributeContainer();
-
-    if (configAttrCont) {
-        for (int i = 0; i < configAttrCont->getAttributeCount();) {
-            QString attrName = configAttrCont->getAttributeName(i);
-
-            if (configAttrCont->attributeValue(attrName) == projConfigAttrCont->attributeValue(attrName))
-                configAttrCont->removeAttribute(attrName);
-            else
-                ++i;
-        }
-    }
-
-}
-
-void FileConfigurationsEditWidget::cleanUpConfigTools(IConfiguration *config, IConfiguration *projectConfig)
-{
-    QTC_ASSERT(config && projectConfig, return);
-
-    ITools *tools = config->tools();
-    ITools *projectTools = projectConfig->tools();
-
-    if (tools && projectTools && tools->configurationBuildTools() && projectTools->configurationBuildTools()) {
-        IConfigurationBuildTool *tool = tools->configurationBuildTools()->tool(0);
-
-        if (tool->toolDescription()) {
-            IConfigurationBuildTool *projTool = projectTools->configurationBuildTools()->tool(tool->toolDescription()->toolKey());
-
-            if (projTool)
-                cleanUpConfigTool(tool, projTool);
-
-            if (tool->allAttributesAreDefault())
-                tools->configurationBuildTools()->removeTool(tool);
-        }
-    }
-}
-
-void FileConfigurationsEditWidget::cleanUpConfigTool(IConfigurationBuildTool *tool, IConfigurationBuildTool *projTool)
-{
-    QTC_ASSERT(tool && projTool, return);
-    QTC_ASSERT(tool->sectionContainer() && projTool->sectionContainer(), return);
-
-    ISectionContainer *secCont = tool->sectionContainer();
-    ISectionContainer *projSecCont = projTool->sectionContainer();
-
-    for (int i = 0; i < secCont->sectionCount(); ++i) {
-        IToolSection *section = secCont->section(i);
-
-        if (section && section->sectionDescription()) {
-            IToolSection *projSection = projSecCont->section(section->sectionDescription()->displayName());
-
-            if (projSection)
-                cleanUpConfigToolSection(section, projSection);
-        }
-    }
-}
-
-void FileConfigurationsEditWidget::cleanUpConfigToolSection(IToolSection *toolSection, IToolSection *projToolSection)
-{
-    QTC_ASSERT(toolSection && projToolSection, return);
-    IToolAttributeContainer *attrCont = toolSection->attributeContainer();
-    IToolAttributeContainer *projAttrCont = projToolSection->attributeContainer();
-
-    if (attrCont && projAttrCont) {
-        for (int i = 0; i < attrCont->toolAttributeCount();) {
-            IToolAttribute *attr = attrCont->toolAttribute(i);
-
-            if (attr && attr->descriptionDataItem()) {
-                IToolAttribute *projAttr = projAttrCont->toolAttribute(attr->descriptionDataItem()->key());
-
-                if (projAttr && attr->value() == projAttr->value())
-                    attrCont->removeToolAttribute(attr);
-                else
-                    ++i;
-            }
-            else
-                ++i;
-        }
-    }
+    VisualStudioUtils::cleanUpConfigAttributes(config, projectConfig);
+    VisualStudioUtils::cleanUpConfigTools(config, projectConfig);
 }
 
 } // namespace Internal
