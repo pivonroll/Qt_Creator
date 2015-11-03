@@ -1,6 +1,7 @@
 #include "visualstudiosolutionfile.h"
 
 #include "vcprojectmanagerconstants.h"
+#include "visualstudiosolutionnode.h"
 #include "visualstudiosolution/visualstudiosolutionparser/visualstudiosolutionparser.h"
 #include "vcprojectxmodel/vcxproj/vcprojectdocumentx.h"
 #include "vcprojectmodel/vcprojectdocument.h"
@@ -16,26 +17,29 @@ namespace Internal {
 
 VisualStudioSolutionFile::VisualStudioSolutionFile(const QString &filePath)
 {
-    m_visualStdioParser = new VisualStudioProjectNS::Internal::VisualStudioSolutionParser(filePath);
-    m_visualStdioParser->parse();
+    m_visualStudioParser = new VisualStudioProjectNS::Internal::VisualStudioSolutionParser(filePath);
 
     setFilePath(Utils::FileName::fromString(filePath));
 
     Utils::MimeDatabase mdb;
 
     QString canonicalSolutionDirectoryPath = QFileInfo(filePath).absolutePath();
-    foreach (const VisualStudioProjectNS::Internal::ProjectReference &projectReference, m_visualStdioParser->m_projectReferences) {
+    foreach (const VisualStudioProjectNS::Internal::ProjectReference &projectReference, m_visualStudioParser->m_projectReferences) {
         QString fullProjectPath = canonicalSolutionDirectoryPath + QLatin1Char('/') + projectReference.m_relativeProjectPath;
 
         Utils::MimeType projectMimeType = mdb.mimeTypeForFile(fullProjectPath);
         IVisualStudioProject *newProject = nullptr;
 
-        if (projectMimeType.matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE)))
-            newProject = new VcProjectDocumentX(fullProjectPath);
+        if (projectMimeType.matchesName(QLatin1String(Constants::VC_X_PROJ_MIMETYPE))) {
+            if(QFileInfo(fullProjectPath).exists())
+                newProject = new VcProjectDocumentX(fullProjectPath);
+        }
 
-        else if (projectMimeType.matchesName(QLatin1String(Constants::VC_X_PROJ_MIMETYPE))) {
+        else if (projectMimeType.matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE))) {
             VcDocConstants::DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(fullProjectPath);
-            newProject = new VcProjectDocument(fullProjectPath, docVersion);
+
+            if (docVersion != VcDocConstants::DV_UNRECOGNIZED)
+                newProject = new VcProjectDocument(fullProjectPath, docVersion);
         }
 
         m_visualStudioProjects.append(newProject);
@@ -44,6 +48,8 @@ VisualStudioSolutionFile::VisualStudioSolutionFile(const QString &filePath)
 
 VisualStudioSolutionFile::~VisualStudioSolutionFile()
 {
+    qDeleteAll(m_visualStudioProjects);
+    delete m_visualStudioParser;
 }
 
 bool VisualStudioSolutionFile::save(QString *errorString, const QString &fileName, bool autoSave)
@@ -61,7 +67,7 @@ QString VisualStudioSolutionFile::defaultPath() const
 
 QString VisualStudioSolutionFile::suggestedFileName() const
 {
-    return QString();
+    return QFileInfo(m_visualStudioParser->m_filePath).fileName();
 }
 
 bool VisualStudioSolutionFile::isModified() const
@@ -82,9 +88,9 @@ bool VisualStudioSolutionFile::reload(QString *errorString, Core::IDocument::Rel
     return false;
 }
 
-VisualStudioSolutionNode *VisualStudioSolutionFile::createSolutionNode() const
+VisualStudioSolutionNode *VisualStudioSolutionFile::createSolutionNode()
 {
-    return nullptr;
+    return new VisualStudioSolutionNode(this);
 }
 
 } // namespace Internal

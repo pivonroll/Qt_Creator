@@ -8,6 +8,7 @@ namespace Internal {
 
 class VisualStudioSolutionFile;
 class VisualStudioSolutionManager;
+class VisualStudioSolutionNode;
 
 class VisualStudioProject : public ProjectExplorer::Project
 {
@@ -26,6 +27,7 @@ private:
     VisualStudioSolutionFile *m_visualStudioFile;
     VisualStudioSolutionManager *m_projectManager;
     QString m_filePath;
+    VisualStudioSolutionNode *m_rootNode;
 };
 
 } // namespace Internal

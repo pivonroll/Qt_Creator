@@ -2,6 +2,7 @@
 
 #include "visualstudiosolutionfile.h"
 #include "visualstudiosolutionmanager.h"
+#include "visualstudiosolutionnode.h"
 
 namespace VcProjectManager {
 namespace Internal {
@@ -11,10 +12,15 @@ VisualStudioProject::VisualStudioProject(VisualStudioSolutionManager *projectMan
     , m_projectManager(projectManager)
     , m_filePath(filePath)
 {
+    m_rootNode = m_visualStudioFile->createSolutionNode();
 }
 
 VisualStudioProject::~VisualStudioProject()
 {
+    VisualStudioSolutionNode *temp = m_rootNode;
+    m_rootNode = nullptr;
+    delete temp;
+    delete m_visualStudioFile;
 }
 
 QString VisualStudioProject::displayName() const
@@ -34,7 +40,7 @@ ProjectExplorer::IProjectManager *VisualStudioProject::projectManager() const
 
 ProjectExplorer::ProjectNode *VisualStudioProject::rootProjectNode() const
 {
-    return nullptr;
+    return m_rootNode;
 }
 
 QStringList VisualStudioProject::files(ProjectExplorer::Project::FilesMode fileMode) const

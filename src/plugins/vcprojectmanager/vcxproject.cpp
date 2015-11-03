@@ -42,8 +42,6 @@ VcXProject::VcXProject(VcXProjectManager *projectManager, const QString &canonic
 {
     m_projectFile = new VcXProjectFile(canonicalFilePath);
     m_rootNode = m_projectFile->createProjectNode();
-
-    // create project nodes
 }
 
 VcXProject::~VcXProject()

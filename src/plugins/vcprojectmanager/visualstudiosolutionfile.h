@@ -30,10 +30,10 @@ public:
     bool isSaveAsAllowed() const;
     bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
 
-    VisualStudioSolutionNode *createSolutionNode() const;
+    VisualStudioSolutionNode *createSolutionNode();
 
 private:
-    VisualStudioProjectNS::Internal::VisualStudioSolutionParser *m_visualStdioParser;
+    VisualStudioProjectNS::Internal::VisualStudioSolutionParser *m_visualStudioParser;
     QList<IVisualStudioProject *> m_visualStudioProjects;
 };
 

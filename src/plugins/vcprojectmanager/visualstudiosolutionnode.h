@@ -11,7 +11,7 @@ class VisualStudioSolutionFile;
 class VisualStudioSolutionNode : public ProjectExplorer::ProjectNode
 {
 public:
-    VisualStudioSolutionNode(VisualStudioSolutionFile *visualStudioSolutionFile, const Utils::FileName &filePath);
+    VisualStudioSolutionNode(VisualStudioSolutionFile *visualStudioSolutionFile);
     ~VisualStudioSolutionNode();
 
     /*!

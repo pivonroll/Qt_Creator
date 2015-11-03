@@ -32,15 +32,11 @@ void VisualStudioSolutionParser::parse()
             m_formatVersion = line;
             m_formatVersion.remove(0, QLatin1String("Microsoft Visual Studio Solution File, Format Version").size());
         }
-
         else if (line.startsWith(QLatin1String("# Visual Studio"))) {
             m_versionTag = line;
             m_versionTag.remove(0, QLatin1String("# Visual Studio ").size());
         }
-
         else if (line == QLatin1String("Global")) {
-            Globals globals;
-
             while(!in.atEnd()) {
                 line = in.readLine().trimmed();
 
@@ -107,18 +103,14 @@ void VisualStudioSolutionParser::parse()
                         }
                     }
 
-                    globals.m_sections << globalSection;
+                    m_globals.m_sections << globalSection;
                 }
             }
-
-            m_globals = globals;
-        }
-
-        else if (line.startsWith(QLatin1String("Project"))) {
+        } else if (line.startsWith(QLatin1String("Project"))) {
             ProjectReference projectReference;
             QStringList list = line.split(QLatin1Char('='));
             projectReference.m_id = list[0].mid(list[0].indexOf(QLatin1String("(\"")),
-                    list[0].indexOf(QLatin1String("\")")));
+                                                list[0].indexOf(QLatin1String("\")")));
 
             projectReference.m_id.remove(0, 3);
             projectReference.m_id.chop(4);
@@ -133,6 +125,7 @@ void VisualStudioSolutionParser::parse()
             temp = list2[1].trimmed();
             temp.remove(0, 1);
             temp.chop(1);
+            temp.replace(QLatin1Char('\\'), QLatin1Char('/'));
             projectReference.m_relativeProjectPath = temp;
 
             temp = list2[2].trimmed();
@@ -141,6 +134,13 @@ void VisualStudioSolutionParser::parse()
             projectReference.m_referenceId = temp;
 
             m_projectReferences << projectReference;
+
+            while(!in.atEnd()) {
+                line = in.readLine().trimmed();
+
+                if (line == QLatin1String("EndProject"))
+                    break;
+            }
         }
     }
 }

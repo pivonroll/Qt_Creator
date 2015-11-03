@@ -6,8 +6,8 @@
 namespace VcProjectManager {
 namespace Internal {
 
-VisualStudioSolutionNode::VisualStudioSolutionNode(VisualStudioSolutionFile *visualStudioSolutionFile, const Utils::FileName &filePath)
-    : ProjectExplorer::ProjectNode(filePath)
+VisualStudioSolutionNode::VisualStudioSolutionNode(VisualStudioSolutionFile *visualStudioSolutionFile)
+    : ProjectExplorer::ProjectNode(visualStudioSolutionFile->filePath())
     , m_visualStudioSolutionFile(visualStudioSolutionFile)
 {
     addProjects();
