@@ -104,7 +104,7 @@ VcProject::VcProject(VcManager *projectManager, const QString &projectFilePath, 
     else
         setId(Core::Id(Constants::VC_PROJECT_2005_ID));
 
-//    connect(m_rootNode, SIGNAL(settingsDialogAccepted()), this, SLOT(onSettingsDialogAccepted()));
+    //    connect(m_rootNode, SIGNAL(settingsDialogAccepted()), this, SLOT(onSettingsDialogAccepted()));
 }
 
 VcProject::~VcProject()
@@ -201,17 +201,18 @@ void VcProject::onSettingsDialogAccepted()
 
     // remove all deleted configurations
     foreach (ProjectExplorer::Target *target, targetList) {
-        if (target) {
-            QList<ProjectExplorer::BuildConfiguration *> buildConfigurationList = target->buildConfigurations();
+        if (!target)
+            continue;
+        QList<ProjectExplorer::BuildConfiguration *> buildConfigurationList = target->buildConfigurations();
 
-            foreach (ProjectExplorer::BuildConfiguration *bc, buildConfigurationList) {
-                VcProjectBuildConfiguration *vcBc = qobject_cast<VcProjectBuildConfiguration *>(bc);
-                if (vcBc) {
-                    IConfiguration *lookFor = configs->configurationContainer()->configuration(vcBc->displayName());
-                    if (!lookFor)
-                        target->removeBuildConfiguration(vcBc);
-                }
-            }
+        foreach (ProjectExplorer::BuildConfiguration *bc, buildConfigurationList) {
+            VcProjectBuildConfiguration *vcProjectBuildConfiguration = qobject_cast<VcProjectBuildConfiguration *>(bc);
+            if (!vcProjectBuildConfiguration)
+                continue;
+            IConfiguration *lookFor = configs->configurationContainer()->configuration(vcBc->displayName());
+            if (!lookFor)
+                target->removeBuildConfiguration(vcProjectBuildConfiguration);
+
         }
     }
 
