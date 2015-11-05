@@ -6,20 +6,24 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
-ConfigurationToolX::ConfigurationToolX(IToolDescription *toolDesc)
+ConfigurationToolX::ConfigurationToolX(IToolDescription *toolDesc, Project *project)
     : m_toolDescription(toolDesc)
+    , m_project(project)
 {
 }
 
 ConfigurationToolX::ConfigurationToolX(const ConfigurationToolX &configToolRef)
 {
     m_toolDescription = configToolRef.m_toolDescription;
+    m_project = configToolRef.m_project;
 }
 
 ConfigurationToolX &ConfigurationToolX::operator=(const ConfigurationToolX &configToolRef)
 {
-    if (this != &configToolRef)
+    if (this != &configToolRef) {
         m_toolDescription = configToolRef.m_toolDescription;
+        m_project = configToolRef.m_project;
+    }
     return *this;
 }
 

@@ -7,10 +7,12 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
+class Project;
+
 class ConfigurationToolX : public IConfigurationBuildTool
 {
 public:
-    ConfigurationToolX(IToolDescription *toolDesc);
+    ConfigurationToolX(IToolDescription *toolDesc, Project *project);
     ConfigurationToolX(const ConfigurationToolX &configToolRef);
     ConfigurationToolX &operator=(const ConfigurationToolX &configToolRef);
 
@@ -27,6 +29,7 @@ public:
 
 private:
     const IToolDescription *m_toolDescription;
+    Project *m_project;
 };
 
 } // namespace VisualStudioProjectX

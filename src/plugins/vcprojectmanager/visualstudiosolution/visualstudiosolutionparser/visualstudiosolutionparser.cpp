@@ -15,6 +15,9 @@ VisualStudioSolutionParser::VisualStudioSolutionParser(const QString &filePath)
 
 void VisualStudioSolutionParser::parse()
 {
+    m_globals.m_sections.clear();
+    m_projectReferences.clear();
+
     QFile file(m_filePath);
 
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -36,112 +39,173 @@ void VisualStudioSolutionParser::parse()
             m_versionTag = line;
             m_versionTag.remove(0, QLatin1String("# Visual Studio ").size());
         }
-        else if (line == QLatin1String("Global")) {
-            while(!in.atEnd()) {
-                line = in.readLine().trimmed();
+        else if (line == QLatin1String("Global"))
+            parseGlobal(in);
+        else if (line.startsWith(QLatin1String("Project")))
+            parseProjectReferences(in, line);
+    }
+}
 
-                if (line == QLatin1String("EndGlobal"))
-                    break;
+void VisualStudioSolutionParser::parseGlobal(QTextStream &in)
+{
+    QString line;
 
-                else if (line.startsWith(QLatin1String("GlobalSection"))) {
-                    GlobalSection globalSection;
-                    QStringList list = line.split(QLatin1Char('='));
+    while(!in.atEnd()) {
+        line = in.readLine().trimmed();
 
-                    QString temp = list[0].trimmed();
-                    globalSection.m_name = temp.mid(temp.indexOf(QLatin1Char('(')),
-                                                    temp.indexOf(QLatin1Char(')')));
-                    globalSection.m_name.remove(0, 1);
-                    globalSection.m_name.chop(1);
-                    globalSection.m_type = list[1].trimmed();
+        if (line == QLatin1String("EndGlobal"))
+            break;
 
-                    if (globalSection.m_name == QLatin1String("ProjectConfigurationPlatforms")) {
-                        while(!in.atEnd()) {
-                            line = in.readLine().trimmed();
-
-                            if (line == QLatin1String("EndGlobalSection"))
-                                break;
-
-                            QStringList list = line.split(QLatin1Char('='));
-                            QString temp = list[0].trimmed();
-                            QStringList list2 = temp.split(QLatin1Char('.'));
-
-                            if (list2[2] == QLatin1String("ActiveCfg")) {
-                                ProjectConfigurationSection projConfig;
-                                projConfig.m_projectReferenceId = list2[0];
-                                projConfig.m_projectReferenceId.remove(0, 1);
-                                projConfig.m_projectReferenceId.chop(1);
-
-                                projConfig.m_projectConfigurationName = list2[1];
-                                projConfig.m_targetSolutionConfiguration = list[1].trimmed();
-                                globalSection.m_projConfigSections << projConfig;
-                            } else if (list2[2] == QLatin1String("Build")) {
-                                ProjectConfigurationBuild projBuild;
-                                projBuild.m_projectReferenceId = list2[0];
-                                projBuild.m_projectReferenceId.remove(0, 1);
-                                projBuild.m_projectReferenceId.chop(1);
-
-                                projBuild.m_projectConfigurationName = list2[1];
-                                projBuild.m_targetSolutionConfiguration = list[1].trimmed();
-                                globalSection.m_projBuildSections << projBuild;
-                            }
-                        }
-                    } else if (globalSection.m_name == QLatin1String("SolutionConfigurationPlatforms")
-                               || globalSection.m_name == QLatin1String("SolutionProperties")) {
-                        while (!in.atEnd()) {
-                            line = in.readLine().trimmed();
-
-                            if (line == QLatin1String("EndGlobalSection"))
-                                break;
-
-                            SolutionConfiguration solutionConfig;
-                            QStringList list = line.split(QLatin1Char('='));
-
-                            solutionConfig.m_key = list[0].trimmed();
-                            solutionConfig.m_value = list[1].trimmed();
-
-                            globalSection.m_solutionConfigurations << solutionConfig;
-                        }
-                    }
-
-                    m_globals.m_sections << globalSection;
-                }
-            }
-        } else if (line.startsWith(QLatin1String("Project"))) {
-            ProjectReference projectReference;
+        else if (line.startsWith(QLatin1String("GlobalSection"))) {
+            GlobalSection globalSection;
             QStringList list = line.split(QLatin1Char('='));
-            projectReference.m_id = list[0].mid(list[0].indexOf(QLatin1String("(\"")),
-                                                list[0].indexOf(QLatin1String("\")")));
 
-            projectReference.m_id.remove(0, 3);
-            projectReference.m_id.chop(4);
+            QString temp = list[0].trimmed();
+            globalSection.m_name = temp.mid(temp.indexOf(QLatin1Char('(')),
+                                            temp.indexOf(QLatin1Char(')')));
+            globalSection.m_name.remove(0, 1);
+            globalSection.m_name.chop(1);
+            globalSection.m_type = list[1].trimmed();
 
-            QStringList list2 = list[1].split(QLatin1Char(','));
+            if (globalSection.m_name == QLatin1String("ProjectConfigurationPlatforms"))
+                parseProjectConfigurationPlatforms(in, globalSection);
+            else if (globalSection.m_name == QLatin1String("SolutionConfigurationPlatforms")
+                            || globalSection.m_name == QLatin1String("SolutionProperties"))
+                parseSolutionConfigurationPlatforms(in, globalSection);
+            else if (globalSection.m_name == QLatin1String("NestedProjects"))
+                parseNestedProjects(in, globalSection);
 
-            QString temp = list2[0].trimmed();
-            temp.remove(0, 1);
-            temp.chop(1);
-            projectReference.m_projectName = temp;
-
-            temp = list2[1].trimmed();
-            temp.remove(0, 1);
-            temp.chop(1);
-            temp.replace(QLatin1Char('\\'), QLatin1Char('/'));
-            projectReference.m_relativeProjectPath = temp;
-
-            temp = list2[2].trimmed();
-            temp.remove(0, 2);
-            temp.chop(2);
-            projectReference.m_referenceId = temp;
-
-            m_projectReferences << projectReference;
-
-            while(!in.atEnd()) {
-                line = in.readLine().trimmed();
-
-                if (line == QLatin1String("EndProject"))
-                    break;
-            }
+            m_globals.m_sections << globalSection;
         }
+    }
+}
+
+void VisualStudioSolutionParser::parseProjectReferences(QTextStream &in, const QString &lineArg)
+{
+    QString line = lineArg;
+    QStringList list = line.split(QLatin1Char('='));
+
+    QString tempId = list[0].mid(list[0].indexOf(QLatin1String("(\"")),
+            list[0].indexOf(QLatin1String("\")")));
+    tempId.remove(0, 3);
+    tempId.chop(4);
+
+    QStringList list2 = list[1].split(QLatin1Char(','));
+
+    QString temp1 = list2[0].trimmed();
+    temp1.remove(0, 1);
+    temp1.chop(1);
+
+    QString temp2 = list2[1].trimmed();
+    temp2.remove(0, 1);
+    temp2.chop(1);
+    temp2.replace(QLatin1Char('\\'), QLatin1Char('/'));
+
+    QString temp3 = list2[2].trimmed();
+    temp3.remove(0, 2);
+    temp3.chop(2);
+
+    if (temp2.endsWith(QLatin1String(".vcxproj"))) {
+        ProjectReference projectReference;
+        projectReference.m_id = tempId;
+        projectReference.m_projectName = temp1;
+        projectReference.m_relativeProjectPath = temp2;
+        projectReference.m_referenceId = temp3;
+        m_projectReferences << projectReference;
+    }
+    else {
+        FolderReference folderReference;
+        folderReference.m_id = tempId;
+        folderReference.m_projectName = temp1;
+        folderReference.m_displayName = temp2;
+        folderReference.m_referenceId = temp3;
+        m_folderReferences << folderReference;
+    }
+
+    while(!in.atEnd()) {
+        line = in.readLine().trimmed();
+        if (line == QLatin1String("EndProject"))
+            break;
+    }
+}
+
+void VisualStudioSolutionParser::parseProjectConfigurationPlatforms(QTextStream &in, GlobalSection &globalSection)
+{
+    QString line;
+
+    while(!in.atEnd()) {
+        line = in.readLine().trimmed();
+
+        if (line == QLatin1String("EndGlobalSection"))
+            break;
+
+        QStringList list = line.split(QLatin1Char('='));
+        QString temp = list[0].trimmed();
+        QStringList list2 = temp.split(QLatin1Char('.'));
+
+        if (list2[2] == QLatin1String("ActiveCfg")) {
+            ProjectConfigurationSection projConfig;
+            projConfig.m_projectReferenceId = list2[0];
+            projConfig.m_projectReferenceId.remove(0, 1);
+            projConfig.m_projectReferenceId.chop(1);
+
+            projConfig.m_projectConfigurationName = list2[1];
+            projConfig.m_targetSolutionConfiguration = list[1].trimmed();
+            globalSection.m_projConfigSections << projConfig;
+        } else if (list2[2] == QLatin1String("Build")) {
+            ProjectConfigurationBuild projBuild;
+            projBuild.m_projectReferenceId = list2[0];
+            projBuild.m_projectReferenceId.remove(0, 1);
+            projBuild.m_projectReferenceId.chop(1);
+
+            projBuild.m_projectConfigurationName = list2[1];
+            projBuild.m_targetSolutionConfiguration = list[1].trimmed();
+            globalSection.m_projBuildSections << projBuild;
+        }
+    }
+}
+
+void VisualStudioSolutionParser::parseSolutionConfigurationPlatforms(QTextStream &in, GlobalSection &globalSection)
+{
+    QString line;
+
+    while (!in.atEnd()) {
+        line = in.readLine().trimmed();
+
+        if (line == QLatin1String("EndGlobalSection"))
+            break;
+
+        SolutionConfiguration solutionConfig;
+        QStringList list = line.split(QLatin1Char('='));
+
+        solutionConfig.m_key = list[0].trimmed();
+        solutionConfig.m_value = list[1].trimmed();
+
+        globalSection.m_solutionConfigurations << solutionConfig;
+    }
+}
+
+void VisualStudioSolutionParser::parseNestedProjects(QTextStream &in, GlobalSection &globalSection)
+{
+    QString line;
+
+    while(!in.atEnd()) {
+        line = in.readLine().trimmed();
+
+        if (line == QLatin1String("EndGlobalSection"))
+            break;
+
+        NestedProject nestedProject;
+        QStringList list = line.split(QLatin1Char('='));
+
+        nestedProject.m_idKey = list[0].trimmed();
+        nestedProject.m_idKey.remove(0, 1);
+        nestedProject.m_idKey.chop(1);
+        nestedProject.m_targetId = list[1].trimmed();
+        nestedProject.m_targetId.remove(0, 1);
+        nestedProject.m_targetId.chop(1);
+
+        globalSection.m_nestedProjects << nestedProject;
     }
 }
 

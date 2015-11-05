@@ -209,7 +209,7 @@ void VcProject::onSettingsDialogAccepted()
             VcProjectBuildConfiguration *vcProjectBuildConfiguration = qobject_cast<VcProjectBuildConfiguration *>(bc);
             if (!vcProjectBuildConfiguration)
                 continue;
-            IConfiguration *lookFor = configs->configurationContainer()->configuration(vcBc->displayName());
+            IConfiguration *lookFor = configs->configurationContainer()->configuration(vcProjectBuildConfiguration->displayName());
             if (!lookFor)
                 target->removeBuildConfiguration(vcProjectBuildConfiguration);
 

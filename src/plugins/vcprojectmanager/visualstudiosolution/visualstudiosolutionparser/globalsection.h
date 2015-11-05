@@ -21,6 +21,12 @@ struct ProjectConfigurationBuild {
     QString m_buildId;
 };
 
+struct NestedProject {
+    // m_idKey is a child of m_targetId
+    QString m_idKey;    // project or folder id
+    QString m_targetId; // may be project ID or folder ID
+};
+
 struct GlobalSection
 {
     QString m_name;
@@ -28,6 +34,7 @@ struct GlobalSection
     QList<SolutionConfiguration> m_solutionConfigurations;
     QList<ProjectConfigurationSection> m_projConfigSections;
     QList<ProjectConfigurationBuild> m_projBuildSections;
+    QList<NestedProject> m_nestedProjects;
 };
 
 } // namespace Internal

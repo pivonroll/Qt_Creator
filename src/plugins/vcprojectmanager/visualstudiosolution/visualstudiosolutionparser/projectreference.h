@@ -14,6 +14,14 @@ struct ProjectReference
     QString m_referenceId;
 };
 
+struct FolderReference
+{
+    QString m_id;
+    QString m_projectName;
+    QString m_displayName;
+    QString m_referenceId;
+};
+
 } // namespace Internal
 } // namespace VisualStudioProjectNS
 

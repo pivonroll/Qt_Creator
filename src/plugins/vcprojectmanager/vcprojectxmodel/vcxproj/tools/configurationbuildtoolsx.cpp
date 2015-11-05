@@ -2,6 +2,9 @@
 
 #include <utils/qtcassert.h>
 
+#include <QDomElement>
+#include <QDomDocument>
+
 namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {

@@ -6,6 +6,10 @@
 
 #include <QString>
 
+QT_BEGIN_NAMESPACE
+class QTextStream;
+QT_END_NAMESPACE
+
 namespace VisualStudioProjectNS {
 namespace Internal {
 
@@ -23,6 +27,14 @@ public:
 
     Globals m_globals;
     QList<ProjectReference> m_projectReferences;
+    QList<FolderReference> m_folderReferences;
+
+private:
+    void parseGlobal(QTextStream &in);
+    void parseProjectReferences(QTextStream &in, const QString &lineArg);
+    void parseProjectConfigurationPlatforms(QTextStream &in, GlobalSection &globalSection);
+    void parseSolutionConfigurationPlatforms(QTextStream &in, GlobalSection &globalSection);
+    void parseNestedProjects(QTextStream &in, GlobalSection &globalSection);
 };
 
 } // namespace Internal

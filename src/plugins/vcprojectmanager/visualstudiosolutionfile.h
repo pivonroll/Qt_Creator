@@ -34,7 +34,8 @@ public:
 
 private:
     VisualStudioProjectNS::Internal::VisualStudioSolutionParser *m_visualStudioParser;
-    QList<IVisualStudioProject *> m_visualStudioProjects;
+     // <project id, project>
+    QMap<QString, IVisualStudioProject *> m_visualStudioProjects;
 };
 
 } // namespace Internal

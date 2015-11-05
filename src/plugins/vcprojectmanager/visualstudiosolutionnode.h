@@ -2,11 +2,35 @@
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOSOLUTIONNODE_H
 
 #include <projectexplorer/projectnodes.h>
+#include "visualstudiosolution/visualstudiosolutionparser/projectreference.h"
+
+namespace VisualStudioProjectNS {
+namespace Internal {
+    struct FolderReference;
+    class VisualStudioSolutionParser;
+} // namespace Internal
+} // namespace VisualStudioProjectNS
 
 namespace VcProjectManager {
 namespace Internal {
 
 class VisualStudioSolutionFile;
+class VcDocProjectNode;
+
+class VisualStudioSolutionFolder : public ProjectExplorer::ProjectNode
+{
+    friend class VisualStudioSolutionNode;
+public:
+    VisualStudioSolutionFolder(const VisualStudioProjectNS::Internal::FolderReference &folderReference);
+    ~VisualStudioSolutionFolder();
+
+    bool canAddSubProject(const QString &proFilePath) const final;
+    bool addSubProjects(const QStringList &proFilePaths) final;
+    bool removeSubProjects(const QStringList &proFilePaths) final;
+
+private:
+    VisualStudioProjectNS::Internal::FolderReference m_folderReference;
+};
 
 class VisualStudioSolutionNode : public ProjectExplorer::ProjectNode
 {
@@ -66,6 +90,8 @@ public:
 
 private:
     void addProjects();
+    VisualStudioSolutionFolder *findFolderNode(const QString &nodeId, const QList<VisualStudioSolutionFolder *> &nodes) const;
+    ProjectExplorer::ProjectNode *findProjectNode(const QString &nodeId, const QMap<QString, ProjectExplorer::ProjectNode *> &nodes) const;
 
     VisualStudioSolutionFile *m_visualStudioSolutionFile;
 };

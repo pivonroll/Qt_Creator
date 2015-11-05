@@ -34,15 +34,15 @@ VisualStudioSolutionFile::VisualStudioSolutionFile(const QString &filePath)
             if(QFileInfo(fullProjectPath).exists())
                 newProject = new VcProjectDocumentX(fullProjectPath);
         }
-
         else if (projectMimeType.matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE))) {
+            // function getProjectVersion will only return DV_MSVC_2003, DV_MSVC_2005 or DV_MSVC_2008,
             VcDocConstants::DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(fullProjectPath);
 
             if (docVersion != VcDocConstants::DV_UNRECOGNIZED)
                 newProject = new VcProjectDocument(fullProjectPath, docVersion);
         }
 
-        m_visualStudioProjects.append(newProject);
+        m_visualStudioProjects[projectReference.m_referenceId] = newProject;
     }
 }
 

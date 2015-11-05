@@ -140,7 +140,7 @@ IConfiguration *FileX::createDefaultBuildConfiguration(const QString &configName
         IToolDescription *toolDesc = tDDM->toolDescription(QLatin1String(ToolConstantsx::TOOL_CL_COMPILE));
 
         if (toolDesc)
-            config->tools()->configurationBuildTools()->addTool(new ConfigurationToolX(toolDesc));
+            config->tools()->configurationBuildTools()->addTool(new ConfigurationToolX(toolDesc, m_project));
     }
     return config;
 }

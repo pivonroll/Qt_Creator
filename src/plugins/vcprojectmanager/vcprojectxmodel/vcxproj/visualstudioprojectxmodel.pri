@@ -37,7 +37,8 @@ HEADERS +=  \
     $$PWD/filefactoryx.h \
     $$PWD/tools/configurationtoolx.h \
     $$PWD/tools/toolsx.h \
-    $$PWD/tools/configurationbuildtoolsx.h
+    $$PWD/tools/configurationbuildtoolsx.h \
+    $$PWD/tools/toolsectionx.h
 
 SOURCES +=  \
     $$PWD/private/when.cpp \
@@ -75,7 +76,8 @@ SOURCES +=  \
     $$PWD/filefactoryx.cpp \
     $$PWD/tools/configurationtoolx.cpp \
     $$PWD/tools/toolsx.cpp \
-    $$PWD/tools/configurationbuildtoolsx.cpp
+    $$PWD/tools/configurationbuildtoolsx.cpp \
+    $$PWD/tools/toolsectionx.cpp
 
 OTHER_FILES += \
     $$PWD/vcprojectxmodel/vcxproj/tools/xml_definitions/BscmakeTool.xml \
@@ -87,3 +89,6 @@ OTHER_FILES += \
     $$PWD/vcprojectxmodel/vcxproj/tools/xml_definitions/PreBuildEventTool.xml \
     $$PWD/vcprojectxmodel/vcxproj/tools/xml_definitions/PreLinkEventTool.xml \
     $$PWD/vcprojectxmodel/vcxproj/tools/xml_definitions/XdcmakeTool.xml
+
+DISTFILES += \
+    $$PWD/tools/xml_definitions/ClCompileTool.xml

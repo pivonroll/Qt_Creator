@@ -109,7 +109,6 @@ bool VcProjConditionParser::parse()
             switch (r) {
 
             case 0: {
-            qDebug() << "Goal: Expression ;";
             m_condExpression = sym(1);
             break;
             }
