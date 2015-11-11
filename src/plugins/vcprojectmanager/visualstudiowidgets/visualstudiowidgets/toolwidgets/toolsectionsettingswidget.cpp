@@ -30,7 +30,8 @@
 #include "itoolattributesettingswidget.h"
 
 #include "toolsectionsettingswidget.h"
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 #include <visualstudiointerfaces/itoolattribute.h>
 #include <visualstudiointerfaces/itoolattributecontainer.h>
 #include <visualstudiointerfaces/itoolsection.h>

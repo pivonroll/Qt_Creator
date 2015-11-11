@@ -52,7 +52,7 @@ public:
     ~ToolSection();
 
     IToolAttributeContainer *attributeContainer() const;
-    const IToolSectionDescription *sectionDescription() const;
+    const ToolSectionDescription *sectionDescription() const;
     VcNodeWidget *createSettingsWidget();
     IToolSection *clone() const;
 

@@ -30,15 +30,16 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_ATTRIBUTEDESCRIPTIONDATAITEM_H
 #define VCPROJECTMANAGER_INTERNAL_ATTRIBUTEDESCRIPTIONDATAITEM_H
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
-
 #include <QHash>
 #include <QString>
 
 namespace VcProjectManager {
 namespace Internal {
 
-class AttributeDescriptionDataItem : public IAttributeDescriptionDataItem
+class IToolAttribute;
+class ToolAttributeOption;
+
+class AttributeDescriptionDataItem
 {
 public:
     AttributeDescriptionDataItem(const QString &type,

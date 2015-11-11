@@ -2,6 +2,8 @@
 #define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOSOLUTIONFILE_H
 
 #include <coreplugin/idocument.h>
+#include <QString>
+#include <QMap>
 
 namespace VisualStudioProjectNS {
 namespace Internal {

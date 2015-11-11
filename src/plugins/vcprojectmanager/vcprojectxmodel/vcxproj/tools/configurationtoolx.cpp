@@ -6,7 +6,7 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
-ConfigurationToolX::ConfigurationToolX(IToolDescription *toolDesc, Project *project)
+ConfigurationToolX::ConfigurationToolX(ToolDescription *toolDesc, Project *project)
     : m_toolDescription(toolDesc)
     , m_project(project)
 {
@@ -48,7 +48,7 @@ ISectionContainer *ConfigurationToolX::sectionContainer() const
     return nullptr;
 }
 
-const IToolDescription *ConfigurationToolX::toolDescription() const
+const ToolDescription *ConfigurationToolX::toolDescription() const
 {
     return m_toolDescription;
 }

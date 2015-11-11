@@ -44,7 +44,7 @@ namespace Internal {
 class ConfigurationTool : public IConfigurationBuildTool
 {
 public:
-    ConfigurationTool(const IToolDescription *toolDesc);
+    ConfigurationTool(const ToolDescription *toolDesc);
     ConfigurationTool(const ConfigurationTool &tool);
     virtual ~ConfigurationTool();
 
@@ -52,7 +52,7 @@ public:
     void processNode(const QDomNode &node);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
-    const IToolDescription *toolDescription() const;
+    const ToolDescription *toolDescription() const;
     VcNodeWidget *createSettingsWidget();
 
     ISectionContainer *sectionContainer() const;
@@ -62,7 +62,7 @@ public:
 private:
     void processNodeAttributes(const QDomElement &domElement);
 
-    const IToolDescription *m_toolDesc;
+    const ToolDescription *m_toolDesc;
     ISectionContainer *m_sectionContainer;
 };
 

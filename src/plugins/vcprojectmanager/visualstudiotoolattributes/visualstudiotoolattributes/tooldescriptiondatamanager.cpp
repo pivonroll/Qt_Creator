@@ -113,16 +113,16 @@ int ToolDescriptionDataManager::toolDescriptionCount() const
     return m_toolDescriptions.size();
 }
 
-IToolDescription *ToolDescriptionDataManager::toolDescription(int index) const
+ToolDescription *ToolDescriptionDataManager::toolDescription(int index) const
 {
     if (0 <= index && index < m_toolDescriptions.size())
         return m_toolDescriptions[index];
     return 0;
 }
 
-IToolDescription *ToolDescriptionDataManager::toolDescription(const QString &toolKey) const
+ToolDescription *ToolDescriptionDataManager::toolDescription(const QString &toolKey) const
 {
-    foreach (IToolDescription *toolDesc, m_toolDescriptions) {
+    foreach (ToolDescription *toolDesc, m_toolDescriptions) {
         if (toolDesc->toolKey() == toolKey)
             return toolDesc;
     }
@@ -206,7 +206,7 @@ void ToolDescriptionDataManager::processXMLDoc(const QDomDocument &xmlDoc)
 
 void ToolDescriptionDataManager::processDomNode(const QDomNode &node)
 {
-    IToolDescription *toolDesc = readToolDescription(node);
+    ToolDescription *toolDesc = readToolDescription(node);
 
     QTC_ASSERT(toolDesc != nullptr, return);
 
@@ -216,7 +216,7 @@ void ToolDescriptionDataManager::processDomNode(const QDomNode &node)
         processToolSectionNode(toolDesc, node.firstChild());
 }
 
-void ToolDescriptionDataManager::processToolSectionNode(IToolDescription *toolDescription, const QDomNode &domNode)
+void ToolDescriptionDataManager::processToolSectionNode(ToolDescription *toolDescription, const QDomNode &domNode)
 {
     if (domNode.nodeName() == QLatin1String("Section")) {
         ToolSectionDescription *toolSectionDesc = new ToolSectionDescription;
@@ -272,11 +272,11 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
                     description = domElement.value();
             }
         }
-        IAttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("String"),
-                                                                                              key,
-                                                                                              displayName,
-                                                                                              description,
-                                                                                              defaultValue);
+        AttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("String"),
+                                                                                  key,
+                                                                                  displayName,
+                                                                                  description,
+                                                                                  defaultValue);
         toolSectDesc->addAttributeDescription(dataItem);
     }
 
@@ -310,11 +310,11 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
                     separator = domElement.value();
             }
         }
-        IAttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("StringList"),
-                                                                                   key,
-                                                                                   displayName,
-                                                                                   description,
-                                                                                   defaultValue);
+        AttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("StringList"),
+                                                                                  key,
+                                                                                  displayName,
+                                                                                  description,
+                                                                                  defaultValue);
         dataItem->setOptionalValue(QLatin1String("separator"), separator);
         toolSectDesc->addAttributeDescription(dataItem);
     }
@@ -347,11 +347,11 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
         }
 
         ToolAttributeOption *option = processOptionValues(domNode.firstChild());
-        IAttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("Integer"),
-                                                                                   key,
-                                                                                   displayName,
-                                                                                   description,
-                                                                                   defaultValue);
+        AttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("Integer"),
+                                                                                  key,
+                                                                                  displayName,
+                                                                                  description,
+                                                                                  defaultValue);
         dataItem->setFirstOption(option);
         toolSectDesc->addAttributeDescription(dataItem);
     }
@@ -384,11 +384,11 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
         }
 
         ToolAttributeOption* option = processOptionValues(domNode.firstChild());
-        IAttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("Boolean"),
-                                                                                   key,
-                                                                                   displayName,
-                                                                                   description,
-                                                                                   defaultValue);
+        AttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("Boolean"),
+                                                                                  key,
+                                                                                  displayName,
+                                                                                  description,
+                                                                                  defaultValue);
         dataItem->setFirstOption(option);
         toolSectDesc->addAttributeDescription(dataItem);
     }
@@ -398,7 +398,7 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
         processToolAttributeDescriptions(toolSectDesc, nextSibling);
 }
 
-IToolDescription *ToolDescriptionDataManager::readToolDescription(const QDomNode &domNode)
+ToolDescription *ToolDescriptionDataManager::readToolDescription(const QDomNode &domNode)
 {
     QDomNode tempNode = domNode;
 

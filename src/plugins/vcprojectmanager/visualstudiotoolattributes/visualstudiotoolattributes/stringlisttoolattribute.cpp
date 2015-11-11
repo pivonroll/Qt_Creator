@@ -49,7 +49,7 @@ StringListToolAttribute::StringListToolAttribute(const StringListToolAttribute &
     m_attributeValue = attr.m_attributeValue;
 }
 
-const IAttributeDescriptionDataItem *StringListToolAttribute::descriptionDataItem() const
+const AttributeDescriptionDataItem *StringListToolAttribute::descriptionDataItem() const
 {
     return m_descDataItem;
 }

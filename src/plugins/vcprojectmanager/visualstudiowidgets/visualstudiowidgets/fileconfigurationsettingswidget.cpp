@@ -32,17 +32,17 @@
 
 #include "../vcprojectmodel/vcprojectdocument_constants.h"
 
+#include <visualstudiotoolattributes/tooldescription.h>
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
+
 #include <visualstudiointerfaces/iattributecontainer.h>
 #include <visualstudiointerfaces/iconfiguration.h>
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
 #include <visualstudiointerfaces/iconfigurationcontainer.h>
 #include <visualstudiointerfaces/iconfigurations.h>
-#include <visualstudiointerfaces/itooldescription.h>
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
-
-#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <utils/qtcassert.h>
 
@@ -131,7 +131,7 @@ void FileConfigurationSettingsWidget::saveData()
 
     QTC_ASSERT(tool, return);
 
-    const IToolDescription *toolDescription = tool->toolDescription();
+    const ToolDescription *toolDescription = tool->toolDescription();
 
     QTC_ASSERT(toolDescription, return);
 

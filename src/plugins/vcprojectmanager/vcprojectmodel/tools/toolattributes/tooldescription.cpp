@@ -28,10 +28,13 @@
 **
 ****************************************************************************/
 #include "tooldescription.h"
-#include "../../../interfaces/iattributedescriptiondataitem.h"
-#include "../../../interfaces/itoolattribute.h"
+
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/toolsectiondescription.h>
+
+#include <visualstudiointerfaces/itoolattribute.h>
+
 #include "../configurationtool.h"
-#include "../toolsectiondescription.h"
 
 namespace VcProjectManager {
 namespace Internal {
@@ -44,7 +47,7 @@ ToolDescription::~ToolDescription()
 {
 }
 
-IToolSectionDescription *ToolDescription::sectionDescription(int index) const
+ToolSectionDescription *ToolDescription::sectionDescription(int index) const
 {
     if (0 <= index && index < m_sectionDescriptions.size())
         return m_sectionDescriptions[index];

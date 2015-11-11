@@ -34,8 +34,11 @@
 #include "../utils.h"
 #include "../vcprojectmodel/tools/tool_constants.h"
 
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/tooldescription.h>
+#include <visualstudiotoolattributes/toolsectiondescription.h>
+
 #include <visualstudiointerfaces/iattributecontainer.h>
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
 #include <visualstudiointerfaces/iconfiguration.h>
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
@@ -49,10 +52,8 @@
 #include <visualstudiointerfaces/isectioncontainer.h>
 #include <visualstudiointerfaces/itoolattribute.h>
 #include <visualstudiointerfaces/itoolattributecontainer.h>
-#include <visualstudiointerfaces/itooldescription.h>
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiointerfaces/itoolsection.h>
-#include <visualstudiointerfaces/itoolsectiondescription.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
 
 #include <utils/qtcassert.h>

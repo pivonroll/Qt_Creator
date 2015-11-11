@@ -29,11 +29,12 @@
 ****************************************************************************/
 #include "toolsectioncontainer.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/toolsectiondescription.h>
+
 #include <visualstudiointerfaces/itoolattribute.h>
 #include <visualstudiointerfaces/itoolattributecontainer.h>
 #include <visualstudiointerfaces/itoolsection.h>
-#include <visualstudiointerfaces/itoolsectiondescription.h>
 
 #include <QDomElement>
 

@@ -37,16 +37,19 @@
 #include "tools/toolattributes/tooldescriptiondatamanager.h"
 #include "../utils.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/toolsectiondescription.h>
+
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
 #include <visualstudiointerfaces/isectioncontainer.h>
 #include <visualstudiointerfaces/itoolattribute.h>
 #include <visualstudiointerfaces/itoolattributecontainer.h>
-#include <visualstudiointerfaces/itooldescription.h>
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiointerfaces/itoolsection.h>
-#include <visualstudiointerfaces/itoolsectiondescription.h>
+
+#include <visualstudiotoolattributes/tooldescription.h>
+
 #include <visualstudiowidgets/fileconfigurationseditwidget.h>
 
 #include <coreplugin/icore.h>

@@ -55,9 +55,9 @@ protected:
     inline VcProjectManager::Internal::Expression* &sym(int index)
     { return m_sym_stack [m_tos + index - 1]; }
 
-    VcProjectManager::Internal::Expression *m_condExpression;
     int m_stack_size;
     int m_tos;
+    VcProjectManager::Internal::Expression *m_condExpression;
     QVarLengthArray<int, 128> m_state_stack;
     QVarLengthArray<VcProjectManager::Internal::Expression *, 128> m_sym_stack;
     QString m_expression;

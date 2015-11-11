@@ -6,17 +6,18 @@
 #include "vcschemamanager.h"
 
 #include <visualstudiointerfaces/iattributecontainer.h>
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
 #include <visualstudiointerfaces/iconfiguration.h>
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiointerfaces/itoolattribute.h>
 #include <visualstudiointerfaces/itoolattributecontainer.h>
-#include <visualstudiointerfaces/itooldescription.h>
 #include <visualstudiointerfaces/itoolsection.h>
-#include <visualstudiointerfaces/itoolsectiondescription.h>
 #include <visualstudiointerfaces/isectioncontainer.h>
+
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/tooldescription.h>
+#include <visualstudiotoolattributes/toolsectiondescription.h>
 
 #include <projectexplorer/projectexplorerconstants.h>
 #include <utils/mimetypes/mimedatabase.h>

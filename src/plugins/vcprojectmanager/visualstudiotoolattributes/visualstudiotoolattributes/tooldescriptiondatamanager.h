@@ -42,7 +42,7 @@ QT_END_NAMESPACE
 namespace VcProjectManager {
 namespace Internal {
 
-class IToolDescription;
+class ToolDescription;
 class ToolSectionDescription;
 
 /*!
@@ -92,12 +92,12 @@ public:
     /*!
      * \return a tool description at \a index.
      */
-    IToolDescription *toolDescription(int index) const;
+    ToolDescription *toolDescription(int index) const;
 
     /*!
      * \return a tool description with a key \a toolKey.
      */
-    IToolDescription *toolDescription(const QString &toolKey) const;
+    ToolDescription *toolDescription(const QString &toolKey) const;
 
     /*!
      * \brief readToolInfo
@@ -137,7 +137,7 @@ private:
      * \brief Reads tool section description XML nodes and
      * starts processing attribute description XML nodes.
      */
-    void processToolSectionNode(IToolDescription *toolDescription, const QDomNode &domNode);
+    void processToolSectionNode(ToolDescription *toolDescription, const QDomNode &domNode);
 
     /*!
      * \brief Reads tool attribute description XML node.
@@ -147,9 +147,9 @@ private:
     /*!
      * \brief Reads tool description from tool description XML node.
      */
-    IToolDescription *readToolDescription(const QDomNode &domNode);
+    VcProjectManager::Internal::ToolDescription *readToolDescription(const QDomNode &domNode);
 
-    QList<IToolDescription *> m_toolDescriptions;
+    QList<ToolDescription *> m_toolDescriptions;
     static ToolDescriptionDataManager *m_instance;
 };
 

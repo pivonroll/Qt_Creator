@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "configurationbuildtools.h"
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
-#include <visualstudiointerfaces/itooldescription.h>
+#include <visualstudiotoolattributes/tooldescription.h>
 
 #include <QDomElement>
 

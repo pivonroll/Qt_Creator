@@ -30,36 +30,32 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_TOOLSECTIONDESCRIPTION_H
 #define VCPROJECTMANAGER_INTERNAL_TOOLSECTIONDESCRIPTION_H
 
-#include <visualstudiointerfaces/itoolsectiondescription.h>
-
 #include <QList>
 #include <QString>
 
 namespace VcProjectManager {
 namespace Internal {
 
-class IAttributeDescriptionDataItem;
+class AttributeDescriptionDataItem;
 
-class ToolSectionDescription : public IToolSectionDescription
+class ToolSectionDescription
 {
 public:
     ToolSectionDescription();
 
-    IToolSection *createToolSection() const;
-
     QString displayName() const;
     void setDisplayName(const QString &displayName);
 
-    IAttributeDescriptionDataItem *attributeDescription(const QString &attributeKey) const;
-    IAttributeDescriptionDataItem *attributeDescription(int index) const;
+    AttributeDescriptionDataItem *attributeDescription(const QString &attributeKey) const;
+    AttributeDescriptionDataItem *attributeDescription(int index) const;
     int attributeDescriptionCount() const;
-    void addAttributeDescription(IAttributeDescriptionDataItem *attributeDesc);
-    void removeAttributeDescription(IAttributeDescriptionDataItem *attributeDesc);
+    void addAttributeDescription(AttributeDescriptionDataItem *attributeDesc);
+    void removeAttributeDescription(AttributeDescriptionDataItem *attributeDesc);
     void removeAttributeDescription(const QString &attributeKey);
 
 private:
     QString m_name;
-    QList<IAttributeDescriptionDataItem *> m_toolAttributeDescs;
+    QList<AttributeDescriptionDataItem *> m_toolAttributeDescs;
 };
 
 } // namespace Internal

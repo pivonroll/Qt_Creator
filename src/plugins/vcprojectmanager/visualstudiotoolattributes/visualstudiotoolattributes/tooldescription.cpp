@@ -29,7 +29,8 @@
 ****************************************************************************/
 #include "tooldescription.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
 #include <visualstudiointerfaces/itoolattribute.h>
 
 #include "../../vcprojectmodel/tools/configurationtool.h"
@@ -48,7 +49,7 @@ ToolDescription::~ToolDescription()
 {
 }
 
-IToolSectionDescription *ToolDescription::sectionDescription(int index) const
+ToolSectionDescription *ToolDescription::sectionDescription(int index) const
 {
     QTC_ASSERT(0 <= index && index < m_sectionDescriptions.size(), return 0);
     return m_sectionDescriptions[index];
@@ -59,7 +60,7 @@ int ToolDescription::sectionDescriptionCount() const
     return m_sectionDescriptions.size();
 }
 
-void ToolDescription::removeSectionDescription(IToolSectionDescription *sectionDescription)
+void ToolDescription::removeSectionDescription(ToolSectionDescription *sectionDescription)
 {
     if (!sectionDescription)
         return;
@@ -70,7 +71,7 @@ void ToolDescription::removeSectionDescription(IToolSectionDescription *sectionD
         return;
     }
 
-    foreach (IToolSectionDescription* toolSectionDesc, m_sectionDescriptions) {
+    foreach (ToolSectionDescription* toolSectionDesc, m_sectionDescriptions) {
         if (toolSectionDesc->displayName() == sectionDescription->displayName()) {
             m_sectionDescriptions.removeOne(sectionDescription);
             delete sectionDescription;
@@ -79,9 +80,9 @@ void ToolDescription::removeSectionDescription(IToolSectionDescription *sectionD
     }
 }
 
-void ToolDescription::addSectionDescription(IToolSectionDescription *sectionDescription)
+void ToolDescription::addSectionDescription(ToolSectionDescription *sectionDescription)
 {
-    foreach (IToolSectionDescription* toolSectionDesc, m_sectionDescriptions) {
+    foreach (ToolSectionDescription* toolSectionDesc, m_sectionDescriptions) {
         if (toolSectionDesc->displayName() == sectionDescription->displayName())
             return;
     }

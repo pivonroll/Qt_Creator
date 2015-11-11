@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "generaltoolattributecontainer.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 #include <visualstudiointerfaces/itoolattribute.h>
 
 namespace VcProjectManager {

@@ -36,7 +36,7 @@ namespace VcProjectManager {
 namespace Internal {
 
 class ISectionContainer;
-class IToolDescription;
+class ToolDescription;
 
 class IConfigurationBuildTool : public IVcProjectXMLNode
 {
@@ -53,7 +53,7 @@ public:
      * \return a description of a tool.
      * For more details see \class IToolDescription.
      */
-    virtual const IToolDescription *toolDescription() const = 0;
+    virtual const ToolDescription *toolDescription() const = 0;
 
     /*!
      * \return a clone of this instance.

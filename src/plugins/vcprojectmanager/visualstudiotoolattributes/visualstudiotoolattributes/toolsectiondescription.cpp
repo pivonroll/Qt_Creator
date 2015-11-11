@@ -30,18 +30,13 @@
 #include "toolsectiondescription.h"
 
 #include "../../vcprojectmodel/tools/toolsection.h"
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 
 namespace VcProjectManager {
 namespace Internal {
 
 ToolSectionDescription::ToolSectionDescription()
 {
-}
-
-IToolSection *ToolSectionDescription::createToolSection() const
-{
-    return new ToolSection(this);
 }
 
 QString ToolSectionDescription::displayName() const
@@ -54,16 +49,16 @@ void ToolSectionDescription::setDisplayName(const QString &name)
     m_name = name;
 }
 
-IAttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(const QString &attributeKey) const
+AttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(const QString &attributeKey) const
 {
-    foreach (IAttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
+    foreach (AttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
         if (descDataItem->key() == attributeKey)
             return descDataItem;
     }
     return 0;
 }
 
-IAttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(int index) const
+AttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(int index) const
 {
     if (0 <= index && index <= m_toolAttributeDescs.size())
         return m_toolAttributeDescs[index];
@@ -75,24 +70,24 @@ int ToolSectionDescription::attributeDescriptionCount() const
     return m_toolAttributeDescs.size();
 }
 
-void ToolSectionDescription::addAttributeDescription(IAttributeDescriptionDataItem *attributeDesc)
+void ToolSectionDescription::addAttributeDescription(AttributeDescriptionDataItem *attributeDesc)
 {
     if (!attributeDesc || m_toolAttributeDescs.contains(attributeDesc))
         return;
 
-    foreach (IAttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
+    foreach (AttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
         if (descDataItem->key() == attributeDesc->key())
             return;
     }
     m_toolAttributeDescs.append(attributeDesc);
 }
 
-void ToolSectionDescription::removeAttributeDescription(IAttributeDescriptionDataItem *attributeDesc)
+void ToolSectionDescription::removeAttributeDescription(AttributeDescriptionDataItem *attributeDesc)
 {
     if (!attributeDesc)
         return;
 
-    foreach (IAttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
+    foreach (AttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
         if (descDataItem->key() == attributeDesc->key()) {
             m_toolAttributeDescs.removeOne(descDataItem);
             return;
@@ -102,7 +97,7 @@ void ToolSectionDescription::removeAttributeDescription(IAttributeDescriptionDat
 
 void ToolSectionDescription::removeAttributeDescription(const QString &attributeKey)
 {
-    foreach (IAttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
+    foreach (AttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
         if (descDataItem->key() == attributeKey) {
             m_toolAttributeDescs.removeOne(descDataItem);
             return;

@@ -35,7 +35,7 @@
 namespace VcProjectManager {
 namespace Internal {
 
-class IAttributeDescriptionDataItem;
+class AttributeDescriptionDataItem;
 class IToolAttributeSettingsWidget;
 
 class IToolAttribute
@@ -47,7 +47,7 @@ public:
     /*!
      * \return a description data item for this tool attribute.
      */
-    virtual const IAttributeDescriptionDataItem* descriptionDataItem() const = 0;
+    virtual const AttributeDescriptionDataItem* descriptionDataItem() const = 0;
 
     /*!
      * \brief Implement this in order to provide a settings

@@ -7,10 +7,7 @@ HEADERS += \
     $$PWD/visualstudiointerfaces/iattributecontainer.h \
     $$PWD/visualstudiointerfaces/isectioncontainer.h \
     $$PWD/visualstudiointerfaces/itoolsection.h \
-    $$PWD/visualstudiointerfaces/itooldescription.h \
-    $$PWD/visualstudiointerfaces/itoolsectiondescription.h \
     $$PWD/visualstudiointerfaces/itoolattribute.h \
-    $$PWD/visualstudiointerfaces/iattributedescriptiondataitem.h \
     $$PWD/visualstudiointerfaces/iconfigurations.h \
     $$PWD/visualstudiointerfaces/ifile.h \
     $$PWD/visualstudiointerfaces/ifilecontainer.h \

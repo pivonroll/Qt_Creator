@@ -12,7 +12,7 @@ class Project;
 class ConfigurationToolX : public IConfigurationBuildTool
 {
 public:
-    ConfigurationToolX(IToolDescription *toolDesc, Project *project);
+    ConfigurationToolX(ToolDescription *toolDesc, Project *project);
     ConfigurationToolX(const ConfigurationToolX &configToolRef);
     ConfigurationToolX &operator=(const ConfigurationToolX &configToolRef);
 
@@ -23,12 +23,12 @@ public:
 
     // IConfigurationBuildTool interface
     ISectionContainer *sectionContainer() const;
-    const IToolDescription *toolDescription() const;
+    const ToolDescription *toolDescription() const;
     IConfigurationBuildTool *clone() const;
     bool allAttributesAreDefault() const;
 
 private:
-    const IToolDescription *m_toolDescription;
+    const ToolDescription *m_toolDescription;
     Project *m_project;
 };
 

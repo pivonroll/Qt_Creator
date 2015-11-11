@@ -29,7 +29,8 @@
 ****************************************************************************/
 #include "integertoolattributesettingsitem.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
 #include <visualstudiotoolattributes/integertoolattribute.h>
 #include <visualstudiotoolattributes/toolattributeoption.h>
 

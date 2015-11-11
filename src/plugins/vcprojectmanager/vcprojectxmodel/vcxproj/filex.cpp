@@ -44,7 +44,8 @@
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
 #include <visualstudiointerfaces/itools.h>
-#include <visualstudiointerfaces/itooldescription.h>
+
+#include <visualstudiotoolattributes/tooldescription.h>
 
 #include "utilsx.h"
 
@@ -137,7 +138,7 @@ IConfiguration *FileX::createDefaultBuildConfiguration(const QString &configName
         config->setPlatform(platformName);
 
         ToolDescriptionDataManager *tDDM = ToolDescriptionDataManager::instance();
-        IToolDescription *toolDesc = tDDM->toolDescription(QLatin1String(ToolConstantsx::TOOL_CL_COMPILE));
+        ToolDescription *toolDesc = tDDM->toolDescription(QLatin1String(ToolConstantsx::TOOL_CL_COMPILE));
 
         if (toolDesc)
             config->tools()->configurationBuildTools()->addTool(new ConfigurationToolX(toolDesc, m_project));

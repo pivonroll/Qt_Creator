@@ -29,10 +29,11 @@
 ****************************************************************************/
 #include "configurationbasewidget.h"
 
+#include <visualstudiotoolattributes/tooldescription.h>
+
 #include <visualstudiointerfaces/iconfiguration.h>
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
-#include <visualstudiointerfaces/itooldescription.h>
 #include <visualstudiointerfaces/itools.h>
 
 #include <QHBoxLayout>

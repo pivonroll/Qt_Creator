@@ -42,9 +42,10 @@
 #include <visualstudiointerfaces/ifiles.h>
 #include <visualstudiointerfaces/iplatform.h>
 #include <visualstudiointerfaces/iplatforms.h>
-#include <visualstudiointerfaces/itooldescription.h>
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
+
+#include <visualstudiotoolattributes/tooldescription.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <utils/qtcassert.h>

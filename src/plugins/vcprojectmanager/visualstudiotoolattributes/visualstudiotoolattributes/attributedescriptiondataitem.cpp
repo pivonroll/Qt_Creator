@@ -48,7 +48,7 @@ AttributeDescriptionDataItem::AttributeDescriptionDataItem(const QString &type,
       m_descriptionText(descriptionText),
       m_defaultValue(defaultVal),
       m_type(type),
-      m_firstOption(0)
+      m_firstOption(nullptr)
 {
 }
 

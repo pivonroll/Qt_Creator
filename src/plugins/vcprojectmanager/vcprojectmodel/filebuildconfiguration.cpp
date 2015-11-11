@@ -34,7 +34,9 @@
 #include "tools.h"
 #include "tools/configurationtool.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/toolsectiondescription.h>
+
 #include <visualstudiointerfaces/iconfiguration.h>
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
@@ -46,7 +48,6 @@
 #include <visualstudiointerfaces/itoolattribute.h>
 #include <visualstudiointerfaces/itoolattributecontainer.h>
 #include <visualstudiointerfaces/itoolsection.h>
-#include <visualstudiointerfaces/itoolsectiondescription.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
 #include <visualstudiowidgets/fileconfigurationsettingswidget.h>
 
@@ -134,7 +135,7 @@ void FileBuildConfiguration::processToolNode(const QDomNode &toolNode)
                 QDomAttr domAttribute = domNode.toAttr();
                 if (domAttribute.name() == QLatin1String("Name")) {
                     ToolDescriptionDataManager *tDDM = ToolDescriptionDataManager::instance();
-                    IToolDescription *toolDesc = tDDM->toolDescription(domAttribute.value());
+                    ToolDescription *toolDesc = tDDM->toolDescription(domAttribute.value());
 
                     if (toolDesc) {
                         IConfigurationBuildTool *toolConf = new ConfigurationTool(toolDesc);

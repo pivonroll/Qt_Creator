@@ -33,7 +33,7 @@
 namespace VcProjectManager {
 namespace Internal {
 
-class IToolSectionDescription;
+class ToolSectionDescription;
 class VcNodeWidget;
 class IToolAttributeContainer;
 
@@ -52,7 +52,7 @@ public:
      * \return a tool section description associated with this tool section.
      * See \class IToolSectionDescription for more information.
      */
-    virtual const IToolSectionDescription *sectionDescription() const = 0;
+    virtual const ToolSectionDescription *sectionDescription() const = 0;
 
     /*!
      * \brief Creates a settings widget for this tool section.

@@ -48,10 +48,10 @@
 #include "../expression/variablepipe.h"
 
 VcProjConditionParser::VcProjConditionParser(const QString &expression)
-    : m_expression(expression),
-      m_stack_size(128),
+    : m_stack_size(128),
       m_tos(0),
-      m_condExpression(0)
+      m_condExpression(0),
+      m_expression(expression)
 {
     m_state_stack.resize(128);
     m_sym_stack.resize(128);

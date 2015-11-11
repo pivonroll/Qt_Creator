@@ -43,7 +43,7 @@ public:
     StringToolAttribute(const AttributeDescriptionDataItem *descDataItem);
     StringToolAttribute(const StringToolAttribute &attr);
 
-    const IAttributeDescriptionDataItem *descriptionDataItem() const;
+    const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
     QString value() const;
     void setValue(const QString &value);

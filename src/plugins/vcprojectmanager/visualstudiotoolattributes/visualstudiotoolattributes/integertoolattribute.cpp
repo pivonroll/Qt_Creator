@@ -49,7 +49,7 @@ IntegerToolAttribute::IntegerToolAttribute(const IntegerToolAttribute &attr)
     m_attributeValue = attr.m_attributeValue;
 }
 
-const IAttributeDescriptionDataItem *IntegerToolAttribute::descriptionDataItem() const
+const AttributeDescriptionDataItem *IntegerToolAttribute::descriptionDataItem() const
 {
     return m_descDataItem;
 }

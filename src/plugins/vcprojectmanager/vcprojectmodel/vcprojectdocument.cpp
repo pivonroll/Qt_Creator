@@ -38,10 +38,11 @@
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
 #include <visualstudiointerfaces/iconfigurationcontainer.h>
-#include <visualstudiointerfaces/itooldescription.h>
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiowidgets/configurationseditwidget.h>
 #include <visualstudiowidgets/projectsettingswidget.h>
+
+#include <visualstudiotoolattributes/tooldescription.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <coreplugin/mainwindow.h>
@@ -223,7 +224,7 @@ void VcProjectDocument::addToolToConfiguration(IConfiguration *config, const QSt
         return;
 
     ToolDescriptionDataManager *tDDM = ToolDescriptionDataManager::instance();
-    IToolDescription *toolDesc = tDDM->toolDescription(toolKey);
+    ToolDescription *toolDesc = tDDM->toolDescription(toolKey);
 
     if (toolDesc) {
         IConfigurationBuildTool *tool = new ConfigurationTool(toolDesc);

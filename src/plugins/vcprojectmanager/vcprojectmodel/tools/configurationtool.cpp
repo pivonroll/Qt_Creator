@@ -31,27 +31,28 @@
 
 #include "toolsection.h"
 
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 #include <visualstudiotoolattributes/tooldescription.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 #include <visualstudiotoolattributes/toolsectioncontainer.h>
 #include <visualstudiotoolattributes/toolsectiondescription.h>
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
 #include <visualstudiointerfaces/itoolattribute.h>
 #include <visualstudiointerfaces/itoolattributecontainer.h>
+
 
 #include <QDomNode>
 
 namespace VcProjectManager {
 namespace Internal {
 
-ConfigurationTool::ConfigurationTool(const IToolDescription *toolDesc)
+ConfigurationTool::ConfigurationTool(const ToolDescription *toolDesc)
     : m_toolDesc(toolDesc)
 {
     m_sectionContainer = new ToolSectionContainer;
     for (int i = 0; i < toolDesc->sectionDescriptionCount(); ++i) {
         if (toolDesc->sectionDescription(i))
-            m_sectionContainer->appendSection(toolDesc->sectionDescription(i)->createToolSection());
+            m_sectionContainer->appendSection(new ToolSection(toolDesc->sectionDescription(i)));
     }
 }
 
@@ -84,7 +85,7 @@ QDomNode ConfigurationTool::toXMLDomNode(QDomDocument &domXMLDocument) const
     return toolNode;
 }
 
-const IToolDescription *ConfigurationTool::toolDescription() const
+const ToolDescription *ConfigurationTool::toolDescription() const
 {
     return m_toolDesc;
 }

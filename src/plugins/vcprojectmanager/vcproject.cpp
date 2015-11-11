@@ -37,7 +37,6 @@
 #include "vcprojectmanager.h"
 #include "vcprojectmanagerconstants.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
 #include <visualstudiointerfaces/iconfigurationcontainer.h>
@@ -51,6 +50,9 @@
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiointerfaces/itoolsection.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
+
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
 #include "vcprojectmodel/tools/tool_constants.h"
 #include "vcprojectmodel/vcdocumentmodel.h"
 

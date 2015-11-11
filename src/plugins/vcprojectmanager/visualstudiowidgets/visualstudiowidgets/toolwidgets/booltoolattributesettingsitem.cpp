@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "booltoolattributesettingsitem.h"
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 #include <visualstudiotoolattributes/booltoolattribute.h>
 #include <visualstudiotoolattributes/toolattributeoption.h>
 

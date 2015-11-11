@@ -49,7 +49,7 @@ BoolToolAttribute::BoolToolAttribute(const BoolToolAttribute &attr)
     m_attributeValue = attr.m_attributeValue;
 }
 
-const IAttributeDescriptionDataItem *BoolToolAttribute::descriptionDataItem() const
+const AttributeDescriptionDataItem *BoolToolAttribute::descriptionDataItem() const
 {
     return m_descDataItem;
 }

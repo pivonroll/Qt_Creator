@@ -200,7 +200,7 @@ void Configuration::processToolNode(const QDomNode &toolNode)
             QDomAttr domAttribute = domNode.toAttr();
             if (domAttribute.name() == QLatin1String("Name")) {
                 ToolDescriptionDataManager *tDDM = ToolDescriptionDataManager::instance();
-                IToolDescription *toolDesc = tDDM->toolDescription(domAttribute.value());
+                ToolDescription *toolDesc = tDDM->toolDescription(domAttribute.value());
 
                 if (toolDesc) {
                     IConfigurationBuildTool *toolConf = new ConfigurationTool(toolDesc);

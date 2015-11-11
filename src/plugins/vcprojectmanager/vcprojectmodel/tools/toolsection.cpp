@@ -32,9 +32,10 @@
 #include "generaltoolattributecontainer.h"
 
 #include <visualstudiotoolattributes/toolsectiondescription.h>
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
 #include <visualstudiowidgets/toolwidgets/toolsectionsettingswidget.h>
 
-#include <visualstudiointerfaces/iattributedescriptiondataitem.h>
 #include <visualstudiointerfaces/itoolattribute.h>
 
 namespace VcProjectManager {
@@ -71,7 +72,7 @@ IToolAttributeContainer *ToolSection::attributeContainer() const
     return m_attributeContainer;
 }
 
-const IToolSectionDescription *ToolSection::sectionDescription() const
+const ToolSectionDescription *ToolSection::sectionDescription() const
 {
     return m_toolDesc;
 }
