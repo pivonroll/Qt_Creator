@@ -296,11 +296,12 @@ void File::copyAllNonDefaultToolAtributes(IToolSection *fileSec, IToolSection *p
             for (int i = 0; i < projAttrCont->toolAttributeCount(); ++i) {
                 IToolAttribute *projToolAttr = projAttrCont->toolAttribute(i);
 
-                if (projToolAttr && projToolAttr->descriptionDataItem()) {
-                    IToolAttribute *toolAttr = attrCont->toolAttribute(projToolAttr->descriptionDataItem()->key());
-                    if (toolAttr && !toolAttr->isUsed() && projToolAttr && projToolAttr->isUsed())
-                        toolAttr->setValue(projToolAttr->value());
-                }
+                if (!projToolAttr || !projToolAttr->descriptionDataItem())
+                    continue;
+
+                IToolAttribute *toolAttr = attrCont->toolAttribute(projToolAttr->descriptionDataItem()->key());
+                if (toolAttr && !toolAttr->isUsed() && projToolAttr && projToolAttr->isUsed())
+                    toolAttr->setValue(projToolAttr->value());
             }
         }
     }
@@ -335,11 +336,12 @@ void File::copyProjectConfigs()
     for (int i = 0; i < m_parentProjectDoc->configurations()->configurationContainer()->configurationCount(); ++i) {
         IConfiguration *config = m_parentProjectDoc->configurations()->configurationContainer()->configuration(i);
 
-        if (config) {
-            FileBuildConfiguration *newConfig = FileBuildConfiguration::createFromProjectConfig(static_cast<Configuration*>(config), m_parentProjectDoc);
-            leaveOnlyCppTool(newConfig);
-            m_configurationContainer->addConfiguration(newConfig);
-        }
+        if (!config)
+            continue;
+
+        FileBuildConfiguration *newConfig = FileBuildConfiguration::createFromProjectConfig(static_cast<Configuration*>(config), m_parentProjectDoc);
+        leaveOnlyCppTool(newConfig);
+        m_configurationContainer->addConfiguration(newConfig);
     }
 }
 

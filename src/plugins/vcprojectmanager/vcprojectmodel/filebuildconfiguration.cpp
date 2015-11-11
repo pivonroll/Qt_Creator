@@ -178,13 +178,13 @@ void FileBuildConfiguration::toXMLNode(IConfiguration *projectConfig, QDomElemen
     if (projectTools && projectTools->configurationBuildTools()) {
         IConfigurationBuildTool *tool = tools()->configurationBuildTools()->tool(0);
 
-        if (tool) {
-            IConfigurationBuildTool *projectTool = projectTools->configurationBuildTools()->tool(tool->toolDescription()->toolKey());
+        if (!tool)
+            return;
 
-            if (projectTool && projectTool->toolDescription()) {
-                writeTools(projectTool, tool, configurationNode, domXMLDocument);
-            }
-        }
+        IConfigurationBuildTool *projectTool = projectTools->configurationBuildTools()->tool(tool->toolDescription()->toolKey());
+
+        if (projectTool && projectTool->toolDescription())
+            writeTools(projectTool, tool, configurationNode, domXMLDocument);
     }
 }
 
@@ -219,9 +219,10 @@ void FileBuildConfiguration::writeTools(IConfigurationBuildTool *projectConfigTo
 
             if (!toolAttr || !toolAttr->descriptionDataItem())
                 continue;
+
             IToolAttribute *projToolAttr = projAttrContainer->toolAttribute(toolAttr->descriptionDataItem()->key());
 
-            if (!projToolAttr || projToolAttr->value() == toolAttr->value())
+            if (!projToolAttr || projToolAttr->value() != toolAttr->value())
                 continue;
 
             if (!isNodeCreated) {
