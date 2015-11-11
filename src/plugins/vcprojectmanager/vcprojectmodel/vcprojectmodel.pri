@@ -26,7 +26,6 @@ HEADERS += \
     $$PWD/tools/toolsection.h \
     $$PWD/generalattributecontainer.h \
     $$PWD/configurationcontainer.h \
-    $$PWD/tools/generaltoolattributecontainer.h \
     $$PWD/configurationbuildtools.h \
     $$PWD/deploymenttools.h \
     $$PWD/tools.h \
@@ -63,7 +62,6 @@ SOURCES += \
     $$PWD/tools/toolsection.cpp \
     $$PWD/generalattributecontainer.cpp \
     $$PWD/configurationcontainer.cpp \
-    $$PWD/tools/generaltoolattributecontainer.cpp \
     $$PWD/configurationbuildtools.cpp \
     $$PWD/deploymenttools.cpp \
     $$PWD/tools.cpp \

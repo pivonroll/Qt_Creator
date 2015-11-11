@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef GENERALTOOLATTRIBUTECONTAINER_H
-#define GENERALTOOLATTRIBUTECONTAINER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_GENERALTOOLATTRIBUTECONTAINER_H
+#define VCPROJECTMANAGER_INTERNAL_GENERALTOOLATTRIBUTECONTAINER_H
 
 #include <visualstudiointerfaces/itoolattributecontainer.h>
 
@@ -58,4 +58,4 @@ private:
 
 } // Internal
 } // VcProjectManager
-#endif // GENERALTOOLATTRIBUTECONTAINER_H
+#endif // VCPROJECTMANAGER_INTERNAL_GENERALTOOLATTRIBUTECONTAINER_H

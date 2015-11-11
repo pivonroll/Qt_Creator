@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "toolsection.h"
 
-#include "generaltoolattributecontainer.h"
+#include <visualstudiotoolattributes/generaltoolattributecontainer.h>
 
 #include <visualstudiotoolattributes/toolsectiondescription.h>
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
