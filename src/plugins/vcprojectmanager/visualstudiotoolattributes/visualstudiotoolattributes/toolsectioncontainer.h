@@ -42,7 +42,7 @@ class ToolSectionContainer : public ISectionContainer
 public:
     ToolSectionContainer();
     ToolSectionContainer(const ToolSectionContainer &toolSec);
-    ISectionContainer &operator =(ISectionContainer &toolSec);
+    ToolSectionContainer &operator =(const ToolSectionContainer &toolSec);
     ~ToolSectionContainer();
 
     IToolSection *section(int index) const;

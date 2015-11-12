@@ -27,9 +27,11 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "attributedescriptiondataitem.h"
 #include "booltoolattribute.h"
-#include "../../../widgets/toolwidgets/booltoolattributesettingsitem.h"
+
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
+#include <visualstudiowidgets/toolwidgets/booltoolattributesettingsitem.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -47,7 +49,7 @@ BoolToolAttribute::BoolToolAttribute(const BoolToolAttribute &attr)
     m_attributeValue = attr.m_attributeValue;
 }
 
-const IAttributeDescriptionDataItem *BoolToolAttribute::descriptionDataItem() const
+const AttributeDescriptionDataItem *BoolToolAttribute::descriptionDataItem() const
 {
     return m_descDataItem;
 }

@@ -30,10 +30,6 @@
 #include "tooldescriptiondatamanager.h"
 
 #include "attributedescriptiondataitem.h"
-#include "booltoolattribute.h"
-#include "integertoolattribute.h"
-#include "stringlisttoolattribute.h"
-#include "stringtoolattribute.h"
 #include "toolattributeoption.h"
 #include "tooldescription.h"
 #include "../../../vcschemamanager.h"

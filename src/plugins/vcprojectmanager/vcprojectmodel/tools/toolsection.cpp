@@ -38,16 +38,36 @@
 
 #include <visualstudiointerfaces/itoolattribute.h>
 
+#include "toolattributes/booltoolattribute.h"
+#include "toolattributes/integertoolattribute.h"
+#include "toolattributes/stringlisttoolattribute.h"
+#include "toolattributes/stringtoolattribute.h"
+
 namespace VcProjectManager {
 namespace Internal {
 
 ToolSection::ToolSection(const ToolSectionDescription *toolSectionDesc)
     : m_toolDesc(toolSectionDesc)
+    , m_attributeContainer(new GeneralToolAttributeContainer)
 {
-    m_attributeContainer = new GeneralToolAttributeContainer;
     for (int i = 0; i < toolSectionDesc->attributeDescriptionCount(); ++i) {
-        if (toolSectionDesc->attributeDescription(i))
-            m_attributeContainer->addToolAttribute(toolSectionDesc->attributeDescription(i)->createAttribute());
+
+        if (!toolSectionDesc->attributeDescription(i))
+            continue;
+
+            IToolAttribute *toolAttribute = nullptr;
+
+            if (toolSectionDesc->attributeDescription(i)->type() == QLatin1String("Boolean"))
+                toolAttribute = new BoolToolAttribute(toolSectionDesc->attributeDescription(i));
+            else if (toolSectionDesc->attributeDescription(i)->type() == QLatin1String("Integer"))
+                toolAttribute = new IntegerToolAttribute(toolSectionDesc->attributeDescription(i));
+            else if (toolSectionDesc->attributeDescription(i)->type() == QLatin1String("String"))
+                toolAttribute = new StringToolAttribute(toolSectionDesc->attributeDescription(i));
+            else if (toolSectionDesc->attributeDescription(i)->type() == QLatin1String("StringList"))
+                toolAttribute = new StringListToolAttribute(toolSectionDesc->attributeDescription(i));
+
+            if (toolAttribute)
+                m_attributeContainer->addToolAttribute(toolAttribute);
     }
 }
 

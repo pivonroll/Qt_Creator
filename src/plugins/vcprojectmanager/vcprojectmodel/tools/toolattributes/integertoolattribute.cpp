@@ -27,9 +27,11 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "attributedescriptiondataitem.h"
 #include "integertoolattribute.h"
-#include "../../../widgets/toolwidgets/integertoolattributesettingsitem.h"
+
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
+#include <visualstudiowidgets/toolwidgets/integertoolattributesettingsitem.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -47,7 +49,7 @@ IntegerToolAttribute::IntegerToolAttribute(const IntegerToolAttribute &attr)
     m_attributeValue = attr.m_attributeValue;
 }
 
-const IAttributeDescriptionDataItem *IntegerToolAttribute::descriptionDataItem() const
+const AttributeDescriptionDataItem *IntegerToolAttribute::descriptionDataItem() const
 {
     return m_descDataItem;
 }

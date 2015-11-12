@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2015 Bojan Petrovic
+** Copyright (c) 2015 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -27,34 +27,42 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTE_H
-#define VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_TOOLSECTIONX_H
+#define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_TOOLSECTIONX_H
 
-#include <visualstudiointerfaces/itoolattribute.h>
+#include <visualstudiointerfaces/itoolsection.h>
 
 namespace VcProjectManager {
 namespace Internal {
 
-class BoolToolAttribute : public IToolAttribute
+class GeneralToolAttributeContainer;
+
+namespace VisualStudioProjectX {
+
+class ConfigurationX;
+class Project;
+
+class ToolSectionX : public IToolSection
 {
 public:
-    BoolToolAttribute(const AttributeDescriptionDataItem *descDataItem);
-    BoolToolAttribute(const BoolToolAttribute &attr);
+    ToolSectionX(const ToolSectionDescription *toolSectionDescription, Project *project, ConfigurationX *configuration);
+    ToolSectionX(const ToolSectionX &other);
 
-    const AttributeDescriptionDataItem *descriptionDataItem() const;
-    IToolAttributeSettingsWidget *createSettingsItem();
-    QString value() const;
-    void setValue(const QString &value);
-    bool isUsed() const;
-    IToolAttribute *clone() const;
+    // IToolSection interface
+    IToolAttributeContainer *attributeContainer() const;
+    const ToolSectionDescription *sectionDescription() const;
+    VcNodeWidget *createSettingsWidget();
+    IToolSection *clone() const;
 
 private:
-    QString m_attributeValue;
-    const AttributeDescriptionDataItem *m_descDataItem;
-    bool m_isUsed;
+    const ToolSectionDescription *m_toolSectionDescription;
+    ConfigurationX *m_configuration;
+    Project *m_project;
+    GeneralToolAttributeContainer *m_attributeContainer;
 };
 
+} // namespace VisualStudioProjectX
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTE_H
+#endif // VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_TOOLSECTIONX_H

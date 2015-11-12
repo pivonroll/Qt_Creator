@@ -75,8 +75,6 @@
  * This class represents a Visual Studio's project implementation of \interface ProjectExplorer::Project.
  */
 
-using namespace ProjectExplorer;
-
 namespace VcProjectManager {
 namespace Internal {
 
@@ -245,13 +243,13 @@ bool VcProject::fromMap(const QVariantMap &map)
 /**
  * \brief Visit folder node recursive and accumulate Source and Header files
  */
-void VcProject::addCxxModelFiles(const FolderNode *node, QSet<QString> &projectFiles)
+void VcProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles)
 {
-    foreach (const FileNode *file, node->fileNodes()) {
-        if (file->fileType() == HeaderType || file->fileType() == SourceType)
+    foreach (const ProjectExplorer::FileNode *file, node->fileNodes()) {
+        if (file->fileType() == ProjectExplorer::HeaderType || file->fileType() == ProjectExplorer::SourceType)
             projectFiles << file->path().toString();
     }
-    foreach (const FolderNode *subfolder, node->subFolderNodes())
+    foreach (const ProjectExplorer::FolderNode *subfolder, node->subFolderNodes())
         addCxxModelFiles(subfolder, projectFiles);
 }
 
@@ -277,7 +275,7 @@ void VcProject::updateCodeModels()
 
     CppTools::ProjectPart::Ptr pPart(new CppTools::ProjectPart());
 
-    BuildConfiguration *bc = activeTarget() ? activeTarget()->activeBuildConfiguration() : NULL;
+    ProjectExplorer::BuildConfiguration *bc = activeTarget() ? activeTarget()->activeBuildConfiguration() : NULL;
     if (bc) {
         VcProjectBuildConfiguration *vbc = qobject_cast<VcProjectBuildConfiguration*>(bc);
         QTC_ASSERT(vbc, return);
@@ -313,8 +311,8 @@ void VcProject::updateCodeModels()
     pPart->projectDefines += tc->predefinedMacros(QStringList());
 
     QStringList cxxFlags;
-    foreach (const HeaderPath &path, tc->systemHeaderPaths(cxxFlags, Utils::FileName())) {
-        if (path.kind() != HeaderPath::FrameworkHeaderPath)
+    foreach (const ProjectExplorer::HeaderPath &path, tc->systemHeaderPaths(cxxFlags, Utils::FileName())) {
+        if (path.kind() != ProjectExplorer::HeaderPath::FrameworkHeaderPath)
             pPart->headerPaths << CppTools::ProjectPart::HeaderPath(path.path(), CppTools::ProjectPart::HeaderPath::FrameworkPath);
     }
     QSet<QString> files;

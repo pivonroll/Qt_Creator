@@ -36,19 +36,19 @@ namespace VcProjectManager {
 namespace Internal {
 
 class LineEdit;
-class StringListToolAttribute;
+class IToolAttribute;
 
 class StringListToolAttributeSettingsItem : public IToolAttributeSettingsWidget
 {
 public:
-    StringListToolAttributeSettingsItem(StringListToolAttribute *toolAttribute);
+    StringListToolAttributeSettingsItem(IToolAttribute *toolAttribute);
     ~StringListToolAttributeSettingsItem();
 
     void saveData();
 
 private:
     LineEdit *m_lineEdit;
-    StringListToolAttribute *m_toolAttribute;
+    IToolAttribute *m_toolAttribute;
 };
 
 } // namespace Internal

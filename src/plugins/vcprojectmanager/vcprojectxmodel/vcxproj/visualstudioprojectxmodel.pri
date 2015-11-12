@@ -39,7 +39,10 @@ HEADERS +=  \
     $$PWD/tools/toolsx.h \
     $$PWD/tools/configurationbuildtoolsx.h \
     $$PWD/tools/toolsectionx.h \
-    $$PWD/tools/stringtoolattributex.h
+    $$PWD/tools/stringtoolattributex.h \
+    $$PWD/tools/booltoolattributex.h \
+    $$PWD/tools/integertoolattributex.h \
+    $$PWD/tools/stringlisttoolattributex.h
 
 SOURCES +=  \
     $$PWD/private/when.cpp \
@@ -79,7 +82,10 @@ SOURCES +=  \
     $$PWD/tools/toolsx.cpp \
     $$PWD/tools/configurationbuildtoolsx.cpp \
     $$PWD/tools/toolsectionx.cpp \
-    $$PWD/tools/stringtoolattributex.cpp
+    $$PWD/tools/stringtoolattributex.cpp \
+    $$PWD/tools/booltoolattributex.cpp \
+    $$PWD/tools/integertoolattributex.cpp \
+    $$PWD/tools/stringlisttoolattributex.cpp
 
 OTHER_FILES += \
     $$PWD/vcprojectxmodel/vcxproj/tools/xml_definitions/BscmakeTool.xml \

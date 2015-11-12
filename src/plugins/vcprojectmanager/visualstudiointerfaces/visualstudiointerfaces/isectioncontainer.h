@@ -47,13 +47,6 @@ public:
     virtual ~ISectionContainer() {}
 
     /*!
-     * \brief Implement assignment operator in order to provide proper assignment
-     * between section containers.
-     * \return a reference to this section container.
-     */
-    virtual ISectionContainer& operator=(ISectionContainer &toolSec) = 0;
-
-    /*!
      * \return a tool section at \a index.
      */
     virtual IToolSection *section(int index) const = 0;

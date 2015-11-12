@@ -30,8 +30,9 @@
 #include "booltoolattributesettingsitem.h"
 
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
-#include <visualstudiotoolattributes/booltoolattribute.h>
 #include <visualstudiotoolattributes/toolattributeoption.h>
+
+#include <visualstudiointerfaces/itoolattribute.h>
 
 #include <QComboBox>
 #include <QVBoxLayout>
@@ -46,16 +47,16 @@ namespace Internal {
  * values that can be set to as an attribute's value.
  */
 
-BoolToolAttributeSettingsItem::BoolToolAttributeSettingsItem(BoolToolAttribute *toolAttribute)
+BoolToolAttributeSettingsItem::BoolToolAttributeSettingsItem(IToolAttribute *toolAttribute)
     : m_toolAttribute(toolAttribute)
 {
     m_comboBox = new QComboBox(this);
 
-    ToolAttributeOption *option = toolAttribute->descriptionDataItem()->firstOption();
+    ToolAttributeOption *option = m_toolAttribute->descriptionDataItem()->firstOption();
 
     while (option) {
         m_comboBox->addItem(option->description(), option->value());
-        if (option->value() == toolAttribute->value())
+        if (option->value() == m_toolAttribute->value())
             m_comboBox->setCurrentIndex(m_comboBox->count() - 1);
         option = option->nextOption();
     }

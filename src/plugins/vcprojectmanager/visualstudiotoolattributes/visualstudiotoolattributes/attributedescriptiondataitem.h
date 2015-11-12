@@ -56,7 +56,6 @@ public:
     ToolAttributeOption *firstOption() const;
     void setFirstOption(ToolAttributeOption *opt);
     QString defaultValue() const;
-    IToolAttribute *createAttribute() const;
     QString optionalValue(const QString &key) const;
     void setOptionalValue(const QString &key, const QString &value);
     void removeOptionalValue(const QString &key);

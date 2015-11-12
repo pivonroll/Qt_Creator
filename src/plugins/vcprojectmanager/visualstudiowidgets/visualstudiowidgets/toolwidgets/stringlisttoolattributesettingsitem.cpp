@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "stringlisttoolattributesettingsitem.h"
 
-#include <visualstudiotoolattributes/stringlisttoolattribute.h>
+#include <visualstudiointerfaces/itoolattribute.h>
 #include "../lineedit.h"
 
 #include <QVBoxLayout>
@@ -43,11 +43,11 @@ namespace Internal {
  * It consists of a line edit with value set to attribute's value.
  */
 
-StringListToolAttributeSettingsItem::StringListToolAttributeSettingsItem(StringListToolAttribute *toolAttribute)
+StringListToolAttributeSettingsItem::StringListToolAttributeSettingsItem(IToolAttribute *toolAttribute)
     : m_toolAttribute(toolAttribute)
 {
     m_lineEdit = new LineEdit;
-    m_lineEdit->setText(toolAttribute->value());
+    m_lineEdit->setText(m_toolAttribute->value());
     QVBoxLayout *layout = new QVBoxLayout;
     layout->setMargin(0);
     layout->addWidget(m_lineEdit);

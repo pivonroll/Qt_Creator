@@ -30,12 +30,10 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTE_H
 #define VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTE_H
 
-#include "../../../interfaces/itoolattribute.h"
+#include <visualstudiointerfaces/itoolattribute.h>
 
 namespace VcProjectManager {
 namespace Internal {
-
-class AttributeDescriptionDataItem;
 
 class BoolToolAttribute : public IToolAttribute
 {
@@ -43,7 +41,7 @@ public:
     BoolToolAttribute(const AttributeDescriptionDataItem *descDataItem);
     BoolToolAttribute(const BoolToolAttribute &attr);
 
-    const IAttributeDescriptionDataItem *descriptionDataItem() const;
+    const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
     QString value() const;
     void setValue(const QString &value);

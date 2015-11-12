@@ -37,9 +37,9 @@
 #include "tools.h"
 #include "tools/configurationtool.h"
 #include "tools/tool_constants.h"
-#include "tools/toolattributes/tooldescription.h"
 #include "vcprojectdocument.h"
 
+#include <visualstudiotoolattributes/tooldescription.h>
 #include <visualstudiowidgets/configurationbasewidget.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 #include <visualstudiointerfaces/iprojectfactories.h>

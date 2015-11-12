@@ -34,9 +34,9 @@
 #include "generalattributecontainer.h"
 #include "vcprojectdocument.h"
 #include "tools/tool_constants.h"
-#include "tools/toolattributes/tooldescriptiondatamanager.h"
 #include "../utils.h"
 
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 #include <visualstudiotoolattributes/toolsectiondescription.h>
 

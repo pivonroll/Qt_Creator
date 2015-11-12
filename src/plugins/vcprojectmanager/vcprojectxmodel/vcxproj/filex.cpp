@@ -134,6 +134,7 @@ IConfiguration *FileX::createDefaultBuildConfiguration(const QString &configName
     IConfiguration *config = configurationContainer()->createNewConfiguration(strings[0], strings[1]);
 
     if (config) {
+        ConfigurationX *configurationX = static_cast<ConfigurationX *>(config);
         config->setDisplayName(configName);
         config->setPlatform(platformName);
 
@@ -141,7 +142,7 @@ IConfiguration *FileX::createDefaultBuildConfiguration(const QString &configName
         ToolDescription *toolDesc = tDDM->toolDescription(QLatin1String(ToolConstantsx::TOOL_CL_COMPILE));
 
         if (toolDesc)
-            config->tools()->configurationBuildTools()->addTool(new ConfigurationToolX(toolDesc, m_project));
+            config->tools()->configurationBuildTools()->addTool(new ConfigurationToolX(toolDesc, m_project, configurationX));
     }
     return config;
 }

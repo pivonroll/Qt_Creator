@@ -32,7 +32,30 @@
 #include "vcdocprojectnodes.h"
 #include "vcxprojectfile.h"
 #include "vcxprojectmanager.h"
+#include "vcprojectbuildconfiguration.h"
+#include "vcprojectkitinformation.h"
 
+#include "vcprojectxmodel/vcxproj/tools/tool_constantsx.h"
+
+#include <visualstudiointerfaces/iconfigurationbuildtools.h>
+#include <visualstudiointerfaces/iconfigurationcontainer.h>
+#include <visualstudiointerfaces/iconfigurations.h>
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+#include <visualstudiointerfaces/ivisualstudioproject.h>
+#include <visualstudiointerfaces/itools.h>
+#include <visualstudiointerfaces/isectioncontainer.h>
+#include <visualstudiointerfaces/itoolattribute.h>
+#include <visualstudiointerfaces/itoolsection.h>
+#include <visualstudiointerfaces/itoolattributecontainer.h>
+
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
+#include <cpptools/cppmodelmanager.h>
+#include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/headerpath.h>
+#include <projectexplorer/target.h>
+
+#include <utils/qtcassert.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -46,6 +69,7 @@ VcXProject::VcXProject(VcXProjectManager *projectManager, const QString &canonic
 
 VcXProject::~VcXProject()
 {
+    m_codeModelFuture.cancel();
     VcDocProjectNode *temp = m_rootNode;
     m_rootNode = nullptr;
     delete temp;
@@ -79,6 +103,82 @@ QStringList VcXProject::files(ProjectExplorer::Project::FilesMode fileMode) cons
 {
     Q_UNUSED(fileMode)
     return QStringList();
+}
+
+void VcXProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles)
+{
+    foreach (const ProjectExplorer::FileNode *file, node->fileNodes()) {
+        if (file->fileType() == ProjectExplorer::HeaderType || file->fileType() == ProjectExplorer::SourceType)
+            projectFiles << file->path().toString();
+    }
+    foreach (const ProjectExplorer::FolderNode *subfolder, node->subFolderNodes())
+        addCxxModelFiles(subfolder, projectFiles);
+}
+
+void VcXProject::updateCodeModels()
+{
+    Kit *k = activeTarget() ? activeTarget()->kit() : KitManager::defaultKit();
+    QTC_ASSERT(k, return);
+    ToolChain *tc = ToolChainKitInformation::toolChain(k);
+    QTC_ASSERT(tc, return);
+    CppTools::CppModelManager *modelmanager = CppTools::CppModelManager::instance();
+    QTC_ASSERT(modelmanager, return);
+    CppTools::ProjectInfo pinfo = modelmanager->projectInfo(this);
+
+    CppTools::ProjectPart::Ptr pPart(new CppTools::ProjectPart());
+
+    ProjectExplorer::BuildConfiguration *bc = activeTarget() ? activeTarget()->activeBuildConfiguration() : NULL;
+    if (bc) {
+        VcProjectBuildConfiguration *vbc = qobject_cast<VcProjectBuildConfiguration*>(bc);
+        QTC_ASSERT(vbc, return);
+
+        QString configName = vbc->displayName();
+        IConfiguration *configModel = m_projectFile->visualStudioProject()->configurations()->configurationContainer()->configuration(configName);
+
+        if (configModel) {
+            IConfigurationBuildTool *configTool = configModel->tools()->configurationBuildTools()->tool(QLatin1String(ToolConstantsx::TOOL_CL_COMPILE));
+            if (configTool) {
+                for (int i = 0; i < configTool->sectionContainer()->sectionCount(); ++i) {
+                    IToolSection *toolSection = configTool->sectionContainer()->section(i);
+
+                    if (!toolSection)
+                        continue;
+
+                    IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(QLatin1String("PreprocessorDefinitions"));
+
+                    if (toolAttr) {
+                        toolAttr->descriptionDataItem();
+                        QStringList preprocDefs = toolAttr->value().split(toolAttr->descriptionDataItem()->optionalValue(QLatin1String("separator")));
+
+                        pPart->projectDefines += preprocDefs.join(QLatin1String("\n")).toLatin1();
+                    }
+                }
+            }
+        }
+    }
+
+    // VS 2005-2008 has poor c++11 support, see http://wiki.apache.org/stdcxx/C%2B%2B0xCompilerSupport
+    pPart->languageVersion = CppTools::ProjectPart::CXX11;
+    pPart->qtVersion = CppTools::ProjectPart::NoQt;
+    pPart->projectDefines += tc->predefinedMacros(QStringList());
+
+    QStringList cxxFlags;
+    foreach (const ProjectExplorer::HeaderPath &path, tc->systemHeaderPaths(cxxFlags, Utils::FileName())) {
+        if (path.kind() != ProjectExplorer::HeaderPath::FrameworkHeaderPath)
+            pPart->headerPaths << CppTools::ProjectPart::HeaderPath(path.path(), CppTools::ProjectPart::HeaderPath::FrameworkPath);
+    }
+    QSet<QString> files;
+    addCxxModelFiles(m_rootNode, files);
+
+    foreach (const QString &file, files)
+        pPart->files << CppTools::ProjectFile(file, CppTools::ProjectFile::CXXSource);
+
+    if (!pPart->files.isEmpty())
+        pinfo.appendProjectPart(pPart);
+
+    modelmanager->updateProjectInfo(pinfo);
+    m_codeModelFuture = modelmanager->updateSourceFiles(files);
+    setProjectLanguage(ProjectExplorer::Constants::LANG_CXX, !pPart->files.isEmpty());
 }
 
 } // namespace Internal

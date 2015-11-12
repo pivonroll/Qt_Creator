@@ -38,6 +38,7 @@
 #include "private/propertygroup.h"
 #include "private/property.h"
 #include "vcprojx_constants.h"
+#include "../condition_parser/expression/evaluatearguments.h"
 
 #include <QMap>
 #include <QVariant>
@@ -151,7 +152,7 @@ PropertyGroup *Utils::findPropertyGroup(Project *project, const QString &conditi
         return nullptr;
 
     EvaluateArguments evalArgs;
-    QStringList args = condition.split(CONFIGURATION_PLATFORM_DELIMITER);
+    QStringList args = condition.split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
 
     if (args.size() != 2)
         return nullptr;

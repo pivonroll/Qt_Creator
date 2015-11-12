@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2015 Bojan Petrovic
+** Copyright (c) 2015 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -27,63 +27,35 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "booltoolattribute.h"
+#ifndef VCPROJECTMANAGER_INTERNAL_GENERALTOOLATTRIBUTECONTAINER_H
+#define VCPROJECTMANAGER_INTERNAL_GENERALTOOLATTRIBUTECONTAINER_H
 
-#include "attributedescriptiondataitem.h"
+#include <visualstudiointerfaces/itoolattributecontainer.h>
 
-#include <visualstudiowidgets/toolwidgets/booltoolattributesettingsitem.h>
+#include <QList>
 
 namespace VcProjectManager {
 namespace Internal {
 
-BoolToolAttribute::BoolToolAttribute(const AttributeDescriptionDataItem *descDataItem)
-    : m_descDataItem(descDataItem),
-      m_isUsed(false)
+class GeneralToolAttributeContainer : public IToolAttributeContainer
 {
-}
+public:
+    GeneralToolAttributeContainer();
+    GeneralToolAttributeContainer(const GeneralToolAttributeContainer &container);
+    GeneralToolAttributeContainer &operator=(const GeneralToolAttributeContainer &container);
+    ~GeneralToolAttributeContainer();
 
-BoolToolAttribute::BoolToolAttribute(const BoolToolAttribute &attr)
-{
-    m_isUsed = attr.m_isUsed;
-    m_descDataItem = attr.m_descDataItem;
-    m_attributeValue = attr.m_attributeValue;
-}
+    // IToolAttributeContainer interface
+    IToolAttribute *toolAttribute(int index) const;
+    IToolAttribute *toolAttribute(const QString &attributeKey) const;
+    int toolAttributeCount() const;
+    void addToolAttribute(IToolAttribute *toolAttribute);
+    void removeToolAttribute(IToolAttribute *toolAttribute);
 
-const AttributeDescriptionDataItem *BoolToolAttribute::descriptionDataItem() const
-{
-    return m_descDataItem;
-}
+private:
+    QList<IToolAttribute *> m_toolAttributes;
+};
 
-IToolAttributeSettingsWidget *BoolToolAttribute::createSettingsItem()
-{
-    return new BoolToolAttributeSettingsItem(this);
-}
-
-QString BoolToolAttribute::value() const
-{
-    if (m_isUsed)
-        return m_attributeValue;
-    return m_descDataItem->defaultValue();
-}
-
-void BoolToolAttribute::setValue(const QString &value)
-{
-    if (!m_isUsed && value == m_descDataItem->defaultValue())
-        return;
-
-    m_attributeValue = value;
-    m_isUsed = true;
-}
-
-bool BoolToolAttribute::isUsed() const
-{
-    return m_isUsed;
-}
-
-IToolAttribute *BoolToolAttribute::clone() const
-{
-    return new BoolToolAttribute(*this);
-}
-
-} // namespace Internal
-} // namespace VcProjectManager
+} // Internal
+} // VcProjectManager
+#endif // VCPROJECTMANAGER_INTERNAL_GENERALTOOLATTRIBUTECONTAINER_H

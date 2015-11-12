@@ -41,12 +41,12 @@ namespace VcProjectManager {
 namespace Internal {
 
 class LineEdit;
-class IntegerToolAttribute;
+class IToolAttribute;
 
 class IntegerToolAttributeSettingsItem : public IToolAttributeSettingsWidget
 {
 public:
-    IntegerToolAttributeSettingsItem(IntegerToolAttribute *toolAttribute);
+    IntegerToolAttributeSettingsItem(IToolAttribute *toolAttribute);
     ~IntegerToolAttributeSettingsItem();
 
     // IToolAttributeSettingItem interface
@@ -55,7 +55,7 @@ public:
 private:
     QComboBox *m_comboBox;
     QSpinBox *m_spinBox;
-    IntegerToolAttribute *m_toolAttribute;
+    IToolAttribute *m_toolAttribute;
 };
 
 } // namespace Internal

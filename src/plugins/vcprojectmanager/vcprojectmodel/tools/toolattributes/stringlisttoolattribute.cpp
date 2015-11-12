@@ -27,9 +27,11 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "attributedescriptiondataitem.h"
 #include "stringlisttoolattribute.h"
-#include "../../../widgets/toolwidgets/stringlisttoolattributesettingsitem.h"
+
+#include "visualstudiotoolattributes/attributedescriptiondataitem.h"
+
+#include <visualstudiowidgets/toolwidgets/stringlisttoolattributesettingsitem.h>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -47,7 +49,7 @@ StringListToolAttribute::StringListToolAttribute(const StringListToolAttribute &
     m_attributeValue = attr.m_attributeValue;
 }
 
-const IAttributeDescriptionDataItem *StringListToolAttribute::descriptionDataItem() const
+const AttributeDescriptionDataItem *StringListToolAttribute::descriptionDataItem() const
 {
     return m_descDataItem;
 }

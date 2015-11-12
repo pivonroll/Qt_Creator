@@ -39,12 +39,12 @@ QT_END_NAMESPACE
 namespace VcProjectManager {
 namespace Internal {
 
-class BoolToolAttribute;
+class IToolAttribute;
 
 class BoolToolAttributeSettingsItem : public IToolAttributeSettingsWidget
 {
 public:
-    BoolToolAttributeSettingsItem(BoolToolAttribute *toolAttribute);
+    BoolToolAttributeSettingsItem(IToolAttribute *toolAttribute);
     ~BoolToolAttributeSettingsItem();
 
     // IToolAttributeSettingItem interface
@@ -52,7 +52,7 @@ public:
 
 private:
     QComboBox *m_comboBox;
-    BoolToolAttribute *m_toolAttribute;
+    IToolAttribute *m_toolAttribute;
 };
 
 } // namespace Internal

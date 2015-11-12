@@ -33,7 +33,11 @@ HEADERS += \
     $$PWD/filecontainer.h \
     $$PWD/filebuildconfiguration.h \
     $$PWD/projectfactories.h \
-    $$PWD/filefactory.h
+	$$PWD/filefactory.h \
+	$$PWD/tools/toolattributes/booltoolattribute.h \
+	$$PWD/tools/toolattributes/integertoolattribute.h \
+	$$PWD/tools/toolattributes/stringlisttoolattribute.h \
+	$$PWD/tools/toolattributes/stringtoolattribute.h \
 
 SOURCES += \
     $$PWD/vcprojectdocument.cpp \
@@ -69,7 +73,11 @@ SOURCES += \
     $$PWD/filecontainer.cpp \
     $$PWD/filebuildconfiguration.cpp \
     $$PWD/projectfactories.cpp \
-    $$PWD/filefactory.cpp
+	$$PWD/filefactory.cpp \
+	$$PWD/tools/toolattributes/booltoolattribute.cpp \
+	$$PWD/tools/toolattributes/integertoolattribute.cpp \
+	$$PWD/tools/toolattributes/stringlisttoolattribute.cpp \
+	$$PWD/tools/toolattributes/stringtoolattribute.cpp \
 
 OTHER_FILES += \
     $$PWD/tools/xml_definitions/VCXMLDataGeneratorTool.xml \

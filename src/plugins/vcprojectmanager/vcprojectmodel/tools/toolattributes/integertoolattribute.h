@@ -30,12 +30,10 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_INTEGERTOOLATTRIBUTE_H
 #define VCPROJECTMANAGER_INTERNAL_INTEGERTOOLATTRIBUTE_H
 
-#include "../../../interfaces/itoolattribute.h"
+#include <visualstudiointerfaces/itoolattribute.h>
 
 namespace VcProjectManager {
 namespace Internal {
-
-class AttributeDescriptionDataItem;
 
 class IntegerToolAttribute : public IToolAttribute
 {
@@ -43,7 +41,7 @@ public:
     IntegerToolAttribute(const AttributeDescriptionDataItem *descDataItem);
     IntegerToolAttribute(const IntegerToolAttribute &attr);
 
-    const IAttributeDescriptionDataItem *descriptionDataItem() const;
+    const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
     QString value() const;
     void setValue(const QString &value);

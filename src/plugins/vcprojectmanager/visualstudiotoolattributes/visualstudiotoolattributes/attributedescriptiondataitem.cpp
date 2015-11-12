@@ -29,10 +29,6 @@
 ****************************************************************************/
 #include "attributedescriptiondataitem.h"
 
-#include "booltoolattribute.h"
-#include "integertoolattribute.h"
-#include "stringlisttoolattribute.h"
-#include "stringtoolattribute.h"
 #include "toolattributeoption.h"
 
 namespace VcProjectManager {
@@ -85,19 +81,6 @@ void AttributeDescriptionDataItem::setFirstOption(ToolAttributeOption *opt)
 QString AttributeDescriptionDataItem::defaultValue() const
 {
     return m_defaultValue;
-}
-
-IToolAttribute *AttributeDescriptionDataItem::createAttribute() const
-{
-    if (m_type == QLatin1String("Boolean"))
-        return new BoolToolAttribute(this);
-    else if (m_type == QLatin1String("Integer"))
-        return new IntegerToolAttribute(this);
-    else if (m_type == QLatin1String("String"))
-        return new StringToolAttribute(this);
-    else if (m_type == QLatin1String("StringList"))
-        return new StringListToolAttribute(this);
-    return 0;
 }
 
 QString AttributeDescriptionDataItem::optionalValue(const QString &key) const

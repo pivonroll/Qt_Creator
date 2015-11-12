@@ -30,14 +30,12 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_STRINGLISTTOOLATTRIBUTE_H
 #define VCPROJECTMANAGER_INTERNAL_STRINGLISTTOOLATTRIBUTE_H
 
-#include "../../../interfaces/itoolattribute.h"
+#include <visualstudiointerfaces/itoolattribute.h>
 
 #include <QStringList>
 
 namespace VcProjectManager {
 namespace Internal {
-
-class AttributeDescriptionDataItem;
 
 class StringListToolAttribute : public IToolAttribute
 {
@@ -45,7 +43,7 @@ public:
     StringListToolAttribute(const AttributeDescriptionDataItem *descDataItem);
     StringListToolAttribute(const StringListToolAttribute &attr);
 
-    const IAttributeDescriptionDataItem *descriptionDataItem() const;
+    const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
     QString value() const;
     void setValue(const QString &value);

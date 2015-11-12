@@ -56,7 +56,7 @@ ToolSectionContainer::ToolSectionContainer(const ToolSectionContainer &toolSec)
     }
 }
 
-ISectionContainer &ToolSectionContainer::operator =(ISectionContainer &toolSec)
+ToolSectionContainer &ToolSectionContainer::operator =(const ToolSectionContainer &toolSec)
 {
     if (this != &toolSec) {
         qDeleteAll(m_toolSections);

@@ -31,6 +31,9 @@
 #define VCPROJECTMANAGER_INTERNAL_VCXPROJECT_H
 
 #include <projectexplorer/project.h>
+#include <projectexplorer/projectnodes.h>
+
+#include <QFuture>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -54,10 +57,14 @@ public:
     QStringList files(FilesMode fileMode) const;
 
 private:
+    void addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles);
+    void updateCodeModels();
+
     VcXProjectManager *m_projectManager;
     QString m_filePath;
     VcDocProjectNode *m_rootNode;
     VcXProjectFile *m_projectFile;
+    QFuture<void> m_codeModelFuture;
 };
 
 } // namespace Internal
