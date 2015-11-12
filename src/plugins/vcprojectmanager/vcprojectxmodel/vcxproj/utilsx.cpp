@@ -29,12 +29,18 @@
 ****************************************************************************/
 #include "utilsx.h"
 
+#include "conditionmanipulation.h"
+
 #include "private/project.h"
 #include "private/item.h"
 #include "private/itemmetadata.h"
 #include "private/itemgroup.h"
+#include "private/propertygroup.h"
+#include "private/property.h"
+#include "vcprojx_constants.h"
 
 #include <QMap>
+#include <QVariant>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -137,6 +143,53 @@ ItemGroup *Utils::findItemGroupWithLabel(const QString &label, Project *project)
     }
 
     return 0;
+}
+
+PropertyGroup *Utils::findPropertyGroup(Project *project, const QString &condition, const QString &label)
+{
+    if (!project)
+        return nullptr;
+
+    EvaluateArguments evalArgs;
+    QStringList args = condition.split(CONFIGURATION_PLATFORM_DELIMITER);
+
+    if (args.size() != 2)
+        return nullptr;
+
+    evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+    evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+
+    for (int i = 0; i < project->propertyGroupCount(); ++i) {
+        PropertyGroup *propertyGroup = project->propertyGroup(i);
+
+        if (!propertyGroup)
+            continue;
+
+        ConditionManipulation condMan(propertyGroup->condition());
+
+        if (condMan.evaluate(evalArgs) && propertyGroup->label() == label)
+            return propertyGroup;
+    }
+
+    return nullptr;
+}
+
+Property *Utils::findProperty(PropertyGroup *propertyGroup, const QString &propertyName)
+{
+    if (!propertyGroup || propertyName.isEmpty())
+        return nullptr;
+
+    for (int i = 0; i < propertyGroup->propertyCount(); ++i) {
+        Property *property = propertyGroup->property(i);
+
+        if (!property)
+            continue;
+
+        if (property->name() == propertyName)
+            return property;
+    }
+
+    return nullptr;
 }
 
 } // namespace VisualStudioProjectX

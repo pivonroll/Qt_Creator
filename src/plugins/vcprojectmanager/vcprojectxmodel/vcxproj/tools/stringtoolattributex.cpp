@@ -1,11 +1,24 @@
 #include "stringtoolattributex.h"
 
+#include <visualstudiotoolattributes/attributedescriptiondataitem.h>
+
+#include "../configurationx.h"
+#include "../private/project.h"
+#include "../private/propertygroup.h"
+#include "../private/property.h"
+
+#include "../utilsx.h"
+#include "../vcprojx_constants.h"
+
 namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
-StringToolAttributeX::StringToolAttributeX(const AttributeDescriptionDataItem *attributeDescription)
-    : m_attributeDescription(other)
+StringToolAttributeX::StringToolAttributeX(const AttributeDescriptionDataItem *attributeDescription, Project *project, ConfigurationX *configuration)
+    : m_attributeDescription(attributeDescription)
+    , m_isUsed(false)
+    , m_project(project)
+    , m_configuration(configuration)
 {
 
 }
@@ -29,12 +42,39 @@ IToolAttributeSettingsWidget *StringToolAttributeX::createSettingsItem()
 
 QString StringToolAttributeX::value() const
 {
+    PropertyGroup *propertyGroup = Utils::findPropertyGroup(m_project, m_configuration->fullName(), QLatin1String(CONFIGURATION));
+
+    if (!propertyGroup)
+        //create property group;
+        ;
+
+    Property *property = Utils::findProperty(propertyGroup, m_attributeDescription->key());
+
+    if (!property)
+        // create property
+        ;
+
+    m_value = property->value();
+
     return m_value;
 }
 
 void StringToolAttributeX::setValue(const QString &value)
 {
     m_value = value;
+    PropertyGroup *propertyGroup = Utils::findPropertyGroup(m_project, m_configuration->fullName(), QLatin1String(CONFIGURATION));
+
+    if (!propertyGroup)
+        //create property group;
+        ;
+
+    Property *property = Utils::findProperty(propertyGroup, m_attributeDescription->key());
+
+    if (!property)
+        // create property
+        ;
+
+    property->setValue(m_value);
 }
 
 bool StringToolAttributeX::isUsed() const

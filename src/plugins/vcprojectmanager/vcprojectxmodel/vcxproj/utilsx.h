@@ -40,6 +40,8 @@ class ItemGroup;
 class Item;
 class ItemMetaData;
 class Project;
+class PropertyGroup;
+class Property;
 
 class Utils
 {
@@ -52,6 +54,8 @@ public:
     static ItemMetaData *findItemMetaWithName(const QString &name, const Item *findInItem);
     static ItemGroup *findItemGroupWithLabel(const QString &label, Project *project);
     static Item *findFilterItemForFileExtension(const QString &fileExtension, Project *project);
+    static PropertyGroup *findPropertyGroup(Project *project, const QString &condition, const QString &label);
+    static Property *findProperty(PropertyGroup *propertyGroup, const QString &propertyName);
 };
 
 } // namespace VisualStudioProjectX

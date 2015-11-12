@@ -255,55 +255,57 @@ void File::processNodeAttributes(const QDomElement &element)
 
 void File::copyAllNonDefaultToolAtributes(IConfiguration *fileConfig, IConfiguration *projConfig)
 {
-    if (fileConfig && projConfig &&
-            fileConfig->tools() && fileConfig->tools()->configurationBuildTools() &&
-            projConfig->tools() && projConfig->tools()->configurationBuildTools()
-            ) {
-        IConfigurationBuildTool *tool = fileConfig->tools()->configurationBuildTools()->tool(0);
+    if (!fileConfig || !projConfig ||
+            !fileConfig->tools() || !fileConfig->tools()->configurationBuildTools() ||
+            !projConfig->tools() || !projConfig->tools()->configurationBuildTools())
+        return ;
+    IConfigurationBuildTool *tool = fileConfig->tools()->configurationBuildTools()->tool(0);
 
-        if (tool && tool->toolDescription()) {
-            IConfigurationBuildTool *projToolCopy = projConfig->tools()->configurationBuildTools()->
-                    tool(tool->toolDescription()->toolKey());
+    if (!tool || !tool->toolDescription())
+        return;
+    IConfigurationBuildTool *projToolCopy = projConfig->tools()->configurationBuildTools()->
+            tool(tool->toolDescription()->toolKey());
 
-            if (projToolCopy) {
-                ISectionContainer *secCont = tool->sectionContainer();
-                ISectionContainer *projSecCont = projToolCopy->sectionContainer();
+    if (!projToolCopy)
+        return;
 
-                if (secCont && projSecCont) {
+    ISectionContainer *secCont = tool->sectionContainer();
+    ISectionContainer *projSecCont = projToolCopy->sectionContainer();
 
-                    for (int i = 0; i < secCont->sectionCount(); ++i) {
-                        IToolSection *toolSec = secCont->section(i);
+    if (!secCont || !projSecCont)
+        return;
 
-                        if (toolSec && toolSec->sectionDescription()) {
-                            IToolSection *projSec = projSecCont->section(toolSec->sectionDescription()->displayName());
-                            copyAllNonDefaultToolAtributes(toolSec, projSec);
-                        }
-                    }
-                }
-            }
+    for (int i = 0; i < secCont->sectionCount(); ++i) {
+        IToolSection *toolSec = secCont->section(i);
+
+        if (toolSec && toolSec->sectionDescription()) {
+            IToolSection *projSec = projSecCont->section(toolSec->sectionDescription()->displayName());
+            copyAllNonDefaultToolAtributes(toolSec, projSec);
         }
     }
 }
 
 void File::copyAllNonDefaultToolAtributes(IToolSection *fileSec, IToolSection *projSec)
 {
-    if (fileSec && projSec &&
-            fileSec->sectionDescription() && projSec->sectionDescription()) {
-        IToolAttributeContainer *attrCont = fileSec->attributeContainer();
-        IToolAttributeContainer *projAttrCont = projSec->attributeContainer();
+    if (!fileSec || !projSec ||
+            !fileSec->sectionDescription() || !projSec->sectionDescription())
+        return;
 
-        if (attrCont && projAttrCont) {
-            for (int i = 0; i < projAttrCont->toolAttributeCount(); ++i) {
-                IToolAttribute *projToolAttr = projAttrCont->toolAttribute(i);
+    IToolAttributeContainer *attrCont = fileSec->attributeContainer();
+    IToolAttributeContainer *projAttrCont = projSec->attributeContainer();
 
-                if (!projToolAttr || !projToolAttr->descriptionDataItem())
-                    continue;
+    if (!attrCont || !projAttrCont)
+        return;
 
-                IToolAttribute *toolAttr = attrCont->toolAttribute(projToolAttr->descriptionDataItem()->key());
-                if (toolAttr && !toolAttr->isUsed() && projToolAttr && projToolAttr->isUsed())
-                    toolAttr->setValue(projToolAttr->value());
-            }
-        }
+    for (int i = 0; i < projAttrCont->toolAttributeCount(); ++i) {
+        IToolAttribute *projToolAttr = projAttrCont->toolAttribute(i);
+
+        if (!projToolAttr || !projToolAttr->descriptionDataItem())
+            continue;
+
+        IToolAttribute *toolAttr = attrCont->toolAttribute(projToolAttr->descriptionDataItem()->key());
+        if (toolAttr && !toolAttr->isUsed() && projToolAttr && projToolAttr->isUsed())
+            toolAttr->setValue(projToolAttr->value());
     }
 }
 
@@ -313,8 +315,7 @@ void File::leaveOnlyCppTool(IConfiguration *config)
         return;
 
     int i = 0;
-    while (config->tools()->configurationBuildTools()->toolCount() > 1)
-    {
+    while (config->tools()->configurationBuildTools()->toolCount() > 1) {
         IConfigurationBuildTool *tool = config->tools()->configurationBuildTools()->tool(i);
 
         if (tool->toolDescription()->toolKey() != QLatin1String(ToolConstants::strVCCLCompilerTool)) {

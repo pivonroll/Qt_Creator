@@ -136,12 +136,14 @@ void ConfigurationTool::processNodeAttributes(const QDomElement &domElement)
             if (domElement.name() != QLatin1String("Name")) {
                 for (int j = 0; i < m_sectionContainer->sectionCount(); ++j) {
                     IToolSection *toolSection = m_sectionContainer->section(j);
-                    if (toolSection) {
-                        IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(domElement.name());
 
-                        if (toolAttr)
-                            toolAttr->setValue(domElement.value());
-                    }
+                    if (!toolSection)
+                        continue;
+
+                    IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(domElement.name());
+
+                    if (toolAttr)
+                        toolAttr->setValue(domElement.value());
                 }
             }
         }
