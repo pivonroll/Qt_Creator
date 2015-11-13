@@ -49,8 +49,6 @@
 namespace VcProjectManager {
 namespace Internal {
 
-using namespace ToolConstants;
-
 Configuration::Configuration(const QString &nodeName)
     : m_nodeName(nodeName),
       m_attributeContainer(new GeneralAttributeContainer),

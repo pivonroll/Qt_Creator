@@ -56,9 +56,13 @@ public:
     ProjectExplorer::ProjectNode *rootProjectNode() const;
     QStringList files(FilesMode fileMode) const;
 
+protected:
+    Project::RestoreResult fromMap(const QVariantMap &map, QString *errorMessage);
+
 private:
     void addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles);
     void updateCodeModels();
+    void importBuildConfigurations();
 
     VcXProjectManager *m_projectManager;
     QString m_filePath;

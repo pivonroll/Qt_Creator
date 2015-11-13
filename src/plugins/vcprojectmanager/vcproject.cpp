@@ -36,6 +36,7 @@
 #include "vcprojectkitinformation.h"
 #include "vcprojectmanager.h"
 #include "vcprojectmanagerconstants.h"
+#include "vcprojkitmatcher.h"
 
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
@@ -78,17 +79,6 @@
 namespace VcProjectManager {
 namespace Internal {
 
-class VCProjKitMatcher : public KitMatcher
-{
-public:
-    bool matches(const Kit *k) const
-    {
-        MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(k);
-        QTC_ASSERT(msBuild, return false);
-        return true;
-    }
-};
-
 VcProject::VcProject(VcManager *projectManager, const QString &projectFilePath, VcDocConstants::DocumentVersion docVersion)
     : m_projectManager(projectManager)
     , m_projectFile(new VcProjectFile(projectFilePath, docVersion))
@@ -127,12 +117,12 @@ Core::IDocument *VcProject::document() const
     return m_projectFile;
 }
 
-IProjectManager *VcProject::projectManager() const
+ProjectExplorer::IProjectManager *VcProject::projectManager() const
 {
     return m_projectManager;
 }
 
-ProjectNode *VcProject::rootProjectNode() const
+ProjectExplorer::ProjectNode *VcProject::rootProjectNode() const
 {
     return m_rootNode;
 }
@@ -153,7 +143,7 @@ bool VcProject::needsConfiguration() const
     return targets().isEmpty() || !activeTarget() || activeTarget()->buildConfigurations().isEmpty();
 }
 
-bool VcProject::supportsKit(Kit *k, QString *errorMessage) const
+bool VcProject::supportsKit(ProjectExplorer::Kit *k, QString *errorMessage) const
 {
     VCProjKitMatcher matcher;
     if (!matcher.matches(k)) {
@@ -225,19 +215,18 @@ void VcProject::onSettingsDialogAccepted()
     }
 }
 
-bool VcProject::fromMap(const QVariantMap &map)
+ProjectExplorer::Project::RestoreResult VcProject::fromMap(const QVariantMap &map, QString *errorMessage)
 {
-    QString errorMessage;
-    ProjectExplorer::Project::RestoreResult result = Project::fromMap(map, &errorMessage);
+    ProjectExplorer::Project::RestoreResult result = ProjectExplorer::Project::fromMap(map, errorMessage);
 
     if (result == ProjectExplorer::Project::RestoreResult::Ok || needsConfiguration())
         importBuildConfigurations();
 
     if (result != ProjectExplorer::Project::RestoreResult::Ok)
-        return false;
+        return result;
 
     updateCodeModels();
-    return true;
+    return result;
 }
 
 /**
@@ -265,9 +254,9 @@ void VcProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<Q
  */
 void VcProject::updateCodeModels()
 {
-    Kit *k = activeTarget() ? activeTarget()->kit() : KitManager::defaultKit();
+    ProjectExplorer::Kit *k = activeTarget() ? activeTarget()->kit() : ProjectExplorer::KitManager::defaultKit();
     QTC_ASSERT(k, return);
-    ToolChain *tc = ToolChainKitInformation::toolChain(k);
+    ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k);
     QTC_ASSERT(tc, return);
     CppTools::CppModelManager *modelmanager = CppTools::CppModelManager::instance();
     QTC_ASSERT(modelmanager, return);
@@ -336,9 +325,9 @@ void VcProject::updateCodeModels()
 void VcProject::importBuildConfigurations()
 {
     VCProjKitMatcher matcher;
-    Kit *kit = KitManager::find(matcher);
+    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(matcher);
     if (!kit)
-        kit = KitManager::defaultKit();
+        kit = ProjectExplorer::KitManager::defaultKit();
 
     removeTarget(target(kit));
     addTarget(createTarget(kit));

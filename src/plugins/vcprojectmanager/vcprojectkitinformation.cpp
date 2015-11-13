@@ -72,7 +72,7 @@ unsigned int VcProjectKitInformation::priority() const
     return 100;
 }
 
-QVariant VcProjectKitInformation::defaultValue(Kit *) const
+QVariant VcProjectKitInformation::defaultValue(ProjectExplorer::Kit *) const
 {
     QList<MsBuildInformation *> msBuilds = MsBuildVersionManager::instance()->msBuildInformations();
 
@@ -82,20 +82,20 @@ QVariant VcProjectKitInformation::defaultValue(Kit *) const
     return msBuilds.at(0)->getId().toSetting();
 }
 
-QList<Task> VcProjectKitInformation::validate(const Kit *k) const
+QList<ProjectExplorer::Task> VcProjectKitInformation::validate(const ProjectExplorer::Kit *k) const
 {
-    QList<Task> result;
+    QList<ProjectExplorer::Task> result;
     const MsBuildInformation* msBuild = msBuildInfo(k);
 
     if (!msBuild)
-        result << Task(Task::Error, tr("No MS Build in kit."), Utils::FileName(), -1, Core::Id(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM));
+        result << ProjectExplorer::Task(ProjectExplorer::Task::Error, tr("No MS Build in kit."), Utils::FileName(), -1, Core::Id(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM));
     else
-        result << QList<Task>();
+        result << QList<ProjectExplorer::Task>();
 
     return result;
 }
 
-void VcProjectKitInformation::fix(Kit *k)
+void VcProjectKitInformation::fix(ProjectExplorer::Kit *k)
 {
     QTC_ASSERT(MsBuildVersionManager::instance(), return);
     if (msBuildInfo(k))
@@ -106,7 +106,7 @@ void VcProjectKitInformation::fix(Kit *k)
     setMsBuild(k, 0); // make sure to clear out no longer known Ms Builds
 }
 
-void VcProjectKitInformation::setup(Kit *k)
+void VcProjectKitInformation::setup(ProjectExplorer::Kit *k)
 {
     Core::Id id = Core::Id::fromSetting(k->value(Core::Id(Constants::VC_PROJECT_KIT_INFO_ID)));
 
@@ -125,12 +125,12 @@ void VcProjectKitInformation::setup(Kit *k)
         setMsBuild(k, msBuilds.at(0));
 }
 
-ProjectExplorer::KitInformation::ItemList VcProjectKitInformation::toUserOutput(const Kit *) const
+ProjectExplorer::KitInformation::ItemList VcProjectKitInformation::toUserOutput(const ProjectExplorer::Kit *) const
 {
     return ItemList() << qMakePair(tr("MsBuild Version"), tr("None"));
 }
 
-ProjectExplorer::KitConfigWidget *VcProjectKitInformation::createConfigWidget(Kit *k) const
+ProjectExplorer::KitConfigWidget *VcProjectKitInformation::createConfigWidget(ProjectExplorer::Kit *k) const
 {
     return new VcProjectKitConfigWidget(k, this);
 }
@@ -139,7 +139,7 @@ ProjectExplorer::KitConfigWidget *VcProjectKitInformation::createConfigWidget(Ki
  * \return Information about MS Build set in the kit \a k.
  * Information is contained in \class MsBuildInformation.
  */
-MsBuildInformation *VcProjectKitInformation::msBuildInfo(const Kit *k)
+MsBuildInformation *VcProjectKitInformation::msBuildInfo(const ProjectExplorer::Kit *k)
 {
     if (!k)
         return 0;
@@ -152,7 +152,7 @@ MsBuildInformation *VcProjectKitInformation::msBuildInfo(const Kit *k)
  * \brief Sets MS Build executable to be used by kit \a k.
  * Ms Build executable is contained in \a msBuild.
  */
-void VcProjectKitInformation::setMsBuild(Kit *k, MsBuildInformation *msBuild)
+void VcProjectKitInformation::setMsBuild(ProjectExplorer::Kit *k, MsBuildInformation *msBuild)
 {
     k->setValue(Core::Id(Constants::VC_PROJECT_KIT_INFO_ID), msBuild ? msBuild->getId().toSetting() : QVariant());
 }
@@ -160,7 +160,7 @@ void VcProjectKitInformation::setMsBuild(Kit *k, MsBuildInformation *msBuild)
 void VcProjectKitInformation::onMSBuildAdded(Core::Id msBuildId)
 {
     Q_UNUSED(msBuildId);
-    foreach (Kit *k, KitManager::kits()) {
+    foreach (ProjectExplorer::Kit *k, ProjectExplorer::KitManager::kits()) {
         fix(k);
         notifyAboutUpdate(k);
     }
@@ -169,14 +169,14 @@ void VcProjectKitInformation::onMSBuildAdded(Core::Id msBuildId)
 void VcProjectKitInformation::onMSBuildRemoved(Core::Id msBuildId)
 {
     Q_UNUSED(msBuildId);
-    foreach (Kit *k, KitManager::kits())
+    foreach (ProjectExplorer::Kit *k, ProjectExplorer::KitManager::kits())
         fix(k);
 }
 
 void VcProjectKitInformation::onMSBuildReplaced(Core::Id oldMsBuildId, Core::Id newMsBuildId)
 {
     Q_UNUSED(oldMsBuildId);
-    foreach (Kit *k, KitManager::kits()) {
+    foreach (ProjectExplorer::Kit *k, ProjectExplorer::KitManager::kits()) {
         fix(k);
         setMsBuild(k, MsBuildVersionManager::instance()->msBuildInformation(newMsBuildId));
         notifyAboutUpdate(k);

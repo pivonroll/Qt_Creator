@@ -38,8 +38,6 @@
 #include <QtXmlPatterns/QXmlSchema>
 #include <QtXmlPatterns/QXmlSchemaValidator>
 
-using namespace ProjectExplorer;
-
 namespace VcProjectManager {
 namespace Internal {
 

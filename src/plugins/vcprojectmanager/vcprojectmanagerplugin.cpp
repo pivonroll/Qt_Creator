@@ -51,7 +51,8 @@
  * For the details about reimplemented functions see \class ExtensionSystem::IPlugin.
  */
 
-using namespace VcProjectManager::Internal;
+namespace VcProjectManager {
+namespace Internal {
 
 VcProjectManagerPlugin::VcProjectManagerPlugin()
 {
@@ -108,3 +109,7 @@ ExtensionSystem::IPlugin::ShutdownFlag VcProjectManagerPlugin::aboutToShutdown()
     // Hide UI (if you add UI that is not in the main window directly)
     return SynchronousShutdown;
 }
+
+
+} // namespace VcProjectManager
+} // namespace Internal

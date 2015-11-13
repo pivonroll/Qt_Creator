@@ -34,6 +34,7 @@
 #include "vcxprojectmanager.h"
 #include "vcprojectbuildconfiguration.h"
 #include "vcprojectkitinformation.h"
+#include "vcprojkitmatcher.h"
 
 #include "vcprojectxmodel/vcxproj/tools/tool_constantsx.h"
 
@@ -105,6 +106,37 @@ QStringList VcXProject::files(ProjectExplorer::Project::FilesMode fileMode) cons
     return QStringList();
 }
 
+ProjectExplorer::Project::RestoreResult VcXProject::fromMap(const QVariantMap &map, QString *errorMessage)
+{
+    ProjectExplorer::Project::RestoreResult result = Project::fromMap(map, errorMessage);
+
+    if (result == Project::RestoreResult::Ok || needsConfiguration())
+        importBuildConfigurations();
+
+    if (result != ProjectExplorer::Project::RestoreResult::Ok)
+        return result;
+
+    updateCodeModels();
+    return result;
+}
+
+/*!
+ * \brief Imports build configurations available for the selected build toolkit (reffered to as Kit).
+ *
+ */
+void VcXProject::importBuildConfigurations()
+{
+    VCProjKitMatcher matcher;
+    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(matcher);
+    if (!kit)
+        kit = ProjectExplorer::KitManager::defaultKit();
+
+    removeTarget(target(kit));
+    addTarget(createTarget(kit));
+    if (!activeTarget() && kit)
+        addTarget(createTarget(kit));
+}
+
 void VcXProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles)
 {
     foreach (const ProjectExplorer::FileNode *file, node->fileNodes()) {
@@ -117,9 +149,9 @@ void VcXProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<
 
 void VcXProject::updateCodeModels()
 {
-    Kit *k = activeTarget() ? activeTarget()->kit() : KitManager::defaultKit();
+    ProjectExplorer::Kit *k = activeTarget() ? activeTarget()->kit() : ProjectExplorer::KitManager::defaultKit();
     QTC_ASSERT(k, return);
-    ToolChain *tc = ToolChainKitInformation::toolChain(k);
+    ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k);
     QTC_ASSERT(tc, return);
     CppTools::CppModelManager *modelmanager = CppTools::CppModelManager::instance();
     QTC_ASSERT(modelmanager, return);

@@ -32,9 +32,6 @@
 
 #include <projectexplorer/kitinformation.h>
 
-using namespace ProjectExplorer;
-using namespace ProjectExplorer::Internal;
-
 namespace VcProjectManager {
 namespace Internal {
 
@@ -50,21 +47,21 @@ public:
 
     Core::Id dataId() const;
     unsigned int priority() const; // the higher the closer to the top.
-    QVariant defaultValue(Kit *) const;
+    QVariant defaultValue(ProjectExplorer::Kit *) const;
 
     // called to find issues with the kit
-    QList<Task> validate(const Kit *k) const;
+    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const;
     // called to fix issues with this kitinformation. Does not modify the rest of the kit.
-    void fix(Kit *k);
+    void fix(ProjectExplorer::Kit *k);
     // called on initial setup of a kit.
-    void setup(Kit *k);
+    void setup(ProjectExplorer::Kit *k);
 
-    ItemList toUserOutput(const Kit *) const;
-    ProjectExplorer::KitConfigWidget *createConfigWidget(Kit *k) const;
+    ItemList toUserOutput(const ProjectExplorer::Kit *) const;
+    ProjectExplorer::KitConfigWidget *createConfigWidget(ProjectExplorer::Kit *k) const;
 
-    static MsBuildInformation *msBuildInfo(const Kit *k);
+    static MsBuildInformation *msBuildInfo(const ProjectExplorer::Kit *k);
 
-    static void setMsBuild(Kit *k, MsBuildInformation *msBuildId);
+    static void setMsBuild(ProjectExplorer::Kit *k, MsBuildInformation *msBuildId);
 
 private slots:
     void onMSBuildAdded(Core::Id msBuildId);

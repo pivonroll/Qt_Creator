@@ -61,17 +61,14 @@
 
 #include <QFileInfo>
 
-using namespace ProjectExplorer;
-using namespace VcProjectManager::Constants;
-
 ////////////////////////////////////
 // VcProjectBuildConfiguration class
 ////////////////////////////////////
 namespace VcProjectManager {
 namespace Internal {
 
-VcProjectBuildConfiguration::VcProjectBuildConfiguration(Target *parent) :
-    BuildConfiguration(parent, Core::Id(VC_PROJECT_BC_ID))
+VcProjectBuildConfiguration::VcProjectBuildConfiguration(ProjectExplorer::Target *parent) :
+    BuildConfiguration(parent, Core::Id(Constants::VC_PROJECT_BC_ID))
 {
     QFileInfo info(static_cast<VcProjectFile *>(parent->project()->document())->visualStudioProject()->filePath());
     m_buildDirectory = info.canonicalPath() + QLatin1String("-build");
@@ -81,7 +78,7 @@ VcProjectBuildConfiguration::~VcProjectBuildConfiguration()
 {
 }
 
-NamedWidget *VcProjectBuildConfiguration::createConfigWidget()
+ProjectExplorer::NamedWidget *VcProjectBuildConfiguration::createConfigWidget()
 {
     return new VcProjectBuildSettingsWidget;
 }
@@ -94,7 +91,7 @@ QString VcProjectBuildConfiguration::buildDirectory() const
     return m_buildDirectory;
 }
 
-BuildConfiguration::BuildType VcProjectBuildConfiguration::buildType() const
+ProjectExplorer::BuildConfiguration::BuildType VcProjectBuildConfiguration::buildType() const
 {
     return Debug;
 }
@@ -123,7 +120,7 @@ void VcProjectBuildConfiguration::reloadConfigurationName()
     setDefaultDisplayName(m_configuration->fullName());
 }
 
-VcProjectBuildConfiguration::VcProjectBuildConfiguration(Target *parent, VcProjectBuildConfiguration *source)
+VcProjectBuildConfiguration::VcProjectBuildConfiguration(ProjectExplorer::Target *parent, VcProjectBuildConfiguration *source)
     : BuildConfiguration(parent, source)
 {
     cloneSteps(source);
@@ -142,12 +139,12 @@ VcProjectBuildConfigurationFactory::VcProjectBuildConfigurationFactory(QObject *
 {
 }
 
-int VcProjectBuildConfigurationFactory::priority(const Target *parent) const
+int VcProjectBuildConfigurationFactory::priority(const ProjectExplorer::Target *parent) const
 {
     return canHandle(parent) ? 0 : -1;
 }
 
-int VcProjectBuildConfigurationFactory::priority(const Kit *k, const QString &projectPath) const
+int VcProjectBuildConfigurationFactory::priority(const ProjectExplorer::Kit *k, const QString &projectPath) const
 {
     ::Utils::MimeDatabase mdb;
     if (k && mdb.mimeTypeForFile(projectPath).matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE)))
@@ -155,9 +152,9 @@ int VcProjectBuildConfigurationFactory::priority(const Kit *k, const QString &pr
     return -1;
 }
 
-QList<BuildInfo *> VcProjectBuildConfigurationFactory::availableBuilds(const Target *parent) const
+QList<ProjectExplorer::BuildInfo *> VcProjectBuildConfigurationFactory::availableBuilds(const ProjectExplorer::Target *parent) const
 {
-    QList<BuildInfo *> result;
+    QList<ProjectExplorer::BuildInfo *> result;
 
     VcProjectFile *vcProjectFile = qobject_cast<VcProjectFile *>(parent->project()->document());
     QTC_ASSERT(vcProjectFile, return result);
@@ -177,11 +174,11 @@ QList<BuildInfo *> VcProjectBuildConfigurationFactory::availableBuilds(const Tar
     return result;
 }
 
-QList<BuildInfo *> VcProjectBuildConfigurationFactory::availableSetups(
-        const Kit *k, const QString &projectPath) const
+QList<ProjectExplorer::BuildInfo *> VcProjectBuildConfigurationFactory::availableSetups(
+        const ProjectExplorer::Kit *k, const QString &projectPath) const
 {
     Q_UNUSED(k);
-    QList<BuildInfo *> result;
+    QList<ProjectExplorer::BuildInfo *> result;
 
     VcDocConstants::DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(projectPath);
     VcProjectDocument vsProject = VcProjectDocument(projectPath, docVersion);
@@ -199,7 +196,7 @@ QList<BuildInfo *> VcProjectBuildConfigurationFactory::availableSetups(
     return result;
 }
 
-VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::create(Target *parent, const BuildInfo *info) const
+VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::create(ProjectExplorer::Target *parent, const ProjectExplorer::BuildInfo *info) const
 {
     QTC_ASSERT(parent, return 0);
     QTC_ASSERT(info->factory() == this, return 0);
@@ -213,8 +210,8 @@ VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::create(Target *
     bc->setDisplayName(info->displayName);
     bc->setDefaultDisplayName(info->displayName);
 
-    BuildStepList *buildSteps = bc->stepList(Core::Id(ProjectExplorer::Constants::BUILDSTEPS_BUILD));
-    BuildStepList *cleanSteps = bc->stepList(Core::Id(ProjectExplorer::Constants::BUILDSTEPS_CLEAN));
+    ProjectExplorer::BuildStepList *buildSteps = bc->stepList(Core::Id(ProjectExplorer::Constants::BUILDSTEPS_BUILD));
+    ProjectExplorer::BuildStepList *cleanSteps = bc->stepList(Core::Id(ProjectExplorer::Constants::BUILDSTEPS_CLEAN));
     QTC_ASSERT(buildSteps, return 0);
     QTC_ASSERT(cleanSteps, return 0);
 
@@ -233,12 +230,12 @@ VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::create(Target *
     return bc;
 }
 
-bool VcProjectBuildConfigurationFactory::canClone(const Target *parent, BuildConfiguration *source) const
+bool VcProjectBuildConfigurationFactory::canClone(const ProjectExplorer::Target *parent, ProjectExplorer::BuildConfiguration *source) const
 {
-    return canHandle(parent) && source->id() == VC_PROJECT_BC_ID;
+    return canHandle(parent) && source->id() == Constants::VC_PROJECT_BC_ID;
 }
 
-VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::clone(Target *parent, BuildConfiguration *source)
+VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::clone(ProjectExplorer::Target *parent, ProjectExplorer::BuildConfiguration *source)
 {
     if (!canClone(parent, source))
         return 0;
@@ -249,7 +246,7 @@ VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::clone(Target *p
 
 IVisualStudioProject *VcProjectBuildConfigurationFactory::findVisualStudioProject(const QString &projectPath) const
 {
-    foreach(Project *project, SessionManager::projects()) {
+    foreach(ProjectExplorer::Project *project, ProjectExplorer::SessionManager::projects()) {
         if (project && project->projectFilePath().toString() == projectPath) {
             Core::IDocument *document = project->document();
 
@@ -268,12 +265,12 @@ IVisualStudioProject *VcProjectBuildConfigurationFactory::findVisualStudioProjec
     return 0;
 }
 
-bool VcProjectBuildConfigurationFactory::canRestore(const Target *parent, const QVariantMap &map) const
+bool VcProjectBuildConfigurationFactory::canRestore(const ProjectExplorer::Target *parent, const QVariantMap &map) const
 {
-    return canHandle(parent) && idFromMap(map) == VC_PROJECT_BC_ID;
+    return canHandle(parent) && ProjectExplorer::idFromMap(map) == Constants::VC_PROJECT_BC_ID;
 }
 
-VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::restore(Target *parent, const QVariantMap &map)
+VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::restore(ProjectExplorer::Target *parent, const QVariantMap &map)
 {
     if (!canRestore(parent, map))
         return 0;
@@ -289,7 +286,7 @@ VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::restore(Target 
  * \return \b true if this project supports selected build kit.
  * Otherwise it returns \b false.
  */
-bool VcProjectBuildConfigurationFactory::canHandle(const Target *t) const
+bool VcProjectBuildConfigurationFactory::canHandle(const ProjectExplorer::Target *t) const
 {
     QTC_ASSERT(t, return false);
     if (!t->project()->supportsKit(t->kit()))
@@ -306,8 +303,8 @@ bool VcProjectBuildConfigurationFactory::canHandle(const Target *t) const
  * type name of BuildInfo object will be set to a full name of a
  * Visual Studio project's build configuration.
  */
-BuildInfo *VcProjectBuildConfigurationFactory::createBuildInfo(const ProjectExplorer::Kit *k,
-                                                               IConfiguration *config) const
+ProjectExplorer::BuildInfo *VcProjectBuildConfigurationFactory::createBuildInfo(const ProjectExplorer::Kit *k,
+                                                                                IConfiguration *config) const
 {
     ProjectExplorer::BuildInfo *buildInfo = new ProjectExplorer::BuildInfo(this);
     buildInfo->displayName = config->fullName();

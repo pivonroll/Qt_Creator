@@ -24,6 +24,7 @@ HEADERS = \
     visualstudiosolutionfile.h \
     visualstudiosolutionnode.h \
     visualstudioproject.h \
+    vcprojkitmatcher.h
 
 SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/vcprojectmanager.cpp \
@@ -46,6 +47,7 @@ SOURCES = vcprojectmanagerplugin.cpp \
     visualstudiosolutionfile.cpp \
     visualstudiosolutionnode.cpp \
     visualstudioproject.cpp \
+    vcprojkitmatcher.cpp
 
 OTHER_FILES += \
     $$PWD/VcProject.mimetypes.xml \
