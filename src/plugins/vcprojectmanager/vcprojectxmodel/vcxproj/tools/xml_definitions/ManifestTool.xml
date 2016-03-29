@@ -11,6 +11,8 @@
             Key="SuppressStartupBanner"
             DefaultValue="true"
             Description="Suppresses the display of the startup banner and information messages."
+            Tag="Manifest"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/nologo)">true</Value>
@@ -20,6 +22,8 @@
             Key="VerboseOutput"
             DefaultValue="true"
             Description="Displays additional information during manifest generation."
+            Tag="Manifest"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/verbose)">true</Value>
@@ -29,12 +33,17 @@
             Key="AssemblyIdentity"
             DefaultValue=""
             Description="Specifies the attributes of the assemblyIdentity element in the manifest."
+            Tag="Manifest"
+            Version="2010"
         />
         <Boolean
             Name="Use Unicode Response Files"
             Key="UseUnicodeResponseFiles"
             DefaultValue="true"
             Description="Instructs the project system to generate UNICODE response files when spawning the manifest tool. Set this property to Yes when files in the project have UNICODE paths."
+            Tag="Manifest"
+            Version="2010"
+            EndVersion="2012"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes">true</Value>
@@ -44,6 +53,9 @@
             Key="UseFAT32Workaround"
             DefaultValue="false"
             Description="Work-around file timestamp issues on FAT32 drives, to let the manifest tool update correctly."
+            Tag="Manifest"
+            Version="2010"
+            EndVersion="2012"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes">true</Value>
@@ -57,18 +69,25 @@
             Key="AdditionalManifestFiles"
             DefaultValue=""
             Description="Specifies the additional user manifest fragment files to merge into the manifest."
+            Tag="Manifest"
+            Version="2010"
+            Append="%(AdditionalManifestFiles)"
         />
         <String
             Name="Input Resource Manifests"
             Key="InputResourceManifests"
             DefaultValue=""
             Description="Specifies the input manifest stored as resources."
+            Tag="Manifest"
+            Version="2010"
         />
         <Boolean
             Name="Embed Manifest"
             Key="EmbedManifest"
             DefaultValue="true"
             Description="Specifies if the manifest file should be embedded in the assembly or created as a stand-alone file."
+            Tag="PropertyGroup"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes">true</Value>
@@ -78,27 +97,85 @@
             Key="OutputManifestFile"
             DefaultValue="$(TargetPath).manifest"
             Description="Specifies the output manifest file if the manifest is not embedded in the assembly."
+            Tag="Manifest"
+            Version="2010"
         />
         <String
             Name="Manifest Resource File"
             Key="ManifestResourceFile"
             DefaultValue="$(IntDir)\$(TargetFileName).embed.manifest.res"
             Description="Specifies the output resources file used to embed the manifest into the project output."
+            Tag="Manifest"
+            Version="2010"
+        />
+        <String
+            Name="Manifest Resource File"
+            Key="ResourceOutputFileName"
+            DefaultValue=""
+            Description="Specifies the output resources file used to embed the manifest into the project output."
+            Tag="Manifest"
+            Version="2012"
         />
         <Boolean
             Name="Generate Catalog Files"
             Key="GenerateCatalogFiles"
             DefaultValue="false"
             Description="Generates .cdf files to make catalogs."
+            Tag="Manifest"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/makecdfs)">true</Value>
         </Boolean>
         <String
+            Name="Generate Manifest From ManagedAssembly"
+            Key="ManifestFromManagedAssembly"
+            DefaultValue=""
+            Description="Generates a manifest from a managed assembly. (-managedassemblyname;[file])"
+            Tag="Manifest"
+            Version="2012"
+        />
+        <Boolean
+            Name="Suppress Dependency Element"
+            Key="SuppressDependencyElement"
+            DefaultValue="false"
+            Description="Used with -managedassembly, suppresses the generation of dependency elements in the final manifest. (-nodependancy)"
+            Tag="Manifest"
+            Version="2012"
+            >
+                <Value ValueText="No">false</Value>
+                <Value ValueText="Yes (/nodependency)">true</Value>
+        </Boolean>
+        <Boolean
+            Name="Generate Category Tags"
+            Key="GenerateCategoryTags"
+            DefaultValue="false"
+            Description="Used with -managedassembly, -category causes the category tags to be generated. (-category)"
+            Tag="Manifest"
+            Version="2012"
+            >
+                <Value ValueText="No">false</Value>
+                <Value ValueText="Yes (/category)">true</Value>
+        </Boolean>
+        <Integer
+            Name="DPI Awareness"
+            Key="EnableDpiAwareness"
+            DefaultValue="false"
+            Description="Adds information to the manifest that marks the application as DPI-aware."
+            Tag="Manifest"
+            Version="2012"
+            >
+                <Value ValueText="None">false</Value>
+                <Value ValueText="High DPI Aware">true</Value>
+                <Value ValueText="Per Monitor High DPI Aware">PerMonitorHighDPIAware</Value>
+        </Integer>
+        <String
             Name="Dependency Information File"
             Key="DependencyInformationFile"
             DefaultValue="$(IntDir)\mt.dep"
             Description="Specifies the dependency information file used by Visual Studio to track build dependency information for the manifest tool."
+            Tag="Manifest"
+            Version="2010"
         />
     </Section>
     <Section
@@ -109,24 +186,32 @@
             Key="TypeLibraryFile"
             DefaultValue=""
             Description="Specifies the type library to use for regfree COM manifest support."
+            Tag="Manifest"
+            Version="2010"
         />
         <String
             Name="Registrar Script File"
             Key="RegistrarScriptFile"
             DefaultValue=""
             Description="Specifies the register script file to use for regfree COM manifest support."
+            Tag="Manifest"
+            Version="2010"
         />
         <String
             Name="Component File Name"
             Key="ComponentFileName"
             DefaultValue=""
             Description="Specifies the file name of the component that is built from the .rgs or .tlb specifies."
+            Tag="Manifest"
+            Version="2010"
         />
         <String
             Name="Replacements File"
             Key="ReplacementsFile"
             DefaultValue=""
             Description="Specifies the XML replacement file used to replace strings in the .rgs file."
+            Tag="Manifest"
+            Version="2010"
         />
     </Section>
     <Section
@@ -137,6 +222,8 @@
             Key="UpdateFileHashes"
             DefaultValue="false"
             Description="Specifies if the file hashes should be updated."
+            Tag="Manifest"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/hashupdate)">true</Value>
@@ -146,6 +233,8 @@
             Key="UpdateFileHashesSearchPath"
             DefaultValue=""
             Description="Specifies the search path to use when updating file hashes."
+            Tag="Manifest"
+            Version="2010"
         />
     </Section>
 </ToolInfo>

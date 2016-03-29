@@ -31,7 +31,7 @@
             DefaultValue="false"
             Description="Causes bscmake.exe to do full builds that preserve the .sbr file. This is to enable use of alternative incremental build methods. (/n)"
             Tag="Bscmake"
-            Version="2013"
+            Version="2012"
             >
             <Value ValueText="No">false</Value>
             <Value ValueText="Yes (/n)">true</Value>

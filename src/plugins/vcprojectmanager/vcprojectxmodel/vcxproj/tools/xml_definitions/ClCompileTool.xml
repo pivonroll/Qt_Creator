@@ -401,7 +401,7 @@
             DefaultValue="No (/Qpar-)"
             Description="Allows the compiler to generate parallel code for loops identified using #pragma loop(hint_parallel[(n)] when optimization is enabled."
             Tag="ClCompile"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="No (/Qpar-)">false</Value>
                 <Value ValueText="Yes (/Qpar)">true</Value>

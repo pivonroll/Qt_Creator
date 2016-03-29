@@ -11,6 +11,8 @@
             Key="SuppressStartupBanner"
             DefaultValue="true"
             Description="Suppresses the display of the startup banner and information messages."
+            Tag="Xdcmake"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/nologo)">true</Value>
@@ -20,6 +22,9 @@
             Key="ValidateIntelliSense"
             DefaultValue="false"
             Description="Validates the IntelliSense information after the documentation merger completes."
+            Tag="Xdcmake"
+            Version="2010"
+            EndVersion="2012"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/validate)">true</Value>
@@ -30,18 +35,32 @@
             DefaultValue=""
             Separator=";"
             Description="Additional documentation files (.XDC) to merge."
+            Tag="Xdcmake"
+            Version="2010"
         />
         <String
             Name="Output Document File"
             Key="OutputDocumentFile"
             DefaultValue="$(TargetDir)$(TargetName).xml"
             Description="Specifies the output document file (.XML) that is merged from all the input document files."
+            Tag="Xdcmake"
+            Version="2010"
+        />
+        <String
+            Name="Output Document File"
+            Key="OutputFile"
+            DefaultValue="$(OutDir)$(TargetName).xml"
+            Description="Specifies the output document file (.XML) that is merged from all the input document files."
+            Tag="Xdcmake"
+            Version="2012"
         />
         <Boolean
             Name="Document Library Dependencies"
             Key="DocumentLibraryDependencies"
             DefaultValue="true"
             Description="If true, project dependencies that output static libraries will have their XML document comment files (.XDC) documented in this project's XML document file."
+            Tag="Xdcmake"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes">true</Value>
@@ -51,6 +70,9 @@
             Key="UseUnicodeResponseFiles"
             DefaultValue="true"
             Description="Instructs the project system to generate UNICODE response files when spawning the xdcmake tool. Set this property to Yes when files in the project have UNICODE paths."
+            Tag="Xdcmake"
+            Version="2010"
+            EndVersion="2012"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes">true</Value>

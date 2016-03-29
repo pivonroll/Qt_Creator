@@ -12,18 +12,52 @@
             DefaultValue=""
             Separator="\r\n"
             Description="Specifies a command line for the pre-build event tool to run."
+            Tag="PreBuildEvent"
+            Version="2010"
+        />
+        <StringList
+            Name="Command Line"
+            Key="Command"
+            DefaultValue=""
+            Separator="\r\n"
+            Description="Specifies a command line for the post-build event tool to run."
+            Tag="PreBuildEvent"
+            Version="2012"
         />
         <String
             Name="Description"
             Key="Description"
             DefaultValue=""
-            Description="Provides a description for the pre-build event tool to display."
+            Description="Provides a description for the post-build event tool to display."
+            Tag="PreBuildEvent"
+            Version="2010"
+        />
+        <String
+            Name="Description"
+            Key="Message"
+            DefaultValue=""
+            Description="Provides a description for the post-build event tool to display."
+            Tag="PreBuildEvent"
+            Version="2012"
         />
         <Boolean
-            Name="Excluded From Build"
+            Name="Excluded  "
             Key="ExcludedFromBuild"
             DefaultValue="false"
             Description="Specifies whether this build event is excluded from the build for the current configuration."
+            Tag="PropertyGroup"
+            Version="2010"
+            >
+                <Value ValueText="No">false</Value>
+                <Value ValueText="Yes">true</Value>
+        </Boolean>
+        <Boolean
+            Name="Use In Build"
+            Key="PreBuildEventUseInBuild"
+            DefaultValue="true"
+            Description="Specifies whether this build event is excluded from the build for the current configuration."
+            Tag="PropertyGroup"
+            Version="2012"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes">true</Value>

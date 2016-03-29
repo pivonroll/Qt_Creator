@@ -674,7 +674,7 @@
     </Section>
     <Section
         Name="Windows Metadata"
-        Version="2013">
+        Version="2012">
         <Boolean
             Name="Generate Windows Metadata"
             Key="GenerateWindowsMetadata"
@@ -789,11 +789,10 @@
         <Boolean
             Name="Data Execution Prevention (DEP)"
             Key="DataExecutionPrevention"
-            DefaultValue="false"
+            DefaultValue="true"
             Description="Indicates that an executable was tested to be compatible with the Windows Data Execution Prevention feature."
             Tag="Link"
             Version="2010"
-            EndVersion="2012"
             >
                 <Value ValueText="No (/NXCOMPAT:NO)">false</Value>
                 <Value ValueText="Yes (/NXCOMPAT)">true</Value>
@@ -801,10 +800,10 @@
         <Boolean
             Name="Data Execution Prevention (DEP)"
             Key="DataExecutionPrevention"
-            DefaultValue="false"
+            DefaultValue="true"
             Description="Marks an executable as having been tested to be compatible with Windows Data Execution Prevention feature. (/NXCOMPAT[:NO])"
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="No (/NXCOMPAT:NO)">false</Value>
                 <Value ValueText="Yes (/NXCOMPAT)">true</Value>
@@ -838,7 +837,7 @@
             DefaultValue="false"
             Description="The UNLOAD qualifiers tells the delay-load helper function to support explicit unloading of the DLL. (/DELAY:UNLOAD)"
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="Don't Support Unload">false</Value>
                 <Value ValueText="Support Unload (/DELAY:UNLOAD)">true</Value>
@@ -849,7 +848,7 @@
             DefaultValue="false"
             Description="The NOBIND qualifier tells the linker not to include a bindable IAT in the final image. The default is to create the bindable IAT for delay-loaded DLLs. (/DELAY:NOBIND)"
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="Don't Support Unload">false</Value>
                 <Value ValueText="Support Unload (/DELAY:UNLOAD)">true</Value>
@@ -904,7 +903,7 @@
             DefaultValue="1"
             Description="The /MACHINE option specifies the target platform for the program."
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="Not Set">NotSet</Value>
                 <Value ValueText="MachineARM (/MACHINE:ARM)">MachineARM</Value>
@@ -978,7 +977,6 @@
             Description="Indicates whether the output assembly should be delayed signed."
             Tag="Link"
             Version="2010"
-            EndVersion="2012"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/DELAYSIGN)">true</Value>
@@ -987,9 +985,9 @@
             Name="Delay Sign"
             Key="LinkDelaySign"
             DefaultValue="false"
-            Description="Indicates whether the output assembly should be delayed signed."
+            Description="Partially sign an assembly. Use /DELAYSIGN if you only want to place the public key in the assembly. The default is /DELAYSIGN:NO."
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="No (/DELAYSIGN:NO)">false</Value>
                 <Value ValueText="Yes (/DELAYSIGN)">true</Value>
@@ -1001,7 +999,6 @@
             Description="Specifies how internal tool errors should be reported back to Microsoft. The default in the IDE is prompt. The default from command line builds is queue."
             Tag="Link"
             Version="2010"
-            EndVersion="2012"
             >
                 <Value ValueText="Default">0</Value>
                 <Value ValueText="Prompt Immediately (/ERRORREPORT:PROMPT)">1</Value>
@@ -1010,10 +1007,10 @@
         <Integer
             Name="Error Reporting"
             Key="LinkErrorReporting"
-            DefaultValue="1"
-            Description="Specifies how internal tool errors should be reported back to Microsoft. The default in the IDE is prompt. The default from command line builds is queue."
+            DefaultValue="PromptImmediately"
+            Description="Allows you to provide internal compiler error (ICE) information directly to the Visual C++ team."
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="PromptImmediately (/ERRORREPORT:PROMPT)">PromptImmediately</Value>
                 <Value ValueText="Queue For Next Login (/ERRORREPORT:QUEUE)">QueueForNextLogin</Value>
@@ -1027,7 +1024,6 @@
             Description="Specifies whether the linker will apply T:System.Security.SuppressUnmanagedCodeSecurityAttribute to linker -generated invoke calls from managed code into native DLLs."
             Tag="Link"
             Version="2010"
-            EndVersion="2012"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Apply Unmanaged Code Check (/CLRUNMANAGEDCODECHECK)">true</Value>
@@ -1036,13 +1032,24 @@
             Name="CLR Unmanaged Code Check"
             Key="CLRUnmanagedCodeCheck"
             DefaultValue="false"
-            Description="Specifies whether the linker will apply T:System.Security.SuppressUnmanagedCodeSecurityAttribute to linker -generated invoke calls from managed code into native DLLs."
+            Description="/CLRUNAMANAGEDCODECHECK specifies whether the linker will apply SuppressUnmanagedCodeSecurityAttribute to linker-generated PInvoke calls from managed code into native DLLs."
             Tag="Link"
-            Version="2010"
+            Version="2012"
+            >
+                <Value ValueText="No (/CLRUNMANAGEDCODECHECK:NO)">false</Value>
+                <Value ValueText="Yes (/CLRUNMANAGEDCODECHECK)">true</Value>
+        </Boolean>
+        <Boolean
+            Name="Detect One Definition Rule violations"
+            Key="DetectOneDefinitionRule"
+            DefaultValue="false"
+            Description="Detect One Definition Rule violations for user defined types. This option requires debug information (Zi/ZI/Z7 and DEBUG) in each module and in the program to diagnose ODR violations. (/ODR)"
+            Tag="Link"
+            Version="2012"
             EndVersion="2012"
             >
                 <Value ValueText="No">false</Value>
-                <Value ValueText="Apply Unmanaged Code Check (/CLRUNMANAGEDCODECHECK)">true</Value>
+                <Value ValueText="Yes (/ODR)">true</Value>
         </Boolean>
         <String
             Name="SectionAlignment"
@@ -1050,7 +1057,7 @@
             DefaultValue=""
             Description="The /ENTRY option specifies an entry point function as the starting address for an .exe file or DLL."
             Tag="Link"
-            Version="2013"
+            Version="2012"
         />
         <Integer
             Name="Preserve Last Error Code for PInvoke Calls"
@@ -1058,7 +1065,7 @@
             DefaultValue="Disabled"
             Description="/CLRSUPPORTLASTERROR, which is on by default, preserves the last error code of functions called through the P/Invoke mechanism, which allows you to call native functions in DLLS, from code compiled with /clr."
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="Enabled (/CLRSupportLastError)">Enabled</Value>
                 <Value ValueText="Disabled (/CLRSupportLastError:NO)">Disabled</Value>
@@ -1070,7 +1077,7 @@
             DefaultValue="false"
             Description="When /SAFESEH is specified, the linker will only produce an image if it can also produce a table of the image's safe exception handlers. This table specifies for the operating system which exception handlers are valid for the image."
             Tag="Link"
-            Version="2013"
+            Version="2012"
             >
                 <Value ValueText="No (/SAFESEH:NO)">false</Value>
                 <Value ValueText="Yes (/SAFESEH)">true</Value>
