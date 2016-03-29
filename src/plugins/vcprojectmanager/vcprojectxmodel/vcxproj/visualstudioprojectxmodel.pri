@@ -99,4 +99,12 @@ OTHER_FILES += \
     $$PWD/vcprojectxmodel/vcxproj/tools/xml_definitions/XdcmakeTool.xml
 
 DISTFILES += \
-    $$PWD/tools/xml_definitions/ClCompileTool.xml
+    $$PWD/tools/xml_definitions/ClCompileTool.xml \
+    $$PWD/tools/xml_definitions/BscmakeTool.xml \
+    $$PWD/tools/xml_definitions/CustomBuildStepTool.xml \
+    $$PWD/tools/xml_definitions/LinkTool.xml \
+    $$PWD/tools/xml_definitions/ManifestTool.xml \
+    $$PWD/tools/xml_definitions/PostBuildEventTool.xml \
+    $$PWD/tools/xml_definitions/PreBuildEventTool.xml \
+    $$PWD/tools/xml_definitions/PreLinkEventTool.xml \
+    $$PWD/tools/xml_definitions/XdcmakeTool.xml

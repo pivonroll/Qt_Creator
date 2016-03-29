@@ -11,6 +11,8 @@
             Key="SuppressStartupBanner"
             DefaultValue="true"
             Description="Suppress the display of the startup banner and information messages."
+            Tag="Bscmake"
+            Version="2010"
             >
                 <Value ValueText="No">false</Value>
                 <Value ValueText="Yes (/nologo)">true</Value>
@@ -20,6 +22,19 @@
             Key="OutputFile"
             DefaultValue="$(OutDir)/$(ProjectName).bsc"
             Description="Overrides the default output file name."
+            Tag="Bscmake"
+            Version="2010"
         />
+        <Boolean
+            Name="Preserve SBR Files"
+            Key="PreserveSbr"
+            DefaultValue="false"
+            Description="Causes bscmake.exe to do full builds that preserve the .sbr file. This is to enable use of alternative incremental build methods. (/n)"
+            Tag="Bscmake"
+            Version="2013"
+            >
+            <Value ValueText="No">false</Value>
+            <Value ValueText="Yes (/n)">true</Value>
+        </Boolean>
     </Section>
 </ToolInfo>
