@@ -248,6 +248,8 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
         QString displayName;
         QString defaultValue;
         QString description;
+        QString version;
+        QString tag;
 
         for (int i = 0; i < namedNodeMap.count(); ++i) {
             QDomNode domNode = namedNodeMap.item(i);
@@ -266,6 +268,12 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
 
                 else if (domElement.name() == QLatin1String("Description"))
                     description = domElement.value();
+
+                else if (domElement.name() == QLatin1String("Version"))
+                    version = domElement.value();
+
+                else if (domElement.name() == QLatin1String("Tag"))
+                    tag = domElement.value();
             }
         }
         AttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("String"),

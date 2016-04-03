@@ -46,13 +46,17 @@ public:
                                  const QString &key,
                                  const QString &displayText,
                                  const QString &descriptionText,
-                                 const QString &defaultVal);
+                                 const QString &defaultVal,
+                                 const QString &tag,
+                                 const QString &version);
     ~AttributeDescriptionDataItem();
 
     // IAttributeDescriptionDataItem interface
     QString descriptionText() const;
     QString displayText() const;
     QString key() const;
+    QString tag() const;
+    QString version() const;
     ToolAttributeOption *firstOption() const;
     void setFirstOption(ToolAttributeOption *opt);
     QString defaultValue() const;
@@ -66,6 +70,8 @@ private:
     QString m_displayText;
     QString m_descriptionText;
     QString m_defaultValue;
+    QString m_tag;
+    QString m_version;
     QString m_type;
     ToolAttributeOption *m_firstOption;
     QHash<QString, QString> m_optionalValues;

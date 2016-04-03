@@ -38,12 +38,16 @@ AttributeDescriptionDataItem::AttributeDescriptionDataItem(const QString &type,
                                                            const QString &key,
                                                            const QString &displayText,
                                                            const QString &descriptionText,
-                                                           const QString &defaultVal)
+                                                           const QString &defaultVal,
+                                                           const QString &tag,
+                                                           const QString &version)
     : m_key(key),
       m_displayText(displayText),
       m_descriptionText(descriptionText),
       m_defaultValue(defaultVal),
       m_type(type),
+      m_tag(tag),
+      m_version(version),
       m_firstOption(nullptr)
 {
 }
@@ -101,6 +105,16 @@ void AttributeDescriptionDataItem::removeOptionalValue(const QString &key)
 QString AttributeDescriptionDataItem::type() const
 {
     return m_type;
+}
+
+QString AttributeDescriptionDataItem::tag() const
+{
+    return m_tag;
+}
+
+QString AttributeDescriptionDataItem::version() const
+{
+    return m_version;
 }
 
 } // namespace Internal
