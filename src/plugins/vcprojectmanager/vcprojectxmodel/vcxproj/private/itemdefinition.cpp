@@ -67,6 +67,16 @@ ItemMetaData *ItemDefinition::metaData(int index) const
     return 0;
 }
 
+ItemMetaData *ItemDefinition::findItemMetaData(const QString &name) const
+{
+    foreach (const ItemMetaData * const item, m_metaData) {
+        if (item && item->name() == name)
+            return item;
+    }
+
+    return nullptr;
+}
+
 int ItemDefinition::metaDataCount() const
 {
     return m_metaData.size();

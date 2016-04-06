@@ -5,6 +5,7 @@
     >
     <Section
         Name="Pre Build Event"
+        Version="2010"
         >
         <StringList
             Name="Command Line"

@@ -225,9 +225,10 @@ void ToolDescriptionDataManager::processToolSectionNode(ToolDescription *toolDes
             if (domNode.nodeType() == QDomNode::AttributeNode) {
                 QDomAttr domElement = domNode.toAttr();
 
-                if (domElement.name() == QLatin1String("Name")) {
+                if (domElement.name() == QLatin1String("Name"))
                     toolSectionDesc->setDisplayName(domElement.value());
-                }
+                else if (domElement.name() == QLatin1String("Version"))
+                    toolSectionDesc->setVersion(domElement.value());
             }
         }
 
@@ -280,7 +281,9 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
                                                                                   key,
                                                                                   displayName,
                                                                                   description,
-                                                                                  defaultValue);
+                                                                                  defaultValue,
+                                                                                  tag,
+                                                                                  version);
         toolSectDesc->addAttributeDescription(dataItem);
     }
 
@@ -291,6 +294,8 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
         QString defaultValue;
         QString description;
         QString separator;
+        QString version;
+        QString tag;
 
         for (int i = 0; i < namedNodeMap.count(); ++i) {
             QDomNode domNode = namedNodeMap.item(i);
@@ -312,13 +317,21 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
 
                 else if (domElement.name() == QLatin1String("Separator"))
                     separator = domElement.value();
+
+                else if (domElement.name() == QLatin1String("Version"))
+                    version = domElement.value();
+
+                else if (domElement.name() == QLatin1String("Tag"))
+                    tag = domElement.value();
             }
         }
         AttributeDescriptionDataItem *dataItem = new AttributeDescriptionDataItem(QLatin1String("StringList"),
                                                                                   key,
                                                                                   displayName,
                                                                                   description,
-                                                                                  defaultValue);
+                                                                                  defaultValue,
+                                                                                  tag,
+                                                                                  version);
         dataItem->setOptionalValue(QLatin1String("separator"), separator);
         toolSectDesc->addAttributeDescription(dataItem);
     }
@@ -329,6 +342,8 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
         QString displayName;
         QString defaultValue;
         QString description;
+        QString version;
+        QString tag;
 
         for (int i = 0; i < namedNodeMap.count(); ++i) {
             QDomNode domNode = namedNodeMap.item(i);
@@ -347,6 +362,12 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
 
                 else if (domAttr.name() == QLatin1String("Description"))
                     description = domAttr.value();
+
+                else if (domElement.name() == QLatin1String("Version"))
+                    version = domElement.value();
+
+                else if (domElement.name() == QLatin1String("Tag"))
+                    tag = domElement.value();
             }
         }
 
@@ -355,7 +376,9 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
                                                                                   key,
                                                                                   displayName,
                                                                                   description,
-                                                                                  defaultValue);
+                                                                                  defaultValue,
+                                                                                  tag,
+                                                                                  version);
         dataItem->setFirstOption(option);
         toolSectDesc->addAttributeDescription(dataItem);
     }
@@ -366,6 +389,8 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
         QString displayName;
         QString defaultValue;
         QString description;
+        QString version;
+        QString tag;
 
         for (int i = 0; i < namedNodeMap.count(); ++i) {
             QDomNode domNode = namedNodeMap.item(i);
@@ -384,6 +409,12 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
 
                 else if (domElement.name() == QLatin1String("Description"))
                     description = domElement.value();
+
+                else if (domElement.name() == QLatin1String("Version"))
+                    version = domElement.value();
+
+                else if (domElement.name() == QLatin1String("Tag"))
+                    tag = domElement.value();
             }
         }
 
@@ -392,7 +423,9 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
                                                                                   key,
                                                                                   displayName,
                                                                                   description,
-                                                                                  defaultValue);
+                                                                                  defaultValue,
+                                                                                  tag,
+                                                                                  version);
         dataItem->setFirstOption(option);
         toolSectDesc->addAttributeDescription(dataItem);
     }

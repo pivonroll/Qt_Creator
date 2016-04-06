@@ -5,6 +5,7 @@
     >
     <Section
         Name="General"
+        Version="2010"
         >
         <String
             Name="Output File"
@@ -203,6 +204,7 @@
     </Section>
     <Section
         Name="Input"
+        Version="2010"
         >
         <StringList
             Name="Additional Dependencies"
@@ -296,6 +298,7 @@
     </Section>
     <Section
         Name="Manifest File"
+        Version="2010"
         >
         <Boolean
             Name="Generate Manifest"
@@ -373,6 +376,7 @@
     </Section>
     <Section
         Name="Debugging"
+        Version="2010"
         >
         <Boolean
             Name="Generate Debug Info"
@@ -445,6 +449,7 @@
     </Section>
     <Section
         Name="System"
+        Version="2010"
         >
         <Integer
             Name="Sub System"
@@ -569,6 +574,7 @@
     </Section>
     <Section
         Name="Optimization"
+        Version="2010"
         >
         <Integer
             Name="References"
@@ -626,6 +632,7 @@
     </Section>
     <Section
         Name="Embedded IDL"
+        Version="2010"
         >
         <String
             Name="MIDL Commands"
@@ -674,7 +681,8 @@
     </Section>
     <Section
         Name="Windows Metadata"
-        Version="2012">
+        Version="2012"
+        >
         <Boolean
             Name="Generate Windows Metadata"
             Key="GenerateWindowsMetadata"

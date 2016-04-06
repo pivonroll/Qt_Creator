@@ -31,7 +31,7 @@
 #include "vcschemamanager.h"
 #include "vcprojectmodel/tools/tool_constants.h"
 
-#include <visualstudiotoolattributes//tooldescriptiondatamanager.h>
+#include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <coreplugin/icore.h>
 

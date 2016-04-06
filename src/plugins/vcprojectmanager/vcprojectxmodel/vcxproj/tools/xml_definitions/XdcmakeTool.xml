@@ -5,6 +5,7 @@
     >
     <Section
         Name="XML Document Generator"
+        Version="2010"
         >
         <Boolean
             Name="Suppress Startup Banner"

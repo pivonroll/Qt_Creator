@@ -50,7 +50,8 @@ public:
     ItemDefinition(const ItemDefinition &itemDefinition);
     ~ItemDefinition();
 
-    ItemMetaData* metaData(int index) const;
+    ItemMetaData *metaData(int index) const;
+    ItemMetaData *findItemMetaData(const QString &name) const;
     int metaDataCount() const;
     void addMetaData(ItemMetaData *metaData);
     void removeMetaData(ItemMetaData *metaData);

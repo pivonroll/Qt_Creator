@@ -119,6 +119,8 @@ public:
     void processNode(const QDomNode &node);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
+    QString version() const;
+
 private:
     void processChildNodes(const QDomNode &node);
     void processNodeAttributes(const QDomElement &nodeElement);

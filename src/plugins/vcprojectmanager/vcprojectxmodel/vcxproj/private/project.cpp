@@ -433,6 +433,18 @@ QDomNode Project::toXMLDomNode(QDomDocument &domXMLDocument) const
     return element;
 }
 
+QString Project::version() const
+{
+    if (m_toolsVersion == QLatin1String("10.0"))
+        return QLatin1String("2010");
+    else if (m_toolsVersion == QLatin1String("11.0"))
+        return QLatin1String("2012");
+    else if (m_toolsVersion == QLatin1String("12.0"))
+        return QLatin1String("2013");
+    else if (m_toolsVersion == QLatin1String("13.0"))
+        return QLatin1String("2015");
+}
+
 void Project::processChildNodes(const QDomNode &node)
 {
     if (node.nodeName() == QLatin1String(IMPORT_ITEM)) {

@@ -33,8 +33,10 @@
 
 #include "private/project.h"
 #include "private/item.h"
+#include "private/itemdefinition.h"
 #include "private/itemmetadata.h"
 #include "private/itemgroup.h"
+#include "private/itemdefinitiongroup.h"
 #include "private/propertygroup.h"
 #include "private/property.h"
 #include "vcprojx_constants.h"
@@ -188,6 +190,53 @@ Property *Utils::findProperty(PropertyGroup *propertyGroup, const QString &prope
 
         if (property->name() == propertyName)
             return property;
+    }
+
+    return nullptr;
+}
+
+ItemDefinitionGroup *Utils::findItemDefinitionGroup(Project *project, const QString &condition)
+{
+    if (!project)
+        return nullptr;
+
+    EvaluateArguments evalArgs;
+    QStringList args = condition.split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
+
+    if (args.size() != 2)
+        return nullptr;
+
+    evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+    evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+
+    for (int i = 0; i < project->itemDefinitionGroupCount(); ++i) {
+        ItemDefinitionGroup *itemDefinitionGroup = project->itemDefinitionGroup(i);
+
+        if (!itemDefinitionGroup)
+            continue;
+
+        ConditionManipulation condMan(itemDefinitionGroup->condition());
+
+        if (condMan.evaluate(evalArgs))
+            return itemDefinitionGroup;
+    }
+
+    return nullptr;
+}
+
+ItemDefinition *Utils::findItemDefinition(ItemDefinitionGroup *itemDefinitionGroup, const QString &name)
+{
+    if (!itemDefinitionGroup)
+        return nullptr;
+
+    for (int i = 0; i < itemDefinitionGroup->itemDefinitionCount(); ++i) {
+        ItemDefinition *itemDefinition = itemDefinitionGroup->itemDefinition(i);
+
+        if (!itemDefinition)
+            continue;
+
+        if (itemDefinition->name() == name)
+            return itemDefinition;
     }
 
     return nullptr;

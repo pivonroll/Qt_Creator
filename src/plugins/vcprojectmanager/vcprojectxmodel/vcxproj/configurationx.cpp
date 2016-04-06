@@ -55,6 +55,8 @@
 #include "private/usingtask.h"
 #include "private/when.h"
 
+#include "utilsx.h"
+
 #include <QStringList>
 #include <QVariant>
 
@@ -387,10 +389,10 @@ QDomNode ConfigurationX::toXMLDomNode(QDomDocument &domXMLDocument) const
     return QDomNode();
 }
 
-ConfigurationX::ConfigurationX()
+ConfigurationX::ConfigurationX(Project *project)
     : m_item(0),
       m_itemDefinitionGroup(0),
-      m_project(0)
+      m_project(project)
 {
 }
 

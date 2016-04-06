@@ -65,7 +65,7 @@ public:
     void processNode(const QDomNode &node);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
-    ConfigurationX();
+    ConfigurationX(Project *project);
 
     Item *m_item;
     ItemDefinitionGroup *m_itemDefinitionGroup;

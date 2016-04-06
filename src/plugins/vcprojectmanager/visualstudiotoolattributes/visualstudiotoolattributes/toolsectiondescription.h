@@ -46,7 +46,10 @@ public:
     QString displayName() const;
     void setDisplayName(const QString &displayName);
 
-    AttributeDescriptionDataItem *attributeDescription(const QString &attributeKey) const;
+    QString version() const;
+    void setVersion(const QString &version);
+
+    AttributeDescriptionDataItem *attributeDescription(const QString &attributeKey, QString version) const;
     AttributeDescriptionDataItem *attributeDescription(int index) const;
     int attributeDescriptionCount() const;
     void addAttributeDescription(AttributeDescriptionDataItem *attributeDesc);
@@ -55,6 +58,7 @@ public:
 
 private:
     QString m_name;
+    QString m_version;
     QList<AttributeDescriptionDataItem *> m_toolAttributeDescs;
 };
 

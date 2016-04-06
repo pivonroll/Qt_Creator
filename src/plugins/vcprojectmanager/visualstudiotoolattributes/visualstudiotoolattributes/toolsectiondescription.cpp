@@ -49,7 +49,7 @@ void ToolSectionDescription::setDisplayName(const QString &name)
     m_name = name;
 }
 
-AttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(const QString &attributeKey) const
+AttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(const QString &attributeKey, QString version) const
 {
     foreach (AttributeDescriptionDataItem *descDataItem, m_toolAttributeDescs) {
         if (descDataItem->key() == attributeKey)
@@ -103,6 +103,16 @@ void ToolSectionDescription::removeAttributeDescription(const QString &attribute
             return;
         }
     }
+}
+
+QString ToolSectionDescription::version() const
+{
+    return m_version;
+}
+
+void ToolSectionDescription::setVersion(const QString &version)
+{
+    m_version = version;
 }
 
 } // namespace Internal

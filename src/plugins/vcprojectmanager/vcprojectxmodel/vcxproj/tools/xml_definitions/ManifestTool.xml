@@ -5,6 +5,7 @@
     >
     <Section
         Name="General"
+        Version="2010"
         >
         <Boolean
             Name="Suppress Startup Banner"
@@ -63,6 +64,7 @@
     </Section>
     <Section
         Name="Input and Output"
+        Version="2010"
         >
         <String
             Name="Additional Manifest Files"
@@ -180,6 +182,7 @@
     </Section>
     <Section
         Name="Isolated COM"
+        Version="2010"
         >
         <String
             Name="Type Library File"
@@ -216,6 +219,7 @@
     </Section>
     <Section
         Name="Advanced"
+        Version="2010"
         >
         <Boolean
             Name="Update File Hashes"

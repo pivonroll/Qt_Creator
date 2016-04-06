@@ -122,8 +122,10 @@ void ToolSectionContainer::removeSection(const QString &sectionName)
     }
 }
 
-void ToolSectionContainer::appendToXMLNode(QDomElement &elementNode)
+void ToolSectionContainer::appendToXMLNode(QDomElement &elementNode, QDomDocument &domXMLDocument)
 {
+    Q_UNUSED(domXMLDocument);
+
     foreach (IToolSection *toolSection, m_toolSections) {
         if (toolSection) {
             for (int i = 0; i < toolSection->attributeContainer()->toolAttributeCount(); ++i) {

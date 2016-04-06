@@ -81,7 +81,7 @@ QDomNode ConfigurationTool::toXMLDomNode(QDomDocument &domXMLDocument) const
 {
     QDomElement toolNode = domXMLDocument.createElement(QLatin1String("Tool"));
     toolNode.setAttribute(QLatin1String("Name"), m_toolDesc->toolKey());
-    m_sectionContainer->appendToXMLNode(toolNode);
+    m_sectionContainer->appendToXMLNode(toolNode, domXMLDocument);
     return toolNode;
 }
 

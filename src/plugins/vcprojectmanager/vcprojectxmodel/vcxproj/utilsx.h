@@ -37,11 +37,13 @@ namespace Internal {
 namespace VisualStudioProjectX {
 
 class ItemGroup;
+class ItemDefinition;
 class Item;
 class ItemMetaData;
 class Project;
 class PropertyGroup;
 class Property;
+class ItemDefinitionGroup;
 
 class Utils
 {
@@ -56,6 +58,8 @@ public:
     static Item *findFilterItemForFileExtension(const QString &fileExtension, Project *project);
     static PropertyGroup *findPropertyGroup(Project *project, const QString &condition, const QString &label);
     static Property *findProperty(PropertyGroup *propertyGroup, const QString &propertyName);
+    static ItemDefinitionGroup *findItemDefinitionGroup(Project *project, const QString &condition);
+    static ItemDefinition *findItemDefinition(ItemDefinitionGroup *itemDefinitionGroup, const QString &name);
 };
 
 } // namespace VisualStudioProjectX

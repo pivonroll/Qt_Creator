@@ -5,6 +5,7 @@
     >
     <Section
         Name = "Pre-Link Event"
+        Version="2010"
         >
         <StringList
             Name="Command Line"

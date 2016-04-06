@@ -34,6 +34,7 @@
 
 QT_BEGIN_NAMESPACE
 class QDomElement;
+class QDomDocument;
 QT_END_NAMESPACE
 
 namespace VcProjectManager {
@@ -73,8 +74,9 @@ public:
 
     /*!
      * \brief Implement this in order to append attributes in tools in this section to an XML node.
+     * \param elementNode is a node which points to the configuration node element
      */
-    virtual void appendToXMLNode(QDomElement &elementNode) = 0;
+    virtual void appendToXMLNode(QDomElement &elementNode, QDomDocument &domXMLDocument) = 0;
 };
 
 } // Internal

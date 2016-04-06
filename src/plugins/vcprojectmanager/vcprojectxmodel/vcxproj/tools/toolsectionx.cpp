@@ -8,6 +8,7 @@
 #include "integertoolattributex.h"
 #include "stringtoolattributex.h"
 #include "stringlisttoolattributex.h"
+#include "../private/project.h"
 
 namespace VcProjectManager {
 namespace Internal {
@@ -19,9 +20,13 @@ ToolSectionX::ToolSectionX(const ToolSectionDescription *toolSectionDescription,
     , m_project(project)
     , m_attributeContainer(new GeneralToolAttributeContainer)
 {
+    if (!m_project)
+        return;
+
     for (int i = 0; i < m_toolSectionDescription->attributeDescriptionCount(); ++i) {
 
-        if (!m_toolSectionDescription->attributeDescription(i))
+        if (!m_toolSectionDescription->attributeDescription(i)
+                || m_toolSectionDescription->attributeDescription(i)->version() != m_project->version())
             continue;
 
             IToolAttribute *toolAttribute = nullptr;

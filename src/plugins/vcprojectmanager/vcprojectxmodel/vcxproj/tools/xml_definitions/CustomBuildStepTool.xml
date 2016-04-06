@@ -5,6 +5,7 @@
     >
     <Section
         Name="General"
+        Version="2010"
         >
         <StringList
             Name="CommandLine"

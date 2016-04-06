@@ -9,6 +9,7 @@ HEADERS += \
     $$PWD/visualstudiotoolattributes/toolsectioncontainer.h \
     $$PWD/visualstudiotoolattributes/toolsectiondescription.h \
     $$PWD/visualstudiotoolattributes/generaltoolattributecontainer.h \
+    $$PWD/visualstudiotoolattributes/toolsectioncontainerx.h
 
 
 SOURCES += \
@@ -19,3 +20,4 @@ SOURCES += \
     $$PWD/visualstudiotoolattributes/toolsectioncontainer.cpp \
     $$PWD/visualstudiotoolattributes/toolsectiondescription.cpp \
     $$PWD/visualstudiotoolattributes/generaltoolattributecontainer.cpp \
+    $$PWD/visualstudiotoolattributes/toolsectioncontainerx.cpp

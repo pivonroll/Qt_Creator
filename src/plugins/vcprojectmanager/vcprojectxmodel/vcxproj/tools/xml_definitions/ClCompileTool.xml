@@ -3,7 +3,9 @@
     Name="C/C++ Compiler"
     Key="ClCompile"
     >
-    <Section Name="General"
+    <Section
+        Name="General"
+        Version="2010"
         >
         <StringList
             Name="Additional Include Directories"
@@ -110,6 +112,7 @@
     </Section>
     <Section 
         Name="Optimization"
+        Version="2010"
         >
         <Integer
             Name="Optimization"
@@ -196,6 +199,7 @@
     </Section>
     <Section 
         Name="Preprocessor"
+        Version="2010"
         >
         <StringList 
             Name="Preprocessor Definitions"
@@ -273,6 +277,7 @@
     </Section>
     <Section
         Name="Code Generation"
+        Version="2010"
         >
         <Boolean 
             Name="Enable String Pool"
@@ -443,6 +448,7 @@
     </Section>
     <Section 
         Name="Language"
+        Version="2010"
         >
         <Boolean 
             Name="Disable Language Extensions"
@@ -501,6 +507,7 @@
     </Section>
     <Section
         Name="Precompiled Headers"
+        Version="2010"
         >
         <Integer
             Name="Precompiled Header"
@@ -533,6 +540,7 @@
     </Section>
     <Section
         Name="Output Files"
+        Version="2010"
         >
         <Boolean 
             Name="Expand Attributed Source"
@@ -605,6 +613,7 @@
     </Section>
     <Section
         Name="Browse Information"
+        Version="2010"
         >
         <Boolean
             Name="Enable Browse Information"
@@ -628,6 +637,7 @@
     </Section>
     <Section
         Name="Advanced"
+        Version="2010"
         >
         <Integer
             Name="Calling Convention"

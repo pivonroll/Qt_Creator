@@ -50,7 +50,7 @@ public:
     int sectionCount() const;
     void appendSection(IToolSection *section);
     void removeSection(const QString &sectionName);
-    void appendToXMLNode(QDomElement &elementNode);
+    void appendToXMLNode(QDomElement &elementNode, QDomDocument &domXMLDocument);
 
 private:
     QList<IToolSection *> m_toolSections;
