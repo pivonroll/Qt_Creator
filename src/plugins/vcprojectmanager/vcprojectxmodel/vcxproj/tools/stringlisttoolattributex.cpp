@@ -11,8 +11,8 @@ StringListToolAttributeX::StringListToolAttributeX(const AttributeDescriptionDat
 }
 
 StringListToolAttributeX::StringListToolAttributeX(const StringListToolAttributeX &other)
+    : BaseToolAttributeX(other)
 {
-    BaseToolAttributeX::BaseToolAttributeX(other);
 }
 
 IToolAttributeSettingsWidget *StringListToolAttributeX::createSettingsItem()

@@ -10,8 +10,8 @@ IntegerToolAttributeX::IntegerToolAttributeX(const AttributeDescriptionDataItem 
 }
 
 IntegerToolAttributeX::IntegerToolAttributeX(const IntegerToolAttributeX &other)
+    : BaseToolAttributeX(other)
 {
-    BaseToolAttributeX::BaseToolAttributeX(other);
 }
 
 IToolAttributeSettingsWidget *IntegerToolAttributeX::createSettingsItem()

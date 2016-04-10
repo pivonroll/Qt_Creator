@@ -69,7 +69,7 @@ ItemMetaData *ItemDefinition::metaData(int index) const
 
 ItemMetaData *ItemDefinition::findItemMetaData(const QString &name) const
 {
-    foreach (const ItemMetaData * const item, m_metaData) {
+    foreach (ItemMetaData *item, m_metaData) {
         if (item && item->name() == name)
             return item;
     }

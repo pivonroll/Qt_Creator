@@ -13,7 +13,7 @@ class ConfigurationX;
 class BoolToolAttributeX : public BaseToolAttributeX
 {
 public:
-    BoolToolAttributeX();
+    BoolToolAttributeX(const AttributeDescriptionDataItem *attributeDescription, Project *project, ConfigurationX *configuration);
     BoolToolAttributeX(const BoolToolAttributeX &other);
 
     // IToolAttribute interface

@@ -10,8 +10,8 @@ BoolToolAttributeX::BoolToolAttributeX(const AttributeDescriptionDataItem *attri
 }
 
 BoolToolAttributeX::BoolToolAttributeX(const BoolToolAttributeX &other)
+    : BaseToolAttributeX(other)
 {
-    BaseToolAttributeX::BaseToolAttributeX(other);
 }
 
 IToolAttributeSettingsWidget *BoolToolAttributeX::createSettingsItem()

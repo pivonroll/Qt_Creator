@@ -39,8 +39,8 @@ StringToolAttributeX::StringToolAttributeX(const AttributeDescriptionDataItem *a
 }
 
 StringToolAttributeX::StringToolAttributeX(const StringToolAttributeX &other)
+    : BaseToolAttributeX(other)
 {
-    BaseToolAttributeX::BaseToolAttributeX(other);
 }
 
 IToolAttributeSettingsWidget *StringToolAttributeX::createSettingsItem()

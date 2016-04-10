@@ -211,8 +211,7 @@ IConfiguration *VcProjectDocumentX::createDefaultBuildConfiguration(const QStrin
             arg(QLatin1String(VisualStudioProjectX::CONFIGURATION_PLATFORM_DELIMITER)).
             arg(platformName);
 
-    VisualStudioProjectX::ConfigurationX *newConfig = new VisualStudioProjectX::ConfigurationX;
-    newConfig->m_project = m_project;
+    VisualStudioProjectX::ConfigurationX *newConfig = new VisualStudioProjectX::ConfigurationX(m_project);
     newConfig->m_item = new VisualStudioProjectX::Item;
     newConfig->m_item->setName(QLatin1String(VisualStudioProjectX::PROJECT_CONFIGURATION));
 

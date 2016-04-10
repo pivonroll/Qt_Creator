@@ -103,7 +103,7 @@ void BaseToolAttributeX::setValue(const QString &value)
         // if Tag node does not exist insert it
         if (!itemDefinition) {
             itemDefinition = new ItemDefinition;
-            itemDefinition->setName(toolAttr->descriptionDataItem()->tag());
+            itemDefinition->setName(m_attributeDescription->tag());
         }
 
         ItemMetaData *itemMetaData = itemDefinition->findItemMetaData(m_attributeDescription->key());

@@ -136,8 +136,7 @@ IConfiguration *ConfigurationContainerX::createNewConfiguration(const QString &c
             arg(QLatin1String(PLATFORM_VARIABLE)).arg(configDisplayName).arg(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER)).
             arg(platformName);
 
-    ConfigurationX *newConfig = new ConfigurationX;
-    newConfig->m_project = m_project;
+    ConfigurationX *newConfig = new ConfigurationX(m_project);
     newConfig->m_item = new Item;
     newConfig->m_item->setName(QLatin1String(PROJECT_CONFIGURATION));
 
@@ -185,12 +184,11 @@ ConfigurationX *ConfigurationContainerX::createConfiguration(Item *item,
                                                              const QList<PropertyGroup *> &propertyGroups,
                                                              const QList<ImportGroup *> &importGroups)
 {
-    ConfigurationX *newConfig = new ConfigurationX;
+    ConfigurationX *newConfig = new ConfigurationX(m_project);
     newConfig->m_item = item;
     newConfig->m_itemDefinitionGroup = itemDefGroup;
     newConfig->m_importGroups = importGroups;
     newConfig->m_propertyGroups = propertyGroups;
-    newConfig->m_project = m_project;
 
     return newConfig;
 }

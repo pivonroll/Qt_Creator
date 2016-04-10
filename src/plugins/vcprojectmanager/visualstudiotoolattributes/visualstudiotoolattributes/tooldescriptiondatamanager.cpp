@@ -363,11 +363,11 @@ void ToolDescriptionDataManager::processToolAttributeDescriptions(ToolSectionDes
                 else if (domAttr.name() == QLatin1String("Description"))
                     description = domAttr.value();
 
-                else if (domElement.name() == QLatin1String("Version"))
-                    version = domElement.value();
+                else if (domAttr.name() == QLatin1String("Version"))
+                    version = domAttr.value();
 
-                else if (domElement.name() == QLatin1String("Tag"))
-                    tag = domElement.value();
+                else if (domAttr.name() == QLatin1String("Tag"))
+                    tag = domAttr.value();
             }
         }
 
