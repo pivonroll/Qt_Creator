@@ -42,11 +42,23 @@ IntegerToolAttribute::IntegerToolAttribute(const AttributeDescriptionDataItem *d
 {
 }
 
-IntegerToolAttribute::IntegerToolAttribute(const IntegerToolAttribute &attr)
+IntegerToolAttribute::IntegerToolAttribute(const IntegerToolAttribute &other)
 {
-    m_isUsed = attr.m_isUsed;
-    m_descDataItem = attr.m_descDataItem;
-    m_attributeValue = attr.m_attributeValue;
+    m_isUsed = other.m_isUsed;
+    m_descDataItem = other.m_descDataItem;
+    m_attributeValue = other.m_attributeValue;
+}
+
+IntegerToolAttribute::IntegerToolAttribute(IntegerToolAttribute &&other)
+    : IntegerToolAttribute()
+{
+    swap(*this, other);
+}
+
+IntegerToolAttribute &IntegerToolAttribute::operator=(IntegerToolAttribute other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 const AttributeDescriptionDataItem *IntegerToolAttribute::descriptionDataItem() const
@@ -82,6 +94,13 @@ bool IntegerToolAttribute::isUsed() const
 IToolAttribute *IntegerToolAttribute::clone() const
 {
     return new IntegerToolAttribute(*this);
+}
+
+void IntegerToolAttribute::swap(IntegerToolAttribute &first, IntegerToolAttribute &second)
+{
+    std::swap(first.m_attributeValue, second.m_attributeValue);
+    std::swap(first.m_descDataItem, second.m_descDataItem);
+    std::swap(first.m_isUsed, second.m_isUsed);
 }
 
 } // namespace Internal

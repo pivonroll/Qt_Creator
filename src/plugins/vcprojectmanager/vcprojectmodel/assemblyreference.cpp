@@ -45,34 +45,24 @@ AssemblyReference::AssemblyReference()
     m_configurations = new ConfigurationContainer;
 }
 
-AssemblyReference::AssemblyReference(const AssemblyReference &asmRef)
+AssemblyReference::AssemblyReference(const AssemblyReference &other)
 {
     m_attributeContainer = new GeneralAttributeContainer;
     m_configurations = new ConfigurationContainer;
 
-    *m_attributeContainer = *asmRef.m_attributeContainer;
-    *m_configurations = *asmRef.m_configurations;
-
-    for (int i = 0; i < asmRef.m_configurations->configurationCount(); ++i) {
-        IConfiguration *config = asmRef.m_configurations->configuration(i);
-        if (config)
-            m_configurations->addConfiguration(config->clone());
-    }
+    *m_attributeContainer = *other.m_attributeContainer;
+    *m_configurations = *other.m_configurations;
 }
 
-AssemblyReference &AssemblyReference::operator =(const AssemblyReference &asmRef)
+AssemblyReference::AssemblyReference(AssemblyReference &&other)
+    : AssemblyReference()
 {
-    if (this != &asmRef) {
-        *m_attributeContainer = *asmRef.m_attributeContainer;
-        *m_configurations = *asmRef.m_configurations;
+    swap(*this, other);
+}
 
-        for (int i = 0; i < asmRef.m_configurations->configurationCount(); ++i) {
-            IConfiguration *config = asmRef.m_configurations->configuration(i);
-            if (config)
-                m_configurations->addConfiguration(config->clone());
-        }
-    }
-
+AssemblyReference &AssemblyReference::operator=(AssemblyReference other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -128,6 +118,12 @@ QString AssemblyReference::type() const
 IReference *AssemblyReference::clone() const
 {
     return new AssemblyReference(*this);
+}
+
+void AssemblyReference::swap(AssemblyReference &first, AssemblyReference &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_configurations, second.m_configurations);
 }
 
 void AssemblyReference::processNodeAttributes(const QDomElement &element)

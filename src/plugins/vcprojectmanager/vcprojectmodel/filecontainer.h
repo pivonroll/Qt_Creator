@@ -45,8 +45,9 @@ class FileContainer : public IFileContainer
 {
 public:
     FileContainer(const QString &containerType, IVisualStudioProject *parentProjectDoc, const QString &relativePath = QString());
-    FileContainer(const FileContainer &fileContainer);
-    FileContainer &operator=(const FileContainer &folder);
+    FileContainer(const FileContainer &other);
+    FileContainer(FileContainer &&other);
+    FileContainer &operator=(FileContainer other);
     ~FileContainer();
 
     QString containerType() const;
@@ -74,6 +75,8 @@ public:
     void setRelativePath(const QString &relativePath);
 
 private:
+    FileContainer();
+    void swap(FileContainer &first, FileContainer &second);
     void processFile(const QDomNode &fileNode);
     void processFilter(const QDomNode &filterNode);
     void processFolder(const QDomNode &folderNode);

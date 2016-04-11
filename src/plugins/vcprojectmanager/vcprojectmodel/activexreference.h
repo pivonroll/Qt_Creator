@@ -46,8 +46,9 @@ class ActiveXReference : public IReference
 {
 public:
     ActiveXReference();
-    ActiveXReference(const ActiveXReference &ref);
-    ActiveXReference &operator=(const ActiveXReference &ref);
+    ActiveXReference(const ActiveXReference &other);
+    ActiveXReference(ActiveXReference &&other);
+    ActiveXReference &operator=(ActiveXReference other);
     ~ActiveXReference();
 
     void processNode(const QDomNode &node);
@@ -61,6 +62,7 @@ public:
     IReference *clone() const;
 
 private:
+    void swap(ActiveXReference &first, ActiveXReference &second);
     void processNodeAttributes(const QDomElement &element);
     void processReferenceConfig(const QDomNode &referenceConfig);
 

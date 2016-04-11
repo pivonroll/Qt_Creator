@@ -68,33 +68,29 @@ File::File(IVisualStudioProject *parentProjectDoc)
     m_attributeContainer = new GeneralAttributeContainer;
 }
 
-File::File(const File &file)
+File::File(const File &other)
 {
     m_attributeContainer = new GeneralAttributeContainer;
     m_configurationContainer = new ConfigurationContainer;
 
-    m_parentProjectDoc = file.m_parentProjectDoc;
-    m_relativePath = file.m_relativePath;
-    *m_configurationContainer = *(file.m_configurationContainer);
-    *m_attributeContainer = *(file.m_attributeContainer);
+    m_parentProjectDoc = other.m_parentProjectDoc;
+    m_relativePath = other.m_relativePath;
+    *m_configurationContainer = *(other.m_configurationContainer);
+    *m_attributeContainer = *(other.m_attributeContainer);
 
-    foreach (const File *f, file.m_files)
+    foreach (const File *f, other.m_files)
         m_files.append(new File(*f));
 }
 
-File &File::operator =(const File &file)
+File::File(File &&other)
+    : File()
 {
-    if (this != &file) {
-        m_parentProjectDoc = file.m_parentProjectDoc;
-        m_relativePath = file.m_relativePath;
-        *m_configurationContainer = *(file.m_configurationContainer);
-        *m_attributeContainer = *(file.m_attributeContainer);
+    swap(*this, other);
+}
 
-        qDeleteAll(m_files);
-
-        foreach (const File *f, file.m_files)
-            m_files.append(new File(*f));
-    }
+File &File::operator=(File other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -191,6 +187,15 @@ IConfiguration *File::createDefaultBuildConfiguration(const QString &configName,
     Q_UNUSED(configName)
     Q_UNUSED(platformName)
     return 0;
+}
+
+void File::swap(File &first, File &second)
+{
+    std::swap(first.m_relativePath, second.m_relativePath);
+    std::swap(first.m_files, second.m_files);
+    std::swap(first.m_parentProjectDoc, second.m_parentProjectDoc);
+    std::swap(first.m_configurationContainer, second.m_configurationContainer);
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
 }
 
 void File::processFileConfiguration(const QDomNode &fileConfigNode)

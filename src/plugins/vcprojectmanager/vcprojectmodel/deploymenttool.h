@@ -46,8 +46,9 @@ class DeploymentTool : public IDeploymentTool
 {
 public:
     DeploymentTool();
-    DeploymentTool(const DeploymentTool &tool);
-    DeploymentTool &operator=(const DeploymentTool &tool);
+    DeploymentTool(const DeploymentTool &other);
+    DeploymentTool(DeploymentTool &&other);
+    DeploymentTool &operator=(DeploymentTool other);
     ~DeploymentTool();
 
     void processNode(const QDomNode &node);
@@ -58,6 +59,7 @@ public:
     IDeploymentTool *clone() const;
 
 private:
+    void swap(DeploymentTool &first, DeploymentTool &second);
     void processNodeAttributes(const QDomElement &element);
 
     GeneralAttributeContainer *m_attributeContainer;

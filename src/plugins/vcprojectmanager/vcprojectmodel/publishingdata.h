@@ -48,8 +48,9 @@ class PublishingData : public IPublishingData
 {
 public:
     PublishingData();
-    PublishingData(const PublishingData &data);
-    PublishingData &operator=(const PublishingData &data);
+    PublishingData(const PublishingData &other);
+    PublishingData(PublishingData &&other);
+    PublishingData &operator=(PublishingData other);
     ~PublishingData();
 
     void processNode(const QDomNode &node);
@@ -63,6 +64,7 @@ public:
     IAttributeContainer *attributeContainer() const;
 
 private:
+    void swap(PublishingData &first, PublishingData &second);
     void processPublishingItem(const QDomNode &publishingItem);
     void processNodeAttributes(const QDomElement &element);
 

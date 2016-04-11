@@ -43,40 +43,30 @@ Files::Files(IVisualStudioProject *parentProject)
 {
 }
 
-Files::Files(const Files &files)
+Files::Files(const Files &other)
 {
-    m_parentProject = files.m_parentProject;
+    m_parentProject = other.m_parentProject;
 
-    foreach (IFile *file, files.m_files) {
+    foreach (IFile *file, other.m_files) {
         if (file)
             m_files.append(file->clone());
     }
 
-    foreach (IFileContainer *fileContainer, files.m_fileContainers) {
+    foreach (IFileContainer *fileContainer, other.m_fileContainers) {
         if (fileContainer)
             m_fileContainers.append(fileContainer->clone());
     }
 }
 
-Files &Files::operator =(const Files &files)
+Files::Files(Files &&other)
+    : Files()
 {
-    if (this != &files) {
-        qDeleteAll(m_files);
-        qDeleteAll(m_fileContainers);
-        m_files.clear();
-        m_fileContainers.clear();
-        m_parentProject = files.m_parentProject;
+    swap(*this, other);
+}
 
-        foreach (IFile *file, files.m_files) {
-            if (file)
-                m_files.append(file->clone());
-        }
-
-        foreach (IFileContainer *fileContainer, files.m_fileContainers) {
-            if (fileContainer)
-                m_fileContainers.append(fileContainer->clone());
-        }
-    }
+Files &Files::operator=(Files other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -207,6 +197,13 @@ IFileContainer *Files::fileContainer(int index) const
 void Files::removeFileContainer(IFileContainer *fileContainer)
 {
     m_fileContainers.removeOne(fileContainer);
+}
+
+void Files::swap(Files &first, Files &second)
+{
+    std::swap(first.m_fileContainers, second.m_fileContainers);
+    std::swap(first.m_files, second.m_files);
+    std::swap(first.m_parentProject, second.m_parentProject);
 }
 
 void Files::processFile(const QDomNode &fileNode)

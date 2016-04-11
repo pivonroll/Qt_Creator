@@ -46,9 +46,10 @@ class VcProjectDocument;
 class Configuration : public IConfiguration
 {
 public:
-    explicit Configuration(const QString &nodeName);
-    Configuration(const Configuration &config);
-    Configuration& operator=(const Configuration &config);
+    explicit Configuration(const QString &nodeName = QString());
+    Configuration(const Configuration &other);
+    Configuration(Configuration &&other);
+    Configuration& operator=(Configuration other);
     ~Configuration();
 
     ConfigurationVersion version() const;
@@ -69,6 +70,7 @@ public:
     VcNodeWidget *createSettingsWidget();
 
 protected:
+    void swap(Configuration &first, Configuration &second);
     virtual void processToolNode(const QDomNode &toolNode);
     void processNodeAttributes(const QDomElement &element);
 

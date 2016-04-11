@@ -41,8 +41,9 @@ class Globals : public IGlobals
 {
 public:
     Globals();
-    Globals(const Globals &globals);
-    Globals &operator=(const Globals &globals);
+    Globals(const Globals &other);
+    Globals(Globals &&other);
+    Globals &operator=(Globals other);
     ~Globals();
 
     void processNode(const QDomNode &node);
@@ -55,6 +56,7 @@ public:
     void removeGlobal(IGlobal *global);
 
 private:
+    void swap(Globals &first, Globals &second);
     void processGlobal(const QDomNode &globalNode);
     QList<IGlobal *> m_globals;
 };

@@ -56,25 +56,27 @@ Configuration::Configuration(const QString &nodeName)
 {
 }
 
-Configuration::Configuration(const Configuration &config) : IConfiguration(config)
+Configuration::Configuration(const Configuration &other)
+    : m_attributeContainer(new GeneralAttributeContainer),
+      m_tools(new Tools)
 {
-    m_fullName = config.m_fullName;
-    m_nodeName = config.m_nodeName;
-    m_attributeContainer = new GeneralAttributeContainer;
-    *m_attributeContainer = *config.m_attributeContainer;
-
-    m_tools = new Tools;
-    *m_tools = *config.m_tools;
+    *m_attributeContainer = *other.m_attributeContainer;
+    *m_tools = *other.m_tools;
+    m_nodeName = other.m_nodeName;
+    m_fullName = other.m_fullName;
+    m_platformName = other.m_platformName;
+    m_configurationName = other.m_configurationName;
 }
 
-Configuration &Configuration::operator =(const Configuration &config)
+Configuration::Configuration(Configuration &&other)
+    : Configuration()
 {
-    if (this != &config) {
-        m_fullName = config.m_fullName;
-        m_nodeName = config.m_nodeName;
-        *m_attributeContainer = *config.m_attributeContainer;
-        *m_tools = *config.m_tools;
-    }
+    swap(*this, other);
+}
+
+Configuration &Configuration::operator=(Configuration other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -185,6 +187,16 @@ IConfiguration *Configuration::clone() const
 VcNodeWidget *Configuration::createSettingsWidget()
 {
     return new ConfigurationBaseWidget(this);
+}
+
+void Configuration::swap(Configuration &first, Configuration &second)
+{
+    std::swap(first.m_fullName, second.m_fullName);
+    std::swap(first.m_platformName, second.m_platformName);
+    std::swap(first.m_configurationName, second.m_configurationName);
+    std::swap(first.m_nodeName, second.m_nodeName);
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_tools, second.m_tools);
 }
 
 void Configuration::processToolNode(const QDomNode &toolNode)

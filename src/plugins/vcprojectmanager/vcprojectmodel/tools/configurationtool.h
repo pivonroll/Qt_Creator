@@ -44,8 +44,10 @@ namespace Internal {
 class ConfigurationTool : public IConfigurationBuildTool
 {
 public:
-    ConfigurationTool(const ToolDescription *toolDesc);
+    ConfigurationTool(const ToolDescription *toolDesc = nullptr);
     ConfigurationTool(const ConfigurationTool &tool);
+    ConfigurationTool(ConfigurationTool &&tool);
+    ConfigurationTool& operator=(ConfigurationTool tool);
     virtual ~ConfigurationTool();
 
     // IVcProjectXMLNode interface
@@ -60,6 +62,7 @@ public:
     bool allAttributesAreDefault() const;
 
 private:
+    void swap(ConfigurationTool &first, ConfigurationTool &second);
     void processNodeAttributes(const QDomElement &domElement);
 
     const ToolDescription *m_toolDesc;

@@ -47,8 +47,10 @@ class GeneralToolAttributeContainer;
 class ToolSection : public IToolSection
 {
 public:
-    ToolSection(const ToolSectionDescription *toolSectionDesc);
+    ToolSection(const ToolSectionDescription *toolSectionDesc = nullptr);
     ToolSection(const ToolSection &toolSec);
+    ToolSection(ToolSection &&toolSec);
+    ToolSection& operator=(ToolSection toolSec);
     ~ToolSection();
 
     IToolAttributeContainer *attributeContainer() const;
@@ -57,6 +59,7 @@ public:
     IToolSection *clone() const;
 
 private:
+    void swap(ToolSection &first, ToolSection &second);
     const ToolSectionDescription *m_toolDesc;
     GeneralToolAttributeContainer *m_attributeContainer;
 };

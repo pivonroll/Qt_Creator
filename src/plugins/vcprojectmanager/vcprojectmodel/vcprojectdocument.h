@@ -58,8 +58,9 @@ class VcProjectDocument : public IVisualStudioProject
 {
 public:
     VcProjectDocument(const QString &filePath, VcDocConstants::DocumentVersion docVersion);
-    VcProjectDocument(const VcProjectDocument &vcDoc);
-    VcProjectDocument &operator=(const VcProjectDocument &vcDoc);
+    VcProjectDocument(const VcProjectDocument &other);
+    VcProjectDocument(VcProjectDocument &&other);
+    VcProjectDocument &operator=(VcProjectDocument other);
     ~VcProjectDocument();
 
     void processNode(const QDomNode &domDoc);
@@ -80,6 +81,8 @@ public:
     IProjectFactories *projectFactories() const;
 
 protected:
+    VcProjectDocument();
+    void swap(VcProjectDocument &first, VcProjectDocument &second);
     void processDocumentNode(const QDomNode &node);
     void processDocumentAttributes(const QDomElement &vsNode);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;

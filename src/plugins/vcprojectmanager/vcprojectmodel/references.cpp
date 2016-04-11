@@ -45,21 +45,21 @@ References::References()
 {
 }
 
-References::References(const References &references)
+References::References(const References &other)
 {
-    foreach (const IReference *ref, references.m_references)
+    foreach (const IReference *ref, other.m_references)
         m_references.append(ref->clone());
 }
 
-References &References::operator =(const References &references)
+References::References(References &&other)
+    : References()
 {
-    if (this != &references) {
-        qDeleteAll(m_references);
-        m_references.clear();
+    swap(*this, other);
+}
 
-        foreach (const IReference *ref, references.m_references)
-            m_references.append(ref->clone());
-    }
+References &References::operator=(References other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -117,6 +117,11 @@ IReference *References::reference(int index) const
 {
     QTC_ASSERT(0 <= index && index < m_references.size(), return 0);
     return m_references[index];
+}
+
+void References::swap(References &first, References &second)
+{
+    std::swap(first.m_references, second.m_references);
 }
 
 void References::processReference(const QDomNode &referenceNode)

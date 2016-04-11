@@ -41,8 +41,9 @@ class Platforms : public IPlatforms
 {
 public:
     Platforms();
-    Platforms(const Platforms &platforms);
-    Platforms &operator=(const Platforms &platforms);
+    Platforms(const Platforms &other);
+    Platforms(Platforms &&other);
+    Platforms &operator=(Platforms other);
     ~Platforms();
 
     void processNode(const QDomNode &node);
@@ -55,6 +56,7 @@ public:
     void removePlatform(IPlatform *platform);
 
 private:
+    void swap(Platforms &first, Platforms &second);
     void processPlatform(const QDomNode &node);
     QList<IPlatform *> m_platforms;
 

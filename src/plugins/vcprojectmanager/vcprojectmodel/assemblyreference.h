@@ -46,8 +46,9 @@ class AssemblyReference : public IReference
 {
 public:
     AssemblyReference();
-    AssemblyReference(const AssemblyReference &asmRef);
-    AssemblyReference &operator=(const AssemblyReference &asmRef);
+    AssemblyReference(const AssemblyReference &other);
+    AssemblyReference(AssemblyReference &&other);
+    AssemblyReference &operator=(AssemblyReference other);
     ~AssemblyReference();
 
     void processNode(const QDomNode &node);
@@ -60,6 +61,7 @@ public:
     IReference *clone() const;
 
 protected:
+    void swap(AssemblyReference &first, AssemblyReference &second);
     virtual void processNodeAttributes(const QDomElement &element);
     void processReferenceConfig(const QDomNode &referenceConfig);
 

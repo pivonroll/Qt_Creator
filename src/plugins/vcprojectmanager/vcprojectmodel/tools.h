@@ -43,8 +43,9 @@ class Tools : public ITools
 {
 public:
     Tools();
-    Tools(const Tools &tools);
-    Tools &operator=(const Tools &tools);
+    Tools(const Tools &other);
+    Tools(Tools &&other);
+    Tools &operator=(Tools other);
     ~Tools();
 
     // ITools interface
@@ -53,6 +54,7 @@ public:
     IDebuggerTools *debuggerTools() const;
 
 private:
+    void swap(Tools &first, Tools &second);
     ConfigurationBuildTools *m_configurationBuildTools;
     DeploymentTools *m_deploymentTools;
     DebuggerTools* m_debuggerTools;

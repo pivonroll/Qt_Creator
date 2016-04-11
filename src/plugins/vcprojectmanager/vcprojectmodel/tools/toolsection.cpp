@@ -82,6 +82,18 @@ ToolSection::ToolSection(const ToolSection &toolSec)
         m_attributeContainer->addToolAttribute(toolSec.attributeContainer()->toolAttribute(i)->clone());
 }
 
+ToolSection::ToolSection(ToolSection &&toolSec)
+    : ToolSection()
+{
+    swap(*this, toolSec);
+}
+
+ToolSection &ToolSection::operator=(ToolSection toolSec)
+{
+    swap(*this, toolSec);
+    return *this;
+}
+
 ToolSection::~ToolSection()
 {
     delete m_attributeContainer;
@@ -105,6 +117,12 @@ VcNodeWidget *ToolSection::createSettingsWidget()
 IToolSection *ToolSection::clone() const
 {
     return new ToolSection(*this);
+}
+
+void ToolSection::swap(ToolSection &first, ToolSection &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_toolDesc, second.m_toolDesc);
 }
 
 } // namespace Internal

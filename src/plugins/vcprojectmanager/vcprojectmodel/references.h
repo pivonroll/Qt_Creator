@@ -43,8 +43,9 @@ class References : public IReferences
 {
 public:
     References();
-    References(const References &references);
-    References &operator=(const References &references);
+    References(const References &other);
+    References(References &&other);
+    References &operator=(References other);
     ~References();
 
     void processNode(const QDomNode &node);
@@ -57,6 +58,7 @@ public:
     IReference *reference(int index) const;
 
 private:
+    void swap(References &first, References &second);
     void processReference(const QDomNode &referenceNode);
 
     QList<IReference *> m_references;

@@ -41,20 +41,21 @@ DeploymentTools::DeploymentTools()
 {
 }
 
-DeploymentTools::DeploymentTools(const DeploymentTools &tools)
+DeploymentTools::DeploymentTools(const DeploymentTools &other)
 {
-    foreach (IDeploymentTool *tool, tools.m_deploymentTools)
-        m_deploymentTools.append(tool->clone());
+    foreach (IDeploymentTool *tool, other.m_deploymentTools)
+        m_deploymentTools << tool->clone();
 }
 
-DeploymentTools &DeploymentTools::operator=(const DeploymentTools &tools)
+DeploymentTools::DeploymentTools(DeploymentTools &&other)
+    : DeploymentTools()
 {
-    if (this != &tools) {
-        qDeleteAll(m_deploymentTools);
-        m_deploymentTools.clear();
-        foreach (IDeploymentTool *tool, tools.m_deploymentTools)
-            m_deploymentTools.append(tool->clone());
-    }
+    swap(*this, other);
+}
+
+DeploymentTools &DeploymentTools::operator=(DeploymentTools other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -90,6 +91,11 @@ void DeploymentTools::appendToXMLNode(QDomElement &domElement, QDomDocument &dom
 {
     foreach (const IDeploymentTool *tool, m_deploymentTools)
         domElement.appendChild(tool->toXMLDomNode(domDocument));
+}
+
+void DeploymentTools::swap(DeploymentTools &first, DeploymentTools &second)
+{
+    std::swap(first.m_deploymentTools, second.m_deploymentTools);
 }
 
 } // namespace Internal

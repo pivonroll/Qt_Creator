@@ -44,21 +44,24 @@ ProjectReference::ProjectReference()
     m_attributeContainer = new GeneralAttributeContainer;
 }
 
-ProjectReference::ProjectReference(const ProjectReference &projRef)
+ProjectReference::ProjectReference(const ProjectReference &other)
 {
     m_configurations = new ConfigurationContainer;
     m_attributeContainer = new GeneralAttributeContainer;
 
-    *m_attributeContainer = *projRef.m_attributeContainer;
-    *m_configurations = *projRef.m_configurations;
+    *m_attributeContainer = *other.m_attributeContainer;
+    *m_configurations = *other.m_configurations;
 }
 
-ProjectReference &ProjectReference::operator =(const ProjectReference &projRef)
+ProjectReference::ProjectReference(ProjectReference &&other)
+    : ProjectReference()
 {
-    if (this != &projRef) {
-        *m_attributeContainer = *projRef.m_attributeContainer;
-        *m_configurations = *projRef.m_configurations;
-    }
+    swap(*this, other);
+}
+
+ProjectReference &ProjectReference::operator=(ProjectReference other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -116,6 +119,12 @@ QString ProjectReference::type() const
 IReference *ProjectReference::clone() const
 {
     return new ProjectReference(*this);
+}
+
+void ProjectReference::swap(ProjectReference &first, ProjectReference &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_configurations, second.m_configurations);
 }
 
 void ProjectReference::processReferenceConfig(const QDomNode &referenceConfig)

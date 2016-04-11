@@ -38,18 +38,20 @@ GeneralAttributeContainer::GeneralAttributeContainer()
 {
 }
 
-GeneralAttributeContainer::GeneralAttributeContainer(const GeneralAttributeContainer &attrCont)
+GeneralAttributeContainer::GeneralAttributeContainer(const GeneralAttributeContainer &other)
 {
-    m_anyAttribute = attrCont.m_anyAttribute;
+    m_anyAttribute = other.m_anyAttribute;
 }
 
-GeneralAttributeContainer &GeneralAttributeContainer::operator=(const GeneralAttributeContainer &attrCont)
+GeneralAttributeContainer::GeneralAttributeContainer(GeneralAttributeContainer &&other)
+    : GeneralAttributeContainer()
 {
-    if (this != &attrCont) {
-        m_anyAttribute.clear();
-        for (int i = 0; i < attrCont.getAttributeCount(); ++i)
-            m_anyAttribute.insert(attrCont.getAttributeName(i), attrCont.attributeValue(attrCont.getAttributeName(i)));
-    }
+    swap(*this, other);
+}
+
+GeneralAttributeContainer &GeneralAttributeContainer::operator=(GeneralAttributeContainer other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -104,6 +106,11 @@ void GeneralAttributeContainer::appendToXMLNode(QDomElement &elementNode) const
         it.next();
         elementNode.setAttribute(it.key(), it.value());
     }
+}
+
+void GeneralAttributeContainer::swap(GeneralAttributeContainer &first, GeneralAttributeContainer &second)
+{
+    std::swap(first.m_anyAttribute, second.m_anyAttribute);
 }
 
 } // namespace Internal

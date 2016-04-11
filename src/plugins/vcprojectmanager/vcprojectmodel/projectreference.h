@@ -46,8 +46,9 @@ class ProjectReference : public IReference
 {
 public:
     ProjectReference();
-    ProjectReference(const ProjectReference &projRef);
-    ProjectReference &operator=(const ProjectReference &projRef);
+    ProjectReference(const ProjectReference &other);
+    ProjectReference(ProjectReference &&other);
+    ProjectReference &operator=(ProjectReference other);
     ~ProjectReference();
 
     void processNode(const QDomNode &node);
@@ -60,6 +61,7 @@ public:
     IReference *clone() const;
 
 protected:
+    void swap(ProjectReference &first, ProjectReference &second);
     void processReferenceConfig(const QDomNode &referenceConfig);
     void processNodeAttributes(const QDomElement &element);
 

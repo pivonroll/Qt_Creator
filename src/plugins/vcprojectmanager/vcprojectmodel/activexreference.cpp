@@ -41,22 +41,28 @@ namespace Internal {
 
 ActiveXReference::ActiveXReference()
 {
+    m_attributeContainer = new GeneralAttributeContainer;
+    m_configurations = new ConfigurationContainer;
 }
 
-ActiveXReference::ActiveXReference(const ActiveXReference &ref)
+ActiveXReference::ActiveXReference(const ActiveXReference &other)
 {
     m_attributeContainer = new GeneralAttributeContainer;
     m_configurations = new ConfigurationContainer;
-    *m_attributeContainer = *ref.m_attributeContainer;
-    *m_configurations = *ref.m_configurations;
+
+    *m_attributeContainer = *other.m_attributeContainer;
+    *m_configurations = *other.m_configurations;
 }
 
-ActiveXReference& ActiveXReference::operator=(const ActiveXReference &ref)
+ActiveXReference::ActiveXReference(ActiveXReference &&other)
+    : ActiveXReference()
 {
-    if (this != &ref) {
-        *m_attributeContainer = *ref.m_attributeContainer;
-        *m_configurations = *ref.m_configurations;
-    }
+    swap(*this, other);
+}
+
+ActiveXReference& ActiveXReference::operator=(ActiveXReference other)
+{
+    swap (*this, other);
     return *this;
 }
 
@@ -138,6 +144,12 @@ QString ActiveXReference::type() const
 IReference *ActiveXReference::clone() const
 {
     return new ActiveXReference(*this);
+}
+
+void ActiveXReference::swap(ActiveXReference &first, ActiveXReference &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_configurations, second.m_configurations);
 }
 
 void ActiveXReference::processReferenceConfig(const QDomNode &referenceConfig)

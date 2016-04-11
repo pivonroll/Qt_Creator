@@ -46,8 +46,9 @@ class PublishingItem : public IPublishingItem
 {
 public:
     PublishingItem();
-    PublishingItem(const PublishingItem &item);
-    PublishingItem &operator=(const PublishingItem &item);
+    PublishingItem(const PublishingItem &other);
+    PublishingItem(PublishingItem &&other);
+    PublishingItem &operator=(PublishingItem other);
     ~PublishingItem();
 
     void processNode(const QDomNode &node);
@@ -58,6 +59,7 @@ public:
     IPublishingItem *clone() const;
 
 private:
+    void swap(PublishingItem &first, PublishingItem &second);
     void processNodeAttributes(const QDomElement &element);
     GeneralAttributeContainer* m_attributeContainer;
 };

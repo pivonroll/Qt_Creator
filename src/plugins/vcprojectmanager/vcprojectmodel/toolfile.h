@@ -45,8 +45,9 @@ class ToolFile : public IToolFile
 {
 public:
     ToolFile();
-    ToolFile(const ToolFile &file);
-    ToolFile &operator=(const ToolFile &file);
+    ToolFile(const ToolFile &other);
+    ToolFile(ToolFile &&other);
+    ToolFile &operator=(ToolFile other);
     ~ToolFile();
 
     void processNode(const QDomNode &node);
@@ -58,6 +59,7 @@ public:
     IAttributeContainer *attributeContainer() const;
 
 private:
+    void swap(ToolFile &first, ToolFile &second);
     void processNodeAttributes(const QDomElement &element);
 
     GeneralAttributeContainer *m_attributeContainer;

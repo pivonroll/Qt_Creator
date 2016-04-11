@@ -41,21 +41,21 @@ Platforms::Platforms()
 {
 }
 
-Platforms::Platforms(const Platforms &platforms)
+Platforms::Platforms(const Platforms &other)
 {
-    foreach (const IPlatform *platform, platforms.m_platforms)
+    foreach (const IPlatform *platform, other.m_platforms)
         m_platforms.append(platform->clone());
 }
 
-Platforms &Platforms::operator =(const Platforms &platforms)
+Platforms::Platforms(Platforms &&other)
+    : Platforms()
 {
-    if (this != &platforms) {
-        qDeleteAll(m_platforms);
-        m_platforms.clear();
+    swap(*this, other);
+}
 
-        foreach (const IPlatform *platform, platforms.m_platforms)
-            m_platforms.append(platform->clone());
-    }
+Platforms &Platforms::operator=(Platforms other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -124,6 +124,11 @@ void Platforms::removePlatform(IPlatform *platform)
             delete platform;
         }
     }
+}
+
+void Platforms::swap(Platforms &first, Platforms &second)
+{
+    std::swap(first.m_platforms, second.m_platforms);
 }
 
 void Platforms::processPlatform(const QDomNode &node)

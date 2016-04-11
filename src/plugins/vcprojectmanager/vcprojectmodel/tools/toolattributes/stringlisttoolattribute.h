@@ -40,8 +40,10 @@ namespace Internal {
 class StringListToolAttribute : public IToolAttribute
 {
 public:
-    StringListToolAttribute(const AttributeDescriptionDataItem *descDataItem);
+    StringListToolAttribute(const AttributeDescriptionDataItem *descDataItem = nullptr);
     StringListToolAttribute(const StringListToolAttribute &attr);
+    StringListToolAttribute(StringListToolAttribute &&attr);
+    StringListToolAttribute operator=(StringListToolAttribute attr);
 
     const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
@@ -51,6 +53,7 @@ public:
     IToolAttribute *clone() const;
 
 private:
+    static void swap(StringListToolAttribute &first, StringListToolAttribute &second);
     QStringList m_attributeValue;
     const AttributeDescriptionDataItem *m_descDataItem;
     bool m_isUsed;

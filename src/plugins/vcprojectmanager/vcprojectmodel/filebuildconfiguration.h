@@ -42,9 +42,10 @@ class IToolSection;
 class FileBuildConfiguration : public Configuration
 {
 public:
-    FileBuildConfiguration(IVisualStudioProject *parentProject);
-    FileBuildConfiguration(const FileBuildConfiguration &fileBuildConfig);
-    FileBuildConfiguration &operator =(const FileBuildConfiguration &fileBuildConfig);
+    explicit FileBuildConfiguration(IVisualStudioProject *parentProject = nullptr);
+    FileBuildConfiguration(const FileBuildConfiguration &other);
+    FileBuildConfiguration(FileBuildConfiguration &&other);
+    FileBuildConfiguration &operator =(FileBuildConfiguration other);
 
     static FileBuildConfiguration *createFromProjectConfig(Configuration *config, IVisualStudioProject *parentProject);
 
@@ -56,6 +57,7 @@ protected:
     void processToolNode(const QDomNode &toolNode);
 
 private:
+    void swap(FileBuildConfiguration &first, FileBuildConfiguration &second);
     void toXMLNode(IConfiguration *projectConfig, QDomElement &configurationNode, QDomDocument &domXMLDocument) const;
     void writeTools(IConfigurationBuildTool *projectConfigTool, IConfigurationBuildTool *tool,
                    QDomElement &configurationNode,  QDomDocument &domXMLDocument) const;

@@ -41,6 +41,24 @@ DebuggerTools::DebuggerTools()
 {
 }
 
+DebuggerTools::DebuggerTools(const DebuggerTools &other)
+{
+    foreach (IDebuggerTool *tool, other.m_debuggerTools)
+        m_debuggerTools << tool->clone();
+}
+
+DebuggerTools::DebuggerTools(DebuggerTools &&other)
+    : DebuggerTools()
+{
+    swap(*this, other);
+}
+
+DebuggerTools &DebuggerTools::operator=(DebuggerTools other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 void DebuggerTools::addTool(IDebuggerTool *tool)
 {
     if (!tool || m_debuggerTools.contains(tool))
@@ -71,6 +89,11 @@ void DebuggerTools::appendToXMLNode(QDomElement &domElement, QDomDocument &domDo
 {
     foreach (const IDebuggerTool* tool, m_debuggerTools)
         domElement.appendChild(tool->toXMLDomNode(domDocument));
+}
+
+void DebuggerTools::swap(DebuggerTools &first, DebuggerTools &second)
+{
+    std::swap(first.m_debuggerTools, second.m_debuggerTools);
 }
 
 } // namespace Internal

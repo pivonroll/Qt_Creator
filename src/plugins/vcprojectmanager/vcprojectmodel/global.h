@@ -45,8 +45,9 @@ class Global : public IGlobal
 {
 public:
     Global();
-    Global(const Global &global);
-    Global &operator=(const Global &global);
+    Global(const Global &other);
+    Global(Global &&other);
+    Global &operator=(Global other);
     ~Global();
 
     void processNode(const QDomNode &node);
@@ -61,6 +62,7 @@ public:
     IGlobal *clone() const;
 
 private:
+    void swap(Global &first, Global &second);
     void processNodeAttributes(const QDomElement &element);
 
     QString m_name; // required

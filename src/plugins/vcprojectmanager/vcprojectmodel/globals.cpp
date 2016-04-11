@@ -41,22 +41,21 @@ Globals::Globals()
 {
 }
 
-Globals::Globals(const Globals &globals)
+Globals::Globals(const Globals &other)
 {
-    foreach (IGlobal *global, globals.m_globals)
+    foreach (IGlobal *global, other.m_globals)
         m_globals.append(global->clone());
 }
 
-Globals &Globals::operator =(const Globals &globals)
+Globals::Globals(Globals &&other)
+    : Globals()
 {
-    if (this != &globals) {
-        qDeleteAll(m_globals);
-        m_globals.clear();
+    swap(*this, other);
+}
 
-        foreach (IGlobal *global, globals.m_globals)
-            m_globals.append(global->clone());
-    }
-
+Globals &Globals::operator=(Globals other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -113,6 +112,11 @@ IGlobal *Globals::global(int index) const
 void Globals::removeGlobal(IGlobal *global)
 {
     m_globals.removeOne(global);
+}
+
+void Globals::swap(Globals &first, Globals &second)
+{
+    std::swap(first.m_globals, second.m_globals);
 }
 
 void Globals::processGlobal(const QDomNode &globalNode)

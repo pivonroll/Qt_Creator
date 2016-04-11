@@ -49,9 +49,10 @@ class File : public IFile
     friend class FileFactory;
 
 public:
-    explicit File(IVisualStudioProject *parentProjectDoc);
-    File(const File &file);
-    File &operator=(const File &file);
+    explicit File(IVisualStudioProject *parentProjectDoc = nullptr);
+    File(const File &other);
+    File(File &&other);
+    File &operator=(File other);
     ~File();
 
     void processNode(const QDomNode &node);
@@ -69,6 +70,7 @@ public:
     IConfiguration *createDefaultBuildConfiguration(const QString &configName, const QString &platformName) const;
 
 private:
+    void swap(File &first, File &second);
     void processFileConfiguration(const QDomNode &fileConfigNode);
     void processFile(const QDomNode &fileNode);
     void processNodeAttributes(const QDomElement &element);

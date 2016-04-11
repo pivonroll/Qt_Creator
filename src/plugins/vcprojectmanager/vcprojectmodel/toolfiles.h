@@ -41,8 +41,9 @@ class ToolFiles : public IToolFiles
 {
 public:
     ToolFiles();
-    ToolFiles(const ToolFiles &toolFiles);
-    ToolFiles &operator=(const ToolFiles &toolFiles);
+    ToolFiles(const ToolFiles &other);
+    ToolFiles(ToolFiles &&other);
+    ToolFiles &operator=(ToolFiles other);
     ~ToolFiles();
 
     void processNode(const QDomNode &node);
@@ -55,6 +56,7 @@ public:
     void removeToolFile(IToolFile *toolFile);
 
 private:
+    void swap(ToolFiles &first, ToolFiles &second);
     void processToolFiles(const QDomNode &toolFile);
 
     QList<IToolFile *> m_toolFiles;

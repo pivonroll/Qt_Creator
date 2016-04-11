@@ -45,8 +45,9 @@ class DefaultToolFile : public IToolFile
 {
 public:
     DefaultToolFile();
-    DefaultToolFile(const DefaultToolFile &defToolFile);
-    DefaultToolFile &operator=(const DefaultToolFile &defToolFile);
+    DefaultToolFile(const DefaultToolFile &other);
+    DefaultToolFile(DefaultToolFile &&other);
+    DefaultToolFile &operator=(DefaultToolFile other);
     ~DefaultToolFile();
 
     void processNode(const QDomNode &node);
@@ -58,6 +59,7 @@ public:
     IAttributeContainer *attributeContainer() const;
 
 private:
+    void swap(DefaultToolFile &first, DefaultToolFile &second);
     void processNodeAttributes(const QDomElement &element);
 
     GeneralAttributeContainer *m_attributeContainer;

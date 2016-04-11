@@ -40,26 +40,22 @@ ConfigurationContainer::ConfigurationContainer(QObject *parent)
 {
 }
 
-ConfigurationContainer::ConfigurationContainer(const ConfigurationContainer &configCont)
-    : IConfigurationContainer(configCont)
+ConfigurationContainer::ConfigurationContainer(const ConfigurationContainer &other)
+    : IConfigurationContainer(other)
 {
-    foreach (const IConfiguration *config, configCont.m_configs)
-        m_configs.append(config->clone());
+    foreach (IConfiguration *config, other.m_configs)
+        m_configs << config->clone();
 }
 
-IConfigurationContainer &ConfigurationContainer::operator=(const IConfigurationContainer &configCont)
+ConfigurationContainer::ConfigurationContainer(ConfigurationContainer &&other)
+    : ConfigurationContainer()
 {
-    if (this != &configCont) {
-        m_configs.clear();
+    swap(*this, other);
+}
 
-        for (int i = 0; i < configCont.configurationCount(); ++i) {
-            IConfiguration *config = configCont.configuration(i);
-
-            if (config)
-                m_configs.append(config->clone());
-        }
-    }
-
+ConfigurationContainer &ConfigurationContainer::operator=(ConfigurationContainer other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -133,6 +129,11 @@ IConfiguration *ConfigurationContainer::createNewConfiguration(const QString &co
 IConfigurationContainer *ConfigurationContainer::clone() const
 {
     return new ConfigurationContainer(*this);
+}
+
+void ConfigurationContainer::swap(ConfigurationContainer &first, ConfigurationContainer &second)
+{
+    std::swap(first.m_configs, second.m_configs);
 }
 
 } // Internal

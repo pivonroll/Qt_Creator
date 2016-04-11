@@ -45,8 +45,9 @@ class DebuggerTool : public IDebuggerTool
 {
 public:
     DebuggerTool();
-    DebuggerTool(const DebuggerTool &tool);
-    DebuggerTool &operator=(DebuggerTool &tool);
+    DebuggerTool(const DebuggerTool &other);
+    DebuggerTool(DebuggerTool &&other);
+    DebuggerTool &operator=(DebuggerTool other);
     ~DebuggerTool();
 
     void processNode(const QDomNode &node);
@@ -57,6 +58,7 @@ public:
     IDebuggerTool *clone() const;
 
 private:
+    void swap(DebuggerTool &first, DebuggerTool &second);
     void processNodeAttributes(const QDomElement &element);
 
     GeneralAttributeContainer *m_attributeContainer;

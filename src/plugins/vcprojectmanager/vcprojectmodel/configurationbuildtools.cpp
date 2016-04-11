@@ -42,18 +42,21 @@ ConfigurationBuildTools::ConfigurationBuildTools()
 {
 }
 
-ConfigurationBuildTools &ConfigurationBuildTools::operator =(const ConfigurationBuildTools &tools)
+ConfigurationBuildTools::ConfigurationBuildTools(const ConfigurationBuildTools &other)
 {
-    if (this != &tools) {
-        qDeleteAll(m_tools);
-        m_tools.clear();
+    foreach (IConfigurationBuildTool *config, other.m_tools)
+        m_tools << config->clone();
+}
 
-        foreach (IConfigurationBuildTool *tool, tools.m_tools) {
-            if (tool)
-                m_tools.append(tool->clone());
-        }
-    }
+ConfigurationBuildTools::ConfigurationBuildTools(ConfigurationBuildTools &&other)
+    : ConfigurationBuildTools()
+{
+    swap(*this, other);
+}
 
+ConfigurationBuildTools &ConfigurationBuildTools::operator=(ConfigurationBuildTools other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -105,6 +108,11 @@ void ConfigurationBuildTools::appendToXMLNode(QDomElement &domElement, QDomDocum
 {
     foreach (const IConfigurationBuildTool *confTool, m_tools)
         domElement.appendChild(confTool->toXMLDomNode(domDocument));
+}
+
+void ConfigurationBuildTools::swap(ConfigurationBuildTools &first, ConfigurationBuildTools &second)
+{
+    std::swap(first.m_tools, second.m_tools);
 }
 
 } // namespace Internal

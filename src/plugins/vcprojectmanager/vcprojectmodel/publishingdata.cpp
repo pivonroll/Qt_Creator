@@ -43,25 +43,24 @@ PublishingData::PublishingData()
     m_attributeContainer = new GeneralAttributeContainer;
 }
 
-PublishingData::PublishingData(const PublishingData &data)
+PublishingData::PublishingData(const PublishingData &other)
 {
     m_attributeContainer = new GeneralAttributeContainer;
-    *m_attributeContainer = *data.m_attributeContainer;
+    *m_attributeContainer = *other.m_attributeContainer;
 
-    foreach (const IPublishingItem *item, data.m_publishingItems)
+    foreach (const IPublishingItem *item, other.m_publishingItems)
         m_publishingItems.append(item->clone());
 }
 
-PublishingData &PublishingData::operator =(const PublishingData &data)
+PublishingData::PublishingData(PublishingData &&other)
+    : PublishingData()
 {
-    if (this != &data) {
-        *m_attributeContainer = *data.m_attributeContainer;
+    swap(*this, other);
+}
 
-        qDeleteAll(m_publishingItems);
-        m_publishingItems.clear();
-        foreach (const IPublishingItem *item, data.m_publishingItems)
-            m_publishingItems.append(item->clone());
-    }
+PublishingData &PublishingData::operator=(PublishingData other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -145,6 +144,12 @@ void PublishingData::processPublishingItem(const QDomNode &publishingItemNode)
 IAttributeContainer *PublishingData::attributeContainer() const
 {
     return m_attributeContainer;
+}
+
+void PublishingData::swap(PublishingData &first, PublishingData &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_publishingItems, second.m_publishingItems);
 }
 
 void PublishingData::processNodeAttributes(const QDomElement &element)

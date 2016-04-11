@@ -41,8 +41,9 @@ class DeploymentTools : public IDeploymentTools
 {
 public:
     DeploymentTools();
-    DeploymentTools(const DeploymentTools &tools);
-    DeploymentTools &operator=(const DeploymentTools &tools);
+    DeploymentTools(const DeploymentTools &other);
+    DeploymentTools(DeploymentTools &&other);
+    DeploymentTools &operator=(DeploymentTools other);
 
     // IDeploymentTools interface
     void addTool(IDeploymentTool *tool);
@@ -52,6 +53,7 @@ public:
     void appendToXMLNode(QDomElement &domElement, QDomDocument &domDocument) const;
 
 private:
+    void swap(DeploymentTools &first, DeploymentTools &second);
     QList<IDeploymentTool *> m_deploymentTools;
 };
 

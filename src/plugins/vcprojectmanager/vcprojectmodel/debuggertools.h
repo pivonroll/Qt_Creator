@@ -41,6 +41,9 @@ class DebuggerTools : public IDebuggerTools
 {
 public:
     DebuggerTools();
+    DebuggerTools(const DebuggerTools &other);
+    DebuggerTools(DebuggerTools &&other);
+    DebuggerTools& operator=(DebuggerTools other);
 
     // IDebuggerTools interface
     void addTool(IDebuggerTool *tool);
@@ -50,6 +53,7 @@ public:
     void appendToXMLNode(QDomElement &domElement, QDomDocument &domDocument) const;
 
 private:
+    void swap(DebuggerTools &first, DebuggerTools &second);
     QList<IDebuggerTool *> m_debuggerTools;
 };
 

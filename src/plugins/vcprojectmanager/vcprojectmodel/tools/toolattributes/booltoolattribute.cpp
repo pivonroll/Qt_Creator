@@ -42,11 +42,23 @@ BoolToolAttribute::BoolToolAttribute(const AttributeDescriptionDataItem *descDat
 {
 }
 
-BoolToolAttribute::BoolToolAttribute(const BoolToolAttribute &attr)
+BoolToolAttribute::BoolToolAttribute(const BoolToolAttribute &other)
 {
-    m_isUsed = attr.m_isUsed;
-    m_descDataItem = attr.m_descDataItem;
-    m_attributeValue = attr.m_attributeValue;
+    m_isUsed = other.m_isUsed;
+    m_descDataItem = other.m_descDataItem;
+    m_attributeValue = other.m_attributeValue;
+}
+
+BoolToolAttribute::BoolToolAttribute(BoolToolAttribute &&other)
+    : BoolToolAttribute()
+{
+    swap(*this, other);
+}
+
+BoolToolAttribute &BoolToolAttribute::operator=(BoolToolAttribute other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 const AttributeDescriptionDataItem *BoolToolAttribute::descriptionDataItem() const
@@ -83,6 +95,13 @@ bool BoolToolAttribute::isUsed() const
 IToolAttribute *BoolToolAttribute::clone() const
 {
     return new BoolToolAttribute(*this);
+}
+
+void BoolToolAttribute::swap(BoolToolAttribute &first, BoolToolAttribute &second)
+{
+    std::swap(first.m_attributeValue, second.m_attributeValue);
+    std::swap(first.m_descDataItem, second.m_descDataItem);
+    std::swap(first.m_isUsed, second.m_isUsed);
 }
 
 } // namespace Internal

@@ -67,19 +67,21 @@ FileBuildConfiguration::FileBuildConfiguration(IVisualStudioProject *parentProje
 {
 }
 
-FileBuildConfiguration::FileBuildConfiguration(const FileBuildConfiguration &fileBuildConfig)
-    : Configuration(fileBuildConfig)
+FileBuildConfiguration::FileBuildConfiguration(const FileBuildConfiguration &other)
+    : Configuration(other)
 {
-    m_parentProjectDoc = fileBuildConfig.m_parentProjectDoc;
+    m_parentProjectDoc = other.m_parentProjectDoc;
 }
 
-FileBuildConfiguration &FileBuildConfiguration::operator =(const FileBuildConfiguration &fileBuildConfig)
+FileBuildConfiguration::FileBuildConfiguration(FileBuildConfiguration &&other)
+    : FileBuildConfiguration()
 {
-    Configuration::operator =(fileBuildConfig);
+    swap(*this, other);
+}
 
-    if (this != &fileBuildConfig)
-        m_parentProjectDoc = fileBuildConfig.m_parentProjectDoc;
-
+FileBuildConfiguration &FileBuildConfiguration::operator=(FileBuildConfiguration other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -164,6 +166,12 @@ void FileBuildConfiguration::processToolNode(const QDomNode &toolNode)
     QDomNode nextSibling = toolNode.nextSibling();
     if (!nextSibling.isNull())
         processToolNode(nextSibling);
+}
+
+void FileBuildConfiguration::swap(FileBuildConfiguration &first, FileBuildConfiguration &second)
+{
+    Configuration::swap(first, second);
+    std::swap(first.m_parentProjectDoc, second.m_parentProjectDoc);
 }
 
 void FileBuildConfiguration::toXMLNode(IConfiguration *projectConfig, QDomElement &configurationNode, QDomDocument &domXMLDocument) const

@@ -38,15 +38,20 @@ Platform::Platform()
 {
 }
 
-Platform::Platform(const Platform &platform)
+Platform::Platform(const Platform &other)
 {
-    m_name = platform.m_name;
+    m_name = other.m_name;
 }
 
-Platform &Platform::operator =(const Platform &platform)
+Platform::Platform(Platform &&other)
+    : Platform()
 {
-    if (this != &platform)
-        m_name = platform.m_name;
+    swap(*this, other);
+}
+
+Platform &Platform::operator=(Platform other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -88,6 +93,11 @@ void Platform::setDisplayName(const QString &name)
 IPlatform *Platform::clone() const
 {
     return new Platform(*this);
+}
+
+void Platform::swap(Platform &first, Platform &second)
+{
+    std::swap(first.m_name, second.m_name);
 }
 
 void Platform::processNodeAttributes(const QDomElement &element)

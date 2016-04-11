@@ -43,6 +43,24 @@ VcDocumentModel::VcDocumentModel(const QString &filePath, VcDocConstants::Docume
     m_vcProjectDocument = new VcProjectDocument(filePath, version);
 }
 
+VcDocumentModel::VcDocumentModel(const VcDocumentModel &other)
+{
+    m_document = other.m_document;
+    m_vcProjectDocument = other.m_vcProjectDocument;
+}
+
+VcDocumentModel::VcDocumentModel(VcDocumentModel &&other)
+    : VcDocumentModel()
+{
+    swap(*this, other);
+}
+
+VcDocumentModel &VcDocumentModel::operator=(VcDocumentModel other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 VcDocumentModel::~VcDocumentModel()
 {
     delete m_vcProjectDocument;
@@ -59,6 +77,18 @@ bool VcDocumentModel::saveToFile(const QString &filePath) const
         return m_vcProjectDocument->saveToFile(filePath);
 
     return false;
+}
+
+VcDocumentModel::VcDocumentModel()
+    : m_document(nullptr),
+      m_vcProjectDocument(nullptr)
+{
+}
+
+void VcDocumentModel::swap(VcDocumentModel &first, VcDocumentModel &second)
+{
+    std::swap(first.m_document, second.m_document);
+    std::swap(first.m_vcProjectDocument, second.m_vcProjectDocument);
 }
 
 } // namespace Internal

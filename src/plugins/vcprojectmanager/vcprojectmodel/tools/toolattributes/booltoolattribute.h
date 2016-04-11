@@ -38,8 +38,10 @@ namespace Internal {
 class BoolToolAttribute : public IToolAttribute
 {
 public:
-    BoolToolAttribute(const AttributeDescriptionDataItem *descDataItem);
-    BoolToolAttribute(const BoolToolAttribute &attr);
+    BoolToolAttribute(const AttributeDescriptionDataItem *descDataItem = nullptr);
+    BoolToolAttribute(const BoolToolAttribute &other);
+    BoolToolAttribute(BoolToolAttribute &&other);
+    BoolToolAttribute& operator=(BoolToolAttribute other);
 
     const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
@@ -49,6 +51,7 @@ public:
     IToolAttribute *clone() const;
 
 private:
+    static void swap(BoolToolAttribute &first, BoolToolAttribute &second);
     QString m_attributeValue;
     const AttributeDescriptionDataItem *m_descDataItem;
     bool m_isUsed;

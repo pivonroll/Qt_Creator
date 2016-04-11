@@ -48,14 +48,19 @@ class VcDocumentModel
 {
 public:
     explicit VcDocumentModel(const QString &filePath, VcDocConstants::DocumentVersion version);
+    VcDocumentModel(const VcDocumentModel &other);
+    VcDocumentModel(VcDocumentModel &&other);
+    VcDocumentModel& operator=(VcDocumentModel other);
     virtual ~VcDocumentModel();
 
     IVisualStudioProject *vcProjectDocument() const;
     bool saveToFile(const QString &filePath) const;
 
 private:
-    IVisualStudioProject *m_vcProjectDocument;
+    VcDocumentModel();
+    void swap(VcDocumentModel &first, VcDocumentModel &second);
     QDomDocument *m_document;
+    IVisualStudioProject *m_vcProjectDocument;
 };
 
 } // namespace Internal

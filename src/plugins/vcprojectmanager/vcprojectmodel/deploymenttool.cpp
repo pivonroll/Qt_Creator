@@ -40,16 +40,21 @@ DeploymentTool::DeploymentTool()
     m_attributeContainer = new GeneralAttributeContainer;
 }
 
-DeploymentTool::DeploymentTool(const DeploymentTool &tool)
+DeploymentTool::DeploymentTool(const DeploymentTool &other)
 {
     m_attributeContainer = new GeneralAttributeContainer;
-    *m_attributeContainer = *tool.m_attributeContainer;
+    *m_attributeContainer = *other.m_attributeContainer;
 }
 
-DeploymentTool &DeploymentTool::operator=(const DeploymentTool &tool)
+DeploymentTool::DeploymentTool(DeploymentTool &&other)
+    : DeploymentTool()
 {
-    if (this != &tool)
-        *m_attributeContainer = *tool.m_attributeContainer;
+    swap(*this, other);
+}
+
+DeploymentTool &DeploymentTool::operator=(DeploymentTool other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -82,6 +87,11 @@ IAttributeContainer *DeploymentTool::attributeContainer() const
 IDeploymentTool *DeploymentTool::clone() const
 {
     return new DeploymentTool(*this);
+}
+
+void DeploymentTool::swap(DeploymentTool &first, DeploymentTool &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
 }
 
 void DeploymentTool::processNodeAttributes(const QDomElement &element)

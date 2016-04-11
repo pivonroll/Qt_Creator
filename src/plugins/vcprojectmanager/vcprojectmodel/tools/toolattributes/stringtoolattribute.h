@@ -40,8 +40,10 @@ class AttributeDescriptionDataItem;
 class StringToolAttribute : public IToolAttribute
 {
 public:
-    StringToolAttribute(const AttributeDescriptionDataItem *descDataItem);
-    StringToolAttribute(const StringToolAttribute &attr);
+    StringToolAttribute(const AttributeDescriptionDataItem *descDataItem = nullptr);
+    StringToolAttribute(const StringToolAttribute &other);
+    StringToolAttribute(StringToolAttribute &&other);
+    StringToolAttribute& operator=(StringToolAttribute other);
 
     const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
@@ -51,6 +53,7 @@ public:
     IToolAttribute *clone() const;
 
 private:
+    static void swap(StringToolAttribute &first, StringToolAttribute &second);
     QString m_attributeValue;
     const AttributeDescriptionDataItem *m_descDataItem;
     bool m_isUsed;

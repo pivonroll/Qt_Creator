@@ -152,41 +152,32 @@ VcProjectDocument::VcProjectDocument(const QString &filePath, VcDocConstants::Do
     processNode(document);
 }
 
-VcProjectDocument::VcProjectDocument(const VcProjectDocument &vcDoc)
+VcProjectDocument::VcProjectDocument(const VcProjectDocument &other)
 {
     // <?xml part
-    m_processingInstr = vcDoc.m_processingInstr;
-    m_processingInstructionTarget = vcDoc.m_processingInstructionTarget;
+    m_processingInstr = other.m_processingInstr;
+    m_processingInstructionTarget = other.m_processingInstructionTarget;
 
-    m_attributeContainer = new GeneralAttributeContainer(*vcDoc.m_attributeContainer);
-    m_platforms = new Platforms(*(vcDoc.m_platforms));
-    m_configurations = new Configurations(*(vcDoc.m_configurations));
-    m_files = new Files(*vcDoc.m_files);
-    m_references = new References(*(vcDoc.m_references));
-    m_globals = new Globals(*(vcDoc.m_globals));
+    m_attributeContainer = new GeneralAttributeContainer(*other.m_attributeContainer);
+    m_platforms = new Platforms(*(other.m_platforms));
+    m_configurations = new Configurations(*(other.m_configurations));
+    m_files = new Files(*other.m_files);
+    m_references = new References(*(other.m_references));
+    m_globals = new Globals(*(other.m_globals));
 
-    m_toolFiles = new ToolFiles(*(vcDoc.m_toolFiles));
-    m_publishingData = new PublishingData(*(vcDoc.m_publishingData));
+    m_toolFiles = new ToolFiles(*(other.m_toolFiles));
+    m_publishingData = new PublishingData(*(other.m_publishingData));
 }
 
-VcProjectDocument &VcProjectDocument::operator =(const VcProjectDocument &vcDoc)
+VcProjectDocument::VcProjectDocument(VcProjectDocument &&other)
+    : VcProjectDocument()
 {
-    if (this != &vcDoc) {
-        *m_attributeContainer = *vcDoc.m_attributeContainer;
+    swap(*this, other);
+}
 
-        // <?xml part
-        m_processingInstr = vcDoc.m_processingInstr;
-        m_processingInstructionTarget = vcDoc.m_processingInstructionTarget;
-
-        *m_platforms = *vcDoc.m_platforms;
-        *m_configurations = *vcDoc.m_configurations;
-        *m_files = *vcDoc.m_files;
-        *m_references = *vcDoc.m_references;
-        *m_globals = *vcDoc.m_globals;
-        *m_toolFiles = *vcDoc.m_toolFiles;
-        *m_publishingData = *vcDoc.m_publishingData;
-    }
-
+VcProjectDocument &VcProjectDocument::operator=(VcProjectDocument other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -325,6 +316,35 @@ IConfiguration *VcProjectDocument::createDefaultBuildConfiguration(const QString
 IProjectFactories *VcProjectDocument::projectFactories() const
 {
     return 0;
+}
+
+VcProjectDocument::VcProjectDocument()
+    : m_platforms(nullptr),
+      m_configurations(nullptr),
+      m_files(nullptr),
+      m_references(nullptr),
+      m_globals(nullptr),
+      m_toolFiles(nullptr),
+      m_publishingData(nullptr),
+      m_attributeContainer(nullptr)
+{
+
+}
+
+void VcProjectDocument::swap(VcProjectDocument &first, VcProjectDocument &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_configurations, second.m_configurations);
+    std::swap(first.m_documentVersion, second.m_documentVersion);
+    std::swap(first.m_filePath, second.m_filePath);
+    std::swap(first.m_files, second.m_files);
+    std::swap(first.m_globals, second.m_globals);
+    std::swap(first.m_platforms, second.m_platforms);
+    std::swap(first.m_processingInstr, second.m_processingInstr);
+    std::swap(first.m_processingInstructionTarget, second.m_processingInstructionTarget);
+    std::swap(first.m_publishingData, second.m_publishingData);
+    std::swap(first.m_references, second.m_references);
+    std::swap(first.m_toolFiles, second.m_toolFiles);
 }
 
 void VcProjectDocument::processDocumentNode(const QDomNode &node)

@@ -47,20 +47,22 @@ Configurations::Configurations(VcProjectDocument *vcProjDoc)
     m_configurationContainer = new ConfigurationContainer;
 }
 
-Configurations::Configurations(const Configurations &configs)
+Configurations::Configurations(const Configurations &other)
 {
     m_configurationContainer = new ConfigurationContainer;
-    *m_configurationContainer = *(configs.m_configurationContainer);
-    m_vcProjDoc = configs.m_vcProjDoc;
+    *m_configurationContainer = *other.m_configurationContainer;
+    m_vcProjDoc = other.m_vcProjDoc;
 }
 
-Configurations &Configurations::operator =(const Configurations &configs)
+Configurations::Configurations(Configurations &&other)
+    : Configurations()
 {
-    if (this != &configs) {
-        m_vcProjDoc = configs.m_vcProjDoc;
-        *m_configurationContainer = *(configs.m_configurationContainer);
-    }
+    swap(*this, other);
+}
 
+Configurations &Configurations::operator=(Configurations other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -96,6 +98,12 @@ QDomNode Configurations::toXMLDomNode(QDomDocument &domXMLDocument) const
 IConfigurationContainer *Configurations::configurationContainer() const
 {
     return m_configurationContainer;
+}
+
+void Configurations::swap(Configurations &first, Configurations &second)
+{
+    std::swap(first.m_configurationContainer, second.m_configurationContainer);
+    std::swap(first.m_vcProjDoc, second.m_vcProjDoc);
 }
 
 void Configurations::processConfiguration(const QDomNode &configurationNode)

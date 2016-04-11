@@ -45,9 +45,10 @@ class IVisualStudioProject;
 class Files : public IFiles
 {
 public:
-    explicit Files(IVisualStudioProject *parentProject);
-    Files(const Files &files);
-    Files &operator =(const Files &files);
+    explicit Files(IVisualStudioProject *parentProject = nullptr);
+    Files(const Files &other);
+    Files(Files &&other);
+    Files &operator =(Files other);
     ~Files();
 
     void processNode(const QDomNode &node);
@@ -67,6 +68,7 @@ public:
     void removeFileContainer(IFileContainer *fileContainer);
 
 protected:
+    void swap(Files &first, Files &second);
     void processFile(const QDomNode &fileNode);
     void processFilter(const QDomNode &filterNode);
     void processFolder(const QDomNode &folderNode);

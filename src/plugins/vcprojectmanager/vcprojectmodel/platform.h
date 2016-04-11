@@ -45,8 +45,9 @@ class Platform : public IPlatform
 {
 public:
     Platform();
-    Platform(const Platform &platform);
-    Platform &operator=(const Platform &platform);
+    Platform(const Platform &other);
+    Platform(Platform &&other);
+    Platform &operator=(Platform other);
     ~Platform();
 
     void processNode(const QDomNode &node);
@@ -58,6 +59,7 @@ public:
     IPlatform *clone() const;
 
 private:
+    void swap(Platform &first, Platform &second);
     void processNodeAttributes(const QDomElement &element);
 
     QString m_name; // required

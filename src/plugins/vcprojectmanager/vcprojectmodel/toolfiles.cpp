@@ -44,22 +44,21 @@ ToolFiles::ToolFiles()
 {
 }
 
-ToolFiles::ToolFiles(const ToolFiles &toolFiles)
+ToolFiles::ToolFiles(const ToolFiles &other)
 {
-    foreach (const IToolFile *toolFile, toolFiles.m_toolFiles)
+    foreach (const IToolFile *toolFile, other.m_toolFiles)
         m_toolFiles.append(toolFile->clone());
 }
 
-ToolFiles &ToolFiles::operator =(const ToolFiles &toolFiles)
+ToolFiles::ToolFiles(ToolFiles &&other)
+    : ToolFiles()
 {
-    if (this != &toolFiles) {
-        qDeleteAll(m_toolFiles);
-        m_toolFiles.clear();
+    swap(*this, other);
+}
 
-        foreach (const IToolFile *toolFile, toolFiles.m_toolFiles)
-            m_toolFiles.append(toolFile->clone());
-    }
-
+ToolFiles &ToolFiles::operator=(ToolFiles other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -118,6 +117,11 @@ void ToolFiles::removeToolFile(IToolFile *toolFile)
 {
     if (m_toolFiles.removeOne(toolFile))
         delete toolFile;
+}
+
+void ToolFiles::swap(ToolFiles &first, ToolFiles &second)
+{
+    std::swap(first.m_toolFiles, second.m_toolFiles);
 }
 
 void ToolFiles::processToolFiles(const QDomNode &toolFileNode)

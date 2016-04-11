@@ -40,16 +40,21 @@ DebuggerTool::DebuggerTool()
     m_attributeContainer = new GeneralAttributeContainer;
 }
 
-DebuggerTool::DebuggerTool(const DebuggerTool &tool)
+DebuggerTool::DebuggerTool(const DebuggerTool &other)
 {
     m_attributeContainer = new GeneralAttributeContainer;
-    *m_attributeContainer = *tool.m_attributeContainer;
+    *m_attributeContainer = *other.m_attributeContainer;
 }
 
-DebuggerTool &DebuggerTool::operator=(DebuggerTool &tool)
+DebuggerTool::DebuggerTool(DebuggerTool &&other)
+    : DebuggerTool()
 {
-    if (this != &tool)
-        *m_attributeContainer = *tool.m_attributeContainer;
+    swap(*this, other);
+}
+
+DebuggerTool &DebuggerTool::operator=(DebuggerTool other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -86,6 +91,11 @@ IAttributeContainer *DebuggerTool::attributeContainer() const
 IDebuggerTool *DebuggerTool::clone() const
 {
     return new DebuggerTool(*this);
+}
+
+void DebuggerTool::swap(DebuggerTool &first, DebuggerTool &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
 }
 
 void DebuggerTool::processNodeAttributes(const QDomElement &element)

@@ -63,6 +63,17 @@ ConfigurationTool::ConfigurationTool(const ConfigurationTool &tool)
     *m_sectionContainer = *(tool.m_sectionContainer);
 }
 
+ConfigurationTool::ConfigurationTool(ConfigurationTool &&tool)
+{
+    swap(*this, tool);
+}
+
+ConfigurationTool &ConfigurationTool::operator=(ConfigurationTool tool)
+{
+    swap(*this, tool);
+    return *this;
+}
+
 ConfigurationTool::~ConfigurationTool()
 {
     delete m_sectionContainer;
@@ -121,6 +132,12 @@ bool ConfigurationTool::allAttributesAreDefault() const
     }
 
     return true;
+}
+
+void ConfigurationTool::swap(ConfigurationTool &first, ConfigurationTool &second)
+{
+    std::swap(first.m_sectionContainer, second.m_sectionContainer);
+    std::swap(first.m_toolDesc, second.m_toolDesc);
 }
 
 void ConfigurationTool::processNodeAttributes(const QDomElement &domElement)

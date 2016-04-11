@@ -21,39 +21,29 @@ FileContainer::FileContainer(const QString &containerType, IVisualStudioProject 
     m_attributeContainer = new GeneralAttributeContainer;
 }
 
-FileContainer::FileContainer(const FileContainer &fileContainer)
+FileContainer::FileContainer(const FileContainer &other)
 {
-    m_parentProjectDoc = fileContainer.m_parentProjectDoc;
-    m_name = fileContainer.m_name;
+    m_parentProjectDoc = other.m_parentProjectDoc;
+    m_name = other.m_name;
     m_attributeContainer = new GeneralAttributeContainer;
-    *m_attributeContainer = *(fileContainer.m_attributeContainer);
+    *m_attributeContainer = *(other.m_attributeContainer);
 
-    foreach (IFile *file, fileContainer.m_files)
+    foreach (IFile *file, other.m_files)
         m_files.append(file->clone());
 
-    foreach (IFileContainer *filter, fileContainer.m_fileContainers)
+    foreach (IFileContainer *filter, other.m_fileContainers)
         m_fileContainers.append(filter->clone());
 }
 
-FileContainer &FileContainer::operator=(const FileContainer &fileContainer)
+FileContainer::FileContainer(FileContainer &&other)
+    : FileContainer()
 {
-    if (this != &fileContainer) {
-        m_parentProjectDoc = fileContainer.m_parentProjectDoc;
-        m_name = fileContainer.m_name;
-        *m_attributeContainer = *(fileContainer.m_attributeContainer);
+    swap(*this, other);
+}
 
-        qDeleteAll(m_files);
-        qDeleteAll(m_fileContainers);
-        m_files.clear();
-        m_fileContainers.clear();
-
-        foreach (IFile *file, fileContainer.m_files)
-            m_files.append(file->clone());
-
-        foreach (IFileContainer *filter, fileContainer.m_fileContainers)
-            m_fileContainers.append(filter->clone());
-    }
-
+FileContainer &FileContainer::operator=(FileContainer other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -124,6 +114,23 @@ void FileContainer::setRelativePath(const QString &relativePath)
     QStringList list = relativePath.split(QLatin1Char('\\'));
     list.removeLast();
     m_relativePath = list.join(QLatin1Char('\\'));
+}
+
+FileContainer::FileContainer()
+    : m_parentProjectDoc(nullptr),
+      m_attributeContainer(nullptr)
+{
+}
+
+void FileContainer::swap(FileContainer &first, FileContainer &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_containerType, second.m_containerType);
+    std::swap(first.m_fileContainers, second.m_fileContainers);
+    std::swap(first.m_files, second.m_files);
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_parentProjectDoc, second.m_parentProjectDoc);
+    std::swap(first.m_relativePath, second.m_relativePath);
 }
 
 void FileContainer::addFile(IFile *file)

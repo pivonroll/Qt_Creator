@@ -49,6 +49,18 @@ StringListToolAttribute::StringListToolAttribute(const StringListToolAttribute &
     m_attributeValue = attr.m_attributeValue;
 }
 
+StringListToolAttribute::StringListToolAttribute(StringListToolAttribute &&attr)
+    : StringListToolAttribute()
+{
+    swap(*this, attr);
+}
+
+StringListToolAttribute StringListToolAttribute::operator=(StringListToolAttribute attr)
+{
+    swap(*this, attr);
+    return *this;
+}
+
 const AttributeDescriptionDataItem *StringListToolAttribute::descriptionDataItem() const
 {
     return m_descDataItem;
@@ -83,6 +95,13 @@ bool StringListToolAttribute::isUsed() const
 IToolAttribute *StringListToolAttribute::clone() const
 {
     return new StringListToolAttribute(*this);
+}
+
+void StringListToolAttribute::swap(StringListToolAttribute &first, StringListToolAttribute &second)
+{
+    std::swap(first.m_attributeValue, second.m_attributeValue);
+    std::swap(first.m_descDataItem, second.m_descDataItem);
+    std::swap(first.m_isUsed, second.m_isUsed);
 }
 
 } // namespace Internal

@@ -38,19 +38,21 @@ Global::Global()
 {
 }
 
-Global::Global(const Global &global)
+Global::Global(const Global &other)
 {
-    m_name = global.m_name;
-    m_value = global.m_value;
+    m_name = other.m_name;
+    m_value = other.m_value;
 }
 
-Global &Global::operator =(const Global &global)
+Global::Global(Global &&other)
+    : Global()
 {
-    if (this != &global) {
-        m_name = global.m_name;
-        m_value = global.m_value;
-    }
+    swap(*this, other);
+}
 
+Global &Global::operator=(Global other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -105,6 +107,12 @@ void Global::setValue(const QString &value)
 IGlobal *Global::clone() const
 {
     return new Global(*this);
+}
+
+void Global::swap(Global &first, Global &second)
+{
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_value, second.m_value);
 }
 
 void Global::processNodeAttributes(const QDomElement &element)

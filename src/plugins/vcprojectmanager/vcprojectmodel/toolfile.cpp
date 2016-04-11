@@ -41,16 +41,21 @@ ToolFile::ToolFile()
     m_attributeContainer = new GeneralAttributeContainer;
 }
 
-ToolFile::ToolFile(const ToolFile &file)
+ToolFile::ToolFile(const ToolFile &other)
 {
     m_attributeContainer = new GeneralAttributeContainer;
-    *m_attributeContainer = *file.m_attributeContainer;
+    *m_attributeContainer = *other.m_attributeContainer;
 }
 
-ToolFile &ToolFile::operator =(const ToolFile &file)
+ToolFile::ToolFile(ToolFile &&other)
+    : ToolFile()
 {
-    if (this != &file)
-        *m_attributeContainer = *file.m_attributeContainer;
+    swap(*this, other);
+}
+
+ToolFile &ToolFile::operator=(ToolFile other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -94,6 +99,11 @@ IToolFile *ToolFile::clone() const
 IAttributeContainer *ToolFile::attributeContainer() const
 {
     return m_attributeContainer;
+}
+
+void ToolFile::swap(ToolFile &first, ToolFile &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
 }
 
 void ToolFile::processNodeAttributes(const QDomElement &element)

@@ -42,11 +42,23 @@ StringToolAttribute::StringToolAttribute(const AttributeDescriptionDataItem *des
 {
 }
 
-StringToolAttribute::StringToolAttribute(const StringToolAttribute &attr)
+StringToolAttribute::StringToolAttribute(const StringToolAttribute &other)
 {
-    m_isUsed = attr.m_isUsed;
-    m_descDataItem = attr.m_descDataItem;
-    m_attributeValue = attr.m_attributeValue;
+    m_isUsed = other.m_isUsed;
+    m_descDataItem = other.m_descDataItem;
+    m_attributeValue = other.m_attributeValue;
+}
+
+StringToolAttribute::StringToolAttribute(StringToolAttribute &&other)
+    : StringToolAttribute()
+{
+    swap(*this, other);
+}
+
+StringToolAttribute &StringToolAttribute::operator=(StringToolAttribute other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 const AttributeDescriptionDataItem *StringToolAttribute::descriptionDataItem() const
@@ -83,6 +95,13 @@ bool StringToolAttribute::isUsed() const
 IToolAttribute *StringToolAttribute::clone() const
 {
     return new StringToolAttribute(*this);
+}
+
+void StringToolAttribute::swap(StringToolAttribute &first, StringToolAttribute &second)
+{
+    std::swap(first.m_attributeValue, second.m_attributeValue);
+    std::swap(first.m_descDataItem, second.m_descDataItem);
+    std::swap(first.m_isUsed, second.m_isUsed);
 }
 
 } // namespace Internal

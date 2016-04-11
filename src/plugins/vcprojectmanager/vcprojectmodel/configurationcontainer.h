@@ -54,9 +54,10 @@ class ConfigurationContainer : public IConfigurationContainer
     Q_OBJECT
 
 public:
-    ConfigurationContainer(QObject *parent = 0);
-    ConfigurationContainer(const ConfigurationContainer &configCont);
-    IConfigurationContainer &operator=(const IConfigurationContainer &configCont);
+    explicit ConfigurationContainer(QObject *parent = nullptr);
+    ConfigurationContainer(const ConfigurationContainer &other);
+    ConfigurationContainer(ConfigurationContainer &&other);
+    ConfigurationContainer &operator=(ConfigurationContainer other);
     ~ConfigurationContainer();
 
     /*!
@@ -95,6 +96,7 @@ public:
     IConfigurationContainer *clone() const;
 
 private:
+    void swap(ConfigurationContainer &first, ConfigurationContainer &second);
     QList<IConfiguration *> m_configs;
 };
 

@@ -42,24 +42,25 @@ Tools::Tools()
 {
 }
 
-Tools::Tools(const Tools &tools)
+Tools::Tools(const Tools &other)
 {
     m_configurationBuildTools = new ConfigurationBuildTools;
     m_deploymentTools = new DeploymentTools;
     m_debuggerTools = new DebuggerTools;
-    *m_configurationBuildTools = *tools.m_configurationBuildTools;
-    *m_deploymentTools = *tools.m_deploymentTools;
-    *m_debuggerTools = *tools.m_debuggerTools;
+    *m_configurationBuildTools = *other.m_configurationBuildTools;
+    *m_deploymentTools = *other.m_deploymentTools;
+    *m_debuggerTools = *other.m_debuggerTools;
 }
 
-Tools &Tools::operator=(const Tools &tools)
+Tools::Tools(Tools &&other)
+    : Tools()
 {
-    if (this != &tools) {
-        *m_configurationBuildTools = *tools.m_configurationBuildTools;
-        *m_deploymentTools = *tools.m_deploymentTools;
-        *m_debuggerTools = *tools.m_debuggerTools;
-    }
+    swap(*this, other);
+}
 
+Tools &Tools::operator=(Tools other)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -83,6 +84,13 @@ IDeploymentTools *Tools::deploymentTools() const
 IDebuggerTools *Tools::debuggerTools() const
 {
     return m_debuggerTools;
+}
+
+void Tools::swap(Tools &first, Tools &second)
+{
+    std::swap(first.m_configurationBuildTools, second.m_configurationBuildTools);
+    std::swap(first.m_debuggerTools, second.m_debuggerTools);
+    std::swap(first.m_deploymentTools, second.m_deploymentTools);
 }
 
 } // namespace Internal

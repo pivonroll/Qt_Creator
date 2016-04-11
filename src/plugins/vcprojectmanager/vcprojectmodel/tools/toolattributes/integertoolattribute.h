@@ -38,8 +38,10 @@ namespace Internal {
 class IntegerToolAttribute : public IToolAttribute
 {
 public:
-    IntegerToolAttribute(const AttributeDescriptionDataItem *descDataItem);
-    IntegerToolAttribute(const IntegerToolAttribute &attr);
+    IntegerToolAttribute(const AttributeDescriptionDataItem *descDataItem = nullptr);
+    IntegerToolAttribute(const IntegerToolAttribute &other);
+    IntegerToolAttribute(IntegerToolAttribute &&other);
+    IntegerToolAttribute &operator=(IntegerToolAttribute other);
 
     const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
@@ -49,6 +51,7 @@ public:
     IToolAttribute *clone() const;
 
 private:
+    static void swap(IntegerToolAttribute &first, IntegerToolAttribute &second);
     QString m_attributeValue;
     const AttributeDescriptionDataItem *m_descDataItem;
     bool m_isUsed;

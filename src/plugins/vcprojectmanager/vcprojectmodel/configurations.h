@@ -41,9 +41,10 @@ class ConfigurationContainer;
 class Configurations : public IConfigurations
 {
 public:
-    Configurations(VcProjectDocument *vcProjDoc);
-    Configurations(const Configurations &configs);
-    Configurations &operator=(const Configurations &configs);
+    explicit Configurations(VcProjectDocument *vcProjDoc = nullptr);
+    Configurations(const Configurations &other);
+    Configurations(Configurations &&other);
+    Configurations &operator=(Configurations other);
     ~Configurations();
 
     void processNode(const QDomNode &node);
@@ -53,6 +54,7 @@ public:
     IConfigurationContainer *configurationContainer() const;
 
 private:
+    void swap(Configurations &first, Configurations &second);
     void processConfiguration(const QDomNode &configurationNode);
 
     VcProjectDocument *m_vcProjDoc;
