@@ -15,6 +15,8 @@ class IntegerToolAttributeX : public BaseToolAttributeX
 public:
     IntegerToolAttributeX(const AttributeDescriptionDataItem *attributeDescription, Project *project, ConfigurationX *configuration);
     IntegerToolAttributeX(const IntegerToolAttributeX &other);
+    IntegerToolAttributeX(IntegerToolAttributeX &&other);
+    IntegerToolAttributeX& operator=(IntegerToolAttributeX other);
 
     // IToolAttribute interface
     IToolAttributeSettingsWidget *createSettingsItem();

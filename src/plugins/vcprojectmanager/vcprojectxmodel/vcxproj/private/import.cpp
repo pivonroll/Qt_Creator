@@ -41,10 +41,22 @@ Import::Import()
 {
 }
 
-Import::Import(const Import &import)
+Import::Import(const Import &other)
 {
-    m_project = import.project();
-    m_condition = import.condition();
+    m_project = other.m_project;
+    m_condition = other.m_condition;
+}
+
+Import::Import(Import &&other)
+    : Import()
+{
+    swap(*this, other);
+}
+
+Import &Import::operator=(Import other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Import::~Import()
@@ -105,6 +117,12 @@ QDomNode Import::toXMLDomNode(QDomDocument &domXMLDocument) const
         element.setAttribute(QLatin1String(PROJECT_ATTRIBUTE), m_project);
 
     return element;
+}
+
+void Import::swap(Import &first, Import &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_project, second.m_project);
 }
 
 } // namespace VisualStudioProjectX

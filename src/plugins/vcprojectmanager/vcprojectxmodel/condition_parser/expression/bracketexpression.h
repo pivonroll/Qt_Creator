@@ -38,7 +38,10 @@ namespace Internal {
 class BracketExpression : public Expression
 {
 public:
-    BracketExpression(Expression *expr);
+    explicit BracketExpression(Expression *expr = nullptr);
+    BracketExpression(const BracketExpression &other);
+    BracketExpression(BracketExpression &&other);
+    BracketExpression& operator=(BracketExpression other);
 
     // Expression interface
     ExpressionType type() const;
@@ -47,6 +50,7 @@ public:
     Expression* expression() const;
 
 private:
+    static void swap(BracketExpression &first, BracketExpression &second);
     Expression *m_expr;
 };
 

@@ -61,7 +61,7 @@ public:
     IReference *clone() const;
 
 protected:
-    void swap(AssemblyReference &first, AssemblyReference &second);
+    static void swap(AssemblyReference &first, AssemblyReference &second);
     virtual void processNodeAttributes(const QDomElement &element);
     void processReferenceConfig(const QDomNode &referenceConfig);
 

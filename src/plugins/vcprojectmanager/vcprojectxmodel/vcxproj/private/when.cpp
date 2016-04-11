@@ -34,6 +34,8 @@
 #include "propertygroup.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -44,32 +46,34 @@ When::When()
 {
 }
 
-When::When(const When &when)
+When::When(const When &other)
 {
-    m_condition = when.condition();
+    m_condition = other.m_condition;
 
     qDeleteAll(m_chooseElements);
     qDeleteAll(m_propertyGroups);
     qDeleteAll(m_itemGroups);
 
-    for (int i = 0; i < when.chooseElementCount(); ++i) {
-        Choose *choose = when.chooseElement(i);
+    foreach (Choose *choose, other.m_chooseElements)
+        addChooseElement(new Choose(*choose));
 
-        if (choose)
-            addChooseElement(new Choose(*choose));
-    }
-    for (int i = 0; i < when.propertyGroupCount(); ++i) {
-        PropertyGroup *propertyGroup = when.propertyGroup(i);
+    foreach (PropertyGroup *propertyGroup, other.m_propertyGroups)
+        addPropertyGroup(new PropertyGroup(*propertyGroup));
 
-        if (propertyGroup)
-            addPropertyGroup(new PropertyGroup(*propertyGroup));
-    }
-    for (int i = 0; i < when.itemGroupCount(); ++i) {
-        ItemGroup *itemGroup = when.itemGroup(i);
+    foreach (ItemGroup *itemGroup, other.m_itemGroups)
+        addItemGroup(new ItemGroup(*itemGroup));
+}
 
-        if (itemGroup)
-            addItemGroup(new ItemGroup(*itemGroup));
-    }
+When::When(When &&other)
+    : When()
+{
+    swap(*this, other);
+}
+
+When &When::operator=(When other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 When::~When()
@@ -91,9 +95,8 @@ void When::setCondition(const QString &condition)
 
 Choose *When::chooseElement(int index) const
 {
-    if (0 <= index && index < m_chooseElements.size())
-        return m_chooseElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_chooseElements.size(), return nullptr);
+    return m_chooseElements[index];
 }
 
 int When::chooseElementCount() const
@@ -117,9 +120,8 @@ void When::removeChoose(Choose *choose)
 
 ItemGroup *When::itemGroup(int index) const
 {
-    if (0 <= index && index < m_itemGroups.size())
-        return m_itemGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_itemGroups.size(), return nullptr);
+    return m_itemGroups[index];
 }
 
 int When::itemGroupCount() const
@@ -143,9 +145,8 @@ void When::removeItemGroup(ItemGroup *itemGroup)
 
 PropertyGroup *When::propertyGroup(int index) const
 {
-    if (0 <= index && index < m_propertyGroups.size())
-        return m_propertyGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_propertyGroups.size(), return nullptr);
+    return m_propertyGroups[index];
 }
 
 int When::propertyGroupCount() const
@@ -193,6 +194,15 @@ QDomNode When::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void When::swap(When &first, When &second)
+{
+    std::swap(first.m_chooseElements, second.m_chooseElements);
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_itemGroups, second.m_itemGroups);
+    std::swap(first.m_nodeList, second.m_nodeList);
+    std::swap(first.m_propertyGroups, second.m_propertyGroups);
 }
 
 void When::processNodeAttributes(const QDomElement &nodeElement)

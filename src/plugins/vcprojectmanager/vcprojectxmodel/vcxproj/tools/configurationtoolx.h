@@ -46,8 +46,8 @@ class ConfigurationToolX : public IConfigurationBuildTool
 {
 public:
     ConfigurationToolX(ToolDescription *toolDesc, Project *project, ConfigurationX *configuration);
-    ConfigurationToolX(const ConfigurationToolX &configToolRef);
-    ConfigurationToolX &operator=(const ConfigurationToolX &configToolRef);
+    ConfigurationToolX(const ConfigurationToolX &other);
+    ConfigurationToolX &operator=(ConfigurationToolX other);
 
     // IVcProjectXMLNode interface
     void processNode(const QDomNode &node);
@@ -61,6 +61,8 @@ public:
     bool allAttributesAreDefault() const;
 
 private:
+    ConfigurationToolX();
+    static void swap(ConfigurationToolX &first, ConfigurationToolX &second);
     const ToolDescription *m_toolDescription;
     Project *m_project;
     ConfigurationX *m_configuration;

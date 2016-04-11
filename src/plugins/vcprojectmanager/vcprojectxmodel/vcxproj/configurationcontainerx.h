@@ -58,16 +58,20 @@ class ConfigurationContainerX : public IConfigurationContainer
 public:
     ConfigurationContainerX(ItemGroup *configurationsItemGroup, Project *project, QObject *parent = 0);
     ConfigurationContainerX(const ConfigurationContainerX &configCont);
+    ConfigurationContainerX(ConfigurationContainerX &&configCont);
+    IConfigurationContainer& operator=(IConfigurationContainer configCont);
 
     void addConfiguration(IConfiguration *config);
     void removeConfiguration(const QString &fullName);
-    IConfigurationContainer &operator =(const IConfigurationContainer &configurationContainer);
     IConfiguration *configuration(const QString &fullName) const;
     IConfiguration *configuration(int index) const;
     int configurationCount() const;
     IConfiguration *createNewConfiguration(const QString &configDisplayName, const QString &platformName);
     IConfigurationContainer *clone() const;
+
 private:
+    ConfigurationContainerX();
+    static void swap(ConfigurationContainerX &first, ConfigurationContainerX &second);
     ConfigurationX *createConfiguration(Item *item, ItemDefinitionGroup *itemDefGroup,
                                         const QList<PropertyGroup *> &propertyGroups,
                                         const QList<ImportGroup *> &importGroups);

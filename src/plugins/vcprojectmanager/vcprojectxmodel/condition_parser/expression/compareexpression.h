@@ -46,6 +46,9 @@ public:
     };
 
     CompareExpression(Expression *leftOp, OperationType opType, Expression *rightOp);
+    CompareExpression(const CompareExpression &other);
+    CompareExpression(CompareExpression &&other);
+    CompareExpression& operator=(CompareExpression other);
 
     // Expression interface
     ExpressionType type() const;
@@ -53,6 +56,7 @@ public:
     QString toString() const;
 
 private:
+    static void swap(CompareExpression &first, CompareExpression &second);
     OperationType m_opType;
 };
 

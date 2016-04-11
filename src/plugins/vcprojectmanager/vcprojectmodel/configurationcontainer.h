@@ -96,7 +96,7 @@ public:
     IConfigurationContainer *clone() const;
 
 private:
-    void swap(ConfigurationContainer &first, ConfigurationContainer &second);
+    static void swap(ConfigurationContainer &first, ConfigurationContainer &second);
     QList<IConfiguration *> m_configs;
 };
 

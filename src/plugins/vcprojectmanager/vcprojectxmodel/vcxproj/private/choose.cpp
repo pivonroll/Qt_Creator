@@ -34,6 +34,8 @@
 
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -41,23 +43,30 @@ namespace Internal {
 namespace VisualStudioProjectX {
 
 Choose::Choose()
-    : m_otherwise(0)
+    : m_otherwise(nullptr)
 {
 }
 
-Choose::Choose(const Choose &choose)
+Choose::Choose(const Choose &other)
 {
-    delete m_otherwise;
-    m_otherwise = new Otherwise(*(choose.otherwise()));
+    m_otherwise = new Otherwise(*other.m_otherwise);
 
     qDeleteAll(m_whenElements);
 
-    for (int i = 0; i < choose.whenElementCount(); ++i) {
-        When *when = choose.whenElement(i);
+    foreach (When *when, other.m_whenElements)
+        m_whenElements.append(new When(*when));
+}
 
-        if (when)
-            m_whenElements.append(new When(*when));
-    }
+Choose::Choose(Choose &&other)
+    : Choose()
+{
+    swap(*this, other);
+}
+
+Choose &Choose::operator=(Choose other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Choose::~Choose()
@@ -73,16 +82,17 @@ Otherwise *Choose::otherwise() const
 
 void Choose::setOtherwise(Otherwise *otherwise)
 {
-    if (m_otherwise)
-        delete m_otherwise;
-    m_otherwise = otherwise;
+    delete m_otherwise;
+    m_otherwise = nullptr;
+
+    if (otherwise)
+        m_otherwise = new Otherwise(*otherwise);
 }
 
 When *Choose::whenElement(int index) const
 {
-    if (0 <= index && index < m_whenElements.size())
-        return m_whenElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_whenElements.size(), return nullptr);
+    return m_whenElements[index];
 }
 
 int Choose::whenElementCount() const
@@ -128,6 +138,12 @@ QDomNode Choose::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void Choose::swap(Choose &first, Choose &second)
+{
+    std::swap(first.m_otherwise, second.m_otherwise);
+    std::swap(first.m_whenElements, second.m_whenElements);
 }
 
 void Choose::processChildNodes(const QDomNode &node)

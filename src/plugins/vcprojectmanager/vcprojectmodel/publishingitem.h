@@ -59,7 +59,7 @@ public:
     IPublishingItem *clone() const;
 
 private:
-    void swap(PublishingItem &first, PublishingItem &second);
+    static void swap(PublishingItem &first, PublishingItem &second);
     void processNodeAttributes(const QDomElement &element);
     GeneralAttributeContainer* m_attributeContainer;
 };

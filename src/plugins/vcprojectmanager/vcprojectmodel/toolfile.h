@@ -59,7 +59,7 @@ public:
     IAttributeContainer *attributeContainer() const;
 
 private:
-    void swap(ToolFile &first, ToolFile &second);
+    static void swap(ToolFile &first, ToolFile &second);
     void processNodeAttributes(const QDomElement &element);
 
     GeneralAttributeContainer *m_attributeContainer;

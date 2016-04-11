@@ -59,7 +59,7 @@ public:
     IPlatform *clone() const;
 
 private:
-    void swap(Platform &first, Platform &second);
+    static void swap(Platform &first, Platform &second);
     void processNodeAttributes(const QDomElement &element);
 
     QString m_name; // required

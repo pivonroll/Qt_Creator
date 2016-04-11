@@ -47,7 +47,9 @@ class UsingTask : public IVisualStudioNodeX
 {
 public:
     UsingTask();
-    UsingTask(const UsingTask &usingTask);
+    UsingTask(const UsingTask &other);
+    UsingTask(UsingTask &&other);
+    UsingTask& operator=(UsingTask other);
     ~UsingTask();
 
     QString assemblyName() const;
@@ -76,6 +78,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(UsingTask &first, UsingTask &second);
     void processNodeAttributes(const QDomElement &nodeElement);
     void processChildNodes(const QDomNode &node);
 

@@ -44,6 +44,8 @@ class StringToolAttributeX : public BaseToolAttributeX
 public:
     StringToolAttributeX(const AttributeDescriptionDataItem *attributeDescription, Project *project, ConfigurationX *configuration);
     StringToolAttributeX(const StringToolAttributeX &other);
+    StringToolAttributeX(StringToolAttributeX &&other);
+    StringToolAttributeX& operator=(StringToolAttributeX other);
 
     // IToolAttribute interface
     IToolAttributeSettingsWidget *createSettingsItem();

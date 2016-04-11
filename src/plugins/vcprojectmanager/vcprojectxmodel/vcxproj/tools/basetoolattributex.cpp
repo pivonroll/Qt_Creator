@@ -25,6 +25,26 @@ BaseToolAttributeX::BaseToolAttributeX(const AttributeDescriptionDataItem *attri
 {
 }
 
+BaseToolAttributeX::BaseToolAttributeX(const BaseToolAttributeX &other)
+{
+    m_attributeDescription = other.m_attributeDescription;
+    m_isUsed = other.m_isUsed;
+    m_project = other.m_project;
+    m_configuration = other.m_configuration;
+}
+
+BaseToolAttributeX::BaseToolAttributeX(BaseToolAttributeX &&other)
+    : BaseToolAttributeX()
+{
+    swap(*this, other);
+}
+
+BaseToolAttributeX &BaseToolAttributeX::operator=(BaseToolAttributeX other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 const AttributeDescriptionDataItem *BaseToolAttributeX::descriptionDataItem() const
 {
     return m_attributeDescription;
@@ -123,12 +143,25 @@ bool BaseToolAttributeX::isUsed() const
     return m_isUsed;
 }
 
-BaseToolAttributeX::BaseToolAttributeX(const BaseToolAttributeX &other)
+IToolAttribute *BaseToolAttributeX::clone() const
 {
-    m_attributeDescription = other.m_attributeDescription;
-    m_isUsed = other.m_isUsed;
-    m_project = other.m_project;
-    m_configuration = other.m_configuration;
+    return new BaseToolAttributeX(*this);
+}
+
+BaseToolAttributeX::BaseToolAttributeX()
+    : m_attributeDescription(nullptr),
+      m_configuration(nullptr),
+      m_isUsed(false),
+      m_project(nullptr)
+{
+}
+
+void BaseToolAttributeX::swap(BaseToolAttributeX &first, BaseToolAttributeX &second)
+{
+    std::swap(first.m_attributeDescription, second.m_attributeDescription);
+    std::swap(first.m_configuration, second.m_configuration);
+    std::swap(first.m_isUsed, second.m_isUsed);
+    std::swap(first.m_project, second.m_project);
 }
 
 } // namespace VisualStudioProjectX

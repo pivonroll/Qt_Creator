@@ -48,7 +48,9 @@ class Item : public IVisualStudioNodeX
 public:
     Item();
     Item(const QString &include);
-    Item(const Item &item);
+    Item(const Item &other);
+    Item(Item &&other);
+    Item& operator=(Item other);
     virtual ~Item();
 
     ItemMetaData* itemMetaData(int index) const;
@@ -76,6 +78,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Item &first, Item &second);
     void processAttributes(const QDomElement &nodeElement);
     void processChildNodes(const QDomNode &node);
 

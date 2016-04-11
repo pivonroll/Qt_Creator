@@ -47,7 +47,9 @@ class ItemDefinition : public IVisualStudioNodeX
 {
 public:
     ItemDefinition();
-    ItemDefinition(const ItemDefinition &itemDefinition);
+    ItemDefinition(const ItemDefinition &other);
+    ItemDefinition(ItemDefinition &&other);
+    ItemDefinition& operator=(ItemDefinition other);
     ~ItemDefinition();
 
     ItemMetaData *metaData(int index) const;
@@ -64,6 +66,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(ItemDefinition &first, ItemDefinition &second);
     void processNodeAttributes(const QDomElement &domElement);
     void processChildNodes(const QDomNode &node);
 

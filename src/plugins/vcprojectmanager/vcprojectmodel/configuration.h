@@ -70,7 +70,7 @@ public:
     VcNodeWidget *createSettingsWidget();
 
 protected:
-    void swap(Configuration &first, Configuration &second);
+    static void swap(Configuration &first, Configuration &second);
     virtual void processToolNode(const QDomNode &toolNode);
     void processNodeAttributes(const QDomElement &element);
 

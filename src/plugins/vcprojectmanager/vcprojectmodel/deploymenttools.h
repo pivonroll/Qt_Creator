@@ -53,7 +53,7 @@ public:
     void appendToXMLNode(QDomElement &domElement, QDomDocument &domDocument) const;
 
 private:
-    void swap(DeploymentTools &first, DeploymentTools &second);
+    static void swap(DeploymentTools &first, DeploymentTools &second);
     QList<IDeploymentTool *> m_deploymentTools;
 };
 

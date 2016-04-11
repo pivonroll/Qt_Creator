@@ -15,18 +15,22 @@ class BaseToolAttributeX : public IToolAttribute
 {
 public:
     BaseToolAttributeX(const AttributeDescriptionDataItem *attributeDescription, Project *project, ConfigurationX *configuration);
+    BaseToolAttributeX(const BaseToolAttributeX &other);
+    BaseToolAttributeX(BaseToolAttributeX &&other);
+    BaseToolAttributeX& operator=(BaseToolAttributeX other);
 
     // IToolAttribute interface
-public:
     const AttributeDescriptionDataItem *descriptionDataItem() const;
     IToolAttributeSettingsWidget *createSettingsItem();
     QString value() const;
     void setValue(const QString &value);
     bool isUsed() const;
+    IToolAttribute *clone() const;
 
 protected:
-    BaseToolAttributeX(const BaseToolAttributeX &other);
+    BaseToolAttributeX();
 
+    static void swap(BaseToolAttributeX &first, BaseToolAttributeX &second);
     const AttributeDescriptionDataItem *m_attributeDescription;
     bool m_isUsed;
     Project *m_project;

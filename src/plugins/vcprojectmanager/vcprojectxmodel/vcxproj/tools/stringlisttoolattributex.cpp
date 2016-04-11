@@ -15,6 +15,17 @@ StringListToolAttributeX::StringListToolAttributeX(const StringListToolAttribute
 {
 }
 
+StringListToolAttributeX::StringListToolAttributeX(StringListToolAttributeX &&other)
+    : BaseToolAttributeX(other)
+{
+}
+
+StringListToolAttributeX &StringListToolAttributeX::operator=(StringListToolAttributeX other)
+{
+    BaseToolAttributeX::operator =(other);
+    return *this;
+}
+
 IToolAttributeSettingsWidget *StringListToolAttributeX::createSettingsItem()
 {
     return nullptr;

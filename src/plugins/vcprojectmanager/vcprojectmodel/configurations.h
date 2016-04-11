@@ -54,7 +54,7 @@ public:
     IConfigurationContainer *configurationContainer() const;
 
 private:
-    void swap(Configurations &first, Configurations &second);
+    static void swap(Configurations &first, Configurations &second);
     void processConfiguration(const QDomNode &configurationNode);
 
     VcProjectDocument *m_vcProjDoc;

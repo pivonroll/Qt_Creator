@@ -78,12 +78,37 @@ VcProjectDocumentX::VcProjectDocumentX(const QString &filePath)
     m_files = new VisualStudioProjectX::FilesX(m_project, m_filters, this);
 }
 
+VcProjectDocumentX::VcProjectDocumentX(const VcProjectDocumentX &other)
+{
+    m_project = new VisualStudioProjectX::Project(*other.m_project);
+    m_filters = new VisualStudioProjectX::Project(*other.m_filters);
+    m_configurations = new VisualStudioProjectX::ConfigurationsX(*other.m_configurations);
+    m_files = new VisualStudioProjectX::FilesX(*other.m_files);
+    m_projectFactories = new VisualStudioProjectX::ProjectFactoriesX(this);
+    m_filePath = other.m_filePath;
+    m_filtersProcInstructionNode = other.m_filtersProcInstructionNode;
+    m_projectProcInstructionNode = other.m_projectProcInstructionNode;
+}
+
+VcProjectDocumentX::VcProjectDocumentX(VcProjectDocumentX &&other)
+    : VcProjectDocumentX()
+{
+    swap(*this, other);
+}
+
+VcProjectDocumentX &VcProjectDocumentX::operator=(VcProjectDocumentX other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 VcProjectDocumentX::~VcProjectDocumentX()
 {
     delete m_project;
     delete m_filters;
     delete m_files;
     delete m_projectFactories;
+    delete m_configurations;
 }
 
 IConfigurations *VcProjectDocumentX::configurations() const
@@ -254,6 +279,18 @@ IConfiguration *VcProjectDocumentX::createDefaultBuildConfiguration(const QStrin
 IProjectFactories *VcProjectDocumentX::projectFactories() const
 {
     return 0;
+}
+
+void VcProjectDocumentX::swap(VcProjectDocumentX &first, VcProjectDocumentX &second)
+{
+    std::swap(first.m_configurations, second.m_configurations);
+    std::swap(first.m_filePath, second.m_filePath);
+    std::swap(first.m_files, second.m_files);
+    std::swap(first.m_filters, second.m_filters);
+    std::swap(first.m_filtersProcInstructionNode, second.m_filtersProcInstructionNode);
+    std::swap(first.m_project, second.m_project);
+    std::swap(first.m_projectFactories, second.m_projectFactories);
+    std::swap(first.m_projectProcInstructionNode, second.m_projectProcInstructionNode);
 }
 
 void VcProjectDocumentX::processFilterDoc()

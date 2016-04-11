@@ -68,7 +68,7 @@ public:
     void removeFileContainer(IFileContainer *fileContainer);
 
 protected:
-    void swap(Files &first, Files &second);
+    static void swap(Files &first, Files &second);
     void processFile(const QDomNode &fileNode);
     void processFilter(const QDomNode &filterNode);
     void processFolder(const QDomNode &folderNode);

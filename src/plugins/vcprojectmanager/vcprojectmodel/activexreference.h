@@ -62,7 +62,7 @@ public:
     IReference *clone() const;
 
 private:
-    void swap(ActiveXReference &first, ActiveXReference &second);
+    static void swap(ActiveXReference &first, ActiveXReference &second);
     void processNodeAttributes(const QDomElement &element);
     void processReferenceConfig(const QDomNode &referenceConfig);
 

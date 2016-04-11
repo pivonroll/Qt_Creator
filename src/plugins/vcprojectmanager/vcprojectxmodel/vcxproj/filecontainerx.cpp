@@ -53,26 +53,15 @@ FileContainerX::FileContainerX(const FileContainerX &fileCont)
     m_filters = fileCont.m_filters;
 }
 
-FileContainerX &FileContainerX::operator=(const FileContainerX &fileCont)
+FileContainerX::FileContainerX(FileContainerX &&fileCont)
+    : FileContainerX()
 {
-    if (this != &fileCont) {
-        m_files.clear();
-        m_fileContainers.clear();
+    swap(*this, other);
+}
 
-        m_project = fileCont.m_project;
-        m_filters = fileCont.m_filters;
-
-        foreach (IFile *file, fileCont.m_files) {
-            if (file)
-                m_files.append(file->clone());
-        }
-
-        foreach (IFileContainer *fileContainer, fileCont.m_fileContainers) {
-            if (fileContainer)
-                m_fileContainers.append(fileContainer->clone());
-        }
-    }
-
+FileContainerX &FileContainerX::operator=(FileContainerX fileCont)
+{
+    swap(*this, other);
     return *this;
 }
 
@@ -299,7 +288,7 @@ void FileContainerX::processNode(const QDomNode &node)
 
 VcNodeWidget *FileContainerX::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode FileContainerX::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -309,11 +298,21 @@ QDomNode FileContainerX::toXMLDomNode(QDomDocument &domXMLDocument) const
 }
 
 FileContainerX::FileContainerX()
-    : m_filterItem(0),
-      m_project(0),
-      m_filters(0),
-      m_parentContainer(0)
+    : m_filterItem(nullptr),
+      m_project(nullptr),
+      m_filters(nullptr),
+      m_parentContainer(nullptr)
 {
+}
+
+void FileContainerX::swap(FileContainerX &first, FileContainerX &second)
+{
+    std::swap(first.m_fileContainers, second.m_fileContainers);
+    std::swap(first.m_files, second.m_files);
+    std::swap(first.m_filterItem, second.m_filterItem);
+    std::swap(first.m_filters, second.m_filters);
+    std::swap(first.m_parentContainer, second.m_parentContainer);
+    std::swap(first.m_project, second.m_project);
 }
 
 void FileContainerX::removeAllFilesInAFilter(const QString &fullFilterName, QStringList &relativePaths)

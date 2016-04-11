@@ -44,7 +44,9 @@ class Parameter : public IVisualStudioNodeX
 {
 public:
     Parameter();
-    Parameter(const Parameter &parameter);
+    Parameter(const Parameter &other);
+    Parameter(Parameter &&other);
+    Parameter& operator=(Parameter other);
     ~Parameter();
 
     QString parameterType() const;
@@ -64,6 +66,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Parameter &first, Parameter &second);
     void processNodeAttributes(const QDomElement &nodeElement);
 
     QString m_parameterType;

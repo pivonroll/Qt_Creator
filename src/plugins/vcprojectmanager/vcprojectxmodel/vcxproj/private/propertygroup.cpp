@@ -32,6 +32,8 @@
 #include "property.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -42,19 +44,27 @@ PropertyGroup::PropertyGroup()
 {
 }
 
-PropertyGroup::PropertyGroup(const PropertyGroup &propGrp)
+PropertyGroup::PropertyGroup(const PropertyGroup &other)
 {
-    m_condition = propGrp.condition();
-    m_label = propGrp.label();
+    m_condition = other.m_condition;
+    m_label = other.m_label;
 
     qDeleteAll(m_properties);
 
-    for (int i = 0; i < propGrp.propertyCount(); ++i) {
-        Property *prop = propGrp.property(i);
+    foreach (Property *prop, other.m_properties)
+        m_properties.append(new Property(*prop));
+}
 
-        if (prop)
-            m_properties.append(new Property(*prop));
-    }
+PropertyGroup::PropertyGroup(PropertyGroup &&other)
+    : PropertyGroup()
+{
+    swap(*this, other);
+}
+
+PropertyGroup &PropertyGroup::operator=(PropertyGroup other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 PropertyGroup::~PropertyGroup()
@@ -74,9 +84,8 @@ void PropertyGroup::setCondition(const QString &condition)
 
 Property *PropertyGroup::property(int index) const
 {
-    if (0 <= index && index < m_properties.size())
-        return m_properties[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_properties.size(), return nullptr);
+    return m_properties[index];
 }
 
 int PropertyGroup::propertyCount() const
@@ -165,6 +174,13 @@ QString PropertyGroup::label() const
 void PropertyGroup::setLabel(const QString &label)
 {
     m_label = label;
+}
+
+void PropertyGroup::swap(PropertyGroup &first, PropertyGroup &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_label, second.m_label);
+    std::swap(first.m_properties, second.m_properties);
 }
 
 

@@ -37,14 +37,8 @@ IConfigurationContainer::IConfigurationContainer(QObject *parent)
 {}
 
 IConfigurationContainer::IConfigurationContainer(const IConfigurationContainer &)
-    : QObject(0)
+    : QObject(nullptr)
 {
-}
-
-IConfigurationContainer &IConfigurationContainer::operator=(const IConfigurationContainer &configurationContainer)
-{
-    Q_UNUSED(configurationContainer);
-    return *this;
 }
 
 IConfigurationContainer::~IConfigurationContainer()

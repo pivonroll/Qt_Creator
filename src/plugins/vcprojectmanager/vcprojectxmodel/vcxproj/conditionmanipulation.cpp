@@ -46,12 +46,38 @@ namespace VisualStudioProjectX {
 
 ConditionManipulation::ConditionManipulation(const QString &conditionExpression)
     : m_conditionString(conditionExpression),
-      m_condExpression(0)
+      m_condExpression(nullptr)
 {
+    if (m_conditionString.isEmpty())
+        return;
+
     VcProjConditionParser parser(m_conditionString);
 
     if (parser.parse())
         m_condExpression = parser.condExpression();
+}
+
+ConditionManipulation::ConditionManipulation(const ConditionManipulation &other)
+{
+    m_condExpression = new Expression(*other.m_condExpression);
+    m_conditionString = other.m_conditionString;
+}
+
+ConditionManipulation::ConditionManipulation(ConditionManipulation &&other)
+    : ConditionManipulation()
+{
+    swap(*this, other);
+}
+
+ConditionManipulation &&ConditionManipulation::operator=(ConditionManipulation other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+ConditionManipulation::~ConditionManipulation()
+{
+    delete m_condExpression;
 }
 
 Expression *ConditionManipulation::findVariableEqRightExpr(const QString &variable) const
@@ -72,6 +98,12 @@ bool ConditionManipulation::evaluate(const EvaluateArguments &evalArgs) const
         return false;
 
     return m_condExpression->evaluate(evalArgs).toBool();
+}
+
+void ConditionManipulation::swap(ConditionManipulation &first, ConditionManipulation &second)
+{
+    std::swap(first.m_condExpression, second.m_condExpression);
+    std::swap(first.m_conditionString, second.m_conditionString);
 }
 
 Expression *ConditionManipulation::findVariableEqRightExpr(Expression *startExp, const QString &variable) const

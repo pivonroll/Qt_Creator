@@ -59,7 +59,7 @@ public:
     IDeploymentTool *clone() const;
 
 private:
-    void swap(DeploymentTool &first, DeploymentTool &second);
+    static void swap(DeploymentTool &first, DeploymentTool &second);
     void processNodeAttributes(const QDomElement &element);
 
     GeneralAttributeContainer *m_attributeContainer;

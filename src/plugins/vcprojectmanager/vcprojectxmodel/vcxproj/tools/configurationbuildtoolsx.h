@@ -42,6 +42,9 @@ class ConfigurationBuildToolsX : public IConfigurationBuildTools
 {
 public:
     ConfigurationBuildToolsX();
+    ConfigurationBuildToolsX(const ConfigurationBuildToolsX &other);
+    ConfigurationBuildToolsX(ConfigurationBuildToolsX &&other);
+    ConfigurationBuildToolsX& operator=(ConfigurationBuildToolsX other);
     ~ConfigurationBuildToolsX();
 
     // IConfigurationBuildTools interface
@@ -53,6 +56,7 @@ public:
     void appendToXMLNode(QDomElement &domElement, QDomDocument &domDocument) const;
 
 private:
+    static void swap(ConfigurationBuildToolsX &first, ConfigurationBuildToolsX &second);
     QList<IConfigurationBuildTool *> m_configTools;
 };
 

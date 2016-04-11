@@ -66,6 +66,18 @@ ConfigurationContainerX::ConfigurationContainerX(const ConfigurationContainerX &
     m_project = configCont.m_project;
 }
 
+ConfigurationContainerX::ConfigurationContainerX(ConfigurationContainerX &&other)
+    : ConfigurationContainerX()
+{
+    swap(*this, other);
+}
+
+IConfigurationContainer &ConfigurationContainerX::operator =(IConfigurationContainer other)
+{
+    swap(static_cast<ConfigurationContainerX>(*this), static_cast<ConfigurationContainerX>(other));
+    return *this;
+}
+
 void ConfigurationContainerX::addConfiguration(IConfiguration *config)
 {
     ConfigurationX *configX = static_cast<ConfigurationX *>(config);
@@ -92,21 +104,6 @@ void ConfigurationContainerX::removeConfiguration(const QString &fullName)
     }
 
     removeConfigurationFromProject(fullName);
-}
-
-IConfigurationContainer &ConfigurationContainerX::operator =(const IConfigurationContainer &configurationContainer)
-{
-    if (this != &configurationContainer) {
-        m_configs.clear();
-
-        for (int i = 0; i < configurationContainer.configurationCount(); ++i) {
-            IConfiguration *config = configurationContainer.configuration(i);
-            if (config)
-                m_configs.append(config->clone());
-        }
-    }
-
-    return *this;
 }
 
 IConfiguration *ConfigurationContainerX::configuration(const QString &fullName) const
@@ -177,6 +174,19 @@ IConfiguration *ConfigurationContainerX::createNewConfiguration(const QString &c
 IConfigurationContainer *ConfigurationContainerX::clone() const
 {
     return new ConfigurationContainerX(*this);
+}
+
+ConfigurationContainerX::ConfigurationContainerX()
+    : m_configurationsItemGroup(nullptr),
+      m_project(nullptr)
+{
+}
+
+void ConfigurationContainerX::swap(ConfigurationContainerX &first, ConfigurationContainerX &second)
+{
+    std::swap(first.m_configs, second.m_configs);
+    std::swap(first.m_configurationsItemGroup, second.m_configurationsItemGroup);
+    std::swap(first.m_project, second.m_project);
 }
 
 ConfigurationX *ConfigurationContainerX::createConfiguration(Item *item,

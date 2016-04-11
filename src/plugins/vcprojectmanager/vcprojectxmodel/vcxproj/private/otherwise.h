@@ -46,7 +46,9 @@ class Otherwise : public IVisualStudioNodeX
 {
 public:
     Otherwise();
-    Otherwise(const Otherwise &otherwise);
+    Otherwise(const Otherwise &other);
+    Otherwise(Otherwise &&other);
+    Otherwise& operator=(Otherwise other);
     ~Otherwise();
 
     Choose* chooseElement(int index) const;
@@ -69,6 +71,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Otherwise &first, Otherwise &second);
     void processChildNodes(const QDomNode &node);
 
     QList<Choose *> m_chooseElements;

@@ -39,11 +39,18 @@ class BinaryExpression : public Expression
 {
 public:
     BinaryExpression(Expression *leftOp, Expression *rigthOp);
+    BinaryExpression(const BinaryExpression &other);
+    BinaryExpression(BinaryExpression &&other);
+    BinaryExpression& operator=(BinaryExpression other);
+    ~BinaryExpression();
 
     Expression* leftOperand() const;
     Expression* rightOperand() const;
+    Expression* clone() const;
 
 protected:
+    BinaryExpression();
+    static void swap(BinaryExpression &first, BinaryExpression &second);
     Expression *m_leftOperand;
     Expression *m_rightOperand;
 };

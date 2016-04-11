@@ -49,6 +49,10 @@ class FileContainerX;
 class FilesX : public IFiles
 {
 public:
+    FilesX(Project *project, Project *filters, VcProjectDocumentX *parentProject);
+    FilesX(const FilesX &other);
+    FilesX(FilesX &&other);
+    FilesX& operator=(FilesX other);
     ~FilesX();
 
     // IFiles interface
@@ -68,8 +72,9 @@ public:
     VcNodeWidget *createSettingsWidget();
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
-    FilesX(Project *project, Project *filters, VcProjectDocumentX *parentProject);
 private:
+    FilesX();
+    static void swap(FilesX &first, FilesX &second);
     void readFileContainers();
 
     void createFileContainer(ItemGroup *itemGroup, const QStringList &pathList);

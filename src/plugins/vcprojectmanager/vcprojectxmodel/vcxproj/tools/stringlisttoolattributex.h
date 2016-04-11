@@ -15,6 +15,8 @@ class StringListToolAttributeX : public BaseToolAttributeX
 public:
     StringListToolAttributeX(const AttributeDescriptionDataItem *attributeDescription, Project *project, ConfigurationX *configuration);
     StringListToolAttributeX(const StringListToolAttributeX &other);
+    StringListToolAttributeX(StringListToolAttributeX &&other);
+    StringListToolAttributeX& operator=(StringListToolAttributeX other);
 
     // IToolAttribute interface
     IToolAttributeSettingsWidget *createSettingsItem();

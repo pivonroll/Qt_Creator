@@ -32,6 +32,8 @@
 #include "itemdefinition.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -42,17 +44,25 @@ ItemDefinitionGroup::ItemDefinitionGroup()
 {
 }
 
-ItemDefinitionGroup::ItemDefinitionGroup(const ItemDefinitionGroup &itemDefGroup)
+ItemDefinitionGroup::ItemDefinitionGroup(const ItemDefinitionGroup &other)
 {
-    m_condition = itemDefGroup.condition();
+    m_condition = other.m_condition;
     qDeleteAll(m_items);
 
-    for (int i = 0; i <itemDefGroup.itemDefinitionCount(); ++i) {
-        ItemDefinition *itemDef = itemDefGroup.itemDefinition(i);
+    foreach (ItemDefinition *itemDef, other.m_items)
+        m_items.append(new ItemDefinition(*itemDef));
+}
 
-        if (itemDef)
-            m_items.append(new ItemDefinition(*itemDef));
-    }
+ItemDefinitionGroup::ItemDefinitionGroup(ItemDefinitionGroup &&other)
+    : ItemDefinitionGroup()
+{
+    swap(*this, other);
+}
+
+ItemDefinitionGroup &ItemDefinitionGroup::operator=(ItemDefinitionGroup other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ItemDefinitionGroup::~ItemDefinitionGroup()
@@ -62,9 +72,8 @@ ItemDefinitionGroup::~ItemDefinitionGroup()
 
 ItemDefinition *ItemDefinitionGroup::itemDefinition(int index) const
 {
-    if (0 <= index && index < m_items.size())
-        return m_items[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_items.size(), return nullptr);
+    return m_items[index];
 }
 
 int ItemDefinitionGroup::itemDefinitionCount() const
@@ -120,6 +129,12 @@ QDomNode ItemDefinitionGroup::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void ItemDefinitionGroup::swap(ItemDefinitionGroup &first, ItemDefinitionGroup &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_items, second.m_items);
 }
 
 void ItemDefinitionGroup::processNodeAttributes(const QDomElement &nodeElement)

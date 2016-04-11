@@ -32,6 +32,8 @@
 #include "parameter.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -42,16 +44,24 @@ ParameterGroup::ParameterGroup()
 {
 }
 
-ParameterGroup::ParameterGroup(const ParameterGroup &parameterGroup)
+ParameterGroup::ParameterGroup(const ParameterGroup &other)
 {
     qDeleteAll(m_parameters);
 
-    for (int i = 0; i < parameterGroup.parameterCount(); ++i) {
-        Parameter *parameter = parameterGroup.parameter(i);
+    foreach (Parameter *parameter, other.m_parameters)
+        m_parameters.append(new Parameter(*parameter));
+}
 
-        if (parameter)
-            m_parameters.append(new Parameter(*parameter));
-    }
+ParameterGroup::ParameterGroup(ParameterGroup &&other)
+    : ParameterGroup()
+{
+    swap(*this, other);
+}
+
+ParameterGroup &ParameterGroup::operator=(ParameterGroup other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ParameterGroup::~ParameterGroup()
@@ -61,9 +71,8 @@ ParameterGroup::~ParameterGroup()
 
 Parameter *ParameterGroup::parameter(int index) const
 {
-    if (0 <= index && index < m_parameters.size())
-        return m_parameters[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_parameters.size(), return nullptr);
+    return m_parameters[index];
 }
 
 int ParameterGroup::parameterCount() const
@@ -104,6 +113,11 @@ QDomNode ParameterGroup::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void ParameterGroup::swap(ParameterGroup &first, ParameterGroup &second)
+{
+    std::swap(first.m_parameters, second.m_parameters);
 }
 
 void ParameterGroup::processChildNodes(const QDomNode &node)

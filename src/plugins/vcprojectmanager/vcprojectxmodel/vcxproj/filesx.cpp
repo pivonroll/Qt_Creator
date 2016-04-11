@@ -47,8 +47,43 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
+FilesX::FilesX(Project *project, Project *filters, VcProjectDocumentX *parentProject)
+    : m_project(project),
+      m_filters(filters),
+      m_private(new FileContainerX),
+      m_parentProject(parentProject)
+{
+    m_private->m_filters = m_filters;
+    m_private->m_project = m_project;
+    m_private->m_filterItem = nullptr;
+    m_private->m_parentContainer = nullptr;
+
+    readFiles();
+}
+
+FilesX::FilesX(const FilesX &other)
+{
+    m_filters = other.m_filters;
+    m_parentProject = other.m_parentProject;
+    m_project = other.m_project;
+    m_private = new FileContainerX(*other.m_private);
+}
+
+FilesX::FilesX(FilesX &&other)
+    : FilesX()
+{
+    swap(*this, other);
+}
+
+FilesX &FilesX::operator=(FilesX other)
+{
+    swap(*this, other);
+    *this;
+}
+
 FilesX::~FilesX()
 {
+    delete m_private;
 }
 
 void FilesX::addFile(IFile *file)
@@ -79,7 +114,7 @@ IFile *FilesX::file(const QString &relativePath) const
         if (file && file->relativePath() == relativePath)
             return file;
     }
-    return 0;
+    return nullptr;
 }
 
 bool FilesX::fileExists(const QString &relativeFilePath) const
@@ -114,7 +149,7 @@ void FilesX::processNode(const QDomNode &node)
 
 VcNodeWidget *FilesX::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode FilesX::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -123,18 +158,20 @@ QDomNode FilesX::toXMLDomNode(QDomDocument &domXMLDocument) const
     return QDomNode();
 }
 
-FilesX::FilesX(Project *project, Project *filters, VcProjectDocumentX *parentProject)
-    : m_project(project),
-      m_filters(filters),
-      m_private(new FileContainerX),
-      m_parentProject(parentProject)
+FilesX::FilesX()
+    : m_filters(nullptr),
+      m_parentProject(nullptr),
+      m_private(nullptr),
+      m_project(nullptr)
 {
-    m_private->m_filters = m_filters;
-    m_private->m_project = m_project;
-    m_private->m_filterItem = 0;
-    m_private->m_parentContainer = 0;
+}
 
-    readFiles();
+void FilesX::swap(FilesX &first, FilesX &second)
+{
+    std::swap(first.m_filters, second.m_filters);
+    std::swap(first.m_parentProject, second.m_parentProject);
+    std::swap(first.m_private, second.m_private);
+    std::swap(first.m_project, second.m_project);
 }
 
 void FilesX::readFileContainers()
@@ -192,7 +229,7 @@ void FilesX::createFileContainer(ItemGroup *itemGroup, const QStringList &pathLi
 FileContainerX *FilesX::findFileContainer(IFileContainer *container, const QString &containerName) const
 {
     if (!container)
-        return 0;
+        return nullptr;
 
     for (int i = 0; i < container->childCount(); ++i) {
         FileContainerX *childContainer = dynamic_cast<FileContainerX *>(container->fileContainer(i));
@@ -201,13 +238,13 @@ FileContainerX *FilesX::findFileContainer(IFileContainer *container, const QStri
             return childContainer;
     }
 
-    return 0;
+    return nullptr;
 }
 
 FileContainerX *FilesX::findFileContainerRecursive(IFileContainer *container, const QString &containerName) const
 {
     if (!container)
-        return 0;
+        return nullptr;
 
     FileContainerX *childContainer = findFileContainer(container, containerName);
 
@@ -223,7 +260,7 @@ FileContainerX *FilesX::findFileContainerRecursive(IFileContainer *container, co
             return foundCont;
     }
 
-    return 0;
+    return nullptr;
 }
 
 FileContainerX *FilesX::findFileContainer(const QString &containerName) const
@@ -241,7 +278,7 @@ FileContainerX *FilesX::findFileContainer(const QString &containerName) const
             return cont;
     }
 
-    return 0;
+    return nullptr;
 }
 
 void FilesX::readFiles()

@@ -15,6 +15,7 @@ class BoolToolAttributeX : public BaseToolAttributeX
 public:
     BoolToolAttributeX(const AttributeDescriptionDataItem *attributeDescription, Project *project, ConfigurationX *configuration);
     BoolToolAttributeX(const BoolToolAttributeX &other);
+    BoolToolAttributeX& operator=(BoolToolAttributeX other);
 
     // IToolAttribute interface
     IToolAttributeSettingsWidget *createSettingsItem();

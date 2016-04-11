@@ -48,7 +48,8 @@ class FileContainerX : public IFileContainer
     friend class FileFactoryX;
 public:
     FileContainerX(const FileContainerX &fileCont);
-    FileContainerX &operator=(const FileContainerX &fileCont);
+    FileContainerX(FileContainerX &&fileCont);
+    FileContainerX &operator=(FileContainerX fileCont);
     ~FileContainerX();
 
     // IFileContainer interface
@@ -78,7 +79,7 @@ public:
 
 private:
     FileContainerX();
-
+    static void swap(FileContainerX &first, FileContainerX &second);
     void removeAllFilesInAFilter(const QString &fullFilterName, QStringList &relativePaths);
     void removeAllFilesInAFilter(ItemGroup *itemGroup, const QString &fullFilterName, QStringList &relativePaths);
     bool isFileInAFilter(Item *item, const QString &fullFilterName);

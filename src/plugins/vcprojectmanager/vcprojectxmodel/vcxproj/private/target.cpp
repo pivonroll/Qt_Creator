@@ -35,6 +35,8 @@
 #include "onerror.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -46,18 +48,18 @@ Target::Target()
 {
 }
 
-Target::Target(const Target &target)
+Target::Target(const Target &other)
 {
-    m_name = target.name(); // required
-    m_condition = target.condition();
-    m_inputs = target.inputs();
-    m_outputs = target.outputs();
-    m_returns = target.returns();
-    m_keepDuplicateOutputs = target.keepDuplicateOutputs();
-    m_beforeTargets = target.beforeTargets();
-    m_afterTargets = target.afterTargets();
-    m_dependsOnTargets = target.dependsOnTargets();
-    m_label = target.label();
+    m_name = other.m_name; // required
+    m_condition = other.m_condition;
+    m_inputs = other.m_inputs;
+    m_outputs = other.m_outputs;
+    m_returns = other.m_returns;
+    m_keepDuplicateOutputs = other.m_keepDuplicateOutputs;
+    m_beforeTargets = other.m_beforeTargets;
+    m_afterTargets = other.m_afterTargets;
+    m_dependsOnTargets = other.m_dependsOnTargets;
+    m_label = other.m_label;
 
     qDeleteAll(m_tasks);
     qDeleteAll(m_propertyGroups);
@@ -66,30 +68,29 @@ Target::Target(const Target &target)
 
     m_nodeList.clear();
 
-    for (int i = 0; i < target.taskCount(); ++i) {
-        Task *task = target.task(i);
+    foreach (Task *task, other.m_tasks)
+        addTask(new Task(*task));
 
-        if (task)
-            addTask(new Task(*task));
-    }
-    for (int i = 0; i < target.propertyGroupCount(); ++i) {
-        PropertyGroup *propertyGroup = target.propertyGroup(i);
+    foreach (PropertyGroup *propertyGroup, other.m_propertyGroups)
+        addPropertyGroup(new PropertyGroup(*propertyGroup));
 
-        if (propertyGroup)
-            addPropertyGroup(new PropertyGroup(*propertyGroup));
-    }
-    for (int i = 0; i < target.itemGroupCount(); ++i) {
-        ItemGroup *itemGroup = target.itemGroup(i);
+    foreach (ItemGroup *itemGroup, other.m_itemGroups)
+        addItemGroup(new ItemGroup(*itemGroup));
 
-        if (itemGroup)
-            addItemGroup(new ItemGroup(*itemGroup));
-    }
-    for (int i = 0; i < target.onErrorElementCount(); ++i) {
-        OnError *onError = target.onErrorElement(i);
+    foreach (OnError *onError, other.m_onErrorElements)
+        addOnErrorElement(new OnError(*onError));
+}
 
-        if (onError)
-            addOnErrorElement(new OnError(*onError));
-    }
+Target::Target(Target &&other)
+    : Target()
+{
+    swap(*this, other);
+}
+
+Target &Target::operator=(Target other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Target::~Target()
@@ -264,9 +265,8 @@ void Target::setLabel(const QString &label)
 
 Task *Target::task(int index) const
 {
-    if (0 <= index && index < m_tasks.size())
-        return m_tasks[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_tasks.size(), return nullptr);
+    return m_tasks[index];
 }
 
 int Target::taskCount() const
@@ -290,9 +290,8 @@ void Target::removeTask(Task *task)
 
 PropertyGroup *Target::propertyGroup(int index) const
 {
-    if (0 <= index && index < m_propertyGroups.size())
-        return m_propertyGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_propertyGroups.size(), return nullptr);
+    return m_propertyGroups[index];
 }
 
 int Target::propertyGroupCount() const
@@ -316,9 +315,8 @@ void Target::removePropertyGroup(PropertyGroup *propertyGroup)
 
 ItemGroup *Target::itemGroup(int index) const
 {
-    if (0 <= index && index < m_itemGroups.size())
-        return m_itemGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_itemGroups.size(), return nullptr);
+    return m_itemGroups[index];
 }
 
 int Target::itemGroupCount() const
@@ -342,9 +340,8 @@ void Target::removeItemGroup(ItemGroup *itemGroup)
 
 OnError *Target::onErrorElement(int index) const
 {
-    if (0 <= index && index < m_onErrorElements.size())
-        return m_onErrorElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_onErrorElements.size(), return nullptr);
+    return m_onErrorElements[index];
 }
 
 int Target::onErrorElementCount() const
@@ -509,6 +506,25 @@ QString Target::keepDuplicateOutputs() const
 void Target::setKeepDuplicateOutputs(const QString &keepDuplicateOutputs)
 {
     m_keepDuplicateOutputs = keepDuplicateOutputs;
+}
+
+void Target::swap(Target &first, Target &second)
+{
+    std::swap(first.m_afterTargets, second.m_afterTargets);
+    std::swap(first.m_beforeTargets, second.m_beforeTargets);
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_dependsOnTargets, second.m_dependsOnTargets);
+    std::swap(first.m_inputs, second.m_inputs);
+    std::swap(first.m_itemGroups, second.m_itemGroups);
+    std::swap(first.m_keepDuplicateOutputs, second.m_keepDuplicateOutputs);
+    std::swap(first.m_label, second.m_label);
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_nodeList, second.m_nodeList);
+    std::swap(first.m_onErrorElements, second.m_onErrorElements);
+    std::swap(first.m_outputs, second.m_outputs);
+    std::swap(first.m_propertyGroups, second.m_propertyGroups);
+    std::swap(first.m_returns, second.m_returns);
+    std::swap(first.m_tasks, second.m_tasks);
 }
 
 

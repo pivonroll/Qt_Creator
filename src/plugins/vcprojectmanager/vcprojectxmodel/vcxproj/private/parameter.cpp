@@ -41,12 +41,24 @@ Parameter::Parameter()
 {
 }
 
-Parameter::Parameter(const Parameter &parameter)
+Parameter::Parameter(const Parameter &other)
 {
-    m_name = parameter.name();
-    m_output = parameter.output();
-    m_parameterType = parameter.parameterType();
-    m_required = parameter.required();
+    m_name = other.m_name;
+    m_output = other.m_output;
+    m_parameterType = other.m_parameterType;
+    m_required = other.m_required;
+}
+
+Parameter::Parameter(Parameter &&other)
+    : Parameter()
+{
+    swap(*this, other);
+}
+
+Parameter &Parameter::operator=(Parameter other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Parameter::~Parameter()
@@ -113,6 +125,14 @@ QDomNode Parameter::toXMLDomNode(QDomDocument &domXMLDocument) const
         element.setAttribute(QLatin1String(REQUIRED_ATTRIBUTE), m_required);
 
     return element;
+}
+
+void Parameter::swap(Parameter &first, Parameter &second)
+{
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_output, second.m_output);
+    std::swap(first.m_parameterType, second.m_parameterType);
+    std::swap(first.m_required, second.m_required);
 }
 
 void Parameter::processNodeAttributes(const QDomElement &nodeElement)

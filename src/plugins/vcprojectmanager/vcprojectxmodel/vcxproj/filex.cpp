@@ -75,6 +75,18 @@ FileX::FileX(const FileX &file)
     m_parentProjectDocument = file.m_parentProjectDocument;
 }
 
+FileX::FileX(FileX &&file)
+    : FileX()
+{
+    swap(*this, other);
+}
+
+FileX &FileX::operator=(FileX other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 FileX::~FileX()
 {
     if (!Utils::findItemGroupContainingItem(m_item, m_project))
@@ -154,13 +166,22 @@ void FileX::processNode(const QDomNode &node)
 
 VcNodeWidget *FileX::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode FileX::toXMLDomNode(QDomDocument &domXMLDocument) const
 {
     Q_UNUSED(domXMLDocument);
     return QDomNode();
+}
+
+void FileX::swap(FileX &first, FileX &second)
+{
+    std::swap(first.m_filterItem, second.m_filterItem);
+    std::swap(first.m_filters, second.m_filters);
+    std::swap(first.m_item, second.m_item);
+    std::swap(first.m_parentProjectDocument, second.m_parentProjectDocument);
+    std::swap(first.m_project, second.m_project);
 }
 
 } // namespace VisualStudioProjectX

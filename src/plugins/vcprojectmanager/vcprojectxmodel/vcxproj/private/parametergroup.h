@@ -44,7 +44,9 @@ class ParameterGroup : public IVisualStudioNodeX
 {
 public:
     ParameterGroup();
-    ParameterGroup(const ParameterGroup &parameterGroup);
+    ParameterGroup(const ParameterGroup &other);
+    ParameterGroup(ParameterGroup &&other);
+    ParameterGroup& operator=(ParameterGroup other);
     ~ParameterGroup();
 
     Parameter* parameter(int index) const;
@@ -57,6 +59,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(ParameterGroup &first, ParameterGroup &second);
     void processChildNodes(const QDomNode &node);
     QList<Parameter *> m_parameters;
 };

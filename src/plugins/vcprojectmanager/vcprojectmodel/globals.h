@@ -56,7 +56,7 @@ public:
     void removeGlobal(IGlobal *global);
 
 private:
-    void swap(Globals &first, Globals &second);
+    static void swap(Globals &first, Globals &second);
     void processGlobal(const QDomNode &globalNode);
     QList<IGlobal *> m_globals;
 };

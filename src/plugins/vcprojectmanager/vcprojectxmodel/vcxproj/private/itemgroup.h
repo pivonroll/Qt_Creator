@@ -47,7 +47,9 @@ class ItemGroup : public IVisualStudioNodeX
 {
 public:
     ItemGroup();
-    ItemGroup(const ItemGroup &itemGroup);
+    ItemGroup(const ItemGroup &other);
+    ItemGroup(ItemGroup &&other);
+    ItemGroup& operator=(ItemGroup other);
     ~ItemGroup();
 
     Item* item(int index) const;
@@ -66,6 +68,7 @@ public:
     void setLabel(const QString &label);
 
 private:
+    static void swap(ItemGroup &first, ItemGroup &second);
     void processNodeAttributes(const QDomElement &nodeElement);
     void processChildNodes(const QDomNode &node);
 

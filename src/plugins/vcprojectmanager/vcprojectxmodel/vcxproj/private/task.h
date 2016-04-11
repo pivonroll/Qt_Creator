@@ -48,7 +48,9 @@ class Task : public IVisualStudioNodeX
 {
 public:
     Task();
-    Task(const Task &task);
+    Task(const Task &other);
+    Task(Task &&other);
+    Task& operator=(Task other);
     ~Task();
 
     QString condition() const;
@@ -73,6 +75,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Task &first, Task &second);
     void processNodeAttributes(const QDomElement &nodeElement);
     void processChildNodes(const QDomNode &node);
 

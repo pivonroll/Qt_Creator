@@ -64,7 +64,7 @@ public:
     IAttributeContainer *attributeContainer() const;
 
 private:
-    void swap(PublishingData &first, PublishingData &second);
+    static void swap(PublishingData &first, PublishingData &second);
     void processPublishingItem(const QDomNode &publishingItem);
     void processNodeAttributes(const QDomElement &element);
 

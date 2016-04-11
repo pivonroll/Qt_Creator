@@ -55,7 +55,9 @@ class Project : public IVisualStudioNodeX
     friend class VisualStudioProjectXDoc;
 public:
     Project();
-    Project(const Project &project);
+    Project(const Project &other);
+    Project(Project &&other);
+    Project& operator=(Project other);
     ~Project();
 
     QStringList defaultTargets() const;
@@ -122,6 +124,7 @@ public:
     QString version() const;
 
 private:
+    static void swap(Project &first, Project &second);
     void processChildNodes(const QDomNode &node);
     void processNodeAttributes(const QDomElement &nodeElement);
 

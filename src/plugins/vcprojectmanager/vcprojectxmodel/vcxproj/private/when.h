@@ -49,7 +49,10 @@ class When : public IVisualStudioNodeX
 {
 public:
     When();
-    When(const When &when);
+    When(const When &other);
+    When(When &&other);
+    When& operator=(When other);
+
     ~When();
 
     QString condition() const;
@@ -75,6 +78,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(When &first, When &second);
     void processNodeAttributes(const QDomElement &nodeElement);
     void processChildNodes(const QDomNode &node);
 

@@ -14,6 +14,12 @@ BoolToolAttributeX::BoolToolAttributeX(const BoolToolAttributeX &other)
 {
 }
 
+BoolToolAttributeX &BoolToolAttributeX::operator=(BoolToolAttributeX other)
+{
+    BaseToolAttributeX::operator=(other);
+    return *this;
+}
+
 IToolAttributeSettingsWidget *BoolToolAttributeX::createSettingsItem()
 {
     return nullptr;

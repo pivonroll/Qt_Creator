@@ -37,9 +37,21 @@ ProjectExtensions::ProjectExtensions()
 {
 }
 
-ProjectExtensions::ProjectExtensions(const ProjectExtensions &projExt)
+ProjectExtensions::ProjectExtensions(const ProjectExtensions &other)
 {
-    m_node = projExt.node();
+    m_node = other.m_node;
+}
+
+ProjectExtensions::ProjectExtensions(ProjectExtensions &&other)
+    : ProjectExtensions()
+{
+    swap(*this, other);
+}
+
+ProjectExtensions &ProjectExtensions::operator=(ProjectExtensions other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ProjectExtensions::~ProjectExtensions()
@@ -64,6 +76,11 @@ QDomNode ProjectExtensions::node() const
 void ProjectExtensions::setNode(const QDomNode &node)
 {
     m_node = node;
+}
+
+void ProjectExtensions::swap(ProjectExtensions &first, ProjectExtensions &second)
+{
+    std::swap(first.m_node, second.m_node);
 }
 
 

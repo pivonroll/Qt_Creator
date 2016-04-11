@@ -76,7 +76,7 @@ public:
 
 private:
     FileContainer();
-    void swap(FileContainer &first, FileContainer &second);
+    static void swap(FileContainer &first, FileContainer &second);
     void processFile(const QDomNode &fileNode);
     void processFilter(const QDomNode &filterNode);
     void processFolder(const QDomNode &folderNode);

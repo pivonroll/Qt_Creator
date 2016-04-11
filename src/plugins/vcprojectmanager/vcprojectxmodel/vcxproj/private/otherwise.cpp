@@ -35,6 +35,8 @@
 
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -45,32 +47,32 @@ Otherwise::Otherwise()
 {
 }
 
-Otherwise::Otherwise(const Otherwise &otherwise)
+Otherwise::Otherwise(const Otherwise &other)
 {
     qDeleteAll(m_chooseElements);
     qDeleteAll(m_itemGroupElements);
     qDeleteAll(m_propertyGroupElements);
 
-    for (int i = 0; i < otherwise.chooseElementCount(); ++i) {
-        Choose *choose = otherwise.chooseElement(i);
-
-        if (choose)
+    foreach (Choose *choose, other.m_chooseElements)
             addChooseElement(new Choose(*choose));
-    }
 
-    for (int i = 0; i < otherwise.itemGroupElementCount(); ++i) {
-        ItemGroup *itemGroup = otherwise.itemGroupElement(i);
-
-        if (itemGroup)
+    foreach (ItemGroup *itemGroup, other.m_itemGroupElements)
             addItemGroup(new ItemGroup(*itemGroup));
-    }
 
-    for (int i = 0; i < otherwise.propertyGroupElementCount(); ++i) {
-        PropertyGroup *propertyGroup = otherwise.propertyGroupElement(i);
+    foreach (PropertyGroup *propertyGroup, other.m_propertyGroupElements)
+        addPropertyGroup(new PropertyGroup(*propertyGroup));
+}
 
-        if (propertyGroup)
-            addPropertyGroup(new PropertyGroup(*propertyGroup));
-    }
+Otherwise::Otherwise(Otherwise &&other)
+    : Otherwise()
+{
+    swap(*this, other);
+}
+
+Otherwise &Otherwise::operator=(Otherwise other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Otherwise::~Otherwise()
@@ -82,9 +84,8 @@ Otherwise::~Otherwise()
 
 Choose *Otherwise::chooseElement(int index) const
 {
-    if (0 <= index && index < m_chooseElements.size())
-        return m_chooseElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_chooseElements.size(), return nullptr);
+    return m_chooseElements[index];
 }
 
 int Otherwise::chooseElementCount() const
@@ -108,9 +109,8 @@ void Otherwise::removeChooseElement(Choose *choose)
 
 ItemGroup *Otherwise::itemGroupElement(int index) const
 {
-    if (0 <= index && index < m_itemGroupElements.size())
-        return m_itemGroupElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_itemGroupElements.size(), return nullptr);
+    return m_itemGroupElements[index];
 }
 
 int Otherwise::itemGroupElementCount() const
@@ -134,9 +134,8 @@ void Otherwise::removeItemGroup(ItemGroup *itemGroup)
 
 PropertyGroup *Otherwise::propertyGroupElement(int index) const
 {
-    if (0 <= index && index < m_propertyGroupElements.size())
-        return m_propertyGroupElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_propertyGroupElements.size(), return nullptr);
+    return m_propertyGroupElements[index];
 }
 
 int Otherwise::propertyGroupElementCount() const
@@ -179,6 +178,14 @@ QDomNode Otherwise::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void Otherwise::swap(Otherwise &first, Otherwise &second)
+{
+    std::swap(first.m_chooseElements, second.m_chooseElements);
+    std::swap(first.m_itemGroupElements, second.m_itemGroupElements);
+    std::swap(first.m_nodeList, second.m_nodeList);
+    std::swap(first.m_propertyGroupElements, second.m_propertyGroupElements);
 }
 
 void Otherwise::processChildNodes(const QDomNode &node)

@@ -56,7 +56,7 @@ public:
     void removePlatform(IPlatform *platform);
 
 private:
-    void swap(Platforms &first, Platforms &second);
+    static void swap(Platforms &first, Platforms &second);
     void processPlatform(const QDomNode &node);
     QList<IPlatform *> m_platforms;
 

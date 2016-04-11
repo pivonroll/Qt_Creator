@@ -43,6 +43,17 @@ StringToolAttributeX::StringToolAttributeX(const StringToolAttributeX &other)
 {
 }
 
+StringToolAttributeX::StringToolAttributeX(StringToolAttributeX &&other)
+    : BaseToolAttributeX(other)
+{
+}
+
+StringToolAttributeX &StringToolAttributeX::operator=(StringToolAttributeX other)
+{
+    BaseToolAttributeX::operator =(other);
+    return *this;
+}
+
 IToolAttributeSettingsWidget *StringToolAttributeX::createSettingsItem()
 {
     return nullptr;

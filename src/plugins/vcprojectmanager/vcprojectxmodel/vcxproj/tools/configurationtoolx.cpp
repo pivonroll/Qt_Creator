@@ -53,24 +53,17 @@ ConfigurationToolX::ConfigurationToolX(ToolDescription *toolDesc, Project *proje
     }
 }
 
-ConfigurationToolX::ConfigurationToolX(const ConfigurationToolX &configToolRef)
+ConfigurationToolX::ConfigurationToolX(const ConfigurationToolX &other)
 {
-    m_toolDescription = configToolRef.m_toolDescription;
-    m_project = configToolRef.m_project;
+    m_toolDescription = other.m_toolDescription;
+    m_project = other.m_project;
     m_toolSectionContainer = new ToolSectionContainer;
-    *m_toolSectionContainer = *configToolRef.m_toolSectionContainer;
+    *m_toolSectionContainer = *other.m_toolSectionContainer;
 }
 
-ConfigurationToolX &ConfigurationToolX::operator=(const ConfigurationToolX &configToolRef)
+ConfigurationToolX &ConfigurationToolX::operator=(ConfigurationToolX other)
 {
-    if (this != &configToolRef) {
-        m_toolDescription = configToolRef.m_toolDescription;
-        m_project = configToolRef.m_project;
-
-        if (!m_toolSectionContainer)
-            m_toolSectionContainer = new ToolSectionContainer;
-        *m_toolSectionContainer = *configToolRef.m_toolSectionContainer;
-    }
+    swap(*this, other);
     return *this;
 }
 
@@ -108,6 +101,22 @@ IConfigurationBuildTool *ConfigurationToolX::clone() const
 bool ConfigurationToolX::allAttributesAreDefault() const
 {
     return true;
+}
+
+ConfigurationToolX::ConfigurationToolX()
+    : m_configuration(nullptr),
+      m_project(nullptr),
+      m_toolDescription(nullptr),
+      m_toolSectionContainer(nullptr)
+{
+}
+
+void ConfigurationToolX::swap(ConfigurationToolX &first, ConfigurationToolX &second)
+{
+    std::swap(first.m_configuration, second.m_configuration);
+    std::swap(first.m_project, second.m_project);
+    std::swap(first.m_toolDescription, second.m_toolDescription);
+    std::swap(first.m_toolSectionContainer, second.m_toolSectionContainer);
 }
 
 } // namespace VisualStudioProjectX

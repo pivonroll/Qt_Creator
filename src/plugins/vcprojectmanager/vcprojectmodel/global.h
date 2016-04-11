@@ -62,7 +62,7 @@ public:
     IGlobal *clone() const;
 
 private:
-    void swap(Global &first, Global &second);
+    static void swap(Global &first, Global &second);
     void processNodeAttributes(const QDomElement &element);
 
     QString m_name; // required

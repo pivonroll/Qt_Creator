@@ -41,10 +41,22 @@ TaskBody::TaskBody()
 {
 }
 
-TaskBody::TaskBody(const TaskBody &taskBody)
+TaskBody::TaskBody(const TaskBody &other)
 {
-    m_data = taskBody.data();
-    m_evaluate = taskBody.evaluate();
+    m_data = other.m_data;
+    m_evaluate = other.m_evaluate;
+}
+
+TaskBody::TaskBody(TaskBody &&other)
+    : TaskBody()
+{
+    swap(*this, other);
+}
+
+TaskBody &TaskBody::operator=(TaskBody other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 TaskBody::~TaskBody()
@@ -89,6 +101,12 @@ QDomNode TaskBody::toXMLDomNode(QDomDocument &domXMLDocument) const
     element.setNodeValue(m_data);
 
     return element;
+}
+
+void TaskBody::swap(TaskBody &first, TaskBody &second)
+{
+    std::swap(first.m_data, second.m_data);
+    std::swap(first.m_evaluate, second.m_evaluate);
 }
 
 void TaskBody::processNodeAttributes(const QDomElement &nodeElement)

@@ -58,7 +58,7 @@ public:
 
 private:
     VcDocumentModel();
-    void swap(VcDocumentModel &first, VcDocumentModel &second);
+    static void swap(VcDocumentModel &first, VcDocumentModel &second);
     QDomDocument *m_document;
     IVisualStudioProject *m_vcProjectDocument;
 };

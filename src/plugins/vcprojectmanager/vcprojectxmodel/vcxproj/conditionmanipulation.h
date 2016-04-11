@@ -47,7 +47,10 @@ class ConditionManipulation
 {
 public:
     ConditionManipulation(const QString &conditionExpression);
-
+    ConditionManipulation(const ConditionManipulation &other);
+    ConditionManipulation(ConditionManipulation &&other);
+    ConditionManipulation& operator=(ConditionManipulation other);
+    ~ConditionManipulation();
     /*!
      * @brief findVariableEqRightExpr returns a pointer to a expression that matches variable but is on the right side of '==' expresion
      *
@@ -59,10 +62,12 @@ public:
     bool evaluate(const EvaluateArguments &evalArgs) const;
 
 private:
+    static void swap(ConditionManipulation &first, ConditionManipulation &second);
     Expression* findVariableEqRightExpr(Expression *startExp, const QString &variable) const;
     Expression* findStrCmpRightExpr(StringCompare *strCmpExpr, const QString &variable) const;
     bool findInVariablePipeExpression(VariablePipe *varPipeExpr, const QString &variable, int &index) const;
     StringLiteral* getVariablePipeLiteral(VariablePipe *varPipeExpr, int index) const;
+
     QString m_conditionString;
     Expression *m_condExpression;
 };

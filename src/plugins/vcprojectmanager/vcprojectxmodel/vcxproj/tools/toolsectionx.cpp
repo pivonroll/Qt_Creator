@@ -53,6 +53,23 @@ ToolSectionX::ToolSectionX(const ToolSectionX &other)
     *m_attributeContainer = *other.m_attributeContainer;
 }
 
+ToolSectionX::ToolSectionX(ToolSectionX &&other)
+    : ToolSectionX()
+{
+    swap(*this, other);
+}
+
+ToolSectionX &ToolSectionX::operator=(ToolSectionX other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+ToolSectionX::~ToolSectionX()
+{
+    delete m_attributeContainer;
+}
+
 IToolAttributeContainer *ToolSectionX::attributeContainer() const
 {
     return m_attributeContainer;
@@ -71,6 +88,22 @@ VcNodeWidget *ToolSectionX::createSettingsWidget()
 IToolSection *ToolSectionX::clone() const
 {
     return new ToolSectionX(*this);
+}
+
+ToolSectionX::ToolSectionX()
+    : m_attributeContainer(nullptr),
+      m_configuration(nullptr),
+      m_project(nullptr),
+      m_toolSectionDescription(nullptr)
+{
+}
+
+void ToolSectionX::swap(ToolSectionX &first, ToolSectionX &second)
+{
+    std::swap(first.m_attributeContainer, second.m_attributeContainer);
+    std::swap(first.m_configuration, second.m_configuration);
+    std::swap(first.m_project, second.m_project);
+    std::swap(first.m_toolSectionDescription, second.m_toolSectionDescription);
 }
 
 } // namespace VisualStudioProjectX

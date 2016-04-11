@@ -42,13 +42,17 @@ namespace VisualStudioProjectX {
     class ConfigurationsX;
     class ProjectFactoriesX;
     class FileFactoryX;
+    class FilesX;
 }
 
 class VcProjectDocumentX : public IVisualStudioProject
 {
     friend class VisualStudioProjectX::FileFactoryX;
 public:
-    VcProjectDocumentX(const QString &filePath);
+    VcProjectDocumentX(const QString &filePath = QString());
+    VcProjectDocumentX(const VcProjectDocumentX &other);
+    VcProjectDocumentX(VcProjectDocumentX &&other);
+    VcProjectDocumentX& operator=(VcProjectDocumentX other);
     ~VcProjectDocumentX();
 
     // IVisualStudioProject interface
@@ -72,6 +76,7 @@ public:
     IProjectFactories *projectFactories() const;
 
 private:
+    static void swap(VcProjectDocumentX &first, VcProjectDocumentX &second);
     void processFilterDoc();
 
     QString m_filePath;
@@ -80,7 +85,7 @@ private:
     VisualStudioProjectX::ConfigurationsX *m_configurations;
     QDomProcessingInstruction m_projectProcInstructionNode;
     QDomProcessingInstruction m_filtersProcInstructionNode;
-    IFiles *m_files;
+    VisualStudioProjectX::FilesX *m_files;
     VisualStudioProjectX::ProjectFactoriesX *m_projectFactories;
 };
 

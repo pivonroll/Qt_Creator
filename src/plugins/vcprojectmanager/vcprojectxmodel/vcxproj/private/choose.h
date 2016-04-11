@@ -44,7 +44,9 @@ class Choose : public IVisualStudioNodeX
 {
 public:
     Choose();
-    Choose(const Choose &choose);
+    Choose(const Choose &other);
+    Choose(Choose &&other);
+    Choose& operator=(Choose other);
     ~Choose();
 
     Otherwise *otherwise() const;
@@ -60,6 +62,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Choose &first, Choose &second);
     void processChildNodes(const QDomNode &node);
 
     Otherwise *m_otherwise;

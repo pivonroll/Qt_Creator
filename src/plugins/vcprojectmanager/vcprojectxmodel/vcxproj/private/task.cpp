@@ -33,6 +33,8 @@
 #include "parameter.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -43,21 +45,29 @@ Task::Task()
 {
 }
 
-Task::Task(const Task &task)
+Task::Task(const Task &other)
 {
-    m_condition = task.condition();
-    m_continueOnError = task.continueOnError();
-    m_name = task.name();
-    m_parameters = task.m_parameters;
+    m_condition = other.m_condition;
+    m_continueOnError = other.m_continueOnError;
+    m_name = other.m_name;
+    m_parameters = other.m_parameters;
 
     qDeleteAll(m_outputs);
 
-    for (int i = 0; i < task.outputCount(); ++i) {
-        Output *output = task.output(i);
+    foreach (Output *output, other.m_outputs)
+        m_outputs.append(new Output(*output));
+}
 
-        if (output)
-            m_outputs.append(new Output(*output));
-    }
+Task::Task(Task &&other)
+    : Task()
+{
+    swap(*this, other);
+}
+
+Task &Task::operator=(Task other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Task::~Task()
@@ -87,9 +97,8 @@ void Task::setContinueOnError(const QString &continueOnError)
 
 Output *Task::output(int index) const
 {
-    if (0 <= index && index < m_outputs.size())
-        return m_outputs[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_outputs.size(), return nullptr);
+    return m_outputs[index];
 }
 
 int Task::outputCount() const
@@ -163,6 +172,15 @@ QDomNode Task::toXMLDomNode(QDomDocument &domXMLDocument) const
         }
     }
     return element;
+}
+
+void Task::swap(Task &first, Task &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_continueOnError, second.m_continueOnError);
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_outputs, second.m_outputs);
+    std::swap(first.m_parameters, second.m_parameters);
 }
 
 void Task::processNodeAttributes(const QDomElement &nodeElement)

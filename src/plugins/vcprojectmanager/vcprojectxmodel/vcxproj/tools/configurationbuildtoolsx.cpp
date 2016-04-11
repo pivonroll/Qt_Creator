@@ -29,6 +29,8 @@
 ****************************************************************************/
 #include "configurationbuildtoolsx.h"
 
+#include <visualstudiointerfaces/iconfigurationbuildtool.h>
+
 #include <utils/qtcassert.h>
 
 #include <QDomElement>
@@ -40,6 +42,24 @@ namespace VisualStudioProjectX {
 
 ConfigurationBuildToolsX::ConfigurationBuildToolsX()
 {
+}
+
+ConfigurationBuildToolsX::ConfigurationBuildToolsX(const ConfigurationBuildToolsX &other)
+{
+    foreach (IConfigurationBuildTool *tool, other.m_configTools)
+        m_configTools << tool->clone();
+}
+
+ConfigurationBuildToolsX::ConfigurationBuildToolsX(ConfigurationBuildToolsX &&other)
+    : ConfigurationBuildToolsX()
+{
+    swap(*this, other);
+}
+
+ConfigurationBuildToolsX &ConfigurationBuildToolsX::operator=(ConfigurationBuildToolsX other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ConfigurationBuildToolsX::~ConfigurationBuildToolsX()
@@ -78,6 +98,11 @@ void ConfigurationBuildToolsX::appendToXMLNode(QDomElement &domElement, QDomDocu
 {
     Q_UNUSED(domElement)
     Q_UNUSED(domDocument)
+}
+
+void ConfigurationBuildToolsX::swap(ConfigurationBuildToolsX &first, ConfigurationBuildToolsX &second)
+{
+    std::swap(first.m_configTools, second.m_configTools);
 }
 
 } // namespace VisualStudioProjectX

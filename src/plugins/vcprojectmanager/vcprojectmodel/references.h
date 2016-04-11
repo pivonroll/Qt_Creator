@@ -58,7 +58,7 @@ public:
     IReference *reference(int index) const;
 
 private:
-    void swap(References &first, References &second);
+    static void swap(References &first, References &second);
     void processReference(const QDomNode &referenceNode);
 
     QList<IReference *> m_references;

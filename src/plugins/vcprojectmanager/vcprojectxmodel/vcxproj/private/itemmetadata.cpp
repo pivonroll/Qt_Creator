@@ -41,11 +41,23 @@ ItemMetaData::ItemMetaData()
 {
 }
 
-ItemMetaData::ItemMetaData(const ItemMetaData &itemMetaData)
+ItemMetaData::ItemMetaData(const ItemMetaData &other)
 {
-    m_name = itemMetaData.name();
-    m_condition = itemMetaData.condition();
-    m_value = itemMetaData.value();
+    m_name = other.m_name;
+    m_condition = other.m_condition;
+    m_value = other.m_value;
+}
+
+ItemMetaData::ItemMetaData(ItemMetaData &&other)
+    : ItemMetaData()
+{
+    swap(*this, other);
+}
+
+ItemMetaData &ItemMetaData::operator=(ItemMetaData other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ItemMetaData::~ItemMetaData()
@@ -99,6 +111,13 @@ QDomNode ItemMetaData::toXMLDomNode(QDomDocument &domXMLDocument) const
     element.appendChild(valueText);
 
     return element;
+}
+
+void ItemMetaData::swap(ItemMetaData &first, ItemMetaData &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_value, second.m_value);
 }
 
 void ItemMetaData::processNodeAttributes(const QDomElement &nodeElement)

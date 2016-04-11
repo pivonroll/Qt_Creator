@@ -14,6 +14,17 @@ IntegerToolAttributeX::IntegerToolAttributeX(const IntegerToolAttributeX &other)
 {
 }
 
+IntegerToolAttributeX::IntegerToolAttributeX(IntegerToolAttributeX &&other)
+    : BaseToolAttributeX(other)
+{
+}
+
+IntegerToolAttributeX &IntegerToolAttributeX::operator=(IntegerToolAttributeX other)
+{
+    BaseToolAttributeX::operator =(other);
+    return *this;
+}
+
 IToolAttributeSettingsWidget *IntegerToolAttributeX::createSettingsItem()
 {
     return nullptr;

@@ -39,6 +39,23 @@ CompareExpression::CompareExpression(Expression *leftOp, OperationType opType, E
 {
 }
 
+CompareExpression::CompareExpression(const CompareExpression &other)
+    : BinaryExpression(other)
+{
+    m_opType = other.m_opType;
+}
+
+CompareExpression::CompareExpression(CompareExpression &&other)
+{
+    swap(*this, other);
+}
+
+CompareExpression &CompareExpression::operator=(CompareExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 Expression::ExpressionType CompareExpression::type() const
 {
     return COMPARE;
@@ -93,6 +110,12 @@ QString CompareExpression::toString() const
     }
 
     return result;
+}
+
+void CompareExpression::swap(CompareExpression &first, CompareExpression &second)
+{
+    BinaryExpression::swap(first, second);
+    std::swap(first.m_opType, second.m_opType);
 }
 
 } // namespace Internal

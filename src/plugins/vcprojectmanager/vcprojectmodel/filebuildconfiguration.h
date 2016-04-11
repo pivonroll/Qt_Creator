@@ -57,7 +57,7 @@ protected:
     void processToolNode(const QDomNode &toolNode);
 
 private:
-    void swap(FileBuildConfiguration &first, FileBuildConfiguration &second);
+    static void swap(FileBuildConfiguration &first, FileBuildConfiguration &second);
     void toXMLNode(IConfiguration *projectConfig, QDomElement &configurationNode, QDomDocument &domXMLDocument) const;
     void writeTools(IConfigurationBuildTool *projectConfigTool, IConfigurationBuildTool *tool,
                    QDomElement &configurationNode,  QDomDocument &domXMLDocument) const;

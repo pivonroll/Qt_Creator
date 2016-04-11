@@ -60,6 +60,25 @@ ConfigurationsX::ConfigurationsX(Project *project)
     processItemGroup();
 }
 
+ConfigurationsX::ConfigurationsX(const ConfigurationsX &other)
+{
+    m_configurationContainer = new ConfigurationContainerX(*other.m_configurationContainer);
+    m_itemGroup = other.m_itemGroup;
+    m_project = other.m_project;
+}
+
+ConfigurationsX::ConfigurationsX(ConfigurationsX &&other)
+    : ConfigurationsX()
+{
+    swap(*this, other);
+}
+
+ConfigurationsX &ConfigurationsX::operator=(ConfigurationsX other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 IConfigurationContainer *ConfigurationsX::configurationContainer() const
 {
     return m_configurationContainer;
@@ -79,6 +98,13 @@ QDomNode ConfigurationsX::toXMLDomNode(QDomDocument &domXMLDocument) const
 {
     Q_UNUSED(domXMLDocument)
     return QDomNode();
+}
+
+void ConfigurationsX::swap(ConfigurationsX &first, ConfigurationsX &second)
+{
+    std::swap(first.m_configurationContainer, second.m_configurationContainer);
+    std::swap(first.m_itemGroup, second.m_itemGroup);
+    std::swap(first.m_project, second.m_project);
 }
 
 void ConfigurationsX::processItemGroup()

@@ -54,7 +54,7 @@ public:
     IDebuggerTools *debuggerTools() const;
 
 private:
-    void swap(Tools &first, Tools &second);
+    static void swap(Tools &first, Tools &second);
     ConfigurationBuildTools *m_configurationBuildTools;
     DeploymentTools *m_deploymentTools;
     DebuggerTools* m_debuggerTools;

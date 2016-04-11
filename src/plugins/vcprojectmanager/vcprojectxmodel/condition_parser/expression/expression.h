@@ -57,12 +57,15 @@ public:
     };
 
     Expression();
+    Expression(const Expression &other);
     virtual ExpressionType type() const = 0;
     virtual ~Expression() {}
     virtual QVariant evaluate(const EvaluateArguments &evalArgs) const = 0;
     virtual QString toString() const = 0;
+    virtual Expression* clone() const = 0;
 
 protected:
+    static void swap(Expression &first, Expression &second);
     ExpressionType m_type;
 };
 

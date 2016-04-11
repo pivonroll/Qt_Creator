@@ -44,7 +44,9 @@ class TaskBody : public IVisualStudioNodeX
 {
 public:
     TaskBody();
-    TaskBody(const TaskBody &taskBody);
+    TaskBody(const TaskBody &other);
+    TaskBody(TaskBody &&other);
+    TaskBody& operator=(TaskBody other);
     ~TaskBody();
 
     QString data() const;
@@ -58,6 +60,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(TaskBody &first, TaskBody &second);
     void processNodeAttributes(const QDomElement &nodeElement);
 
     QString m_data;

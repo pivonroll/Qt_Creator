@@ -45,6 +45,8 @@ class ItemMetaData : public IVisualStudioNodeX
 public:
     ItemMetaData();
     ItemMetaData(const ItemMetaData &itemMetaData);
+    ItemMetaData(ItemMetaData &&itemMetaData);
+    ItemMetaData& operator=(ItemMetaData itemMetaData);
     ~ItemMetaData();
 
     QString condition() const;
@@ -61,6 +63,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(ItemMetaData &first, ItemMetaData &second);
     void processNodeAttributes(const QDomElement &nodeElement);
 
     QString m_condition;

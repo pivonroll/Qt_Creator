@@ -56,7 +56,7 @@ public:
     void removeToolFile(IToolFile *toolFile);
 
 private:
-    void swap(ToolFiles &first, ToolFiles &second);
+    static void swap(ToolFiles &first, ToolFiles &second);
     void processToolFiles(const QDomNode &toolFile);
 
     QList<IToolFile *> m_toolFiles;

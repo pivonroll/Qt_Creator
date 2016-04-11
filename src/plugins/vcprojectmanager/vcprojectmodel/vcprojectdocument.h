@@ -82,7 +82,7 @@ public:
 
 protected:
     VcProjectDocument();
-    void swap(VcProjectDocument &first, VcProjectDocument &second);
+    static void swap(VcProjectDocument &first, VcProjectDocument &second);
     void processDocumentNode(const QDomNode &node);
     void processDocumentAttributes(const QDomElement &vsNode);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;

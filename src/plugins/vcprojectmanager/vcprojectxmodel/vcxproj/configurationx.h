@@ -48,6 +48,12 @@ class ConfigurationX : public IConfiguration
     friend class ConfigurationContainerX;
 
 public:
+    explicit ConfigurationX(Project *project = nullptr);
+    ConfigurationX(const ConfigurationX &other);
+    ConfigurationX(ConfigurationX &&other);
+    ConfigurationX& operator=(ConfigurationX other);
+    ~ConfigurationX();
+
     // IConfiguration interface
     ConfigurationVersion version() const;
     IAttributeContainer *attributeContainer() const;
@@ -65,8 +71,6 @@ public:
     void processNode(const QDomNode &node);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
-    ConfigurationX(Project *project);
-
     Item *m_item;
     ItemDefinitionGroup *m_itemDefinitionGroup;
     Project *m_project;
@@ -74,6 +78,7 @@ public:
     QList<ImportGroup *> m_importGroups;
     QList<ItemMetaData *> m_itemMetaData; // mostly used for files in the project, to compile the file or not etc.
 private:
+    static void swap(ConfigurationX &first, ConfigurationX &second);
 
     void findAssociatedTools();
     void processToolDefGrp(ItemDefinitionGroup *itemDefGrp);

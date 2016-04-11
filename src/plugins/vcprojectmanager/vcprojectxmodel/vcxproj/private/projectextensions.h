@@ -43,7 +43,9 @@ class ProjectExtensions : public IVisualStudioNodeX
 {
 public:
     ProjectExtensions();
-    ProjectExtensions(const ProjectExtensions &projExt);
+    ProjectExtensions(const ProjectExtensions &other);
+    ProjectExtensions(ProjectExtensions &&other);
+    ProjectExtensions& operator=(ProjectExtensions other);
     ~ProjectExtensions();
 
     // IVisualStudioProjectNode interface
@@ -55,6 +57,7 @@ public:
     void setNode(const QDomNode &node);
 
 private:
+    static void swap(ProjectExtensions &first, ProjectExtensions &second);
     QDomNode m_node;
 };
 

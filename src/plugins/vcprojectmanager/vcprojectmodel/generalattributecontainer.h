@@ -54,7 +54,7 @@ public:
     void appendToXMLNode(QDomElement &elementNode) const;
 
 private:
-    void swap(GeneralAttributeContainer &first, GeneralAttributeContainer &second);
+    static void swap(GeneralAttributeContainer &first, GeneralAttributeContainer &second);
     QHash<QString, QString> m_anyAttribute;
 };
 

@@ -38,6 +38,24 @@ BracketExpression::BracketExpression(Expression *expr)
 {
 }
 
+BracketExpression::BracketExpression(const BracketExpression &other)
+    : Expression(other)
+{
+    m_expr = other.m_expr->clone();
+}
+
+BracketExpression::BracketExpression(BracketExpression &&other)
+    : BracketExpression()
+{
+    swap(*this, other);
+}
+
+BracketExpression &BracketExpression::operator=(BracketExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 Expression::ExpressionType BracketExpression::type() const
 {
     return BRACKET;
@@ -61,6 +79,12 @@ QString BracketExpression::toString() const
 Expression *BracketExpression::expression() const
 {
     return m_expr;
+}
+
+void BracketExpression::swap(BracketExpression &first, BracketExpression &second)
+{
+    Expression::swap(first, second);
+    std::swap(first.m_expr, second.m_expr);
 }
 
 } // namespace Internal

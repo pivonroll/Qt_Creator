@@ -29,11 +29,23 @@
 ****************************************************************************/
 #include "expression.h"
 
+#include <algorithm>
+
 namespace VcProjectManager {
 namespace Internal {
 
 Expression::Expression()
 {
+}
+
+Expression::Expression(const Expression &other)
+{
+    m_type = other.m_type;
+}
+
+void Expression::swap(Expression &first, Expression &second)
+{
+    std::swap(first.m_type, second.m_type);
 }
 } // namespace Internal
 } // namespace VcProjectManager

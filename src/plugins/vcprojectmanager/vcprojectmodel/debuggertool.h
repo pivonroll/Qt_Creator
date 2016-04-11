@@ -58,7 +58,7 @@ public:
     IDebuggerTool *clone() const;
 
 private:
-    void swap(DebuggerTool &first, DebuggerTool &second);
+    static void swap(DebuggerTool &first, DebuggerTool &second);
     void processNodeAttributes(const QDomElement &element);
 
     GeneralAttributeContainer *m_attributeContainer;

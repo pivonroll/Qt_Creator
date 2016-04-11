@@ -44,7 +44,9 @@ class Property : public IVisualStudioNodeX
 {
 public:
     Property();
-    Property(const Property &property);
+    Property(const Property &other);
+    Property(Property &&other);
+    Property& operator=(Property other);
     ~Property();
 
     QString condition() const;
@@ -61,6 +63,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Property &first, Property &second);
     void processNodeAttributes(const QDomElement &nodeElement);
 
     QString m_condition;

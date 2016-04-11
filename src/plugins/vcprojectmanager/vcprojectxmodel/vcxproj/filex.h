@@ -51,6 +51,8 @@ class FileX : public IFile
 public:
     FileX();
     FileX(const FileX &file);
+    FileX(FileX &&file);
+    FileX& operator=(FileX file);
     ~FileX();
 
     // IFile interface
@@ -69,6 +71,8 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(FileX &first, FileX &second);
+
     Item *m_item;
     Item *m_filterItem;
     Project *m_project;

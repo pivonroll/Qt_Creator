@@ -41,7 +41,10 @@ class ConfigurationX;
 class ToolsX : public ITools
 {
 public:
-    ToolsX(ConfigurationX *parentConfiguration);
+    explicit ToolsX(ConfigurationX *parentConfiguration = nullptr);
+    ToolsX(const ToolsX &other);
+    ToolsX(ToolsX &&other);
+    ToolsX& operator=(ToolsX other);
     ~ToolsX();
 
     // ITools interface
@@ -50,6 +53,7 @@ public:
     IDebuggerTools *debuggerTools() const;
 
 private:
+    static void swap(ToolsX &first, ToolsX &second);
     ConfigurationX *m_parentConfiguration;
 };
 

@@ -44,7 +44,9 @@ class Output : public IVisualStudioNodeX
 {
 public:
     Output();
-    Output(const Output &output);
+    Output(const Output &other);
+    Output(Output &&other);
+    Output& operator=(Output other);
     ~Output();
 
     QString taskParameter() const;
@@ -64,6 +66,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Output &first, Output &second);
     void processNodeAttributes(const QDomElement &nodeElement);
 
     QString m_taskParameter; // required

@@ -70,7 +70,7 @@ public:
     IConfiguration *createDefaultBuildConfiguration(const QString &configName, const QString &platformName) const;
 
 private:
-    void swap(File &first, File &second);
+    static void swap(File &first, File &second);
     void processFileConfiguration(const QDomNode &fileConfigNode);
     void processFile(const QDomNode &fileNode);
     void processNodeAttributes(const QDomElement &element);

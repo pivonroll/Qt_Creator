@@ -41,10 +41,22 @@ OnError::OnError()
 {
 }
 
-OnError::OnError(const OnError &onError)
+OnError::OnError(const OnError &other)
 {
-    m_condition = onError.condition();
-    m_executeTargets = onError.executeTargets();
+    m_condition = other.m_condition;
+    m_executeTargets = other.m_executeTargets;
+}
+
+OnError::OnError(OnError &&other)
+    : OnError()
+{
+    swap(*this, other);
+}
+
+OnError &OnError::operator=(OnError other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 OnError::~OnError()
@@ -90,6 +102,12 @@ QDomNode OnError::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void OnError::swap(OnError &first, OnError &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_executeTargets, second.m_executeTargets);
 }
 
 void OnError::processNodeAttributes(const QDomElement &nodeElement)

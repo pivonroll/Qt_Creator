@@ -50,7 +50,9 @@ class Target : public IVisualStudioNodeX
 {
 public:
     Target();
-    Target(const Target &target);
+    Target(const Target &other);
+    Target(Target &&other);
+    Target& operator=(Target other);
     ~Target();
 
     QString name() const;
@@ -120,6 +122,7 @@ public:
     void setKeepDuplicateOutputs(const QString &keepDuplicateOutputs);
 
 private:
+    static void swap(Target &first, Target &second);
     void processNodeAttributes(const QDomElement &nodeElement);
     void processChildNodes(const QDomNode &node);
 

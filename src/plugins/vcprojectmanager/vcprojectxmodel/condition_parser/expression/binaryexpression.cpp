@@ -39,6 +39,31 @@ BinaryExpression::BinaryExpression(Expression *leftOp, Expression *rightOp)
 {
 }
 
+BinaryExpression::BinaryExpression(const BinaryExpression &other)
+    : Expression(other)
+{
+    m_leftOperand = other.m_leftOperand->clone();
+    m_rightOperand = other.m_rightOperand->clone();
+}
+
+BinaryExpression::BinaryExpression(BinaryExpression &&other)
+    : BinaryExpression()
+{
+    swap(*this, other);
+}
+
+BinaryExpression &BinaryExpression::operator=(BinaryExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+BinaryExpression::~BinaryExpression()
+{
+    delete m_leftOperand;
+    delete m_rightOperand;
+}
+
 Expression *BinaryExpression::leftOperand() const
 {
     return m_leftOperand;
@@ -47,6 +72,19 @@ Expression *BinaryExpression::leftOperand() const
 Expression *BinaryExpression::rightOperand() const
 {
     return m_rightOperand;
+}
+
+BinaryExpression::BinaryExpression()
+    : m_leftOperand(nullptr),
+      m_rightOperand(nullptr)
+{
+}
+
+void BinaryExpression::swap(BinaryExpression &first, BinaryExpression &second)
+{
+    Expression::swap(first, second);
+    std::swap(first.m_leftOperand, second.m_leftOperand);
+    std::swap(first.m_rightOperand, second.m_rightOperand);
 }
 
 } // namespace Internal

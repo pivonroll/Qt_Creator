@@ -41,12 +41,24 @@ Output::Output()
 {
 }
 
-Output::Output(const Output &output)
+Output::Output(const Output &other)
 {
-    m_taskParameter = output.taskParameter();
-    m_condition = output.condition();
-    m_itemName = output.itemName();
-    m_propertyName = output.propertyName();
+    m_taskParameter = other.m_taskParameter;
+    m_condition = other.m_condition;
+    m_itemName = other.m_itemName;
+    m_propertyName = other.m_propertyName;
+}
+
+Output::Output(Output &&other)
+    : Output()
+{
+    swap(*this, other);
+}
+
+Output &Output::operator=(Output other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Output::~Output()
@@ -116,6 +128,14 @@ QDomNode Output::toXMLDomNode(QDomDocument &domXMLDocument) const
         element.setAttribute(QLatin1String(ITEM_NAME_ATTRIBUTE), m_itemName);
 
     return element;
+}
+
+void Output::swap(Output &first, Output &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_itemName, second.m_itemName);
+    std::swap(first.m_propertyName, second.m_propertyName);
+    std::swap(first.m_taskParameter, second.m_taskParameter);
 }
 
 void Output::processNodeAttributes(const QDomElement &nodeElement)

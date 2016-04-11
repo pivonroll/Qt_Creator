@@ -32,6 +32,8 @@
 #include "item.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -42,18 +44,26 @@ ItemGroup::ItemGroup()
 {
 }
 
-ItemGroup::ItemGroup(const ItemGroup &itemGroup)
+ItemGroup::ItemGroup(const ItemGroup &other)
 {
-    m_condition = itemGroup.condition();
-    m_label = itemGroup.label();
+    m_condition = other.m_condition;
+    m_label = other.m_label;
     qDeleteAll(m_items);
 
-    for (int i = 0; i < itemGroup.itemCount(); ++i) {
-        Item *item = itemGroup.item(i);
+    foreach (Item *item, other.m_items)
+        m_items.append(new Item(*item));
+}
 
-        if (item)
-            m_items.append(new Item(*item));
-    }
+ItemGroup::ItemGroup(ItemGroup &&other)
+    : ItemGroup()
+{
+    swap(*this, other);
+}
+
+ItemGroup &ItemGroup::operator=(ItemGroup other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ItemGroup::~ItemGroup()
@@ -63,9 +73,8 @@ ItemGroup::~ItemGroup()
 
 Item *ItemGroup::item(int index) const
 {
-    if (0 <= index && index < m_items.size())
-        return m_items[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_items.size(), return nullptr);
+    return m_items[index];
 }
 
 int ItemGroup::itemCount() const
@@ -160,6 +169,13 @@ QString ItemGroup::label() const
 void ItemGroup::setLabel(const QString &label)
 {
     m_label = label;
+}
+
+void ItemGroup::swap(ItemGroup &first, ItemGroup &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_items, second.m_items);
+    std::swap(first.m_label, second.m_label);
 }
 
 

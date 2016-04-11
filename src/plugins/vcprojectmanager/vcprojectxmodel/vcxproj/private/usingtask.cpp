@@ -40,26 +40,40 @@ namespace Internal {
 namespace VisualStudioProjectX {
 
 UsingTask::UsingTask()
-    : m_parameterGroup(0),
-      m_taskBody(0)
+    : m_parameterGroup(nullptr),
+      m_taskBody(nullptr)
 {
 }
 
-UsingTask::UsingTask(const UsingTask &usingTask)
+UsingTask::UsingTask(const UsingTask &other)
 {
-    m_assemblyName = usingTask.assemblyName();
-    m_assemblyFile = usingTask.assemblyFile();
-    m_taskFactory = usingTask.taskFactory();
-    m_taskName = usingTask.taskName();
-    m_condition = usingTask.condition();
+    m_assemblyName = other.m_assemblyName;
+    m_assemblyFile = other.m_assemblyFile;
+    m_taskFactory = other.m_taskFactory;
+    m_taskName = other.m_taskName;
+    m_condition = other.m_condition;
 
-    m_parameterGroup = 0;
-    if (usingTask.parameterGroup())
-        m_parameterGroup = new ParameterGroup(*usingTask.parameterGroup());
+    delete m_parameterGroup;
+    m_parameterGroup = nullptr;
+    if (other.m_parameterGroup)
+        m_parameterGroup = new ParameterGroup(*other.m_parameterGroup);
 
-    m_taskBody = 0;
-    if (usingTask.taskBody())
-        m_taskBody = new TaskBody(*usingTask.taskBody());
+    delete m_taskBody;
+    m_taskBody = nullptr;
+    if (other.m_taskBody)
+        m_taskBody = new TaskBody(*other.m_taskBody);
+}
+
+UsingTask::UsingTask(UsingTask &&other)
+    : UsingTask()
+{
+    swap(*this, other);
+}
+
+UsingTask &UsingTask::operator=(UsingTask other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 UsingTask::~UsingTask()
@@ -176,6 +190,17 @@ QDomNode UsingTask::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void UsingTask::swap(UsingTask &first, UsingTask &second)
+{
+    std::swap(first.m_assemblyFile, second.m_assemblyFile);
+    std::swap(first.m_assemblyName, second.m_assemblyName);
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_parameterGroup, second.m_parameterGroup);
+    std::swap(first.m_taskBody, second.m_taskBody);
+    std::swap(first.m_taskFactory, second.m_taskFactory);
+    std::swap(first.m_taskName, second.m_taskName);
 }
 
 void UsingTask::processNodeAttributes(const QDomElement &nodeElement)

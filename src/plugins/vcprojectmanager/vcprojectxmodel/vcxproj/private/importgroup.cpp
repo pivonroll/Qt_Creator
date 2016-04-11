@@ -32,6 +32,8 @@
 #include "import.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -42,19 +44,27 @@ ImportGroup::ImportGroup()
 {
 }
 
-ImportGroup::ImportGroup(const ImportGroup &importGroup)
+ImportGroup::ImportGroup(const ImportGroup &other)
 {
-    m_label = importGroup.label();
-    m_condition = importGroup.condition();
+    m_label = other.m_label;
+    m_condition = other.m_condition;
 
     qDeleteAll(m_importElements);
 
-    for (int i = 0; i < importGroup.importElementCount(); ++i) {
-        Import *import = importGroup.importElement(i);
+    foreach (Import *import, other.m_importElements)
+        m_importElements.append(new Import(*import));
+}
 
-        if (import)
-            m_importElements.append(new Import(*import));
-    }
+ImportGroup::ImportGroup(ImportGroup &&other)
+    : ImportGroup()
+{
+    swap(*this, other);
+}
+
+ImportGroup &ImportGroup::operator=(ImportGroup other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ImportGroup::~ImportGroup()
@@ -84,9 +94,8 @@ void ImportGroup::setLabel(const QString &label)
 
 Import *ImportGroup::importElement(int index) const
 {
-    if (0 <= index && index < m_importElements.size())
-        return m_importElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_importElements.size(), return nullptr);
+    return m_importElements[index];
 }
 
 int ImportGroup::importElementCount() const
@@ -135,6 +144,13 @@ QDomNode ImportGroup::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void ImportGroup::swap(ImportGroup &first, ImportGroup &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_importElements, second.m_importElements);
+    std::swap(first.m_label, second.m_label);
 }
 
 void ImportGroup::processChildNodes(const QDomNode &node)

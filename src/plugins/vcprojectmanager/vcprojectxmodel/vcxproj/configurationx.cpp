@@ -284,6 +284,44 @@ void setConfiguraitionName(When *node, const QString &oldName, const QString &ne
         setConfiguraitionName(node->propertyGroup(i), oldName, newName);
 }
 
+ConfigurationX::ConfigurationX(Project *project)
+    : m_item(nullptr),
+      m_itemDefinitionGroup(nullptr),
+      m_project(project)
+{
+}
+
+ConfigurationX::ConfigurationX(const ConfigurationX &other)
+{
+    m_item = other.m_item;
+    m_itemDefinitionGroup = other.m_itemDefinitionGroup;
+    m_project = other.m_project;
+
+    foreach (PropertyGroup *group, other.m_propertyGroups)
+        m_propertyGroups << new PropertyGroup(*group);
+
+    foreach (ImportGroup *group, other.m_importGroups)
+        m_importGroups << new ImportGroup(*group);
+
+    foreach (ItemMetaData *meta, other.m_itemMetaData)
+        m_itemMetaData << new ItemMetaData(*meta);
+}
+
+ConfigurationX::ConfigurationX(ConfigurationX &&other)
+    : ConfigurationX()
+{
+    swap(*this, other);
+}
+
+ConfigurationX &ConfigurationX::operator=(ConfigurationX other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+ConfigurationX::~ConfigurationX()
+{
+}
 
 IConfiguration::ConfigurationVersion ConfigurationX::version() const
 {
@@ -389,11 +427,14 @@ QDomNode ConfigurationX::toXMLDomNode(QDomDocument &domXMLDocument) const
     return QDomNode();
 }
 
-ConfigurationX::ConfigurationX(Project *project)
-    : m_item(0),
-      m_itemDefinitionGroup(0),
-      m_project(project)
+void ConfigurationX::swap(ConfigurationX &first, ConfigurationX &second)
 {
+    std::swap(first.m_importGroups, second.m_importGroups);
+    std::swap(first.m_item, second.m_item);
+    std::swap(first.m_itemDefinitionGroup, second.m_itemDefinitionGroup);
+    std::swap(first.m_itemMetaData, second.m_itemMetaData);
+    std::swap(first.m_project, second.m_project);
+    std::swap(first.m_propertyGroups, second.m_propertyGroups);
 }
 
 void ConfigurationX::findAssociatedTools()

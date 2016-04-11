@@ -44,7 +44,9 @@ class OnError : public IVisualStudioNodeX
 {
 public:
     OnError();
-    OnError(const OnError &onError);
+    OnError(const OnError &other);
+    OnError(OnError &&other);
+    OnError& operator=(OnError other);
     ~OnError();
 
     QString condition() const;
@@ -58,6 +60,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(OnError &first, OnError &second);
     void processNodeAttributes(const QDomElement &nodeElement);
 
     QString m_condition;

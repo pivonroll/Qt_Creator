@@ -53,7 +53,7 @@ public:
     void appendToXMLNode(QDomElement &domElement, QDomDocument &domDocument) const;
 
 private:
-    void swap(DebuggerTools &first, DebuggerTools &second);
+    static void swap(DebuggerTools &first, DebuggerTools &second);
     QList<IDebuggerTool *> m_debuggerTools;
 };
 

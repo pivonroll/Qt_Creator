@@ -47,6 +47,9 @@ class ToolSectionX : public IToolSection
 public:
     ToolSectionX(const ToolSectionDescription *toolSectionDescription, Project *project, ConfigurationX *configuration);
     ToolSectionX(const ToolSectionX &other);
+    ToolSectionX(ToolSectionX &&other);
+    ToolSectionX& operator=(ToolSectionX other);
+    ~ToolSectionX();
 
     // IToolSection interface
     IToolAttributeContainer *attributeContainer() const;
@@ -55,6 +58,8 @@ public:
     IToolSection *clone() const;
 
 private:
+    ToolSectionX();
+    static void swap(ToolSectionX &first, ToolSectionX &second);
     const ToolSectionDescription *m_toolSectionDescription;
     ConfigurationX *m_configuration;
     Project *m_project;

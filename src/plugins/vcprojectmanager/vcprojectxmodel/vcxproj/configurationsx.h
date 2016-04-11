@@ -48,7 +48,10 @@ class PropertyGroup;
 class ConfigurationsX : public IConfigurations
 {
 public:
-    ConfigurationsX(Project *project);
+    explicit ConfigurationsX(Project *project = nullptr);
+    ConfigurationsX(const ConfigurationsX &other);
+    ConfigurationsX(ConfigurationsX &&other);
+    ConfigurationsX& operator=(ConfigurationsX other);
 
     // IConfigurations interface
     IConfigurationContainer *configurationContainer() const;
@@ -59,6 +62,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(ConfigurationsX &first, ConfigurationsX &second);
     void processItemGroup();
     QList<PropertyGroup *> findConfigurationPropertyGroups(const QString &configName,
                                                             const QString &platform);

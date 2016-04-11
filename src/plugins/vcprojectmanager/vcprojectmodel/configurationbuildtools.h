@@ -54,7 +54,7 @@ public:
     void appendToXMLNode(QDomElement &domElement, QDomDocument &domDocument) const;
 
 private:
-    void swap(ConfigurationBuildTools &first, ConfigurationBuildTools &second);
+    static void swap(ConfigurationBuildTools &first, ConfigurationBuildTools &second);
     QList<IConfigurationBuildTool *> m_tools;
 };
 

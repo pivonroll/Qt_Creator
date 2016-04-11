@@ -38,6 +38,23 @@ ToolsX::ToolsX(ConfigurationX *parentConfiguration)
 {
 }
 
+ToolsX::ToolsX(const ToolsX &other)
+{
+    m_parentConfiguration = other.m_parentConfiguration;
+}
+
+ToolsX::ToolsX(ToolsX &&other)
+    : ToolsX()
+{
+    swap(*this, other);
+}
+
+ToolsX &ToolsX::operator=(ToolsX other)
+{
+    swap(*this, other);
+    return *this;
+}
+
 ToolsX::~ToolsX()
 {
 }
@@ -55,6 +72,11 @@ IDeploymentTools *ToolsX::deploymentTools() const
 IDebuggerTools *ToolsX::debuggerTools() const
 {
     return nullptr;
+}
+
+void ToolsX::swap(ToolsX &first, ToolsX &second)
+{
+    std::swap(first.m_parentConfiguration, second.m_parentConfiguration);
 }
 
 } // namespace VisualStudioProjectX

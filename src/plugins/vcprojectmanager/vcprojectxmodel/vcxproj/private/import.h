@@ -41,7 +41,9 @@ class Import : public IVisualStudioNodeX
 {
 public:
     Import();
-    Import(const Import &import);
+    Import(const Import &other);
+    Import(Import &&other);
+    Import& operator=(Import other);
     ~Import();
 
     QString condition() const;
@@ -55,6 +57,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(Import &first, Import &second);
     QString m_condition;
     QString m_project; // required
 };

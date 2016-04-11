@@ -40,6 +40,8 @@
 #include "itemdefinitiongroup.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -47,68 +49,52 @@ namespace Internal {
 namespace VisualStudioProjectX {
 
 Project::Project()
-    : m_chooseElement(0),
-      m_projectExtensions(0)
+    : m_chooseElement(nullptr),
+      m_projectExtensions(nullptr)
 {
 }
 
-Project::Project(const Project &project)
+Project::Project(const Project &other)
 {
-    m_defaultTargets = project.defaultTargets();
-    m_initialTargets = project.initialTargets();
-    m_toolsVersion = project.toolsVersion();
-    m_xmlns = project.xmlns();
-    m_chooseElement = new Choose(*project.chooseElement());
-    m_projectExtensions = new ProjectExtensions(*project.projectExtensions());
+    m_defaultTargets = other.m_defaultTargets;
+    m_initialTargets = other.m_initialTargets;
+    m_toolsVersion = other.m_toolsVersion;
+    m_xmlns = other.m_xmlns;
+    m_chooseElement = new Choose(*other.m_chooseElement);
+    m_projectExtensions = new ProjectExtensions(*other.m_projectExtensions);
 
-    for (int i = 0; i < project.importElementCount(); ++i) {
-        Import *import = project.importElement(i);
+    foreach (Import *import, other.m_importElements)
+        addImport(new Import(*import));
 
-        if (import)
-            addImport(new Import(*import));
-    }
+    foreach (ImportGroup *import, other.m_importGroups)
+        addImportGroup(new ImportGroup(*import));
 
-    for (int i = 0; i < project.importGroupCount(); ++i) {
-        ImportGroup *import = project.importGroup(i);
+    foreach (ItemGroup *itemGrp, other.m_itemGroups)
+        addItemGroup(new ItemGroup(*itemGrp));
 
-        if (import)
-            addImportGroup(new ImportGroup(*import));
-    }
+    foreach (PropertyGroup *propGroup, other.m_propertyGroups)
+        addPropertyGroup(new PropertyGroup(*propGroup));
 
-    for (int i = 0; i < project.itemGroupCount(); ++i) {
-        ItemGroup *itemGrp = project.itemGroup(i);
+    foreach (Target *target, other.m_targets)
+        addTarget(new Target(*target));
 
-        if (itemGrp)
-            addItemGroup(new ItemGroup(*itemGrp));
-    }
+    foreach (UsingTask *usingTsk, other.m_usingTasks)
+        addUsingTask(new UsingTask(*usingTsk));
 
-    for (int i = 0; i < project.propertyGroupCount(); ++i) {
-        PropertyGroup *propGroup = project.propertyGroup(i);
+    foreach (ItemDefinitionGroup *itemDefGrp, other.m_itemDefinitionGroups)
+        addItemDefinitionGroup(new ItemDefinitionGroup(*itemDefGrp));
+}
 
-        if (propGroup)
-            addPropertyGroup(new PropertyGroup(*propGroup));
-    }
+Project::Project(Project &&other)
+    : Project()
+{
+    swap(*this, other);
+}
 
-    for (int i = 0; i < project.targetCount(); ++i) {
-        Target *target = project.target(i);
-
-        if (target)
-            addTarget(new Target(*target));
-    }
-
-    for (int i = 0; i < project.usingTaskCount(); ++i) {
-        UsingTask *usingTsk = project.usingTask(i);
-
-        if (usingTsk)
-            addUsingTask(new UsingTask(*usingTsk));
-    }
-
-    for (int i = 0; i < project.itemDefinitionGroupCount(); ++i) {
-        ItemDefinitionGroup *itemDefGrp = project.itemDefinitionGroup(i);
-
-        if (itemDefGrp)
-            addItemDefinitionGroup(new ItemDefinitionGroup(*itemDefGrp));
-    }
+Project &Project::operator=(Project other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Project::~Project()
@@ -120,6 +106,7 @@ Project::~Project()
     qDeleteAll(m_usingTasks);
     qDeleteAll(m_itemDefinitionGroups);
     delete m_projectExtensions;
+    delete m_chooseElement;
 }
 
 QStringList Project::defaultTargets() const
@@ -198,9 +185,8 @@ void Project::setChooseElement(Choose *chooseElement)
 
 Import *Project::importElement(int index) const
 {
-    if (0 <= index && index < m_importElements.size())
-        return m_importElements[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_importElements.size(), return nullptr);
+    return m_importElements[index];
 }
 
 int Project::importElementCount() const
@@ -224,9 +210,8 @@ void Project::removeImport(Import *import)
 
 ItemGroup *Project::itemGroup(int index) const
 {
-    if (0 <= index && index < m_itemGroups.size())
-        return m_itemGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_itemGroups.size(), return nullptr);
+    return m_itemGroups[index];
 }
 
 int Project::itemGroupCount() const
@@ -250,9 +235,8 @@ void Project::removeItemGroup(ItemGroup *itemGroup)
 
 ImportGroup *Project::importGroup(int index) const
 {
-    if (0 <= index && index < m_importGroups.size())
-        return m_importGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_importGroups.size(), return nullptr);
+    return m_importGroups[index];
 }
 
 int Project::importGroupCount() const
@@ -288,9 +272,8 @@ void Project::setProjectExtensions(ProjectExtensions *projectExtensions)
 
 PropertyGroup *Project::propertyGroup(int index) const
 {
-    if (0 <= index && index < m_propertyGroups.size())
-        return m_propertyGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_propertyGroups.size(), return nullptr);
+    return m_propertyGroups[index];
 }
 
 int Project::propertyGroupCount() const
@@ -314,9 +297,8 @@ void Project::removePropertyGroup(PropertyGroup *propertyGroup)
 
 Target *Project::target(int index) const
 {
-    if (0 <= index && index < m_targets.size())
-        return m_targets[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_targets.size(), return nullptr);
+    return m_targets[index];
 }
 
 int Project::targetCount() const
@@ -340,9 +322,8 @@ void Project::removeTarget(Target *target)
 
 UsingTask *Project::usingTask(int index) const
 {
-    if (0 <= index && index < m_usingTasks.size())
-        return m_usingTasks[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_usingTasks.size(), return nullptr);
+    return m_usingTasks[index];
 }
 
 int Project::usingTaskCount() const
@@ -366,9 +347,8 @@ void Project::removeUsingTask(UsingTask *usingTask)
 
 ItemDefinitionGroup *Project::itemDefinitionGroup(int index) const
 {
-    if (0 <= index && index < m_itemDefinitionGroups.size())
-        return m_itemDefinitionGroups[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_itemDefinitionGroups.size(), return nullptr);
+    return m_itemDefinitionGroups[index];
 }
 
 int Project::itemDefinitionGroupCount() const
@@ -443,6 +423,24 @@ QString Project::version() const
         return QLatin1String("2013");
     else if (m_toolsVersion == QLatin1String("13.0"))
         return QLatin1String("2015");
+}
+
+void Project::swap(Project &first, Project &second)
+{
+    std::swap(first.m_chooseElement, second.m_chooseElement);
+    std::swap(first.m_defaultTargets, second.m_defaultTargets);
+    std::swap(first.m_importElements, second.m_importElements);
+    std::swap(first.m_importGroups, second.m_importGroups);
+    std::swap(first.m_initialTargets, second.m_initialTargets);
+    std::swap(first.m_itemDefinitionGroups, second.m_itemDefinitionGroups);
+    std::swap(first.m_itemGroups, second.m_itemGroups);
+    std::swap(first.m_nodeList, second.m_nodeList);
+    std::swap(first.m_projectExtensions, second.m_projectExtensions);
+    std::swap(first.m_propertyGroups, second.m_propertyGroups);
+    std::swap(first.m_targets, second.m_targets);
+    std::swap(first.m_toolsVersion, second.m_toolsVersion);
+    std::swap(first.m_usingTasks, second.m_usingTasks);
+    std::swap(first.m_xmlns, second.m_xmlns);
 }
 
 void Project::processChildNodes(const QDomNode &node)

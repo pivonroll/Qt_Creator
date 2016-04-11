@@ -47,7 +47,9 @@ class ImportGroup : public IVisualStudioNodeX
 {
 public:
     ImportGroup();
-    ImportGroup(const ImportGroup &importGroup);
+    ImportGroup(const ImportGroup &other);
+    ImportGroup(ImportGroup &&other);
+    ImportGroup& operator=(ImportGroup other);
     ~ImportGroup();
 
     QString condition() const;
@@ -66,6 +68,7 @@ public:
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
 private:
+    static void swap(ImportGroup &first, ImportGroup &second);
     void processChildNodes(const QDomNode &node);
     void processAttributes(const QDomElement &nodeElement);
 

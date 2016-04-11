@@ -32,6 +32,8 @@
 #include "itemmetadata.h"
 #include "../vcprojx_constants.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -47,22 +49,30 @@ Item::Item(const QString &include)
 {
 }
 
-Item::Item(const Item &item)
+Item::Item(const Item &other)
 {
-    m_include = item.include();
-    m_exclude = item.exclude();
-    m_remove = item.remove();
-    m_condition = item.condition();
-    m_name = item.name();
+    m_include = other.m_include;
+    m_exclude = other.m_exclude;
+    m_remove = other.m_remove;
+    m_condition = other.m_condition;
+    m_name = other.m_name;
 
     qDeleteAll(m_itemMetaData);
 
-    for (int i = 0; i < item.itemMetaDataCount(); ++i) {
-        ItemMetaData *itemMetaData = item.itemMetaData(i);
+    foreach (ItemMetaData *itemMetaData, other.m_itemMetaData)
+        m_itemMetaData.append(new ItemMetaData(*itemMetaData));
+}
 
-        if (itemMetaData)
-            m_itemMetaData.append(new ItemMetaData(*itemMetaData));
-    }
+Item::Item(Item &&other)
+    : Item()
+{
+    swap(*this, other);
+}
+
+Item &Item::operator=(Item other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Item::~Item()
@@ -72,9 +82,8 @@ Item::~Item()
 
 ItemMetaData *Item::itemMetaData(int index) const
 {
-    if (0 <= index && index < m_itemMetaData.size())
-        return m_itemMetaData[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_itemMetaData.size(), return nullptr);
+    return m_itemMetaData[index];
 }
 
 int Item::itemMetaDataCount() const
@@ -179,6 +188,16 @@ QDomNode Item::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void Item::swap(Item &first, Item &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_exclude, second.m_exclude);
+    std::swap(first.m_include, second.m_include);
+    std::swap(first.m_itemMetaData, second.m_itemMetaData);
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_remove, second.m_remove);
 }
 
 void Item::processAttributes(const QDomElement &nodeElement)

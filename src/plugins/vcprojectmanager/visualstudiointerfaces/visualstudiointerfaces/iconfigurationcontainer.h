@@ -46,9 +46,8 @@ class IConfigurationContainer : public QObject
     Q_OBJECT
 
 public:
-    explicit IConfigurationContainer(QObject *parent = 0);
+    explicit IConfigurationContainer(QObject *parent = nullptr);
     IConfigurationContainer(const IConfigurationContainer &);
-    virtual IConfigurationContainer &operator=(const IConfigurationContainer &configurationContainer);
     virtual ~IConfigurationContainer();
 
     virtual void addConfiguration(IConfiguration *config) = 0;

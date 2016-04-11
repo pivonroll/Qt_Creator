@@ -47,7 +47,9 @@ class PropertyGroup : public IVisualStudioNodeX
 {
 public:
     PropertyGroup();
-    PropertyGroup(const PropertyGroup &propGrp);
+    PropertyGroup(const PropertyGroup &other);
+    PropertyGroup(PropertyGroup &&other);
+    PropertyGroup& operator=(PropertyGroup other);
     ~PropertyGroup();
 
     QString condition() const;
@@ -66,6 +68,7 @@ public:
     void setLabel(const QString &label);
 
 private:
+    static void swap(PropertyGroup &first, PropertyGroup &second);
     void processNodeAttributes(const QDomElement &nodeElement);
     void processChildNodes(const QDomNode &node);
 

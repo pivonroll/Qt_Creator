@@ -41,11 +41,23 @@ Property::Property()
 {
 }
 
-Property::Property(const Property &property)
+Property::Property(const Property &other)
 {
-    m_condition = property.condition();
-    m_name = property.name();
-    m_value = property.value();
+    m_condition = other.m_condition;
+    m_name = other.m_name;
+    m_value = other.m_value;
+}
+
+Property::Property(Property &&other)
+    : Property()
+{
+    swap(*this, other);
+}
+
+Property &Property::operator=(Property other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 Property::~Property()
@@ -99,6 +111,13 @@ QDomNode Property::toXMLDomNode(QDomDocument &domXMLDocument) const
     element.appendChild(valueText);
 
     return element;
+}
+
+void Property::swap(Property &first, Property &second)
+{
+    std::swap(first.m_condition, second.m_condition);
+    std::swap(first.m_name, second.m_name);
+    std::swap(first.m_value, second.m_value);
 }
 
 void Property::processNodeAttributes(const QDomElement &nodeElement)

@@ -31,6 +31,8 @@
 
 #include "itemmetadata.h"
 
+#include <utils/qtcassert.h>
+
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -41,18 +43,26 @@ ItemDefinition::ItemDefinition()
 {
 }
 
-ItemDefinition::ItemDefinition(const ItemDefinition &itemDefinition)
+ItemDefinition::ItemDefinition(const ItemDefinition &other)
 {
-    m_name = itemDefinition.name();
+    m_name = other.m_name;
 
     qDeleteAll(m_metaData);
 
-    for (int i = 0; i < itemDefinition.metaDataCount(); ++i) {
-        ItemMetaData *itemMetaData = itemDefinition.metaData(i);
+    foreach (ItemMetaData *itemMetaData, other.m_metaData)
+        m_metaData.append(new ItemMetaData(*itemMetaData));
+}
 
-        if (itemMetaData)
-            m_metaData.append(new ItemMetaData(*itemMetaData));
-    }
+ItemDefinition::ItemDefinition(ItemDefinition &&other)
+    : ItemDefinition()
+{
+    swap(*this, other);
+}
+
+ItemDefinition &ItemDefinition::operator=(ItemDefinition other)
+{
+    swap(*this, other);
+    return *this;
 }
 
 ItemDefinition::~ItemDefinition()
@@ -62,9 +72,8 @@ ItemDefinition::~ItemDefinition()
 
 ItemMetaData *ItemDefinition::metaData(int index) const
 {
-    if (0 <= index && index < m_metaData.size())
-        return m_metaData[index];
-    return 0;
+    QTC_ASSERT(0 <= index && index < m_metaData.size(), return nullptr);
+    return m_metaData[index];
 }
 
 ItemMetaData *ItemDefinition::findItemMetaData(const QString &name) const
@@ -127,6 +136,12 @@ QDomNode ItemDefinition::toXMLDomNode(QDomDocument &domXMLDocument) const
     }
 
     return element;
+}
+
+void ItemDefinition::swap(ItemDefinition &first, ItemDefinition &second)
+{
+    std::swap(first.m_metaData, second.m_metaData);
+    std::swap(first.m_name, second.m_name);
 }
 
 void ItemDefinition::processNodeAttributes(const QDomElement &domElement)
