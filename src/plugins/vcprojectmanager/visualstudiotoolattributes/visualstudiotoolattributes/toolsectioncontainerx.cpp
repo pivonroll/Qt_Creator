@@ -127,6 +127,8 @@ void ToolSectionContainerX::removeSection(const QString &sectionName)
 
 void ToolSectionContainerX::appendToXMLNode(QDomElement &elementNode, QDomDocument &domXMLDocument)
 {
+    Q_UNUSED(elementNode)
+    Q_UNUSED(domXMLDocument)
 }
 
 } // namespace VisualStudioProjectX

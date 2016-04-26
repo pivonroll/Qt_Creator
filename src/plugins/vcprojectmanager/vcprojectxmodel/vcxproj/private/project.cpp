@@ -423,6 +423,8 @@ QString Project::version() const
         return QLatin1String("2013");
     else if (m_toolsVersion == QLatin1String("13.0"))
         return QLatin1String("2015");
+
+    return QString();
 }
 
 void Project::swap(Project &first, Project &second)

@@ -94,3 +94,6 @@ OTHER_FILES += \
     $$PWD/tools/xml_definitions/VCCustomBuildTool.xml \
     $$PWD/tools/xml_definitions/VCCLCompilerTool.xml \
     $$PWD/tools/xml_definitions/VCBscMakeTool.xml
+
+DISTFILES += \
+    $$PWD/tools/xml_definitions/tools.xsd
