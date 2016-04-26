@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_ITOOLATTRIBUTECONTAINER_H
-#define VCPROJECTMANAGER_ITOOLATTRIBUTECONTAINER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_I_TOOL_ATTRIBUTE_CONTAINER_H
+#define VCPROJECTMANAGER_INTERNAL_I_TOOL_ATTRIBUTE_CONTAINER_H
 
 #include <QString>
 
@@ -70,4 +70,4 @@ public:
 
 } // Internal
 } // VcProjectManager
-#endif // ITOOLATTRIBUTECONTAINER_H
+#endif // VCPROJECTMANAGER_INTERNAL_I_TOOL_ATTRIBUTE_CONTAINER_H

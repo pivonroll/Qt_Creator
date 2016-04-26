@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_COMPAREEXPRESSION_H
-#define VCPROJECTMANAGER_INTERNAL_COMPAREEXPRESSION_H
+#ifndef VCPROJECTMANAGER_INTERNAL_COMPARE_EXPRESSION_H
+#define VCPROJECTMANAGER_INTERNAL_COMPARE_EXPRESSION_H
 
 #include "binaryexpression.h"
 
@@ -63,4 +63,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_COMPAREEXPRESSION_H
+#endif // VCPROJECTMANAGER_INTERNAL_COMPARE_EXPRESSION_H

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_DEPLOYMENTTOOLS_H
-#define VCPROJECTMANAGER_INTERNAL_DEPLOYMENTTOOLS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_DEPLOYMENT_TOOLS_H
+#define VCPROJECTMANAGER_INTERNAL_DEPLOYMENT_TOOLS_H
 
 #include <visualstudiointerfaces/ideploymenttools.h>
 
@@ -60,4 +60,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_DEPLOYMENTTOOLS_H
+#endif // VCPROJECTMANAGER_INTERNAL_DEPLOYMENT_TOOLS_H

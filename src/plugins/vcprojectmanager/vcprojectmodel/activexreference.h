@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_ACTIVEXREFERENCE_H
-#define VCPROJECTMANAGER_INTERNAL_ACTIVEXREFERENCE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_ACTIVE_X_REFERENCE_H
+#define VCPROJECTMANAGER_INTERNAL_ACTIVE_X_REFERENCE_H
 
 #include <visualstudiointerfaces/ireference.h>
 
@@ -73,4 +73,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_ACTIVEXREFERENCE_H
+#endif // VCPROJECTMANAGER_INTERNAL_ACTIVE_X_REFERENCE_H

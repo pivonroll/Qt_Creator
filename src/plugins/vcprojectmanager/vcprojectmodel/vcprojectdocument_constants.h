@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VCPROJECTDOCUMENT_CONSTANTS_H
-#define VCPROJECTMANAGER_INTERNAL_VCPROJECTDOCUMENT_CONSTANTS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_DOCUMENT_CONSTANTS_H
+#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_DOCUMENT_CONSTANTS_H
 
 namespace VcProjectManager {
 namespace Internal {
@@ -123,4 +123,4 @@ const char TOOL_XML_DATA_PROXY_GENERATOR [] = "VCXMLDataGeneratorTool";
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VCPROJECTDOCUMENT_CONSTANTS_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_DOCUMENT_CONSTANTS_H

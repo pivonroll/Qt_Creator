@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_BASETOOLATTRIBUTEX_H
-#define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_BASETOOLATTRIBUTEX_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_BASE_TOOL_ATTRIBUTE_X_H
+#define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_BASE_TOOL_ATTRIBUTE_X_H
 
 #include <visualstudiointerfaces/itoolattribute.h>
 
@@ -70,4 +70,4 @@ protected:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // BASETOOLATTRIBUTE_H
+#endif // VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_BASE_TOOL_ATTRIBUTE_X_H

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_CONFIGURATIONCONTAINER_H
-#define VCPROJECTMANAGER_INTERNAL_CONFIGURATIONCONTAINER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_CONFIGURATION_CONTAINER_H
+#define VCPROJECTMANAGER_INTERNAL_CONFIGURATION_CONTAINER_H
 
 #include <visualstudiointerfaces/iconfigurationcontainer.h>
 
@@ -103,4 +103,4 @@ private:
 
 } // Internal
 } // VcProjectManager
-#endif // VCPROJECTMANAGER_INTERNAL_CONFIGURATIONCONTAINER_H
+#endif // VCPROJECTMANAGER_INTERNAL_CONFIGURATION_CONTAINER_H

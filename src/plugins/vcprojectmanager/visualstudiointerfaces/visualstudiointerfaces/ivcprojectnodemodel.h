@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VCPROJECTNODE_H
-#define VCPROJECTMANAGER_INTERNAL_VCPROJECTNODE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_I_VC_PROJECT_XML_NODE_H
+#define VCPROJECTMANAGER_INTERNAL_I_VC_PROJECT_XML_NODE_H
 
 #include <QtGlobal>
 
@@ -80,4 +80,4 @@ public:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VCPROJECTNODE_H
+#endif // VCPROJECTMANAGER_INTERNAL_I_VC_PROJECT_XML_NODE_H

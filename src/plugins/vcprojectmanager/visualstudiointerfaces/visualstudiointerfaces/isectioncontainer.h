@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_ISECTIONCONTAINER_H
-#define VCPROJECTMANAGER_INTERNAL_ISECTIONCONTAINER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_I_SECTION_CONTAINER_H
+#define VCPROJECTMANAGER_INTERNAL_I_SECTION_CONTAINER_H
 
 #include <QString>
 
@@ -82,4 +82,4 @@ public:
 } // Internal
 } // VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_ISECTIONCONTAINER_H
+#endif // VCPROJECTMANAGER_INTERNAL_I_SECTION_CONTAINER_H

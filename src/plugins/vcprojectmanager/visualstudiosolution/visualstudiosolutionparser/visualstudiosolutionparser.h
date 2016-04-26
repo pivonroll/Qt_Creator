@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VISUALSTUDIOPROJECT_INTERNAL_VISUALSTUDIOSOLUTIONPARSER_H
-#define VISUALSTUDIOPROJECT_INTERNAL_VISUALSTUDIOSOLUTIONPARSER_H
+#ifndef VISUALSTUDIOPROJECT_INTERNAL_VISUAL_STUDIO_SOLUTION_PARSER_H
+#define VISUALSTUDIOPROJECT_INTERNAL_VISUAL_STUDIO_SOLUTION_PARSER_H
 
 #include "projectreference.h"
 #include "globals.h"
@@ -69,4 +69,4 @@ private:
 } // namespace Internal
 } // namespace VisualStudioProjectNS
 
-#endif // VISUALSTUDIOPROJECT_INTERNAL_VISUALSTUDIOSOLUTIONPARSER_H
+#endif // VISUALSTUDIOPROJECT_INTERNAL_VISUAL_STUDIO_SOLUTION_PARSER_H

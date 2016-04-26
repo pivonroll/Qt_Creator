@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_HASTRAILINGSLASHEXPRESSION_H
-#define VCPROJECTMANAGER_INTERNAL_HASTRAILINGSLASHEXPRESSION_H
+#ifndef VCPROJECTMANAGER_INTERNAL_HAS_TRAILING_SLASH_EXPRESSION_H
+#define VCPROJECTMANAGER_INTERNAL_HAS_TRAILING_SLASH_EXPRESSION_H
 
 #include "expression.h"
 
@@ -59,4 +59,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_HASTRAILINGSLASHEXPRESSION_H
+#endif // VCPROJECTMANAGER_INTERNAL_HAS_TRAILING_SLASH_EXPRESSION_H

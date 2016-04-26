@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_NUMERICEXPRESSION_H
-#define VCPROJECTMANAGER_INTERNAL_NUMERICEXPRESSION_H
+#ifndef VCPROJECTMANAGER_INTERNAL_NUMERIC_EXPRESSION_H
+#define VCPROJECTMANAGER_INTERNAL_NUMERIC_EXPRESSION_H
 
 #include "binaryexpression.h"
 
@@ -64,4 +64,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_NUMERICEXPRESSION_H
+#endif // VCPROJECTMANAGER_INTERNAL_NUMERIC_EXPRESSION_H

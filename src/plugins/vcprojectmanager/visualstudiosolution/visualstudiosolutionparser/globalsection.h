@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VISUALSTUDIOPROJECT_INTERNAL_GLOBALSECTION_H
-#define VISUALSTUDIOPROJECT_INTERNAL_GLOBALSECTION_H
+#ifndef VISUALSTUDIOPROJECT_INTERNAL_GLOBAL_SECTION_H
+#define VISUALSTUDIOPROJECT_INTERNAL_GLOBAL_SECTION_H
 
 #include "solutionconfiguration.h"
 
@@ -69,4 +69,4 @@ struct GlobalSection
 } // namespace Internal
 } // namespace VisualStudioProjectNS
 
-#endif // VISUALSTUDIOPROJECT_INTERNAL_GLOBALSECTION_H
+#endif // VISUALSTUDIOPROJECT_INTERNAL_GLOBAL_SECTION_H

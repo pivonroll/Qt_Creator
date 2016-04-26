@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef TOKENIZER_H
-#define TOKENIZER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_TOKENIZER_H
+#define VCPROJECTMANAGER_INTERNAL_TOKENIZER_H
 
 #include <QString>
 #include "lexertl/lookup.hpp"
@@ -60,4 +60,4 @@ private:
 } // Internal
 } // VcProjectManager
 
-#endif // TOKENIZER_H
+#endif // VCPROJECTMANAGER_INTERNAL_TOKENIZER_H

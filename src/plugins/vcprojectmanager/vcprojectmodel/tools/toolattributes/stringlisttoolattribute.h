@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_STRINGLISTTOOLATTRIBUTE_H
-#define VCPROJECTMANAGER_INTERNAL_STRINGLISTTOOLATTRIBUTE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_STRING_LIST_TOOL_ATTRIBUTE_H
+#define VCPROJECTMANAGER_INTERNAL_STRING_LIST_TOOL_ATTRIBUTE_H
 
 #include <visualstudiointerfaces/itoolattribute.h>
 
@@ -62,4 +62,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_STRINGLISTTOOLATTRIBUTE_H
+#endif // VCPROJECTMANAGER_INTERNAL_STRING_LIST_TOOL_ATTRIBUTE_H

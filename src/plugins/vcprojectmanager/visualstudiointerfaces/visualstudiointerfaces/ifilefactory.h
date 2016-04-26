@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_IFILEFACTORY
-#define VCPROJECTMANAGER_INTERNAL_IFILEFACTORY
+#ifndef VCPROJECTMANAGER_INTERNAL_I_FILE_FACTORY
+#define VCPROJECTMANAGER_INTERNAL_I_FILE_FACTORY
 
 #include <QtGlobal>
 #include <projectexplorer/projectnodes.h>
@@ -52,5 +52,5 @@ public:
 };
 }
 }
-#endif // VCPROJECTMANAGER_INTERNAL_IFILEFACTORY
+#endif // VCPROJECTMANAGER_INTERNAL_I_FILE_FACTORY
 

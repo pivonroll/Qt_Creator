@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_IPUBLISHINGITEM_H
-#define VCPROJECTMANAGER_INTERNAL_IPUBLISHINGITEM_H
+#ifndef VCPROJECTMANAGER_INTERNAL_I_PUBLISHING_ITEM_H
+#define VCPROJECTMANAGER_INTERNAL_I_PUBLISHING_ITEM_H
 
 #include "ivcprojectnodemodel.h"
 
@@ -54,4 +54,4 @@ public:
 } // Internal
 } // VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_IPUBLISHINGITEM_H
+#endif // VCPROJECTMANAGER_INTERNAL_I_PUBLISHING_ITEM_H

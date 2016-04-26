@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_TOOLFILES_H
-#define VCPROJECTMANAGER_INTERNAL_TOOLFILES_H
+#ifndef VCPROJECTMANAGER_INTERNAL_TOOL_FILES_H
+#define VCPROJECTMANAGER_INTERNAL_TOOL_FILES_H
 
 #include <visualstudiointerfaces/itoolfiles.h>
 
@@ -65,4 +65,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_TOOLFILES_H
+#endif // VCPROJECTMANAGER_INTERNAL_TOOL_FILES_H

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_STRINGCONSTANTEXPRESSION_H
-#define VCPROJECTMANAGER_INTERNAL_STRINGCONSTANTEXPRESSION_H
+#ifndef VCPROJECTMANAGER_INTERNAL_STRING_LITERAL_EXPRESSION_H
+#define VCPROJECTMANAGER_INTERNAL_STRING_LITERAL_EXPRESSION_H
 
 #include "stringexpression.h"
 
@@ -56,4 +56,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_STRINGCONSTANTEXPRESSION_H
+#endif // VCPROJECTMANAGER_INTERNAL_STRING_LITERAL_EXPRESSION_H

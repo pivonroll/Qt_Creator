@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJ_CONDITION_PARSER_H
-#define VCPROJ_CONDITION_PARSER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VCPROJ_CONDITION_PARSER_H
+#define VCPROJECTMANAGER_INTERNAL_VCPROJ_CONDITION_PARSER_H
 
 #include <QString>
 #include <QVarLengthArray>
@@ -63,4 +63,4 @@ protected:
     QString m_expression;
 };
 
-#endif // VCPROJ_CONDITION_PARSER_H
+#endif // VCPROJECTMANAGER_INTERNAL_VCPROJ_CONDITION_PARSER_H

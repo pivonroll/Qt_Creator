@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_ASSEMBLYREFERENCE_H
-#define VCPROJECTMANAGER_INTERNAL_ASSEMBLYREFERENCE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_ASSEMBLY_REFERENCE_H
+#define VCPROJECTMANAGER_INTERNAL_ASSEMBLY_REFERENCE_H
 
 #include <visualstudiointerfaces/ireference.h>
 
@@ -72,4 +72,4 @@ protected:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_ASSEMBLYREFERENCE_H
+#endif // VCPROJECTMANAGER_INTERNAL_ASSEMBLY_REFERENCE_H

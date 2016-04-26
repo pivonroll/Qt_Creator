@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_CONDITIONTOKENIZER_H
-#define VCPROJECTMANAGER_INTERNAL_CONDITIONTOKENIZER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_CONDITION_TOKENIZER_H
+#define VCPROJECTMANAGER_INTERNAL_CONDITION_TOKENIZER_H
 
 #include <QString>
 #include "tokenizer.h"
@@ -51,4 +51,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_CONDITIONTOKENIZER_H
+#endif // VCPROJECTMANAGER_INTERNAL_CONDITION_TOKENIZER_H

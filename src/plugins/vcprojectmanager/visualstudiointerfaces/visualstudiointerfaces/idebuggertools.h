@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_IDEBUGGERTOOLS_H
-#define VCPROJECTMANAGER_INTERNAL_IDEBUGGERTOOLS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_I_DEBUGGER_TOOLS_H
+#define VCPROJECTMANAGER_INTERNAL_I_DEBUGGER_TOOLS_H
 
 #include <QtGlobal>
 
@@ -75,4 +75,4 @@ public:
 };
 } // Internal
 } // VcProjectManager
-#endif // IDEBUGGERTOOLS_H
+#endif // VCPROJECTMANAGER_INTERNAL_I_DEBUGGER_TOOLS_H

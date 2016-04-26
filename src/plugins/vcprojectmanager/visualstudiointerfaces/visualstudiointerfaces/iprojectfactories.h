@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_IPROJECTFACTORIES
-#define VCPROJECTMANAGER_INTERNAL_IPROJECTFACTORIES
+#ifndef VCPROJECTMANAGER_INTERNAL_I_PROJECT_FACTORIES
+#define VCPROJECTMANAGER_INTERNAL_I_PROJECT_FACTORIES
 
 namespace VcProjectManager {
 namespace Internal {
@@ -44,5 +44,5 @@ public:
 
 } // namespace Internal
 } // namespace VcProjectManager
-#endif // VCPROJECTMANAGER_INTERNAL_IPROJECTFACTORIES
+#endif // VCPROJECTMANAGER_INTERNAL_I_PROJECT_FACTORIES
 

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_ICONFIGURATIONBUILDTOOL_H
-#define VCPROJECTMANAGER_INTERNAL_ICONFIGURATIONBUILDTOOL_H
+#ifndef VCPROJECTMANAGER_INTERNAL_I_CONFIGURATION_BUILD_TOOL_H
+#define VCPROJECTMANAGER_INTERNAL_I_CONFIGURATION_BUILD_TOOL_H
 
 #include "ivcprojectnodemodel.h"
 
@@ -70,4 +70,4 @@ public:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_ICONFIGURATIONBUILDTOOL_H
+#endif // VCPROJECTMANAGER_INTERNAL_I_CONFIGURATION_BUILD_TOOL_H

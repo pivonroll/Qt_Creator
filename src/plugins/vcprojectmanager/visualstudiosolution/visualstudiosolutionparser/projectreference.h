@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VISUALSTUDIOPROJECT_INTERNAL_PROJECTREFERENCE_H
-#define VISUALSTUDIOPROJECT_INTERNAL_PROJECTREFERENCE_H
+#ifndef VISUALSTUDIOPROJECT_INTERNAL_PROJECT_REFERENCE_H
+#define VISUALSTUDIOPROJECT_INTERNAL_PROJECT_REFERENCE_H
 
 #include <QString>
 
@@ -54,4 +54,4 @@ struct FolderReference
 } // namespace Internal
 } // namespace VisualStudioProjectNS
 
-#endif // VISUALSTUDIOPROJECT_INTERNAL_PROJECTREFERENCE_H
+#endif // VISUALSTUDIOPROJECT_INTERNAL_PROJECT_REFERENCE_H

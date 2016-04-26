@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJX_CONSTANTS_H
-#define VCPROJX_CONSTANTS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_VCPROJX_CONSTANTS_H
+#define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_VCPROJX_CONSTANTS_H
 
 namespace VcProjectManager {
 namespace Internal {
@@ -109,4 +109,4 @@ const char PROJECT_CONFIGURATIONS[] = "ProjectConfigurations";
 } // Internal
 } // VcProjectManager
 
-#endif // VCPROJX_CONSTANTS_H
+#endif // VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_VCPROJX_CONSTANTS_H

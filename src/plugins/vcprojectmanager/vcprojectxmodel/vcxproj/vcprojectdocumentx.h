@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_H
-#define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_DOCUMENTX_H
+#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_DOCUMENTX_H
 
 #include <QDomProcessingInstruction>
 
@@ -92,4 +92,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOPROJECTX_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_DOCUMENTX_H

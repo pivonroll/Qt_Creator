@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_EVALUATEARGUMENTS_H
-#define VCPROJECTMANAGER_INTERNAL_EVALUATEARGUMENTS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_EVALUATE_ARGUMENTS_H
+#define VCPROJECTMANAGER_INTERNAL_EVALUATE_ARGUMENTS_H
 
 #include <QMap>
 
@@ -55,4 +55,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_EVALUATEARGUMENTS_H
+#endif // VCPROJECTMANAGER_INTERNAL_EVALUATE_ARGUMENTS_H

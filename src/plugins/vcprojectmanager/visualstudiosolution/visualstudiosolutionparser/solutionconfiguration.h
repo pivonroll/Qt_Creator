@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VISUALSTUDIOPROJECTNS_INTERNAL_SOLUTIONCONFIGURATION_H
-#define VISUALSTUDIOPROJECTNS_INTERNAL_SOLUTIONCONFIGURATION_H
+#ifndef VISUALSTUDIOPROJECTNS_INTERNAL_SOLUTION_CONFIGURATION_H
+#define VISUALSTUDIOPROJECTNS_INTERNAL_SOLUTION_CONFIGURATION_H
 
 #include <QString>
 
@@ -44,4 +44,4 @@ struct SolutionConfiguration
 } // namespace Internal
 } // namespace VisualStudioProjectNS
 
-#endif // VISUALSTUDIOPROJECTNS_INTERNAL_SOLUTIONCONFIGURATION_H
+#endif // VISUALSTUDIOPROJECTNS_INTERNAL_SOLUTION_CONFIGURATION_H
