@@ -96,4 +96,7 @@ OTHER_FILES += \
     $$PWD/tools/xml_definitions/VCBscMakeTool.xml
 
 DISTFILES += \
-    $$PWD/tools/xml_definitions/tools.xsd
+    $$PWD/tools/xml_definitions/tools.xsd \
+    $$PWD/schemas/Visual-Studio-2003.xsd \
+    $$PWD/schemas/Visual-Studio-2005.xsd \
+    $$PWD/schemas/Visual-Studio-2008.xsd
