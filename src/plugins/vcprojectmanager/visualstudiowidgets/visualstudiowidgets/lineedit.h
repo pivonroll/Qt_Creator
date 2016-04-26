@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef LINEEDIT_H
-#define LINEEDIT_H
+#ifndef VCPROJECTMANAGER_INTERNAL_LINEEDIT_H
+#define VCPROJECTMANAGER_INTERNAL_LINEEDIT_H
 
 #include <QLineEdit>
 
@@ -49,4 +49,4 @@ public:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // LINEEDIT_H
+#endif // VCPROJECTMANAGER_INTERNAL_LINEEDIT_H

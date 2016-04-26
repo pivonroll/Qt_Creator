@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOSOLUTIONNODE_H
-#define VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOSOLUTIONNODE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_SOLUTION_NODE_H
+#define VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_SOLUTION_NODE_H
 
 #include <projectexplorer/projectnodes.h>
 #include "visualstudiosolution/visualstudiosolutionparser/projectreference.h"
@@ -128,4 +128,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VISUALSTUDIOSOLUTIONNODE_H
+#endif // VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_SOLUTION_NODE_H

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef PROJECTSETTINGSWIDGET_H
-#define PROJECTSETTINGSWIDGET_H
+#ifndef VCPROJECTMANAGER_INTERNAL_PROJECT_SETTINGS_WIDGET_H
+#define VCPROJECTMANAGER_INTERNAL_PROJECT_SETTINGS_WIDGET_H
 
 #include <QIcon>
 #include <QWidget>
@@ -72,4 +72,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // PROJECTSETTINGSWIDGET_H
+#endif // VCPROJECTMANAGER_INTERNAL_PROJECT_SETTINGS_WIDGET_H

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VCMAKESTEP_H
-#define VCPROJECTMANAGER_INTERNAL_VCMAKESTEP_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_MAKE_STEP_H
+#define VCPROJECTMANAGER_INTERNAL_VC_MAKE_STEP_H
 
 #include <projectexplorer/abstractprocessstep.h>
 
@@ -113,4 +113,4 @@ public:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VCMAKESTEP_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_MAKE_STEP_H

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef CONFIGURATIONWIDGETS_H
-#define CONFIGURATIONWIDGETS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_CONFIGURATION_BASE_WIDGET_H
+#define VCPROJECTMANAGER_INTERNAL_CONFIGURATION_BASE_WIDGET_H
 
 #include <visualstudiowidgets/vcnodewidget.h>
 
@@ -62,4 +62,4 @@ protected:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // CONFIGURATIONWIDGETS_H
+#endif // VCPROJECTMANAGER_INTERNAL_CONFIGURATION_BASE_WIDGET_H

@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGERPLUGIN_H
-#define VCPROJECTMANAGERPLUGIN_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_MANAGER_PLUGIN_H
+#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_MANAGER_PLUGIN_H
 
 #include "vcprojectmanager_global.h"
 
@@ -54,5 +54,5 @@ public:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGERPLUGIN_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_MANAGER_PLUGIN_H
 

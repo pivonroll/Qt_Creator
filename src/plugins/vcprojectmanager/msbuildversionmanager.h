@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_MSBUILDVERSIONMANAGER_H
-#define VCPROJECTMANAGER_INTERNAL_MSBUILDVERSIONMANAGER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_MS_BUILD_VERSION_MANAGER_H
+#define VCPROJECTMANAGER_INTERNAL_MS_BUILD_VERSION_MANAGER_H
 
 #include <coreplugin/id.h>
 
@@ -124,4 +124,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_MSBUILDVERSIONMANAGER_H
+#endif // VCPROJECTMANAGER_INTERNAL_MS_BUILD_VERSION_MANAGER_H

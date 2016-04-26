@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGERCONSTANTS_H
-#define VCPROJECTMANAGERCONSTANTS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_MANAGER_CONSTANTS_H
+#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_MANAGER_CONSTANTS_H
 
 #include <QtGlobal>
 
@@ -85,5 +85,5 @@ enum SchemaVersion
 } // namespace VcProjectManager
 } // namespace Constants
 
-#endif // VCPROJECTMANAGERCONSTANTS_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_MANAGER_CONSTANTS_H
 

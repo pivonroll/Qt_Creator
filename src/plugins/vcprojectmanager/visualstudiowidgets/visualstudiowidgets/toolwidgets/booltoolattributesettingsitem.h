@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTEWIDGET_H
-#define VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTEWIDGET_H
+#ifndef VCPROJECTMANAGER_INTERNAL_BOOL_TOOL_ATTRIBUTE_SETTINGS_ITEM_H
+#define VCPROJECTMANAGER_INTERNAL_BOOL_TOOL_ATTRIBUTE_SETTINGS_ITEM_H
 
 #include "itoolattributesettingswidget.h"
 
@@ -58,4 +58,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_BOOLTOOLATTRIBUTEWIDGET_H
+#endif // VCPROJECTMANAGER_INTERNAL_BOOL_TOOL_ATTRIBUTE_SETTINGS_ITEM_H

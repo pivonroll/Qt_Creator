@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_FILECONFIGURATIONSEDITWIDGET_H
-#define VCPROJECTMANAGER_INTERNAL_FILECONFIGURATIONSEDITWIDGET_H
+#ifndef VCPROJECTMANAGER_INTERNAL_FILECONFIGURATIONS_EDIT_WIDGET_H
+#define VCPROJECTMANAGER_INTERNAL_FILECONFIGURATIONS_EDIT_WIDGET_H
 
 #include "vcnodewidget.h"
 

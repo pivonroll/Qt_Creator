@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCNODEWIDGET_H
-#define VCNODEWIDGET_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_NODE_WIDGET_H
+#define VCPROJECTMANAGER_INTERNAL_VC_NODE_WIDGET_H
 
 #include <QWidget>
 
@@ -50,4 +50,4 @@ public:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCNODEWIDGET_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_NODE_WIDGET_H

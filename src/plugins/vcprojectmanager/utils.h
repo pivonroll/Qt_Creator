@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_UTILS_H
-#define VCPROJECTMANAGER_INTERNAL_UTILS_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_UTILS_H
+#define VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_UTILS_H
 
 #include "vcprojectmodel/vcprojectdocument_constants.h"
 
@@ -59,4 +59,4 @@ void cleanUpConfigToolSection(IToolSection *toolSection, IToolSection *projToolS
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_UTILS_H
+#endif // VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_UTILS_H

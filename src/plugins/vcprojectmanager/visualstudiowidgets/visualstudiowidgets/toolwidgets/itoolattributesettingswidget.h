@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_ITOOLATTRIBUTEWIDGET_H
-#define VCPROJECTMANAGER_INTERNAL_ITOOLATTRIBUTEWIDGET_H
+#ifndef VCPROJECTMANAGER_INTERNAL_I_TOOL_ATTRIBUTE_SETTINGS_WIDGET_H
+#define VCPROJECTMANAGER_INTERNAL_I_TOOL_ATTRIBUTE_SETTINGS_WIDGET_H
 
 #include <QWidget>
 
@@ -57,4 +57,4 @@ public:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_ITOOLATTRIBUTEWIDGET_H
+#endif // VCPROJECTMANAGER_INTERNAL_I_TOOL_ATTRIBUTE_SETTINGS_WIDGET_H

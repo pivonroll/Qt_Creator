@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_MSBUILDPARSER_H
-#define VCPROJECTMANAGER_INTERNAL_MSBUILDPARSER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_MS_BUILD_PARSER_H
+#define VCPROJECTMANAGER_INTERNAL_MS_BUILD_PARSER_H
 
 #include <projectexplorer/ioutputparser.h>
 #include <projectexplorer/task.h>
@@ -63,4 +63,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_MSBUILDPARSER_H
+#endif // VCPROJECTMANAGER_INTERNAL_MS_BUILD_PARSER_H

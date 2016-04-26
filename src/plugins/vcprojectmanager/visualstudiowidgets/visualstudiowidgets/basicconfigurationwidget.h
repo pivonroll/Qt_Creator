@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef BASICCONFIGURATIONWIDGET_H
-#define BASICCONFIGURATIONWIDGET_H
+#ifndef VCPROJECTMANAGER_INTERNAL_BASIC_CONFIGURATION_WIDGET_H
+#define VCPROJECTMANAGER_INTERNAL_BASIC_CONFIGURATION_WIDGET_H
 
 #include <QHash>
 #include <QWidget>
@@ -69,4 +69,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // BASICCONFIGURATIONWIDGET_H
+#endif // VCPROJECTMANAGER_INTERNAL_BASIC_CONFIGURATION_WIDGET_H

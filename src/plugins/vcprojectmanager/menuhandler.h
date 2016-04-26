@@ -27,8 +27,8 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_MENUHANDLER_H
-#define VCPROJECTMANAGER_INTERNAL_MENUHANDLER_H
+#ifndef VCPROJECTMANAGER_INTERNAL_MENU_HANDLER_H
+#define VCPROJECTMANAGER_INTERNAL_MENU_HANDLER_H
 
 #include <QObject>
 
@@ -81,4 +81,4 @@ private:
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_MENUHANDLER_H
+#endif // VCPROJECTMANAGER_INTERNAL_MENU_HANDLER_H
