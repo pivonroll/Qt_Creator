@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -38,7 +38,7 @@ namespace Internal {
 class BinaryExpression : public Expression
 {
 public:
-    BinaryExpression(Expression *leftOp, Expression *rigthOp);
+    BinaryExpression(ExpressionType expressionType, Expression *leftOp, Expression *rigthOp);
     BinaryExpression(const BinaryExpression &other);
     BinaryExpression(BinaryExpression &&other);
     BinaryExpression& operator=(BinaryExpression other);
@@ -46,7 +46,10 @@ public:
 
     Expression* leftOperand() const;
     Expression* rightOperand() const;
+
     Expression* clone() const;
+    QVariant evaluate(const EvaluateArguments &evalArgs) const;
+    QString toString() const;
 
 protected:
     BinaryExpression();

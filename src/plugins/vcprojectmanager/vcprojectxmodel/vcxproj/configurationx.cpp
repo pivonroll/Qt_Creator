@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -330,7 +330,7 @@ IConfiguration::ConfigurationVersion ConfigurationX::version() const
 
 IAttributeContainer *ConfigurationX::attributeContainer() const
 {
-    return 0;
+    return nullptr;
 }
 
 QString ConfigurationX::fullName() const
@@ -412,7 +412,7 @@ IConfiguration *ConfigurationX::clone() const
 
 VcNodeWidget *ConfigurationX::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 void ConfigurationX::processNode(const QDomNode &node)

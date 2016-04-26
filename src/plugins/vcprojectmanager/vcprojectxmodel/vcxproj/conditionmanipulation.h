@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -46,17 +46,19 @@ namespace VisualStudioProjectX {
 class ConditionManipulation
 {
 public:
-    ConditionManipulation(const QString &conditionExpression);
+    explicit ConditionManipulation(const QString &conditionExpression = QString());
     ConditionManipulation(const ConditionManipulation &other);
     ConditionManipulation(ConditionManipulation &&other);
     ConditionManipulation& operator=(ConditionManipulation other);
     ~ConditionManipulation();
+
     /*!
      * @brief findVariableEqRightExpr returns a pointer to a expression that matches variable but is on the right side of '==' expresion
      *
      * If you have an expression like this one: '($Configuration|$Platform)'=='(Debug|Win32)' and you want to fetch the expression
      * that is matched to the \b $Configuration which in this case is \b Debug then you need to use this function.
      */
+
     Expression* findVariableEqRightExpr(const QString &variable) const;
     QString conditionToString() const;
     bool evaluate(const EvaluateArguments &evalArgs) const;

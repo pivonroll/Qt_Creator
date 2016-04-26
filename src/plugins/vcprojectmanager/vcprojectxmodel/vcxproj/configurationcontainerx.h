@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -59,7 +59,7 @@ public:
     ConfigurationContainerX(ItemGroup *configurationsItemGroup, Project *project, QObject *parent = 0);
     ConfigurationContainerX(const ConfigurationContainerX &configCont);
     ConfigurationContainerX(ConfigurationContainerX &&configCont);
-    IConfigurationContainer& operator=(IConfigurationContainer configCont);
+    ConfigurationContainerX& operator=(ConfigurationContainerX configCont);
 
     void addConfiguration(IConfiguration *config);
     void removeConfiguration(const QString &fullName);
@@ -68,6 +68,7 @@ public:
     int configurationCount() const;
     IConfiguration *createNewConfiguration(const QString &configDisplayName, const QString &platformName);
     IConfigurationContainer *clone() const;
+    void copyDataFrom(IConfigurationContainer *config);
 
 private:
     ConfigurationContainerX();

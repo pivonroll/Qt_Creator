@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -38,15 +38,20 @@ namespace Internal {
 class NotExpression : public Expression
 {
 public:
-    NotExpression(Expression *expr);
+    explicit NotExpression(Expression *expr = nullptr);
+    NotExpression(const NotExpression &other);
+    NotExpression(NotExpression &&other);
+    NotExpression& operator=(NotExpression other);
+    ~NotExpression();
 
     // Expression interface
-    ExpressionType type() const;
     QVariant evaluate(const EvaluateArguments &evalArgs) const;
     QString toString() const;
+    Expression *clone() const;
     Expression* expression() const;
 
 private:
+    static void swap(NotExpression &first, NotExpression &second);
     Expression *m_expression;
 };
 

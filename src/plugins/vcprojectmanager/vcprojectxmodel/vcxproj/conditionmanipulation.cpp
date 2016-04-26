@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -59,7 +59,7 @@ ConditionManipulation::ConditionManipulation(const QString &conditionExpression)
 
 ConditionManipulation::ConditionManipulation(const ConditionManipulation &other)
 {
-    m_condExpression = new Expression(*other.m_condExpression);
+    m_condExpression = other.m_condExpression->clone();
     m_conditionString = other.m_conditionString;
 }
 
@@ -69,7 +69,7 @@ ConditionManipulation::ConditionManipulation(ConditionManipulation &&other)
     swap(*this, other);
 }
 
-ConditionManipulation &&ConditionManipulation::operator=(ConditionManipulation other)
+ConditionManipulation &ConditionManipulation::operator=(ConditionManipulation other)
 {
     swap(*this, other);
     return *this;
@@ -109,7 +109,7 @@ void ConditionManipulation::swap(ConditionManipulation &first, ConditionManipula
 Expression *ConditionManipulation::findVariableEqRightExpr(Expression *startExp, const QString &variable) const
 {
     if (!startExp)
-        return 0;
+        return nullptr;
 
     if (startExp->type() == Expression::STRING_COMPARE) {
         StringCompare *strCmpExpr = static_cast<StringCompare *>(startExp);
@@ -131,7 +131,7 @@ Expression *ConditionManipulation::findVariableEqRightExpr(Expression *startExp,
         return findVariableEqRightExpr(logBinExpr->leftOperand(), variable);
     }
 
-    return 0;
+    return nullptr;
 }
 
 Expression *ConditionManipulation::findStrCmpRightExpr(StringCompare *strCmpExpr, const QString &variable) const
@@ -167,7 +167,7 @@ Expression *ConditionManipulation::findStrCmpRightExpr(StringCompare *strCmpExpr
 
 bool ConditionManipulation::findInVariablePipeExpression(VariablePipe *varPipeExpr, const QString &variable, int &index) const
 {
-    if (varPipeExpr)
+    if (!varPipeExpr)
         return false;
 
     Expression* leftOp = varPipeExpr->leftOperand();
@@ -198,8 +198,8 @@ bool ConditionManipulation::findInVariablePipeExpression(VariablePipe *varPipeEx
 
 StringLiteral *ConditionManipulation::getVariablePipeLiteral(VariablePipe *varPipeExpr, int index) const
 {
-    if (varPipeExpr)
-        return 0;
+    if (!varPipeExpr)
+        return nullptr;
 
     if (!index) {
         Expression* leftOp = varPipeExpr->leftOperand();
@@ -207,7 +207,7 @@ StringLiteral *ConditionManipulation::getVariablePipeLiteral(VariablePipe *varPi
             StringLiteral *stringLiteralExpr = static_cast<StringLiteral *>(leftOp);
             return stringLiteralExpr;
         } else
-            return 0;
+            return nullptr;
     }
 
     index--;
@@ -220,7 +220,7 @@ StringLiteral *ConditionManipulation::getVariablePipeLiteral(VariablePipe *varPi
                 StringLiteral *stringLiteralExpr = static_cast<StringLiteral *>(rightOp);
                 return stringLiteralExpr;
             } else
-                return 0;
+                return nullptr;
         }
 
         else if (rightOp->type() == Expression::VARIABLE_PIPE) {
@@ -229,7 +229,7 @@ StringLiteral *ConditionManipulation::getVariablePipeLiteral(VariablePipe *varPi
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 } // namespace VisualStudioProjectX

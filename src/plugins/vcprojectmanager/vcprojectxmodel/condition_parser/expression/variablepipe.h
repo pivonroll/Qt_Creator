@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -30,26 +30,27 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VARIABLEPIPE_H
 #define VCPROJECTMANAGER_INTERNAL_VARIABLEPIPE_H
 
-#include "expression.h"
+#include "binaryexpression.h"
 
 namespace VcProjectManager {
 namespace Internal {
 
-class VariablePipe : public Expression
+class VariablePipe : public BinaryExpression
 {
 public:
     VariablePipe(Expression *left, Expression *right);
+    VariablePipe(const VariablePipe &other);
+    VariablePipe(VariablePipe &&other);
+    VariablePipe& operator=(VariablePipe other);
+    ~VariablePipe();
 
     // Expression interface
-    ExpressionType type() const;
     QVariant evaluate(const EvaluateArguments &evalArgs) const;
     QString toString() const;
-    Expression *leftOperand() const;
-    Expression *rightOperand() const;
 
 private:
-    Expression *m_leftOperand;
-    Expression *m_rightOperand;
+    VariablePipe();
+    static void swap(VariablePipe &first, VariablePipe &second);
 };
 
 } // namespace Internal

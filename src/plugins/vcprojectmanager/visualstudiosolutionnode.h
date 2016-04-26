@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2015 Bojan Petrovic
-** Copyright (c) 2015 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.

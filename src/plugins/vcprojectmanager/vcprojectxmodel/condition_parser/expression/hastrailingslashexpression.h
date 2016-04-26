@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -41,13 +41,18 @@ class HasTrailingSlashExpression : public Expression
 {
 public:
     HasTrailingSlashExpression(Expression *expr);
+    HasTrailingSlashExpression(const HasTrailingSlashExpression &other);
+    HasTrailingSlashExpression(HasTrailingSlashExpression &&other);
+    HasTrailingSlashExpression& operator=(HasTrailingSlashExpression other);
+    ~HasTrailingSlashExpression();
 
     // Expression interface
-    ExpressionType type() const;
     QVariant evaluate(const EvaluateArguments &evalArgs) const;
     QString toString() const;
+    Expression *clone() const;
 
 private:
+    static void swap(HasTrailingSlashExpression &first, HasTrailingSlashExpression &second);
     Expression *m_expr;
 };
 

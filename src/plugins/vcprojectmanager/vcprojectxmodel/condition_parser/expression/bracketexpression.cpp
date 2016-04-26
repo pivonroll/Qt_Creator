@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -34,7 +34,8 @@ namespace VcProjectManager {
 namespace Internal {
 
 BracketExpression::BracketExpression(Expression *expr)
-    : m_expr(expr)
+    : Expression(BRACKET),
+      m_expr(expr)
 {
 }
 
@@ -56,9 +57,9 @@ BracketExpression &BracketExpression::operator=(BracketExpression other)
     return *this;
 }
 
-Expression::ExpressionType BracketExpression::type() const
+BracketExpression::~BracketExpression()
 {
-    return BRACKET;
+    delete m_expr;
 }
 
 QVariant BracketExpression::evaluate(const EvaluateArguments &evalArgs) const
@@ -74,6 +75,11 @@ QString BracketExpression::toString() const
     if (m_expr)
         str =  QLatin1String("(") + m_expr->toString() + QLatin1String(")");
     return str;
+}
+
+Expression *BracketExpression::clone() const
+{
+    return new BracketExpression(*this);
 }
 
 Expression *BracketExpression::expression() const

@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -60,7 +60,7 @@ ItemGroup *Utils::findItemGroupWithName(const QString &itemName, Project *docPro
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 ItemGroup *Utils::findItemGroupContainingItem(Item *item, Project *docProject)
@@ -74,7 +74,7 @@ ItemGroup *Utils::findItemGroupContainingItem(Item *item, Project *docProject)
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 bool Utils::groupContainsItem(Item *item, ItemGroup *itemGroup)
@@ -102,7 +102,7 @@ Item *Utils::findItemInGroup(const QString &incl, ItemGroup *itemGroup)
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 bool Utils::itemGroupContainsItemName(const QString &itemName, ItemGroup *itemGroup)
@@ -122,7 +122,7 @@ bool Utils::itemGroupContainsItemName(const QString &itemName, ItemGroup *itemGr
 ItemMetaData *Utils::findItemMetaWithName(const QString &name, const Item *findInItem)
 {
     if (!findInItem)
-        return 0;
+        return nullptr;
 
     for (int i = 0; i < findInItem->itemMetaDataCount(); ++i) {
         ItemMetaData *itemMeta = findInItem->itemMetaData(i);
@@ -131,7 +131,7 @@ ItemMetaData *Utils::findItemMetaWithName(const QString &name, const Item *findI
             return itemMeta;
     }
 
-    return 0;
+    return nullptr;
 }
 
 ItemGroup *Utils::findItemGroupWithLabel(const QString &label, Project *project)
@@ -145,7 +145,7 @@ ItemGroup *Utils::findItemGroupWithLabel(const QString &label, Project *project)
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 PropertyGroup *Utils::findPropertyGroup(Project *project, const QString &condition, const QString &label)

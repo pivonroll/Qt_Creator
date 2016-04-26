@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -34,14 +34,31 @@ namespace VcProjectManager {
 namespace Internal {
 
 NumericBinaryExpression::NumericBinaryExpression(Expression *leftOp, OperationType opType, Expression *rigthOp)
-    : BinaryExpression(leftOp, rigthOp),
+    : BinaryExpression(NUMERIC_BINARY, leftOp, rigthOp),
       m_opType(opType)
 {
 }
 
-Expression::ExpressionType NumericBinaryExpression::type() const
+NumericBinaryExpression::NumericBinaryExpression(const NumericBinaryExpression &other)
+    : BinaryExpression(other)
 {
-    return NUMERIC_BINARY;
+    m_opType = other.m_opType;
+}
+
+NumericBinaryExpression::NumericBinaryExpression(NumericBinaryExpression &&other)
+    : NumericBinaryExpression()
+{
+    swap(*this, other);
+}
+
+NumericBinaryExpression &NumericBinaryExpression::operator=(NumericBinaryExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+NumericBinaryExpression::~NumericBinaryExpression()
+{
 }
 
 QVariant NumericBinaryExpression::evaluate(const EvaluateArguments &evalArgs) const
@@ -97,6 +114,22 @@ QString NumericBinaryExpression::toString() const
     }
 
     return result;
+}
+
+Expression *NumericBinaryExpression::clone() const
+{
+    return new NumericBinaryExpression(*this);
+}
+
+NumericBinaryExpression::NumericBinaryExpression()
+    : BinaryExpression()
+{
+}
+
+void NumericBinaryExpression::swap(NumericBinaryExpression &first, NumericBinaryExpression &second)
+{
+    BinaryExpression::swap(first, second);
+    std::swap(first.m_opType, second.m_opType);
 }
 
 } // namespace Internal

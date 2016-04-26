@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -34,14 +34,31 @@ namespace VcProjectManager {
 namespace Internal {
 
 LogicalBinaryExpression::LogicalBinaryExpression(Expression *left, OperationType opType, Expression *right)
-    : BinaryExpression(left, right),
+    : BinaryExpression(LOGICAL_BINARY, left, right),
       m_opType(opType)
 {
 }
 
-Expression::ExpressionType LogicalBinaryExpression::type() const
+LogicalBinaryExpression::LogicalBinaryExpression(const LogicalBinaryExpression &other)
+    : BinaryExpression(other)
 {
-    return LOGICAL_BINARY;
+    m_opType = other.m_opType;
+}
+
+LogicalBinaryExpression::LogicalBinaryExpression(LogicalBinaryExpression &&other)
+    : LogicalBinaryExpression()
+{
+    swap(*this, other);
+}
+
+LogicalBinaryExpression &LogicalBinaryExpression::operator=(LogicalBinaryExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+LogicalBinaryExpression::~LogicalBinaryExpression()
+{
 }
 
 QVariant LogicalBinaryExpression::evaluate(const EvaluateArguments &evalArgs) const
@@ -68,6 +85,22 @@ QString LogicalBinaryExpression::toString() const
             return m_leftOperand->toString() + QLatin1String(" Or ") + m_rightOperand->toString();
     }
     return QString();
+}
+
+Expression *LogicalBinaryExpression::clone() const
+{
+    return new LogicalBinaryExpression(*this);
+}
+
+LogicalBinaryExpression::LogicalBinaryExpression()
+    : BinaryExpression()
+{
+}
+
+void LogicalBinaryExpression::swap(LogicalBinaryExpression &first, LogicalBinaryExpression &second)
+{
+    BinaryExpression::swap(first, second);
+    std::swap(first.m_opType, second.m_opType);
 }
 
 } // namespace Internal

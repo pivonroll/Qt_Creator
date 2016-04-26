@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -34,13 +34,30 @@ namespace VcProjectManager {
 namespace Internal {
 
 NotExpression::NotExpression(Expression *expr)
-    : m_expression(expr)
+    : Expression(NOT),
+      m_expression(expr)
 {
 }
 
-Expression::ExpressionType NotExpression::type() const
+NotExpression::NotExpression(const NotExpression &other)
+    : Expression(other)
 {
-    return NOT;
+}
+
+NotExpression::NotExpression(NotExpression &&other)
+    : NotExpression()
+{
+    swap(*this, other);
+}
+
+NotExpression &NotExpression::operator=(NotExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+NotExpression::~NotExpression()
+{
 }
 
 QVariant NotExpression::evaluate(const EvaluateArguments &evalArgs) const
@@ -59,9 +76,20 @@ QString NotExpression::toString() const
     return str;
 }
 
+Expression *NotExpression::clone() const
+{
+    return new NotExpression(*this);
+}
+
 Expression *NotExpression::expression() const
 {
     return m_expression;
+}
+
+void NotExpression::swap(NotExpression &first, NotExpression &second)
+{
+    Expression::swap(first, second);
+    std::swap(first.m_expression, second.m_expression);
 }
 
 } // namespace Internal

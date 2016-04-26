@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -36,13 +36,31 @@ namespace VcProjectManager {
 namespace Internal {
 
 Number::Number(int val)
-    : m_value(val)
+    : Expression(NUMBER),
+      m_value(val)
 {
 }
 
-Expression::ExpressionType Number::type() const
+Number::Number(const Number &other)
+    : Expression(other)
 {
-    return NUMBER;
+    m_value = other.m_value;
+}
+
+Number::Number(Number &&other)
+    : Number()
+{
+    swap(*this, other);
+}
+
+Number &Number::operator=(Number other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+Number::~Number()
+{
 }
 
 QVariant Number::evaluate(const EvaluateArguments &evalArgs) const
@@ -54,6 +72,16 @@ QVariant Number::evaluate(const EvaluateArguments &evalArgs) const
 QString Number::toString() const
 {
     return QVariant(m_value).toString();
+}
+
+Expression *Number::clone() const
+{
+    return new Number(*this);
+}
+
+void Number::swap(Number &first, Number &second)
+{
+    Expression::swap(first, second);
 }
 
 } // namespace Internal

@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -33,8 +33,9 @@
 namespace VcProjectManager {
 namespace Internal {
 
-BinaryExpression::BinaryExpression(Expression *leftOp, Expression *rightOp)
-    : m_leftOperand(leftOp),
+BinaryExpression::BinaryExpression(ExpressionType expressionType, Expression *leftOp, Expression *rightOp)
+    : Expression(expressionType),
+      m_leftOperand(leftOp),
       m_rightOperand(rightOp)
 {
 }
@@ -72,6 +73,22 @@ Expression *BinaryExpression::leftOperand() const
 Expression *BinaryExpression::rightOperand() const
 {
     return m_rightOperand;
+}
+
+Expression *BinaryExpression::clone() const
+{
+    return new BinaryExpression(*this);
+}
+
+QVariant BinaryExpression::evaluate(const EvaluateArguments &evalArgs) const
+{
+    Q_UNUSED(evalArgs)
+    return QVariant();
+}
+
+QString BinaryExpression::toString() const
+{
+    return QString();
 }
 
 BinaryExpression::BinaryExpression()

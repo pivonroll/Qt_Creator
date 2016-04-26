@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2013 Bojan Petrovic
-** Copyright (c) 2013 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -42,7 +42,7 @@
 #include "conditionmanipulation.h"
 #include "utilsx.h"
 #include "vcprojx_constants.h"
-#include "../../condition_parser/expression/evaluatearguments.h"
+#include "../condition_parser/expression/evaluatearguments.h"
 
 #include <QDomNode>
 #include <QVariant>
@@ -86,7 +86,7 @@ IConfigurationContainer *ConfigurationsX::configurationContainer() const
 
 VcNodeWidget *ConfigurationsX::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 void ConfigurationsX::processNode(const QDomNode &node)
@@ -191,7 +191,7 @@ ItemDefinitionGroup *ConfigurationsX::findConfigurationDefGroup(const QString &c
             return itemDefGroup;
     }
 
-    return 0;
+    return nullptr;
 }
 
 QList<ItemMetaData *> ConfigurationsX::findConfigurationItemMetaData(const QString &configName, const QString &platform)

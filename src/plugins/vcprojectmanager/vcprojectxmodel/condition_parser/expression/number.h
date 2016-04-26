@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -38,14 +38,19 @@ namespace Internal {
 class Number : public Expression
 {
 public:
-    Number(int val);
+    explicit Number(int val = 0);
+    Number(const Number &other);
+    Number(Number &&other);
+    Number& operator=(Number other);
+    ~Number();
 
     // Expression interface
-    ExpressionType type() const;
     QVariant evaluate(const EvaluateArguments &evalArgs) const;
     QString toString() const;
+    Expression *clone() const;
 
 private:
+    static void swap(Number &first, Number &second);
     int m_value;
 };
 

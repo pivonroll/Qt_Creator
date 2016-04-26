@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -38,6 +38,11 @@ Expression::Expression()
 {
 }
 
+Expression::Expression(ExpressionType type)
+    : m_type(type)
+{
+}
+
 Expression::Expression(const Expression &other)
 {
     m_type = other.m_type;
@@ -46,6 +51,11 @@ Expression::Expression(const Expression &other)
 void Expression::swap(Expression &first, Expression &second)
 {
     std::swap(first.m_type, second.m_type);
+}
+
+Expression::ExpressionType Expression::type() const
+{
+    return m_type;
 }
 } // namespace Internal
 } // namespace VcProjectManager

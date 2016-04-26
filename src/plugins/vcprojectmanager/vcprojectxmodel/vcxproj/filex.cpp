@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -59,23 +59,23 @@ namespace Internal {
 namespace VisualStudioProjectX {
 
 FileX::FileX()
-    : m_item(0),
-      m_filterItem(0),
-      m_project(0),
-      m_filters(0),
-      m_parentProjectDocument(0)
+    : m_item(nullptr),
+      m_filterItem(nullptr),
+      m_project(nullptr),
+      m_filters(nullptr),
+      m_parentProjectDocument(nullptr)
 {}
 
-FileX::FileX(const FileX &file)
+FileX::FileX(const FileX &other)
 {
-    m_item = new Item(*file.m_item);
-    m_filterItem = new Item(*file.m_filterItem);
-    m_project = file.m_project;
-    m_filters = file.m_filters;
-    m_parentProjectDocument = file.m_parentProjectDocument;
+    m_item = new Item(*other.m_item);
+    m_filterItem = new Item(*other.m_filterItem);
+    m_project = other.m_project;
+    m_filters = other.m_filters;
+    m_parentProjectDocument = other.m_parentProjectDocument;
 }
 
-FileX::FileX(FileX &&file)
+FileX::FileX(FileX &&other)
     : FileX()
 {
     swap(*this, other);
@@ -122,12 +122,12 @@ QString FileX::canonicalPath() const
 
 IConfigurationContainer *FileX::configurationContainer() const
 {
-    return 0;
+    return nullptr;
 }
 
 IAttributeContainer *FileX::attributeContainer() const
 {
-    return 0;
+    return nullptr;
 }
 
 IFile *FileX::clone() const

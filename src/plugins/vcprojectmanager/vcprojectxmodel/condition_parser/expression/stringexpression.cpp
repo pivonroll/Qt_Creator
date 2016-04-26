@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -33,9 +33,31 @@ namespace VcProjectManager {
 namespace Internal {
 
 StringExpression::StringExpression(ExpressionType type, const QString &str)
-    : m_str(str)
+    : Expression(type),
+      m_str(str)
 {
     m_type = type;
+}
+
+StringExpression::StringExpression(const StringExpression &other)
+{
+    m_str = other.m_str;
+}
+
+StringExpression::StringExpression(StringExpression &&other)
+    : StringExpression()
+{
+    swap(*this, other);
+}
+
+StringExpression &StringExpression::operator=(StringExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+StringExpression::~StringExpression()
+{
 }
 
 QString StringExpression::stringExp() const
@@ -46,6 +68,33 @@ QString StringExpression::stringExp() const
 void StringExpression::setStringExpr(const QString &str)
 {
     m_str = str;
+}
+
+QVariant StringExpression::evaluate(const EvaluateArguments &evalArgs) const
+{
+    Q_UNUSED(evalArgs)
+    return QString();
+}
+
+QString StringExpression::toString() const
+{
+    return QString();
+}
+
+Expression *StringExpression::clone() const
+{
+    return new StringExpression(*this);
+}
+
+StringExpression::StringExpression()
+    : Expression()
+{
+}
+
+void StringExpression::swap(StringExpression &first, StringExpression &second)
+{
+    Expression::swap(first, second);
+    std::swap(first.m_str, second.m_str);
 }
 
 } // namespace Internal

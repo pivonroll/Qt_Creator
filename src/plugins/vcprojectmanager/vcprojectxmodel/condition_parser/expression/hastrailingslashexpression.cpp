@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -35,13 +35,30 @@ namespace VcProjectManager {
 namespace Internal {
 
 HasTrailingSlashExpression::HasTrailingSlashExpression(Expression *expr)
-    : m_expr(expr)
+    : Expression(HAS_TRAILING_SLASH),
+      m_expr(expr)
 {
 }
 
-Expression::ExpressionType HasTrailingSlashExpression::type() const
+HasTrailingSlashExpression::HasTrailingSlashExpression(const HasTrailingSlashExpression &other)
 {
-    return HAS_TRAILING_SLASH;
+    m_expr = other.m_expr->clone();
+}
+
+HasTrailingSlashExpression::HasTrailingSlashExpression(HasTrailingSlashExpression &&other)
+{
+    swap(*this, other);
+}
+
+HasTrailingSlashExpression &HasTrailingSlashExpression::operator=(HasTrailingSlashExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+HasTrailingSlashExpression::~HasTrailingSlashExpression()
+{
+    delete m_expr;
 }
 
 QVariant HasTrailingSlashExpression::evaluate(const EvaluateArguments &evalArgs) const
@@ -59,6 +76,17 @@ QString HasTrailingSlashExpression::toString() const
     if (m_expr)
         str = QLatin1String("HasTrailingSlash(") + m_expr->toString() + QLatin1String(")");
     return str;
+}
+
+Expression *HasTrailingSlashExpression::clone() const
+{
+    return new HasTrailingSlashExpression(*this);
+}
+
+void HasTrailingSlashExpression::swap(HasTrailingSlashExpression &first, HasTrailingSlashExpression &second)
+{
+    Expression::swap(first, second);
+    std::swap(first.m_expr, second.m_expr);
 }
 
 } // namespace Internal

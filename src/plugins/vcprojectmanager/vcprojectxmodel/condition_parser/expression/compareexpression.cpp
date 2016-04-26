@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -34,7 +34,7 @@ namespace VcProjectManager {
 namespace Internal {
 
 CompareExpression::CompareExpression(Expression *leftOp, OperationType opType, Expression *rightOp)
-    : BinaryExpression(leftOp, rightOp),
+    : BinaryExpression(COMPARE, leftOp, rightOp),
       m_opType(opType)
 {
 }
@@ -54,11 +54,6 @@ CompareExpression &CompareExpression::operator=(CompareExpression other)
 {
     swap(*this, other);
     return *this;
-}
-
-Expression::ExpressionType CompareExpression::type() const
-{
-    return COMPARE;
 }
 
 QVariant CompareExpression::evaluate(const EvaluateArguments &evalArgs) const
@@ -110,6 +105,11 @@ QString CompareExpression::toString() const
     }
 
     return result;
+}
+
+Expression *CompareExpression::clone() const
+{
+    return new CompareExpression(*this);
 }
 
 void CompareExpression::swap(CompareExpression &first, CompareExpression &second)

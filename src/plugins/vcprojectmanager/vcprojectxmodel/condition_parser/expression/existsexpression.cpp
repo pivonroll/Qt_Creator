@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -37,13 +37,31 @@ namespace VcProjectManager {
 namespace Internal {
 
 ExistsExpression::ExistsExpression(Expression *strExpr)
-    : m_strExpr(strExpr)
+    : Expression(EXISTS),
+      m_strExpr(strExpr)
 {
 }
 
-Expression::ExpressionType ExistsExpression::type() const
+ExistsExpression::ExistsExpression(const ExistsExpression &other)
 {
-    return EXISTS;
+    if (other.m_strExpr)
+        m_strExpr = other.m_strExpr->clone();
+}
+
+ExistsExpression::ExistsExpression(ExistsExpression &&other)
+{
+    swap(*this, other);
+}
+
+ExistsExpression &ExistsExpression::operator=(ExistsExpression other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+ExistsExpression::~ExistsExpression()
+{
+    delete m_strExpr;
 }
 
 QVariant ExistsExpression::evaluate(const EvaluateArguments &evalArgs) const
@@ -61,6 +79,17 @@ QString ExistsExpression::toString() const
     if (m_strExpr)
         str = QLatin1String("Exists(") + m_strExpr->toString() + QLatin1String(")");
     return str;
+}
+
+Expression *ExistsExpression::clone() const
+{
+    return new ExistsExpression(*this);
+}
+
+void ExistsExpression::swap(ExistsExpression &first, ExistsExpression &second)
+{
+    Expression::swap(first, second);
+    std::swap(first.m_strExpr, second.m_strExpr);
 }
 
 } // namespace Internal

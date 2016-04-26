@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -43,7 +43,7 @@
 #include "utilsx.h"
 
 #include <visualstudiointerfaces/iconfiguration.h>
-#include "../../condition_parser/expression/evaluatearguments.h"
+#include "../condition_parser/expression/evaluatearguments.h"
 
 #include <utils/qtcassert.h>
 #include <QVariant>
@@ -72,9 +72,9 @@ ConfigurationContainerX::ConfigurationContainerX(ConfigurationContainerX &&other
     swap(*this, other);
 }
 
-IConfigurationContainer &ConfigurationContainerX::operator =(IConfigurationContainer other)
+ConfigurationContainerX &ConfigurationContainerX::operator =(ConfigurationContainerX other)
 {
-    swap(static_cast<ConfigurationContainerX>(*this), static_cast<ConfigurationContainerX>(other));
+    swap(*this, other);
     return *this;
 }
 
@@ -112,12 +112,12 @@ IConfiguration *ConfigurationContainerX::configuration(const QString &fullName) 
         if (config->fullName() == fullName)
             return config;
     }
-    return 0;
+    return nullptr;
 }
 
 IConfiguration *ConfigurationContainerX::configuration(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_configs.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_configs.size(), return nullptr);
     return m_configs[index];
 }
 
@@ -176,6 +176,13 @@ IConfigurationContainer *ConfigurationContainerX::clone() const
     return new ConfigurationContainerX(*this);
 }
 
+void ConfigurationContainerX::copyDataFrom(IConfigurationContainer *config)
+{
+    ConfigurationContainerX *container = dynamic_cast<ConfigurationContainerX *>(config);
+    if (container)
+        *this = *container;
+}
+
 ConfigurationContainerX::ConfigurationContainerX()
     : m_configurationsItemGroup(nullptr),
       m_project(nullptr)
@@ -210,7 +217,7 @@ ConfigurationX *ConfigurationContainerX::findConfiguration(const QString &config
             return static_cast<ConfigurationX *>(config);
     }
 
-    return 0;
+    return nullptr;
 }
 
 void ConfigurationContainerX::removeConfigurationFromPropertyGroups(const EvaluateArguments &evalArgs)
@@ -322,7 +329,7 @@ void ConfigurationContainerX::removeConfigurationFromProject(const QString &full
 
 void ConfigurationContainerX::addConfigurationToPropertyGroups(const ConfigurationX *config)
 {
-    QTC_ASSERT(config != 0, return);
+    QTC_ASSERT(config != nullptr, return);
 
     int foundIndex = findPropertyGroupWithConfiguration(config->fullName());
 
@@ -335,7 +342,7 @@ void ConfigurationContainerX::addConfigurationToPropertyGroups(const Configurati
 
 void ConfigurationContainerX::addConfigurationToImportGroups(const ConfigurationX *config)
 {
-    QTC_ASSERT(config != 0, return);
+    QTC_ASSERT(config != nullptr, return);
 
     int foundIndex = findImportGroupWithConfiguration(config->fullName());
 
@@ -348,7 +355,7 @@ void ConfigurationContainerX::addConfigurationToImportGroups(const Configuration
 
 void ConfigurationContainerX::addConfigurationToItemDefinitions(const ConfigurationX *config)
 {
-    QTC_ASSERT(config != 0, return);
+    QTC_ASSERT(config != nullptr, return);
 
     int foundIndex = findItemDefinitionWithConfiguration(config->fullName());
 

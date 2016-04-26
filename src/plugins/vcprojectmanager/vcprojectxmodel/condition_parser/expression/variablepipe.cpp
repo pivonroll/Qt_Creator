@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -35,14 +35,29 @@ namespace VcProjectManager {
 namespace Internal {
 
 VariablePipe::VariablePipe(Expression *left, Expression *right)
-    : m_leftOperand(left),
-      m_rightOperand(right)
+    : BinaryExpression(VARIABLE_PIPE, left, right)
 {
 }
 
-Expression::ExpressionType VariablePipe::type() const
+VariablePipe::VariablePipe(const VariablePipe &other)
+    : BinaryExpression(other)
 {
-    return VARIABLE_PIPE;
+}
+
+VariablePipe::VariablePipe(VariablePipe &&other)
+    : VariablePipe()
+{
+    swap(*this, other);
+}
+
+VariablePipe &VariablePipe::operator=(VariablePipe other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+VariablePipe::~VariablePipe()
+{
 }
 
 QVariant VariablePipe::evaluate(const EvaluateArguments &evalArgs) const
@@ -50,10 +65,10 @@ QVariant VariablePipe::evaluate(const EvaluateArguments &evalArgs) const
     QString left;
     QString right;
 
-    if (m_leftOperand)
-        left = m_leftOperand->evaluate(evalArgs).toString();
-    if (m_rightOperand)
-        right = m_rightOperand->evaluate(evalArgs).toString();
+    if (leftOperand())
+        left = leftOperand()->evaluate(evalArgs).toString();
+    if (rightOperand())
+        right = rightOperand()->evaluate(evalArgs).toString();
 
     return QVariant(left + QLatin1String("|") + right);
 }
@@ -61,15 +76,15 @@ QVariant VariablePipe::evaluate(const EvaluateArguments &evalArgs) const
 QString VariablePipe::toString() const
 {
     QString str;
-    if (m_leftOperand && m_rightOperand) {
-        QString left = m_leftOperand->toString();
+    if (leftOperand() && rightOperand()) {
+        QString left = leftOperand()->toString();
 
         if (left.startsWith(QLatin1String("'")))
             left = left.remove(0, 1);
         if (left.endsWith(QLatin1String("'")))
             left.remove(left.length() - 1, 1);
 
-        QString right = m_rightOperand->toString();
+        QString right = rightOperand()->toString();
 
         if (right.startsWith(QLatin1String("'")))
             right = right.remove(0, 1);
@@ -81,14 +96,14 @@ QString VariablePipe::toString() const
     return str;
 }
 
-Expression *VariablePipe::leftOperand() const
+VariablePipe::VariablePipe()
+    : BinaryExpression()
 {
-    return m_leftOperand;
 }
 
-Expression *VariablePipe::rightOperand() const
+void VariablePipe::swap(VariablePipe &first, VariablePipe &second)
 {
-    return m_rightOperand;
+    BinaryExpression::swap(first, second);
 }
 
 } // namespace Internal

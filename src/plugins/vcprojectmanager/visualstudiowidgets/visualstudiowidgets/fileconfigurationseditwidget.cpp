@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -55,6 +55,10 @@
 #include <visualstudiointerfaces/itools.h>
 #include <visualstudiointerfaces/itoolsection.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
+
+// figure this out
+#include "../../vcprojectmodel/configurationcontainer.h"
+#include "../../vcprojectxmodel/vcxproj/configurationcontainerx.h"
 
 #include <utils/qtcassert.h>
 
@@ -122,12 +126,12 @@ void FileConfigurationsEditWidget::saveData()
         IConfigurationContainer *newConfigContainer = it.value();
 
         if (file && file->configurationContainer() && newConfigContainer)
-            *file->configurationContainer() = *newConfigContainer;
+            file->configurationContainer()->copyDataFrom(newConfigContainer);
     }
 
     QTC_ASSERT(m_vsProject, return);
     QTC_ASSERT(m_vsProject->configurations(), return);
-    *m_vsProject->configurations()->configurationContainer() = *m_buildConfigurations;
+    m_vsProject->configurations()->configurationContainer()->copyDataFrom(m_buildConfigurations);
 }
 
 void FileConfigurationsEditWidget::onAddNewConfig(QString newConfigName, QString copyFrom)

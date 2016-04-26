@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -40,9 +40,25 @@ StringLiteral::StringLiteral(const QString &str)
 {
 }
 
-Expression::ExpressionType StringLiteral::type() const
+StringLiteral::StringLiteral(const StringLiteral &other)
+    : StringExpression(other)
 {
-    return STRING_LITERAL;
+}
+
+StringLiteral::StringLiteral(StringLiteral &&other)
+    : StringLiteral()
+{
+    swap(*this, other);
+}
+
+StringLiteral &StringLiteral::operator=(StringLiteral other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+StringLiteral::~StringLiteral()
+{
 }
 
 QVariant StringLiteral::evaluate(const EvaluateArguments &evalArgs) const
@@ -54,6 +70,16 @@ QVariant StringLiteral::evaluate(const EvaluateArguments &evalArgs) const
 QString StringLiteral::toString() const
 {
     return QLatin1String("'") + m_str + QLatin1String("'");
+}
+
+Expression *StringLiteral::clone() const
+{
+    return new StringLiteral(*this);
+}
+
+void StringLiteral::swap(StringLiteral &first, StringLiteral &second)
+{
+    StringExpression::swap(first, second);
 }
 
 } // namespace Internal

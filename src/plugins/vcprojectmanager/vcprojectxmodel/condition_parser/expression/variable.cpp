@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -39,9 +39,25 @@ Variable::Variable(const QString &str)
 {
 }
 
-Expression::ExpressionType Variable::type() const
+Variable::Variable(const Variable &other)
+    : StringExpression(other)
 {
-    return VARIABLE;
+}
+
+Variable::Variable(Variable &&other)
+    : Variable()
+{
+    swap(*this, other);
+}
+
+Variable &Variable::operator=(Variable other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+Variable::~Variable()
+{
 }
 
 QVariant Variable::evaluate(const EvaluateArguments &evalArgs) const
@@ -52,6 +68,16 @@ QVariant Variable::evaluate(const EvaluateArguments &evalArgs) const
 QString Variable::toString() const
 {
     return QLatin1String("'") + m_str + QLatin1String("'");;
+}
+
+Expression *Variable::clone() const
+{
+    return new Variable(*this);
+}
+
+void Variable::swap(Variable &first, Variable &second)
+{
+    StringExpression::swap(first, second);
 }
 
 } // namespace Internal

@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -123,32 +123,32 @@ IFiles *VcProjectDocumentX::files() const
 
 IGlobals *VcProjectDocumentX::globals() const
 {
-    return 0;
+    return nullptr;
 }
 
 IPlatforms *VcProjectDocumentX::platforms() const
 {
-    return 0;
+    return nullptr;
 }
 
 IReferences *VcProjectDocumentX::referencess() const
 {
-    return 0;
+    return nullptr;
 }
 
 IAttributeContainer *VcProjectDocumentX::attributeContainer() const
 {
-    return 0;
+    return nullptr;
 }
 
 IToolFiles *VcProjectDocumentX::toolFiles() const
 {
-    return 0;
+    return nullptr;
 }
 
 IPublishingData *VcProjectDocumentX::publishingData() const
 {
-    return 0;
+    return nullptr;
 }
 
 QString VcProjectDocumentX::filePath() const
@@ -214,7 +214,7 @@ void VcProjectDocumentX::processNode(const QDomNode &node)
 
 VcNodeWidget *VcProjectDocumentX::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode VcProjectDocumentX::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -278,7 +278,7 @@ IConfiguration *VcProjectDocumentX::createDefaultBuildConfiguration(const QStrin
 
 IProjectFactories *VcProjectDocumentX::projectFactories() const
 {
-    return 0;
+    return nullptr;
 }
 
 void VcProjectDocumentX::swap(VcProjectDocumentX &first, VcProjectDocumentX &second)

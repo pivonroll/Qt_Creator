@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -40,10 +40,21 @@ class StringExpression : public Expression
 {
 public:
     StringExpression(ExpressionType type, const QString &str);
+    StringExpression(const StringExpression &other);
+    StringExpression(StringExpression &&other);
+    StringExpression& operator=(StringExpression other);
+    ~StringExpression();
+
     QString stringExp() const;
     void setStringExpr(const QString &str);
 
+    QVariant evaluate(const EvaluateArguments &evalArgs) const;
+    QString toString() const;
+    Expression* clone() const;
+
 protected:
+    StringExpression();
+    static void swap(StringExpression &first, StringExpression &second);
     QString m_str;
 };
 

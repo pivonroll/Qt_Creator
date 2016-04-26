@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -45,13 +45,19 @@ public:
         OP_DIVIDE
     };
     NumericBinaryExpression(Expression *leftOp, OperationType opType, Expression *rigthOp);
+    NumericBinaryExpression(const NumericBinaryExpression &other);
+    NumericBinaryExpression(NumericBinaryExpression &&other);
+    NumericBinaryExpression& operator=(NumericBinaryExpression other);
+    ~NumericBinaryExpression();
 
     // Expression interface
-    ExpressionType type() const;
     QVariant evaluate(const EvaluateArguments &evalArgs) const;
     QString toString() const;
+    Expression *clone() const;
 
 private:
+    NumericBinaryExpression();
+    static void swap(NumericBinaryExpression &first, NumericBinaryExpression &second);
     OperationType m_opType;
 };
 

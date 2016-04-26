@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -44,13 +44,19 @@ public:
     };
 
     LogicalBinaryExpression(Expression *left, OperationType opType, Expression *right);
+    LogicalBinaryExpression(const LogicalBinaryExpression &other);
+    LogicalBinaryExpression(LogicalBinaryExpression &&other);
+    LogicalBinaryExpression& operator=(LogicalBinaryExpression other);
+    ~LogicalBinaryExpression();
 
     // Expression interface
-    ExpressionType type() const;
     QVariant evaluate(const EvaluateArguments &evalArgs) const;
     QString toString() const;
+    Expression *clone() const;
 
 private:
+    LogicalBinaryExpression();
+    static void swap(LogicalBinaryExpression &first, LogicalBinaryExpression &second);
     OperationType m_opType;
 };
 

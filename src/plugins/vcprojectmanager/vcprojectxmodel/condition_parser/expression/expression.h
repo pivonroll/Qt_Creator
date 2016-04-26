@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -57,12 +57,14 @@ public:
     };
 
     Expression();
+    Expression(ExpressionType type);
     Expression(const Expression &other);
-    virtual ExpressionType type() const = 0;
     virtual ~Expression() {}
     virtual QVariant evaluate(const EvaluateArguments &evalArgs) const = 0;
     virtual QString toString() const = 0;
     virtual Expression* clone() const = 0;
+
+    ExpressionType type() const;
 
 protected:
     static void swap(Expression &first, Expression &second);

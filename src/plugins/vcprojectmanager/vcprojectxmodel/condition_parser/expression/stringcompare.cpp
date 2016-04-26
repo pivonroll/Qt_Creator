@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -35,14 +35,31 @@ namespace VcProjectManager {
 namespace Internal {
 
 StringCompare::StringCompare(Expression *left, CompareOperation oper, Expression *right)
-    : BinaryExpression(left, right),
+    : BinaryExpression(STRING_COMPARE, left, right),
       m_operation(oper)
 {
 }
 
-Expression::ExpressionType StringCompare::type() const
+StringCompare::StringCompare(const StringCompare &other)
+    : BinaryExpression(other)
 {
-    return STRING_COMPARE;
+    m_operation = other.m_operation;
+}
+
+StringCompare::StringCompare(StringCompare &&other)
+    : StringCompare()
+{
+    swap(*this, other);
+}
+
+StringCompare &StringCompare::operator=(StringCompare other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+StringCompare::~StringCompare()
+{
 }
 
 QVariant StringCompare::evaluate(const EvaluateArguments &evalArgs) const
@@ -72,6 +89,11 @@ QString StringCompare::toString() const
     return QString();
 }
 
+Expression *StringCompare::clone() const
+{
+    return new StringCompare(*this);
+}
+
 Expression *StringCompare::leftOperand() const
 {
     return m_leftOperand;
@@ -80,6 +102,17 @@ Expression *StringCompare::leftOperand() const
 Expression *StringCompare::rightOperand() const
 {
     return m_rightOperand;
+}
+
+StringCompare::StringCompare()
+    : BinaryExpression()
+{
+}
+
+void StringCompare::swap(StringCompare &first, StringCompare &second)
+{
+    BinaryExpression::swap(first, second);
+    std::swap(first.m_operation, second.m_operation);
 }
 
 } // namespace Internal

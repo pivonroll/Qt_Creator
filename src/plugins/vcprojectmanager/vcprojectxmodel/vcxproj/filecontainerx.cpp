@@ -1,7 +1,7 @@
 /**************************************************************************
 **
-** Copyright (c) 2014 Bojan Petrovic
-** Copyright (c) 2014 Radovan Zivkovic
+** Copyright (c) 2016 Bojan Petrovic
+** Copyright (c) 2016 Radovan Zivkovic
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of Qt Creator.
@@ -47,19 +47,19 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
-FileContainerX::FileContainerX(const FileContainerX &fileCont)
+FileContainerX::FileContainerX(const FileContainerX &other)
 {
-    m_project = fileCont.m_project;
-    m_filters = fileCont.m_filters;
+    m_project = other.m_project;
+    m_filters = other.m_filters;
 }
 
-FileContainerX::FileContainerX(FileContainerX &&fileCont)
+FileContainerX::FileContainerX(FileContainerX &&other)
     : FileContainerX()
 {
     swap(*this, other);
 }
 
-FileContainerX &FileContainerX::operator=(FileContainerX fileCont)
+FileContainerX &FileContainerX::operator=(FileContainerX other)
 {
     swap(*this, other);
     return *this;
@@ -114,7 +114,7 @@ void FileContainerX::addFile(IFile *file)
 
 IFile *FileContainerX::file(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_files.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_files.size(), return nullptr);
     return m_files[index];
 }
 
@@ -194,7 +194,7 @@ int FileContainerX::childCount() const
 
 IFileContainer *FileContainerX::fileContainer(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_fileContainers.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_fileContainers.size(), return nullptr);
     return m_fileContainers[index];
 }
 
@@ -222,7 +222,7 @@ void FileContainerX::removeFileContainer(IFileContainer *fileContainer)
 
 IAttributeContainer *FileContainerX::attributeContainer() const
 {
-    return 0;
+    return nullptr;
 }
 
 QString FileContainerX::displayName() const
