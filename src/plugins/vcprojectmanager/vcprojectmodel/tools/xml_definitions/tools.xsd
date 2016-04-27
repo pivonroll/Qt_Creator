@@ -1,41 +1,73 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" >
-<xs:complexType name="ValueType" >
-    <xs:attribute name="ValueText" type="xs:string" use="required" />
-</xs:complexType>
-<xs:complexType name="Integer" >
-    <xs:attribute name="Name" type="xs:string" use="required" />
-    <xs:attribute name="Key" type="xs:string" use="required" />
-    <xs:attribute name="DefaultValue" type="xs:string" use="required" />
-    <xs:attribute name="Description" type="xs:string" use="required" />
-    <xs:sequence>
-        <xs:element name="Value" minOccurs="0" maxOccurs="unbounded" type="ValueType" >
-            <xs:restriction base="xs:integer" />
-        </xs:element>
-    </xs:sequence>
-</xs:complexType>
-<xs:complexType name="Boolean">
-    <xs:attribute name="Name" type="xs:string" use="required" />
-    <xs:attribute name="Key" type="xs:string" use="required" />
-    <xs:attribute name="DefaultValue" type="xs:boolean" use="required" />
-    <xs:attribute name="Description" type="xs:string" use="required" />
-    <xs:sequence>
-        <xs:element name="Value" minOccurs="2" maxOccurs="2" type="ValueType" >
-            <xs:restriction base="xs:boolean" />
-        </xs:element>
-    </xs:sequence>
-</xs:complexType>
-<xs:complexType name="String">
-    <xs:attribute name="Name" type="xs:string" use="required" />
-    <xs:attribute name="Key" type="xs:string" use="required" />
-    <xs:attribute name="DefaultValue" type="xs:string" use="required" />
-    <xs:attribute name="Description" type="xs:string" use="required" />
-</xs:complexType>
-<xs:complexType name="StringList" >
-    <xs:attribute name="Name" type="xs:string" use="required" />
-    <xs:attribute name="Key" type="xs:string" use="required" />
-    <xs:attribute name="DefaultValue" type="xs:string" use="required" />
-    <xs:attribute name="Separator" type="xs:string" use="required" />
-    <xs:attribute name="Description" type="xs:string" use="required" />
-</xs:complexType>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="ToolInfo" type="ToolInfoType" />
+    <xs:complexType name="IntegerType">
+        <xs:sequence>
+            <xs:element name="Value" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                    <xs:simpleContent>
+                        <xs:extension base="xs:integer">
+                            <xs:attribute name="ValueText" type="xs:string" use="required" />
+                        </xs:extension>
+                    </xs:simpleContent>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:string" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="BooleanType">
+        <xs:sequence>
+            <xs:element name="Value" minOccurs="2" maxOccurs="2">
+                <xs:complexType>
+                    <xs:simpleContent>
+                        <xs:extension base="xs:boolean">
+                            <xs:attribute name="ValueText" type="xs:string" use="required" />
+                        </xs:extension>
+                    </xs:simpleContent>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:boolean" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="StringType">
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:string" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="StringListType">
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:string" use="required" />
+        <xs:attribute name="Separator" type="xs:string" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="SectionType">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+            <xs:element name="Integer" type="IntegerType" />
+            <xs:element name="Boolean" type="BooleanType" />
+            <xs:element name="String" type="StringType" />
+            <xs:element name="StringList" type="StringListType" />
+        </xs:choice>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="ToolInfoType">
+        <xs:sequence>
+            <xs:element name="Section" minOccurs="0" maxOccurs="unbounded" type="SectionType" />
+        </xs:sequence>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
 </xs:schema>
