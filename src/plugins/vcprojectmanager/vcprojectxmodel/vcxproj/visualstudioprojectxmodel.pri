@@ -109,4 +109,5 @@ DISTFILES += \
     $$PWD/tools/xml_definitions/PostBuildEventTool.xml \
     $$PWD/tools/xml_definitions/PreBuildEventTool.xml \
     $$PWD/tools/xml_definitions/PreLinkEventTool.xml \
-    $$PWD/tools/xml_definitions/XdcmakeTool.xml
+    $$PWD/tools/xml_definitions/XdcmakeTool.xml \
+    $$PWD/tools/xml_definitions/toolsx_schema.xsd

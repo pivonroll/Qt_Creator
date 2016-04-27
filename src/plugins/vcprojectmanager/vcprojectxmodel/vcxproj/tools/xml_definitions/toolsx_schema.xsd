@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="ToolInfo" type="ToolInfoType" />
+    <xs:simpleType name="VersionType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="2010" />
+            <xs:enumeration value="2012" />
+            <xs:enumeration value="2013" />
+            <xs:enumeration value="2015" />
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:complexType name="IntegerType">
+        <xs:sequence>
+            <xs:element name="Value" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                    <xs:simpleContent>
+                        <xs:extension base="xs:integer">
+                            <xs:attribute name="ValueText" type="xs:string" use="required" />
+                        </xs:extension>
+                    </xs:simpleContent>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:string" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:attribute name="Tag" type="xs:string" use="required" />
+        <xs:attribute name="Version" type="VersionType" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="BooleanType">
+        <xs:sequence>
+            <xs:element name="Value" minOccurs="2" maxOccurs="2">
+                <xs:complexType>
+                    <xs:simpleContent>
+                        <xs:extension base="xs:boolean">
+                            <xs:attribute name="ValueText" type="xs:string" use="required" />
+                        </xs:extension>
+                    </xs:simpleContent>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:boolean" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:attribute name="Tag" type="xs:string" use="required" />
+        <xs:attribute name="Version" type="VersionType" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="StringType">
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:string" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:attribute name="Tag" type="xs:string" use="required" />
+        <xs:attribute name="Version" type="VersionType" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="StringListType">
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:attribute name="DefaultValue" type="xs:string" use="required" />
+        <xs:attribute name="Separator" type="xs:string" use="required" />
+        <xs:attribute name="Description" type="xs:string" use="required" />
+        <xs:attribute name="Tag" type="xs:string" use="required" />
+        <xs:attribute name="Version" type="VersionType" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="SectionType">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+            <xs:element name="Integer" type="IntegerType" />
+            <xs:element name="Boolean" type="BooleanType" />
+            <xs:element name="String" type="StringType" />
+            <xs:element name="StringList" type="StringListType" />
+        </xs:choice>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Version" type="VersionType" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+    <xs:complexType name="ToolInfoType">
+        <xs:sequence>
+            <xs:element name="Section" minOccurs="0" maxOccurs="unbounded" type="SectionType" />
+        </xs:sequence>
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Key" type="xs:string" use="required" />
+        <xs:anyAttribute processContents="skip" />
+    </xs:complexType>
+</xs:schema>
