@@ -33,6 +33,7 @@
 #include <QStringList>
 
 #include "ivisualstudionodex.h"
+#include "../../condition_parser/expression/evaluatearguments.h"
 
 class QDomElement;
 
@@ -79,43 +80,47 @@ public:
     Choose *chooseElement() const;
     void setChooseElement(Choose *chooseElement);
 
-    Import* importElement(int index) const;
+    Import *importElement(int index) const;
     int importElementCount() const;
     void addImport(Import *import);
     void removeImport(Import *import);
 
-    ItemGroup* itemGroup(int index) const;
+    ItemGroup *itemGroup(int index) const;
     int itemGroupCount() const;
     void addItemGroup(ItemGroup *itemGroup);
     void removeItemGroup(ItemGroup *itemGroup);
+    ItemGroup *findItemGroupWithLabel(const QString &label) const;
 
-    ImportGroup* importGroup(int index) const;
+    ImportGroup *importGroup(int index) const;
     int importGroupCount() const;
     void addImportGroup(ImportGroup *importGroup);
     void removeImportGroup(ImportGroup *importGroup);
+    ImportGroup *findImportGroupWithConditionAndLabel(const EvaluateArguments &evalArgs, const QString &label = QString()) const;
 
     ProjectExtensions *projectExtensions() const;
     void setProjectExtensions(ProjectExtensions *projectExtensions);
 
-    PropertyGroup* propertyGroup(int index) const;
+    PropertyGroup *propertyGroup(int index) const;
     int propertyGroupCount() const;
     void addPropertyGroup(PropertyGroup *propertyGroup);
     void removePropertyGroup(PropertyGroup *propertyGroup);
+    PropertyGroup *findPropertyGroupWithConditionAndLabel(const EvaluateArguments &evalArgs, const QString &label = QString()) const;
 
-    Target* target(int index) const;
+    Target *target(int index) const;
     int targetCount() const;
     void addTarget(Target *target);
     void removeTarget(Target *target);
 
-    UsingTask* usingTask(int index) const;
+    UsingTask *usingTask(int index) const;
     int usingTaskCount() const;
     void addUsingTask(UsingTask *usingTask);
     void removeUsingTask(UsingTask *usingTask);
 
-    ItemDefinitionGroup* itemDefinitionGroup(int index) const;
+    ItemDefinitionGroup *itemDefinitionGroup(int index) const;
     int itemDefinitionGroupCount() const;
     void addItemDefinitionGroup(ItemDefinitionGroup *itemDefGrp);
     void removeItemDefinitionGroup(ItemDefinitionGroup *ItemDefGrp);
+    ItemDefinitionGroup *findItemDefinitionGroupWithCondition(const EvaluateArguments &evalArgs) const;
 
     // IVisualStudioProjectNode interface
     void processNode(const QDomNode &node);

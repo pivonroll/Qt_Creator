@@ -74,6 +74,10 @@ BaseToolAttributeX &BaseToolAttributeX::operator=(BaseToolAttributeX other)
     return *this;
 }
 
+BaseToolAttributeX::~BaseToolAttributeX()
+{
+}
+
 const AttributeDescriptionDataItem *BaseToolAttributeX::descriptionDataItem() const
 {
     return m_attributeDescription;
@@ -175,6 +179,42 @@ bool BaseToolAttributeX::isUsed() const
 IToolAttribute *BaseToolAttributeX::clone() const
 {
     return new BaseToolAttributeX(*this);
+}
+
+void BaseToolAttributeX::deleteFromProjectTree()
+{
+    if (!m_project)
+        return;
+
+    // if Tag is PropertyGroup
+    if (m_attributeDescription->tag() == QLatin1String("PropertyGroup")) {
+        PropertyGroup *propertyGroup = Utils::findPropertyGroup(m_project, m_configuration->fullName(), QLatin1String(CONFIGURATION));
+
+        if (!propertyGroup)
+            return;
+
+        Property *property = Utils::findProperty(propertyGroup, m_attributeDescription->key());
+
+        if (!property)
+            return;
+
+        propertyGroup->removeProperty(property);
+        delete property;
+    } else { // if Tag is specific
+        ItemDefinitionGroup *itemDefinitionGroup = Utils::findItemDefinitionGroup(m_project, m_configuration->fullName());
+        ItemDefinition *itemDefinition = Utils::findItemDefinition(itemDefinitionGroup, m_attributeDescription->tag());
+        // if Tag node does not exist insert it
+        if (!itemDefinition)
+            return;
+
+        ItemMetaData *itemMetaData = itemDefinition->findItemMetaData(m_attributeDescription->key());
+
+        if (!itemMetaData)
+            return;
+
+        itemDefinition->removeMetaData(itemMetaData);
+        delete itemMetaData;
+    }
 }
 
 BaseToolAttributeX::BaseToolAttributeX()

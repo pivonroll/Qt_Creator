@@ -71,17 +71,19 @@ public:
     void processNode(const QDomNode &node);
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
-    Item *m_item;
-    ItemDefinitionGroup *m_itemDefinitionGroup;
-    Project *m_project;
-    QList<PropertyGroup *> m_propertyGroups;
-    QList<ImportGroup *> m_importGroups;
-    QList<ItemMetaData *> m_itemMetaData; // mostly used for files in the project, to compile the file or not etc.
+    QString evaluationValue() const;
+    void setEvaluationValue(const QString &evaluationValue);
+
+    void removeConfigurationFromProject();
+
 private:
     static void swap(ConfigurationX &first, ConfigurationX &second);
 
     void findAssociatedTools();
     void processToolDefGrp(ItemDefinitionGroup *itemDefGrp);
+
+    QString m_evaluationValue;
+    Project *m_project;
 };
 
 } // namespace VisualStudioProjectX

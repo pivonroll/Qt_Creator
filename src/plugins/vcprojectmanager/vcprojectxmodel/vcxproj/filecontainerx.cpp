@@ -157,8 +157,6 @@ void FileContainerX::addFileContainer(IFileContainer *fileContainer)
     if (!fileContX)
         return;
 
-    QTC_ASSERT(fileContX->m_filterItem, return);
-
     fileContX->m_filters = m_filters;
     fileContX->m_project = m_project;
     fileContX->m_parentContainer = this;

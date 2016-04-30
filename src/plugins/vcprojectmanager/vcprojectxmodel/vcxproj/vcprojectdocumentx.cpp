@@ -40,6 +40,7 @@
 
 #include "private/importgroup.h"
 #include "private/item.h"
+#include "private/itemgroup.h"
 #include "private/itemdefinitiongroup.h"
 #include "private/itemmetadata.h"
 #include "private/project.h"
@@ -236,42 +237,54 @@ IConfiguration *VcProjectDocumentX::createDefaultBuildConfiguration(const QStrin
             arg(QLatin1String(VisualStudioProjectX::CONFIGURATION_PLATFORM_DELIMITER)).
             arg(platformName);
 
+    VisualStudioProjectX::ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(VisualStudioProjectX::PROJECT_CONFIGURATIONS));
+
+    if (!itemGroup) {
+        itemGroup = new VisualStudioProjectX::ItemGroup;
+        itemGroup->setLabel(QLatin1String(VisualStudioProjectX::PROJECT_CONFIGURATIONS));
+        m_project->addItemGroup(itemGroup);
+    }
+
     VisualStudioProjectX::ConfigurationX *newConfig = new VisualStudioProjectX::ConfigurationX(m_project);
-    newConfig->m_item = new VisualStudioProjectX::Item;
-    newConfig->m_item->setName(QLatin1String(VisualStudioProjectX::PROJECT_CONFIGURATION));
+
+    VisualStudioProjectX::Item *item = new VisualStudioProjectX::Item;
+    itemGroup->addItem(item);
+    item->setName(QLatin1String(VisualStudioProjectX::PROJECT_CONFIGURATION));
 
     QString include = QLatin1String("%1%2%3");
     include = include.arg(configDisplayName).
             arg(QLatin1String(VisualStudioProjectX::CONFIGURATION_PLATFORM_DELIMITER)).
             arg(platformName);
-    newConfig->m_item->setInclude(include);
+    item->setInclude(include);
 
     VisualStudioProjectX::ItemMetaData *newMetaData = new VisualStudioProjectX::ItemMetaData;
     newMetaData->setName(QLatin1String(VisualStudioProjectX::CONFIGURATION));
     newMetaData->setValue(configDisplayName);
-    newConfig->m_item->addItemMetaData(newMetaData);
+    item->addItemMetaData(newMetaData);
 
     newMetaData = new VisualStudioProjectX::ItemMetaData;
     newMetaData->setName(QLatin1String(VisualStudioProjectX::PLATFORM));
     newMetaData->setValue(platformName);
-    newConfig->m_item->addItemMetaData(newMetaData);
+    item->addItemMetaData(newMetaData);
 
 
     VisualStudioProjectX::PropertyGroup *newPropertyGroup = new VisualStudioProjectX::PropertyGroup;
+    m_project->addPropertyGroup(newPropertyGroup);
     newPropertyGroup->setCondition(condition);
-    newConfig->m_propertyGroups.append(newPropertyGroup);
 
     newPropertyGroup = new VisualStudioProjectX::PropertyGroup(*newPropertyGroup);
+    m_project->addPropertyGroup(newPropertyGroup);
+    newPropertyGroup->setCondition(condition);
     newPropertyGroup->setLabel(QLatin1String(VisualStudioProjectX::CONFIGURATION));
-    newConfig->m_propertyGroups.append(newPropertyGroup);
 
     VisualStudioProjectX::ImportGroup *importGroup = new VisualStudioProjectX::ImportGroup;
+    m_project->addImportGroup(importGroup);
     importGroup->setLabel(QLatin1String(VisualStudioProjectX::PROPERTY_SHEETS));
     importGroup->setCondition(condition);
-    newConfig->m_importGroups.append(importGroup);
 
-    newConfig->m_itemDefinitionGroup = new VisualStudioProjectX::ItemDefinitionGroup;
-    newConfig->m_itemDefinitionGroup->setCondition(condition);
+    VisualStudioProjectX::ItemDefinitionGroup *itemDefinitionGroup = new VisualStudioProjectX::ItemDefinitionGroup;
+    m_project->addItemDefinitionGroup(itemDefinitionGroup);
+    itemDefinitionGroup->setCondition(condition);
 
     return newConfig;
 }

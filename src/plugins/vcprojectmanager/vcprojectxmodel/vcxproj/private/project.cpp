@@ -40,8 +40,9 @@
 #include "itemdefinitiongroup.h"
 #include "../vcprojx_constants.h"
 
-#include <utils/qtcassert.h>
+#include "../conditionmanipulation.h"
 
+#include <utils/qtcassert.h>
 #include <QDomNode>
 
 namespace VcProjectManager {
@@ -233,6 +234,16 @@ void Project::removeItemGroup(ItemGroup *itemGroup)
     m_nodeList.removeOne(itemGroup);
 }
 
+ItemGroup *Project::findItemGroupWithLabel(const QString &label) const
+{
+    foreach (ItemGroup *item, m_itemGroups) {
+        if (item && item->label() == label)
+            return item;
+    }
+
+    return nullptr;
+}
+
 ImportGroup *Project::importGroup(int index) const
 {
     QTC_ASSERT(0 <= index && index < m_importGroups.size(), return nullptr);
@@ -256,6 +267,21 @@ void Project::removeImportGroup(ImportGroup *importGroup)
 {
     m_importGroups.removeOne(importGroup);
     m_nodeList.removeOne(importGroup);
+}
+
+ImportGroup *Project::findImportGroupWithConditionAndLabel(const EvaluateArguments &evalArgs, const QString &label) const
+{
+    foreach (ImportGroup *importGroup, m_importGroups) {
+        if (!importGroup || importGroup->label() != label)
+            continue;
+
+        ConditionManipulation condMan(importGroup->condition());
+
+        if (condMan.evaluate(evalArgs))
+            return importGroup;
+    }
+
+    return nullptr;
 }
 
 ProjectExtensions *Project::projectExtensions() const
@@ -293,6 +319,21 @@ void Project::removePropertyGroup(PropertyGroup *propertyGroup)
 {
     m_propertyGroups.removeOne(propertyGroup);
     m_nodeList.removeOne(propertyGroup);
+}
+
+PropertyGroup *Project::findPropertyGroupWithConditionAndLabel(const EvaluateArguments &evalArgs, const QString &label) const
+{
+    foreach (PropertyGroup *propertyGroup, m_propertyGroups) {
+        if (!propertyGroup || propertyGroup->label() != label)
+            continue;
+
+        ConditionManipulation condMan(propertyGroup->condition());
+
+        if (condMan.evaluate(evalArgs))
+            return propertyGroup;
+    }
+
+    return nullptr;
 }
 
 Target *Project::target(int index) const
@@ -368,6 +409,21 @@ void Project::removeItemDefinitionGroup(ItemDefinitionGroup *ItemDefGrp)
 {
     m_itemDefinitionGroups.removeOne(ItemDefGrp);
     m_nodeList.removeOne(ItemDefGrp);
+}
+
+ItemDefinitionGroup *Project::findItemDefinitionGroupWithCondition(const EvaluateArguments &evalArgs) const
+{
+    foreach (ItemDefinitionGroup *itemDefinitionGroup, m_itemDefinitionGroups) {
+        if (!itemDefinitionGroup)
+            continue;
+
+        ConditionManipulation condMan(itemDefinitionGroup->condition());
+
+        if (condMan.evaluate(evalArgs))
+            return itemDefinitionGroup;
+    }
+
+    return nullptr;
 }
 
 void Project::processNode(const QDomNode &node)

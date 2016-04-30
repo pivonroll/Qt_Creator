@@ -39,7 +39,6 @@ namespace VisualStudioProjectX {
 class Project;
 class ConfigurationX;
 
-
 class BaseToolAttributeX : public IToolAttribute
 {
 public:
@@ -47,6 +46,7 @@ public:
     BaseToolAttributeX(const BaseToolAttributeX &other);
     BaseToolAttributeX(BaseToolAttributeX &&other);
     BaseToolAttributeX& operator=(BaseToolAttributeX other);
+    ~BaseToolAttributeX();
 
     // IToolAttribute interface
     const AttributeDescriptionDataItem *descriptionDataItem() const;
@@ -56,6 +56,7 @@ public:
     bool isUsed() const;
     IToolAttribute *clone() const;
 
+    void deleteFromProjectTree();
 protected:
     BaseToolAttributeX();
 

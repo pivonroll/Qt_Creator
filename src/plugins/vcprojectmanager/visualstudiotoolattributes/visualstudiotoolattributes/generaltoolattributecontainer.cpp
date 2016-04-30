@@ -47,7 +47,7 @@ GeneralToolAttributeContainer::GeneralToolAttributeContainer(const GeneralToolAt
 
 GeneralToolAttributeContainer &GeneralToolAttributeContainer::operator=(const GeneralToolAttributeContainer &container)
 {
-    if (this != &container) {
+    if (this != &container) {        
         qDeleteAll(m_toolAttributes);
         foreach (IToolAttribute *toolAttr, container.m_toolAttributes)
             m_toolAttributes.append(toolAttr->clone());

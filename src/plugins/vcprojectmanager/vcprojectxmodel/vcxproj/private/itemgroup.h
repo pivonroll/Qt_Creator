@@ -52,10 +52,11 @@ public:
     ItemGroup& operator=(ItemGroup other);
     ~ItemGroup();
 
-    Item* item(int index) const;
+    Item *item(int index) const;
     int itemCount() const;
     void addItem(Item *item);
     void removeItem(Item *item);
+    Item *findItemWithInclude(const QString &include) const;
 
     QString condition() const;
     void setCondition(const QString &condition);

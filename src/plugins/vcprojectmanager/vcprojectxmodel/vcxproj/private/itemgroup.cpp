@@ -94,6 +94,16 @@ void ItemGroup::removeItem(Item *item)
     m_items.removeOne(item);
 }
 
+Item *ItemGroup::findItemWithInclude(const QString &include) const
+{
+    foreach (Item *item, m_items) {
+        if (item && item->include() == include)
+            return item;
+    }
+
+    return nullptr;
+}
+
 QString ItemGroup::condition() const
 {
     return m_condition;

@@ -285,26 +285,13 @@ void setConfiguraitionName(When *node, const QString &oldName, const QString &ne
 }
 
 ConfigurationX::ConfigurationX(Project *project)
-    : m_item(nullptr),
-      m_itemDefinitionGroup(nullptr),
-      m_project(project)
+    : m_project(project)
 {
 }
 
 ConfigurationX::ConfigurationX(const ConfigurationX &other)
 {
-    m_item = other.m_item;
-    m_itemDefinitionGroup = other.m_itemDefinitionGroup;
     m_project = other.m_project;
-
-    foreach (PropertyGroup *group, other.m_propertyGroups)
-        m_propertyGroups << new PropertyGroup(*group);
-
-    foreach (ImportGroup *group, other.m_importGroups)
-        m_importGroups << new ImportGroup(*group);
-
-    foreach (ItemMetaData *meta, other.m_itemMetaData)
-        m_itemMetaData << new ItemMetaData(*meta);
 }
 
 ConfigurationX::ConfigurationX(ConfigurationX &&other)
@@ -340,24 +327,38 @@ QString ConfigurationX::fullName() const
 
 QString ConfigurationX::displayname() const
 {
-    for (int i = 0; i < m_item->itemMetaDataCount(); ++i) {
-        ItemMetaData* metaData = m_item->itemMetaData(i);
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATION));
+    if (!itemGroup)
+        return QString();
 
-        if (metaData && metaData->name() == QLatin1String(CONFIGURATION))
-            return metaData->value();
-    }
+    Item *item = itemGroup->findItemWithInclude(m_evaluationValue);
+
+    if (!item)
+        return QString();
+
+    ItemMetaData* metaData = item->findMetaDataWithName(QLatin1String(CONFIGURATION));
+
+    if (metaData)
+        return metaData->value();
 
     return QString();
 }
 
 QString ConfigurationX::platform() const
 {
-    for (int i = 0; i < m_item->itemMetaDataCount(); ++i) {
-        ItemMetaData* metaData = m_item->itemMetaData(i);
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATION));
+    if (!itemGroup)
+        return QString();
 
-        if (metaData && metaData->name() == QLatin1String(PLATFORM))
-            return metaData->value();
-    }
+    Item *item = itemGroup->findItemWithInclude(m_evaluationValue);
+
+    if (!item)
+        return QString();
+
+    ItemMetaData* metaData = item->findMetaDataWithName(QLatin1String(PLATFORM));
+
+    if (metaData)
+        return metaData->value();
 
     return QString();
 }
@@ -377,27 +378,66 @@ void ConfigurationX::setDisplayName(const QString &newName)
     if (newName.contains(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER)))
         return;
 
-    QString oldName = displayname();
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATION));
+    if (!itemGroup)
+        return;
 
-    for (int i = 0; i < m_item->itemMetaDataCount(); ++i) {
-        ItemMetaData* metaData = m_item->itemMetaData(i);
+    Item *item = itemGroup->findItemWithInclude(m_evaluationValue);
 
-        if (metaData && metaData->name() == QLatin1String(CONFIGURATION))
-            metaData->setValue(newName);
-    }
+    if (!item)
+        return;
+
+    ItemMetaData* configurationMetaData = item->findMetaDataWithName(QLatin1String(CONFIGURATION));
+    ItemMetaData* platformMetaData = item->findMetaDataWithName(QLatin1String(PLATFORM));
+
+    if (!configurationMetaData || !platformMetaData)
+        return;
+
+    QString oldConfigurationName = configurationMetaData->value();
+    QString platformName = platformMetaData->value();
+
+    if (platformName.isEmpty() || oldConfigurationName.isEmpty())
+        return;
+
+    configurationMetaData->setValue(newName);
 
     // flush config name change through out the project
-    setConfiguraitionName(m_project, oldName, newName);
+    setConfiguraitionName(m_project,
+                          oldConfigurationName + QLatin1String(CONFIGURATION_PLATFORM_DELIMITER) + platformName,
+                          newName + QLatin1String(CONFIGURATION_PLATFORM_DELIMITER) + platformName);
 }
 
-void ConfigurationX::setPlatform(const QString &platform)
+void ConfigurationX::setPlatform(const QString &newPlatformName)
 {
-    for (int i = 0; i < m_item->itemMetaDataCount(); ++i) {
-        ItemMetaData* metaData = m_item->itemMetaData(i);
+    if (newPlatformName.contains(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER)))
+        return;
 
-        if (metaData && metaData->name() == QLatin1String(PLATFORM))
-            metaData->setValue(platform);
-    }
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATION));
+    if (!itemGroup)
+        return;
+
+    Item *item = itemGroup->findItemWithInclude(m_evaluationValue);
+
+    if (!item)
+        return;
+
+    ItemMetaData* configurationMetaData = item->findMetaDataWithName(QLatin1String(CONFIGURATION));
+    ItemMetaData* platformMetaData = item->findMetaDataWithName(QLatin1String(PLATFORM));
+
+    if (!configurationMetaData || !platformMetaData)
+        return;
+
+    QString configurationName = configurationMetaData->value();
+    QString oldPlatformName = platformMetaData->value();
+
+    if (oldPlatformName.isEmpty() || configurationName.isEmpty())
+        return;
+
+    platformMetaData->setValue(newPlatformName);
+
+    setConfiguraitionName(m_project,
+                          configurationName + QLatin1String(CONFIGURATION_PLATFORM_DELIMITER) + oldPlatformName,
+                          configurationName + QLatin1String(CONFIGURATION_PLATFORM_DELIMITER) + newPlatformName);
 }
 
 ITools *ConfigurationX::tools() const
@@ -429,12 +469,8 @@ QDomNode ConfigurationX::toXMLDomNode(QDomDocument &domXMLDocument) const
 
 void ConfigurationX::swap(ConfigurationX &first, ConfigurationX &second)
 {
-    std::swap(first.m_importGroups, second.m_importGroups);
-    std::swap(first.m_item, second.m_item);
-    std::swap(first.m_itemDefinitionGroup, second.m_itemDefinitionGroup);
-    std::swap(first.m_itemMetaData, second.m_itemMetaData);
     std::swap(first.m_project, second.m_project);
-    std::swap(first.m_propertyGroups, second.m_propertyGroups);
+    std::swap(first.m_evaluationValue, second.m_evaluationValue);
 }
 
 void ConfigurationX::findAssociatedTools()
@@ -462,18 +498,74 @@ void ConfigurationX::processToolDefGrp(ItemDefinitionGroup *itemDefGrp)
     if (!itemDefGrp)
         return;
 
-    for (int i = 0; i < itemDefGrp->itemDefinitionCount(); ++i) {
-        ItemDefinition *itemDef = itemDefGrp->itemDefinition(i);
+//    for (int i = 0; i < itemDefGrp->itemDefinitionCount(); ++i) {
+//        ItemDefinition *itemDef = itemDefGrp->itemDefinition(i);
 
-        if (!itemDef)
-            continue;
+//        if (!itemDef)
+//            continue;
 
-        QString toolKey = itemDef->name();
+//        QString toolKey = itemDef->name();
 
 
         // TODO(Radovan):
         // check if the tool key belongs to the build configuration tools
-        // if so, use ToolDescriptionDataManager to create the tool adn add that tool into ITools interface
+        // if so, use ToolDescriptionDataManager to create the tool and add that tool into ITools interface
+//    }
+}
+
+QString ConfigurationX::evaluationValue() const
+{
+    return m_evaluationValue;
+}
+
+void ConfigurationX::setEvaluationValue(const QString &evaluationValue)
+{
+    m_evaluationValue = evaluationValue;
+}
+
+void ConfigurationX::removeConfigurationFromProject()
+{
+    EvaluateArguments evalArgs;
+    evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(displayname()));
+    evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(platform()));
+
+    // delete from configuration item group
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS));
+    if (itemGroup) {
+        return;
+
+        Item *item = itemGroup->findItemWithInclude(m_evaluationValue);
+        if (item) {
+            itemGroup->removeItem(item);
+            delete item;
+        }
+    }
+
+    // delete from property groups
+    PropertyGroup *propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs);
+    if (propertyGroup) {
+        m_project->removePropertyGroup(propertyGroup);
+        delete propertyGroup;
+    }
+
+    propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs, QLatin1String(CONFIGURATION));
+    if (propertyGroup) {
+        m_project->removePropertyGroup(propertyGroup);
+        delete propertyGroup;
+    }
+
+    // delete from item definition groups groups
+    ItemDefinitionGroup *itemDefinitionGroup = m_project->findItemDefinitionGroupWithCondition(evalArgs);
+    if (itemDefinitionGroup) {
+        m_project->removeItemDefinitionGroup(itemDefinitionGroup);
+        delete itemDefinitionGroup;
+    }
+
+    // delete from import groups
+    ImportGroup *importGroup = m_project->findImportGroupWithConditionAndLabel(evalArgs, QLatin1String(PROPERTY_SHEETS));
+    if (importGroup) {
+        m_project->removeImportGroup(importGroup);
+        delete importGroup;
     }
 }
 

@@ -54,8 +54,7 @@ namespace VisualStudioProjectX {
 ConfigurationsX::ConfigurationsX(Project *project)
     : m_project(project)
 {
-    m_itemGroup = VisualStudioProjectX::Utils::findItemGroupWithLabel(QLatin1String(VisualStudioProjectX::PROJECT_CONFIGURATIONS), m_project);
-    m_configurationContainer = new ConfigurationContainerX(m_itemGroup, project);
+    m_configurationContainer = new ConfigurationContainerX(project);
 
     processItemGroup();
 }
@@ -63,7 +62,6 @@ ConfigurationsX::ConfigurationsX(Project *project)
 ConfigurationsX::ConfigurationsX(const ConfigurationsX &other)
 {
     m_configurationContainer = new ConfigurationContainerX(*other.m_configurationContainer);
-    m_itemGroup = other.m_itemGroup;
     m_project = other.m_project;
 }
 
@@ -103,28 +101,24 @@ QDomNode ConfigurationsX::toXMLDomNode(QDomDocument &domXMLDocument) const
 void ConfigurationsX::swap(ConfigurationsX &first, ConfigurationsX &second)
 {
     std::swap(first.m_configurationContainer, second.m_configurationContainer);
-    std::swap(first.m_itemGroup, second.m_itemGroup);
     std::swap(first.m_project, second.m_project);
 }
 
 void ConfigurationsX::processItemGroup()
 {
-    if (!m_itemGroup)
+    ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS), m_project);
+
+    if (!itemGroup)
         return;
 
-    for (int i = 0; i < m_itemGroup->itemCount(); ++i) {
-        Item *item = m_itemGroup->item(i);
+    for (int i = 0; i < itemGroup->itemCount(); ++i) {
+        Item *item = itemGroup->item(i);
 
         if (!item)
             continue;
 
-        QString configName = findConfigName(item);
-        QString configPlatform = findConfigPlatform(item);
-
-        ConfigurationX *config = m_configurationContainer->createConfiguration(item,
-                                                                               findConfigurationDefGroup(configName, configPlatform),
-                                                                               findConfigurationPropertyGroups(configName, configPlatform),
-                                                                               findConfigurationImportGroups(configName, configPlatform));
+        ConfigurationX *config = new ConfigurationX(m_project);
+        config->setEvaluationValue(item->include());
         m_configurationContainer->m_configs.append(config);
     }
 }

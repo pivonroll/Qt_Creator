@@ -52,9 +52,8 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
-ConfigurationContainerX::ConfigurationContainerX(ItemGroup *configurationsItemGroup, Project *project, QObject *parent)
+ConfigurationContainerX::ConfigurationContainerX(Project *project, QObject *parent)
     : IConfigurationContainer(parent),
-      m_configurationsItemGroup(configurationsItemGroup),
       m_project(project)
 {
 }
@@ -62,7 +61,6 @@ ConfigurationContainerX::ConfigurationContainerX(ItemGroup *configurationsItemGr
 ConfigurationContainerX::ConfigurationContainerX(const ConfigurationContainerX &configCont)
     : IConfigurationContainer(configCont)
 {
-    m_configurationsItemGroup = new ItemGroup(*configCont.m_configurationsItemGroup);
     m_project = configCont.m_project;
 }
 
@@ -89,7 +87,6 @@ void ConfigurationContainerX::addConfiguration(IConfiguration *config)
         return;
 
     m_configs.append(configX);
-    addConfigurationToProject(configX);
 }
 
 void ConfigurationContainerX::removeConfiguration(const QString &fullName)
@@ -134,40 +131,55 @@ IConfiguration *ConfigurationContainerX::createNewConfiguration(const QString &c
             arg(platformName);
 
     ConfigurationX *newConfig = new ConfigurationX(m_project);
-    newConfig->m_item = new Item;
-    newConfig->m_item->setName(QLatin1String(PROJECT_CONFIGURATION));
+
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS));
+
+    if (!itemGroup) {
+        itemGroup = new ItemGroup;
+        itemGroup->setLabel(QLatin1String(PROJECT_CONFIGURATIONS));
+        m_project->addItemGroup(itemGroup);
+    }
+
+    Item *item = new Item;
+    itemGroup->addItem(item);
+    item->setName(QLatin1String(PROJECT_CONFIGURATION));
 
     QString include = QLatin1String("%1%2%3");
     include = include.arg(configDisplayName).arg(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER)).arg(platformName);
-    newConfig->m_item->setInclude(include);
+    item->setInclude(include);
 
     ItemMetaData *newMetaData = new ItemMetaData;
     newMetaData->setName(QLatin1String(CONFIGURATION));
     newMetaData->setValue(configDisplayName);
-    newConfig->m_item->addItemMetaData(newMetaData);
+    item->addItemMetaData(newMetaData);
 
     newMetaData = new ItemMetaData;
     newMetaData->setName(QLatin1String(PLATFORM));
     newMetaData->setValue(platformName);
-    newConfig->m_item->addItemMetaData(newMetaData);
+    item->addItemMetaData(newMetaData);
 
-
+    // Configuration property group with label
     PropertyGroup *newPropertyGroup = new PropertyGroup;
+    m_project->addPropertyGroup(newPropertyGroup);
     newPropertyGroup->setCondition(condition);
-    newConfig->m_propertyGroups.append(newPropertyGroup);
-
-    newPropertyGroup = new PropertyGroup(*newPropertyGroup);
     newPropertyGroup->setLabel(QLatin1String(CONFIGURATION));
-    newConfig->m_propertyGroups.append(newPropertyGroup);
 
+    // Configuration property group without any label
+    newPropertyGroup = new PropertyGroup;
+    m_project->addPropertyGroup(newPropertyGroup);
+    newPropertyGroup->setCondition(condition);
+
+    // Property sheets
     ImportGroup *importGroup = new ImportGroup;
+    m_project->addImportGroup(importGroup);
     importGroup->setLabel(QLatin1String(PROPERTY_SHEETS));
     importGroup->setCondition(condition);
-    newConfig->m_importGroups.append(importGroup);
 
-    newConfig->m_itemDefinitionGroup = new ItemDefinitionGroup;
-    newConfig->m_itemDefinitionGroup->setCondition(condition);
+    ItemDefinitionGroup *itemDefinitionGroup = new ItemDefinitionGroup;
+    m_project->addItemDefinitionGroup(itemDefinitionGroup);
+    itemDefinitionGroup->setCondition(condition);
 
+    // look for file build configurations (new Item group etc.)
     return newConfig;
 }
 
@@ -184,30 +196,14 @@ void ConfigurationContainerX::copyDataFrom(IConfigurationContainer *config)
 }
 
 ConfigurationContainerX::ConfigurationContainerX()
-    : m_configurationsItemGroup(nullptr),
-      m_project(nullptr)
+    : m_project(nullptr)
 {
 }
 
 void ConfigurationContainerX::swap(ConfigurationContainerX &first, ConfigurationContainerX &second)
 {
     std::swap(first.m_configs, second.m_configs);
-    std::swap(first.m_configurationsItemGroup, second.m_configurationsItemGroup);
     std::swap(first.m_project, second.m_project);
-}
-
-ConfigurationX *ConfigurationContainerX::createConfiguration(Item *item,
-                                                             ItemDefinitionGroup *itemDefGroup,
-                                                             const QList<PropertyGroup *> &propertyGroups,
-                                                             const QList<ImportGroup *> &importGroups)
-{
-    ConfigurationX *newConfig = new ConfigurationX(m_project);
-    newConfig->m_item = item;
-    newConfig->m_itemDefinitionGroup = itemDefGroup;
-    newConfig->m_importGroups = importGroups;
-    newConfig->m_propertyGroups = propertyGroups;
-
-    return newConfig;
 }
 
 ConfigurationX *ConfigurationContainerX::findConfiguration(const QString &configurationNameFull) const
@@ -220,239 +216,60 @@ ConfigurationX *ConfigurationContainerX::findConfiguration(const QString &config
     return nullptr;
 }
 
-void ConfigurationContainerX::removeConfigurationFromPropertyGroups(const EvaluateArguments &evalArgs)
-{
-    for (int i = 0; i < m_project->propertyGroupCount();) {
-        PropertyGroup *propertyGroup = m_project->propertyGroup(i);
-
-        if (!propertyGroup)
-            continue;
-
-        ConditionManipulation condMan(propertyGroup->condition());
-        if (condMan.evaluate(evalArgs))
-            m_project->removePropertyGroup(propertyGroup);
-        else
-            ++i;
-    }
-}
-
-void ConfigurationContainerX::removeConfigurationFromImportGroups(const EvaluateArguments &evalArgs)
-{
-    for (int i = 0; i < m_project->importGroupCount();) {
-        ImportGroup *importGroup = m_project->importGroup(i);
-
-        if (!importGroup)
-            continue;
-
-        ConditionManipulation condMan(importGroup->condition());
-        if (condMan.evaluate(evalArgs))
-            m_project->removeImportGroup(importGroup);
-        else
-            ++i;
-    }
-}
-
-void ConfigurationContainerX::removeConfigurationFromItemDefinitionGroups(const EvaluateArguments &evalArgs)
-{
-    for (int i = 0; i < m_project->itemDefinitionGroupCount();) {
-        ItemDefinitionGroup *itemDefGroup = m_project->itemDefinitionGroup(i);
-
-        if (!itemDefGroup)
-            continue;
-
-        ConditionManipulation condMan(itemDefGroup->condition());
-        if (condMan.evaluate(evalArgs))
-            m_project->removeItemDefinitionGroup(itemDefGroup);
-        else
-            ++i;
-    }
-}
-
-void ConfigurationContainerX::removeConfigurationFromItemGroups(const EvaluateArguments &evalArgs)
-{
-    for (int i = 0; i < m_project->itemGroupCount(); ++i) {
-        ItemGroup *itemGroup = m_project->itemGroup(i);
-
-        if (!itemGroup)
-            continue;
-
-        for (int j = 0; j < itemGroup->itemCount(); ++j) {
-            Item *item = itemGroup->item(j);
-
-            if (!item)
-                continue;
-
-            for (int k = 0; k < item->itemMetaDataCount();) {
-                ItemMetaData *itemMetaData = item->itemMetaData(k);
-
-                if (!itemMetaData)
-                    continue;
-
-                ConditionManipulation condMan(itemMetaData->condition());
-                if (condMan.evaluate(evalArgs))
-                    item->removeMetaData(itemMetaData);
-                else
-                    ++k;
-            }
-        }
-    }
-}
-
 void ConfigurationContainerX::removeConfigurationFromProject(const QString &fullName)
 {
     // remove items in the project associated with removed configuration
+    ConfigurationX *config = findConfiguration(fullName);
+
+    QTC_ASSERT(config != nullptr, return);
+
     QStringList clist = fullName.split(QLatin1Char('|'));
 
     EvaluateArguments evalArgs;
     evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(clist[0]));
     evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(clist[1]));
 
-    for (int i = 0; i < m_configurationsItemGroup->itemCount(); ++i) {
-        Item *item = m_configurationsItemGroup->item(i);
-
-        if (!item)
-            continue;
-
-        ConditionManipulation condMan(item->condition());
-
-        if (condMan.evaluate(evalArgs))
-            m_configurationsItemGroup->removeItem(item);
-
-    }
-
-    removeConfigurationFromPropertyGroups(evalArgs);
-    removeConfigurationFromImportGroups(evalArgs);
-    removeConfigurationFromItemDefinitionGroups(evalArgs);
-    // typical for files in the project
-    removeConfigurationFromItemGroups(evalArgs);
-}
-
-void ConfigurationContainerX::addConfigurationToPropertyGroups(const ConfigurationX *config)
-{
-    QTC_ASSERT(config != nullptr, return);
-
-    int foundIndex = findPropertyGroupWithConfiguration(config->fullName());
-
-    if (foundIndex != -1)
+    // delete from configuration item group
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS));
+    if (itemGroup) {
         return;
 
-    foreach (PropertyGroup *propertyGroup, config->m_propertyGroups)
-        m_project->addPropertyGroup(propertyGroup);
-}
-
-void ConfigurationContainerX::addConfigurationToImportGroups(const ConfigurationX *config)
-{
-    QTC_ASSERT(config != nullptr, return);
-
-    int foundIndex = findImportGroupWithConfiguration(config->fullName());
-
-    if (foundIndex != -1)
-        return;
-
-    foreach (ImportGroup *importGroup, config->m_importGroups)
-        m_project->addImportGroup(importGroup);
-}
-
-void ConfigurationContainerX::addConfigurationToItemDefinitions(const ConfigurationX *config)
-{
-    QTC_ASSERT(config != nullptr, return);
-
-    int foundIndex = findItemDefinitionWithConfiguration(config->fullName());
-
-    if (foundIndex != -1)
-        return;
-
-    m_project->addItemDefinitionGroup(config->m_itemDefinitionGroup);
-}
-
-void ConfigurationContainerX::addConfigurationToProject(const ConfigurationX *configX)
-{
-    addConfigurationToPropertyGroups(configX);
-    addConfigurationToImportGroups(configX);
-    addConfigurationToItemDefinitions(configX);
-
-    ItemGroup *itemGroup = Utils::findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS), m_project);
-
-    if (!itemGroup) {
-        itemGroup = createConfigurationItemGroup();
-        m_project->addItemGroup(itemGroup);
+        Item *item = itemGroup->findItemWithInclude(config->evaluationValue());
+        if (item) {
+            itemGroup->removeItem(item);
+            delete item;
+        }
     }
 
-    itemGroup->addItem(configX->m_item);
-}
-
-int ConfigurationContainerX::findPropertyGroupWithConfiguration(const QString &configFullName)
-{
-    QStringList clist = configFullName.split(QLatin1Char('|'));
-
-    EvaluateArguments evalArgs;
-    evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(clist[0]));
-    evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(clist[1]));
-
-    for (int i = 0; i < m_project->propertyGroupCount(); ++i) {
-        PropertyGroup *propertyGroup = m_project->propertyGroup(i);
-
-        if (!propertyGroup)
-            continue;
-
-        ConditionManipulation condMan(propertyGroup->condition());
-        if (condMan.evaluate(evalArgs))
-            return i;
+    // delete from property groups
+    PropertyGroup *propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs);
+    if (propertyGroup) {
+        m_project->removePropertyGroup(propertyGroup);
+        delete propertyGroup;
     }
 
-    return -1;
-}
-
-int ConfigurationContainerX::findImportGroupWithConfiguration(const QString &configFullName)
-{
-    QStringList clist = configFullName.split(QLatin1Char('|'));
-
-    EvaluateArguments evalArgs;
-    evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(clist[0]));
-    evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(clist[1]));
-
-    for (int i = 0; i < m_project->importGroupCount(); ++i) {
-        ImportGroup *importGroup = m_project->importGroup(i);
-
-        if (!importGroup)
-            continue;
-
-        ConditionManipulation condMan(importGroup->condition());
-        if (condMan.evaluate(evalArgs))
-            return i;
+    propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs, QLatin1String(CONFIGURATION));
+    if (propertyGroup) {
+        m_project->removePropertyGroup(propertyGroup);
+        delete propertyGroup;
     }
 
-    return -1;
-}
-
-int ConfigurationContainerX::findItemDefinitionWithConfiguration(const QString &configFullName)
-{
-    QStringList clist = configFullName.split(QLatin1Char('|'));
-
-    EvaluateArguments evalArgs;
-    evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(clist[0]));
-    evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(clist[1]));
-
-    for (int i = 0; i < m_project->itemDefinitionGroupCount(); ++i) {
-        ItemDefinitionGroup *itemDefinitionGroup = m_project->itemDefinitionGroup(i);
-
-        if (!itemDefinitionGroup)
-            continue;
-
-        ConditionManipulation condMan(itemDefinitionGroup->condition());
-        if (condMan.evaluate(evalArgs))
-            return i;
+    // delete from item definition groups groups
+    ItemDefinitionGroup *itemDefinitionGroup = m_project->findItemDefinitionGroupWithCondition(evalArgs);
+    if (itemDefinitionGroup) {
+        m_project->removeItemDefinitionGroup(itemDefinitionGroup);
+        delete itemDefinitionGroup;
     }
 
-    return -1;
-}
+    // delete from import groups
+    ImportGroup *importGroup = m_project->findImportGroupWithConditionAndLabel(evalArgs, QLatin1String(PROPERTY_SHEETS));
+    if (importGroup) {
+        m_project->removeImportGroup(importGroup);
+        delete importGroup;
+    }
 
-ItemGroup *ConfigurationContainerX::createConfigurationItemGroup()
-{
-    ItemGroup *newItemGroup = new ItemGroup;
-    newItemGroup->setLabel(QLatin1String(PROJECT_CONFIGURATIONS));
-
-    return newItemGroup;
+    m_configs.removeOne(config);
+    delete config;
 }
 
 } // namespace VisualStudioProjectX

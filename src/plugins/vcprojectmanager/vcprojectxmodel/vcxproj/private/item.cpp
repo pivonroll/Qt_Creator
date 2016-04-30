@@ -103,6 +103,16 @@ void Item::removeMetaData(ItemMetaData *metaData)
     m_itemMetaData.removeOne(metaData);
 }
 
+ItemMetaData *Item::findMetaDataWithName(const QString &name) const
+{
+    foreach (ItemMetaData *metaData, m_itemMetaData) {
+        if (metaData && metaData->name() == name)
+            return metaData;
+    }
+
+    return nullptr;
+}
+
 QString Item::include() const
 {
     return m_include;

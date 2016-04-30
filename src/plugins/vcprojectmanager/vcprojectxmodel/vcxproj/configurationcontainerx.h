@@ -56,7 +56,7 @@ class ConfigurationContainerX : public IConfigurationContainer
     friend class ConfigurationsX;
 
 public:
-    ConfigurationContainerX(ItemGroup *configurationsItemGroup, Project *project, QObject *parent = 0);
+    ConfigurationContainerX(Project *project, QObject *parent = 0);
     ConfigurationContainerX(const ConfigurationContainerX &configCont);
     ConfigurationContainerX(ConfigurationContainerX &&configCont);
     ConfigurationContainerX& operator=(ConfigurationContainerX configCont);
@@ -73,28 +73,10 @@ public:
 private:
     ConfigurationContainerX();
     static void swap(ConfigurationContainerX &first, ConfigurationContainerX &second);
-    ConfigurationX *createConfiguration(Item *item, ItemDefinitionGroup *itemDefGroup,
-                                        const QList<PropertyGroup *> &propertyGroups,
-                                        const QList<ImportGroup *> &importGroups);
     ConfigurationX *findConfiguration(const QString &configurationNameFull) const;
 
-    void removeConfigurationFromPropertyGroups(const EvaluateArguments &evalArgs);
-    void removeConfigurationFromImportGroups(const EvaluateArguments &evalArgs);
-    void removeConfigurationFromItemDefinitionGroups(const EvaluateArguments &evalArgs);
-    void removeConfigurationFromItemGroups(const EvaluateArguments &evalArgs);
     void removeConfigurationFromProject(const QString &fullName);
 
-    void addConfigurationToPropertyGroups(const ConfigurationX *config);
-    void addConfigurationToImportGroups(const ConfigurationX *config);
-    void addConfigurationToItemDefinitions(const ConfigurationX *config);
-    void addConfigurationToProject(const ConfigurationX *configX);
-
-    int findPropertyGroupWithConfiguration(const QString &configFullName);
-    int findImportGroupWithConfiguration(const QString &configFullName);
-    int findItemDefinitionWithConfiguration(const QString &configFullName);
-    ItemGroup *createConfigurationItemGroup();
-
-    ItemGroup *m_configurationsItemGroup;
     Project *m_project;
     QList<IConfiguration *> m_configs;
 };

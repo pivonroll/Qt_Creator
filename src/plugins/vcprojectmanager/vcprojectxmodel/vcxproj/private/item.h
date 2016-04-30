@@ -53,10 +53,11 @@ public:
     Item& operator=(Item other);
     virtual ~Item();
 
-    ItemMetaData* itemMetaData(int index) const;
+    ItemMetaData *itemMetaData(int index) const;
     int itemMetaDataCount() const;
     void addItemMetaData(ItemMetaData *metaData);
     void removeMetaData(ItemMetaData *metaData);
+    ItemMetaData *findMetaDataWithName(const QString &name) const;
 
     QString include() const;
     void setInclude(const QString &include);

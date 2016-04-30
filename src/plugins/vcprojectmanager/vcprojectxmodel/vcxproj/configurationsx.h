@@ -78,7 +78,6 @@ private:
 
     ConfigurationContainerX *m_configurationContainer;
     Project *m_project;
-    ItemGroup *m_itemGroup;
 };
 
 } // namespace VisualStudioProjectX

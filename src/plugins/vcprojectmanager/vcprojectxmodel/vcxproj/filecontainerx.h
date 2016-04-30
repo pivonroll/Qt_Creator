@@ -88,7 +88,6 @@ private:
     void removeFilesFromProject(const QStringList &relativePaths);
     void removeFileFromItemGroup(ItemGroup *itemGroup, const QStringList &relativePaths);
 
-    Item *m_filterItem;
     Project *m_project;
     Project *m_filters;
     FileContainerX *m_parentContainer;
