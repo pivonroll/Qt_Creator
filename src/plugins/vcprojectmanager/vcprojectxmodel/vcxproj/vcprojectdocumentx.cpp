@@ -294,6 +294,11 @@ IProjectFactories *VcProjectDocumentX::projectFactories() const
     return nullptr;
 }
 
+IVisualStudioProject *VcProjectDocumentX::clone() const
+{
+    return new VcProjectDocumentX(*this);
+}
+
 void VcProjectDocumentX::swap(VcProjectDocumentX &first, VcProjectDocumentX &second)
 {
     std::swap(first.m_configurations, second.m_configurations);

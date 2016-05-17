@@ -74,6 +74,7 @@ public:
 
     IConfiguration *createDefaultBuildConfiguration(const QString &fullConfigName) const;
     IProjectFactories *projectFactories() const;
+    IVisualStudioProject *clone() const;
 
 private:
     static void swap(VcProjectDocumentX &first, VcProjectDocumentX &second);

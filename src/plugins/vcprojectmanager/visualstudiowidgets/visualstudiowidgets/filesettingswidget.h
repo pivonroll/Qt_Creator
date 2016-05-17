@@ -36,7 +36,7 @@ namespace VcProjectManager {
 namespace Internal {
 
 class IFile;
-class ConfigurationsEditWidget;
+class FileConfigurationsEditWidget;
 
 class FileSettingsWidget : public VcNodeWidget
 {
@@ -54,7 +54,7 @@ signals:
     void accepted();
 
 private:
-    ConfigurationsEditWidget *m_configurationsWidget;
+    FileConfigurationsEditWidget *m_fileConfigurationsWidget;
 };
 
 } // namespace Internal

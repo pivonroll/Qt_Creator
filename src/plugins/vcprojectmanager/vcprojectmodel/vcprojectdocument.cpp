@@ -318,6 +318,11 @@ IProjectFactories *VcProjectDocument::projectFactories() const
     return 0;
 }
 
+IVisualStudioProject *VcProjectDocument::clone() const
+{
+    return new VcProjectDocument(*this);
+}
+
 VcProjectDocument::VcProjectDocument()
     : m_platforms(nullptr),
       m_configurations(nullptr),

@@ -78,6 +78,7 @@ public:
     VcNodeWidget *createSettingsWidget();
     IConfiguration *createDefaultBuildConfiguration(const QString &fullConfigName) const;
     IProjectFactories *projectFactories() const;
+    IVisualStudioProject *clone() const;
 
 protected:
     VcProjectDocument();

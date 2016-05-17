@@ -75,7 +75,6 @@ private:
     IFile *m_file;
     IVisualStudioProject *m_vsProject;
     ConfigurationsWidget *m_configsWidget;
-    QMap<IFile *, IConfigurationContainer *> m_fileConfigurations;
     IConfigurationContainer *m_buildConfigurations;
 };
 

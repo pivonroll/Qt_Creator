@@ -63,16 +63,21 @@ private slots:
     void addConfigWidget(IConfiguration *config);
 
 private:
-    void readFileBuildConfigurations();
-    void readFileBuildConfigurations(IFileContainer *container);
-    void readFileBuildConfigurations(IFile *file);
     void addConfigToProjectBuild(const QString &newConfigName, const QString &copyFrom);
     void addConfigToFiles(const QString &newConfigName, const QString &copyFrom);
+    void addConfigToFiles(IFileContainer *container, const QString &newConfigName, const QString &copyFrom);
+    void addConfigToFiles(IFile *file, const QString &newConfigName, const QString &copyFrom);
+    void renameFileBuildConfiguration(const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
+    void renameFileBuildConfiguration(IFileContainer *container, const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
+    void renameFileBuildConfiguration(IFile *file, const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
+    void removeConfigFromFiles(const QString &configNameWithPlatform);
+    void removeConfigFromFiles(IFileContainer *container, const QString &configNameWithPlatform);
+    void removeConfigFromFiles(IFile *file, const QString &configNameWithPlatform);
 
     IVisualStudioProject *m_vsProject;
+    IVisualStudioProject *m_tempVsProject;
     ConfigurationsWidget *m_configsWidget;
     QMap<IFile *, IConfigurationContainer *> m_fileConfigurations;
-    IConfigurationContainer *m_buildConfigurations;
 };
 
 } // Internal

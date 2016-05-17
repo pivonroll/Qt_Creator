@@ -30,7 +30,7 @@
 #include "filesettingswidget.h"
 #include "projectsettingswidget.h"
 #include <visualstudiointerfaces/ifile.h>
-#include <visualstudiowidgets/configurationseditwidget.h>
+#include <visualstudiowidgets/fileconfigurationseditwidget.h>
 
 #include <QVBoxLayout>
 
@@ -48,8 +48,8 @@ FileSettingsWidget::FileSettingsWidget(IFile *file, QWidget *parent)
     ProjectSettingsWidget *projectSettingsWidget = new ProjectSettingsWidget(this);
 
     // add Configurations
-    m_configurationsWidget = static_cast<ConfigurationsEditWidget *>(file->createSettingsWidget());
-    projectSettingsWidget->addWidget(tr("Configurations"), m_configurationsWidget);
+    m_fileConfigurationsWidget = static_cast<FileConfigurationsEditWidget *>(file->createSettingsWidget());
+    projectSettingsWidget->addWidget(tr("Configurations"), m_fileConfigurationsWidget);
     QVBoxLayout *layout = new QVBoxLayout;
     layout->setMargin(0);
     layout->addWidget(projectSettingsWidget);
@@ -64,7 +64,7 @@ FileSettingsWidget::FileSettingsWidget(IFile *file, QWidget *parent)
  */
 void FileSettingsWidget::saveData()
 {
-    m_configurationsWidget->saveData();
+    m_fileConfigurationsWidget->saveData();
 }
 
 /*!

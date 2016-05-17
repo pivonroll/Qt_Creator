@@ -53,6 +53,7 @@ class IToolFiles;
 class IVisualStudioProject : public IVcProjectXMLNode
 {
 public:
+    virtual ~IVisualStudioProject() {}
     /*!
      * \return a attribute container used to store attributes for this project.
      * See \class IAttributeContainer for more detail.
@@ -121,6 +122,8 @@ public:
     virtual IConfiguration *createDefaultBuildConfiguration(const QString &fullConfigName) const = 0;
 
     virtual IProjectFactories *projectFactories() const = 0;
+
+    virtual IVisualStudioProject *clone() const = 0;
 };
 
 } // namespace Internal
