@@ -55,10 +55,11 @@ public:
     QString condition() const;
     void setCondition(const QString &condition);
 
-    Property* property(int index) const;
+    Property *property(int index) const;
     int propertyCount() const;
     void addProperty(Property *property);
     void removeProperty(Property *property);
+    Property *findProperty(const QString &propertyName) const;
 
     // IVisualStudioProjectNode interface
     void processNode(const QDomNode &node);

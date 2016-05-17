@@ -93,6 +93,15 @@ void ItemDefinitionGroup::removeItem(ItemDefinition *item)
     m_items.removeOne(item);
 }
 
+ItemDefinition *ItemDefinitionGroup::findItemDefinition(const QString &name) const
+{
+    foreach (ItemDefinition *itemDef, m_items) {
+        if (itemDef && itemDef->name() == name)
+            return itemDef;
+    }
+    return nullptr;
+}
+
 QString ItemDefinitionGroup::condition() const
 {
     return m_condition;

@@ -206,7 +206,7 @@ void FilesX::createFileContainer(ItemGroup *itemGroup, const QStringList &pathLi
 
         if (!fileContainer) {
             fileContainer = new FileContainerX;
-            Item *item = Utils::findItemInGroup(relativePath.join(QLatin1Char('\\')), itemGroup);
+            Item *item = itemGroup->findItemWithInclude(relativePath.join(QLatin1Char('\\')));
 
             if (item)
                 fileContainer->m_filterItem = item;
@@ -298,8 +298,8 @@ void FilesX::readFileGroup(const QString &groupName)
 
     for (int i = 0; i < filterItemGroup->itemCount(); ++i) {
         Item *filterItem = filterItemGroup->item(i);
-        ItemMetaData *filterItemMeta = Utils::findItemMetaWithName(QLatin1String(FILTER_ITEM), filterItem);
-        Item *projectItem = Utils::findItemInGroup(filterItem->include(), projectItemGroup);
+        ItemMetaData *filterItemMeta = filterItem->findMetaDataWithName(QLatin1String(FILTER_ITEM));
+        Item *projectItem = projectItemGroup->findItemWithInclude(filterItem->include());
 
         if (filterItemMeta && projectItem) {
             FileContainerX *cont = findFileContainer(filterItemMeta->value());

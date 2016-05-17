@@ -51,15 +51,7 @@ public:
     static ItemGroup *findItemGroupWithName(const QString &itemName, Project *docProject);
     static ItemGroup *findItemGroupContainingItem(Item *item, Project *docProject);
     static bool groupContainsItem(Item *item, ItemGroup *itemGroup);
-    static Item *findItemInGroup(const QString &incl, ItemGroup *itemGroup);
     static bool itemGroupContainsItemName(const QString &itemName, ItemGroup *itemGroup);
-    static ItemMetaData *findItemMetaWithName(const QString &name, const Item *findInItem);
-    static ItemGroup *findItemGroupWithLabel(const QString &label, Project *project);
-    static Item *findFilterItemForFileExtension(const QString &fileExtension, Project *project);
-    static PropertyGroup *findPropertyGroup(Project *project, const QString &condition, const QString &label);
-    static Property *findProperty(PropertyGroup *propertyGroup, const QString &propertyName);
-    static ItemDefinitionGroup *findItemDefinitionGroup(Project *project, const QString &condition);
-    static ItemDefinition *findItemDefinition(ItemDefinitionGroup *itemDefinitionGroup, const QString &name);
 };
 
 } // namespace VisualStudioProjectX

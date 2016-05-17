@@ -105,6 +105,15 @@ void PropertyGroup::removeProperty(Property *property)
     m_properties.removeOne(property);
 }
 
+Property *PropertyGroup::findProperty(const QString &propertyName) const
+{
+    foreach (Property *property, m_properties) {
+        if (property && property->name() == propertyName)
+            return property;
+    }
+    return nullptr;
+}
+
 void PropertyGroup::processNode(const QDomNode &node)
 {
     if (node.isElement())

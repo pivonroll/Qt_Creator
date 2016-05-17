@@ -92,20 +92,31 @@ QString BaseToolAttributeX::value() const
 {
     // if Tag is PropertyGroup
     if (m_attributeDescription->tag() == QLatin1String("PropertyGroup")) {
-        PropertyGroup *propertyGroup = Utils::findPropertyGroup(m_project, m_configuration->fullName(), QLatin1String(CONFIGURATION));
+        EvaluateArguments evalArgs;
+        QStringList args = m_configuration->fullName().split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
+
+        evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+        evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+        PropertyGroup *propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs, QLatin1String(CONFIGURATION));
 
         if (!propertyGroup)
             return m_attributeDescription->defaultValue();
 
-        Property *property = Utils::findProperty(propertyGroup, m_attributeDescription->key());
+        Property *property = propertyGroup->findProperty(m_attributeDescription->key());
 
         if (!property)
             return m_attributeDescription->defaultValue();
 
         return property->value();
     } else { // if Tag is specific
-        ItemDefinitionGroup *itemDefinitionGroup = Utils::findItemDefinitionGroup(m_project, m_configuration->fullName());
-        ItemDefinition *itemDefinition = Utils::findItemDefinition(itemDefinitionGroup, m_attributeDescription->tag());
+        EvaluateArguments evalArgs;
+        QStringList args = m_configuration->fullName().split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
+
+        evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+        evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+
+        ItemDefinitionGroup *itemDefinitionGroup = m_project->findItemDefinitionGroupWithCondition(evalArgs);
+        ItemDefinition *itemDefinition = itemDefinitionGroup->findItemDefinition(m_attributeDescription->tag());
         // if Tag node does not exist insert it
         if (!itemDefinition)
             return m_attributeDescription->defaultValue();
@@ -126,7 +137,12 @@ void BaseToolAttributeX::setValue(const QString &value)
 
     // if Tag is PropertyGroup
     if (m_attributeDescription->tag() == QLatin1String("PropertyGroup")) {
-        PropertyGroup *propertyGroup = Utils::findPropertyGroup(m_project, m_configuration->fullName(), QLatin1String(CONFIGURATION));
+        EvaluateArguments evalArgs;
+        QStringList args = m_configuration->fullName().split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
+
+        evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+        evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+        PropertyGroup *propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs, QLatin1String(CONFIGURATION));
 
         if (!propertyGroup) {
             propertyGroup = new PropertyGroup;
@@ -140,7 +156,7 @@ void BaseToolAttributeX::setValue(const QString &value)
             m_project->addPropertyGroup(propertyGroup);
         }
 
-        Property *property = Utils::findProperty(propertyGroup, m_attributeDescription->key());
+        Property *property = propertyGroup->findProperty(m_attributeDescription->key());
 
         if (!property) {
             property = new Property;
@@ -151,8 +167,14 @@ void BaseToolAttributeX::setValue(const QString &value)
         property->setValue(value);
         m_isUsed = true;
     } else { // else if Tag is specific
-        ItemDefinitionGroup *itemDefinitionGroup = Utils::findItemDefinitionGroup(m_project, m_configuration->fullName());
-        ItemDefinition *itemDefinition = Utils::findItemDefinition(itemDefinitionGroup, m_attributeDescription->tag());
+        EvaluateArguments evalArgs;
+        QStringList args = m_configuration->fullName().split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
+
+        evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+        evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+
+        ItemDefinitionGroup *itemDefinitionGroup = m_project->findItemDefinitionGroupWithCondition(evalArgs);
+        ItemDefinition *itemDefinition = itemDefinitionGroup->findItemDefinition(m_attributeDescription->tag());
         // if Tag node does not exist insert it
         if (!itemDefinition) {
             itemDefinition = new ItemDefinition;
@@ -188,12 +210,17 @@ void BaseToolAttributeX::deleteFromProjectTree()
 
     // if Tag is PropertyGroup
     if (m_attributeDescription->tag() == QLatin1String("PropertyGroup")) {
-        PropertyGroup *propertyGroup = Utils::findPropertyGroup(m_project, m_configuration->fullName(), QLatin1String(CONFIGURATION));
+        EvaluateArguments evalArgs;
+        QStringList args = m_configuration->fullName().split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
+
+        evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+        evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+        PropertyGroup *propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs, QLatin1String(CONFIGURATION));
 
         if (!propertyGroup)
             return;
 
-        Property *property = Utils::findProperty(propertyGroup, m_attributeDescription->key());
+        Property *property = propertyGroup->findProperty(m_attributeDescription->key());
 
         if (!property)
             return;
@@ -201,8 +228,14 @@ void BaseToolAttributeX::deleteFromProjectTree()
         propertyGroup->removeProperty(property);
         delete property;
     } else { // if Tag is specific
-        ItemDefinitionGroup *itemDefinitionGroup = Utils::findItemDefinitionGroup(m_project, m_configuration->fullName());
-        ItemDefinition *itemDefinition = Utils::findItemDefinition(itemDefinitionGroup, m_attributeDescription->tag());
+        EvaluateArguments evalArgs;
+        QStringList args = m_configuration->fullName().split(QLatin1String(CONFIGURATION_PLATFORM_DELIMITER));
+
+        evalArgs.addArgument(QLatin1String(CONFIGURATION_VARIABLE), QVariant(args[0]));
+        evalArgs.addArgument(QLatin1String(PLATFORM_VARIABLE), QVariant(args[1]));
+
+        ItemDefinitionGroup *itemDefinitionGroup = m_project->findItemDefinitionGroupWithCondition(evalArgs);
+        ItemDefinition *itemDefinition = itemDefinitionGroup->findItemDefinition(m_attributeDescription->tag());
         // if Tag node does not exist insert it
         if (!itemDefinition)
             return;

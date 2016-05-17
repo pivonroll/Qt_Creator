@@ -106,7 +106,7 @@ void ConfigurationsX::swap(ConfigurationsX &first, ConfigurationsX &second)
 
 void ConfigurationsX::processItemGroup()
 {
-    ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS), m_project);
+    ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS));
 
     if (!itemGroup)
         return;

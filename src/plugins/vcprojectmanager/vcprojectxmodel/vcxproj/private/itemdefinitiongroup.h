@@ -52,10 +52,11 @@ public:
     ItemDefinitionGroup& operator=(ItemDefinitionGroup other);
     ~ItemDefinitionGroup();
 
-    ItemDefinition* itemDefinition(int index) const;
+    ItemDefinition *itemDefinition(int index) const;
     int itemDefinitionCount() const;
     void addItem(ItemDefinition *item);
     void removeItem(ItemDefinition *item);
+    ItemDefinition *findItemDefinition(const QString &name) const;
 
     QString condition() const;
     void setCondition(const QString &condition);
