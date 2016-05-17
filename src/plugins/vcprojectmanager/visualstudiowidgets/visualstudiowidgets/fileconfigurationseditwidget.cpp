@@ -77,26 +77,23 @@ namespace Internal {
  */
 
 FileConfigurationsEditWidget::FileConfigurationsEditWidget(IFile *file, IVisualStudioProject *project)
-    : m_file(file),
-      m_vsProject(project)
+    : m_vsProject(project),
+      m_tempVsProject(nullptr)
 {
     QTC_ASSERT(m_vsProject, return);
-    QTC_ASSERT(m_vsProject->configurations(), return);
-    QTC_ASSERT(m_vsProject->configurations()->configurationContainer(), return);
 
-    m_buildConfigurations = m_vsProject->configurations()->configurationContainer()->clone();
+    m_tempVsProject = m_vsProject->clone();
+    QTC_ASSERT(m_tempVsProject->configurations(), return);
+    QTC_ASSERT(m_tempVsProject->configurations()->configurationContainer(), return);
+
     m_configsWidget = new ConfigurationsWidget;
     QVBoxLayout *layout = new QVBoxLayout;
     layout->setMargin(0);
     layout->addWidget(m_configsWidget);
-    setLayout(layout);
+    setLayout(layout);    
 
-    readFileBuildConfigurations();
-
-    IConfigurationContainer *fileConfigContainer = m_fileConfigurations[m_file];
-
-    for (int i = 0; i < fileConfigContainer->configurationCount(); ++i) {
-        IConfiguration *config = fileConfigContainer->configuration(i);
+    for (int i = 0; i < file->configurationContainer()->configurationCount(); ++i) {
+        IConfiguration *config = file->configurationContainer()->configuration(i);
         if (config)
             m_configsWidget->addConfiguration(config->fullName(), config->createSettingsWidget());
     }
@@ -106,39 +103,22 @@ FileConfigurationsEditWidget::FileConfigurationsEditWidget(IFile *file, IVisualS
     connect(m_configsWidget, SIGNAL(removeConfigSignal(QString)), this, SLOT(onRemoveConfig(QString)));
 }
 
+FileConfigurationsEditWidget::~FileConfigurationsEditWidget()
+{
+    delete m_tempVsProject;
+}
+
 void FileConfigurationsEditWidget::saveData()
 {
-    IConfigurationContainer *newFileConfigContainer = m_fileConfigurations[m_file];
-
-    QTC_ASSERT(newFileConfigContainer, return);
-
-    for (int i = 0; i < newFileConfigContainer->configurationCount(); ++i) {
-        VcNodeWidget *configWidget = m_configsWidget->configWidget(newFileConfigContainer->configuration(i)->fullName());
-        if (configWidget)
-            configWidget->saveData();
-    }
-
-    QMapIterator<IFile *, IConfigurationContainer *> it(m_fileConfigurations);
-
-    while (it.hasNext()) {
-        it.next();
-        IFile *file = it.key();
-        IConfigurationContainer *newConfigContainer = it.value();
-
-        if (file && file->configurationContainer() && newConfigContainer)
-            file->configurationContainer()->copyDataFrom(newConfigContainer);
-    }
-
-    QTC_ASSERT(m_vsProject, return);
-    QTC_ASSERT(m_vsProject->configurations(), return);
-    m_vsProject->configurations()->configurationContainer()->copyDataFrom(m_buildConfigurations);
+    if (m_tempVsProject)
+        std::swap(m_vsProject, m_tempVsProject);
 }
 
 void FileConfigurationsEditWidget::onAddNewConfig(QString newConfigName, QString copyFrom)
 {
-    QTC_ASSERT(m_vsProject->platforms(), return);
+    QTC_ASSERT(m_tempVsProject->platforms(), return);
 
-    IPlatforms *platforms = m_vsProject->platforms();
+    IPlatforms *platforms = m_tempVsProject->platforms();
     QString copyFromConfigName = copyFrom.split(QLatin1Char('|')).at(0);
 
     QStringList errorMessages;
@@ -152,7 +132,7 @@ void FileConfigurationsEditWidget::onAddNewConfig(QString newConfigName, QString
         QString newFullConfigName = newConfigName + QLatin1Char('|') + platform->displayName();
         QString copyFromFullConfigName;
 
-        if (m_vsProject->configurations()->configurationContainer()->configuration(newFullConfigName)) {
+        if (m_tempVsProject->configurations()->configurationContainer()->configuration(newFullConfigName)) {
             QString message = tr("Configuration %1 already exists.");
             message = message.arg(newFullConfigName);
             errorMessages.append(message);
@@ -166,6 +146,7 @@ void FileConfigurationsEditWidget::onAddNewConfig(QString newConfigName, QString
         }
     }
 
+    // display error messages
     if (errorMessages.size() <= 0)
         return;
 
@@ -191,9 +172,9 @@ void FileConfigurationsEditWidget::onNewConfigAdded(IConfiguration *config)
 
 void FileConfigurationsEditWidget::onRenameConfig(QString newConfigName, QString oldConfigNameWithPlatform)
 {
-    QTC_ASSERT(m_vsProject->platforms(), return);
+    QTC_ASSERT(m_tempVsProject->platforms(), return);
 
-    IPlatforms *platforms = m_vsProject->platforms();
+    IPlatforms *platforms = m_tempVsProject->platforms();
     QString copyFromConfigName = oldConfigNameWithPlatform.split(QLatin1Char('|')).at(0);
 
     for (int i = 0; i < platforms->platformCount(); ++i) {
@@ -202,29 +183,22 @@ void FileConfigurationsEditWidget::onRenameConfig(QString newConfigName, QString
         if (!platform)
             return;
 
-        QString oldConfigName = copyFromConfigName + QLatin1Char('|') + platform->displayName();
+        QString oldConfigNamePl = copyFromConfigName + QLatin1Char('|') + platform->displayName();
         QString newConfigNamePl = newConfigName + QLatin1Char('|') + platform->displayName();
-        IConfiguration *config = m_buildConfigurations->configuration(oldConfigName);
+        IConfiguration *config = m_tempVsProject->configurations()->configurationContainer()->configuration(oldConfigNamePl);
 
         if (config)
             config->setFullName(newConfigNamePl);
 
-        QMapIterator<IFile *, IConfigurationContainer *> it(m_fileConfigurations);
-
-        while (it.hasNext()) {
-            it.next();
-            config = it.value()->configuration(oldConfigName);
-            if (config)
-                config->setFullName(newConfigNamePl);
-        }
+        renameConfig(newConfigNamePl, oldConfigNamePl);
     }
 }
 
 void FileConfigurationsEditWidget::onRemoveConfig(QString configNameWithPlatform)
 {
-    QTC_ASSERT(m_vsProject->platforms(), return);
+    QTC_ASSERT(m_tempVsProject->platforms(), return);
 
-    IPlatforms *platforms = m_vsProject->platforms();
+    IPlatforms *platforms = m_tempVsProject->platforms();
     QString copyFromConfigName = configNameWithPlatform.split(QLatin1Char('|')).at(0);
 
     for (int i = 0; i < platforms->platformCount(); ++i) {
@@ -234,118 +208,167 @@ void FileConfigurationsEditWidget::onRemoveConfig(QString configNameWithPlatform
             continue;
 
         QString configName = copyFromConfigName + QLatin1Char('|') + platform->displayName();
-        m_buildConfigurations->removeConfiguration(configName);
+        m_tempVsProject->configurations()->configurationContainer()->removeConfiguration(configName);
         m_configsWidget->removeConfiguration(configName);
 
-        QMapIterator<IFile*, IConfigurationContainer*> it(m_fileConfigurations);
-
-        while (it.hasNext()) {
-            it.next();
-            it.value()->removeConfiguration(configName);
-        }
+        removeConfig(configName);
     }
-}
-
-void FileConfigurationsEditWidget::addConfigWidget(IConfiguration *config)
-{
-    QTC_ASSERT(config, return);
-    m_configsWidget->addConfiguration(config->fullName(), config->createSettingsWidget());
 }
 
 void FileConfigurationsEditWidget::addConfigToProjectBuild(const QString &newConfigName, const QString &copyFrom)
 {
     if (copyFrom.isEmpty()) {
-        IConfiguration *newConfig = m_vsProject->createDefaultBuildConfiguration(newConfigName);
+        IConfiguration *newConfig = m_tempVsProject->createDefaultBuildConfiguration(newConfigName);
         if (newConfig)
-            m_buildConfigurations->addConfiguration(newConfig);
+            m_tempVsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
     } else {
-        IConfiguration *config = m_buildConfigurations->configuration(copyFrom);
+        IConfiguration *config = m_tempVsProject->configurations()->configurationContainer()->configuration(copyFrom);
 
         if (config) {
             IConfiguration *newConfig = config->clone();
             newConfig->setFullName(newConfigName);
-            m_buildConfigurations->addConfiguration(newConfig);
+            m_tempVsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
         }
     }
 }
 
 void FileConfigurationsEditWidget::addConfigToFiles(const QString &newConfigName, const QString &copyFrom)
 {
-    QTC_ASSERT(newConfigName.isEmpty(), return);
+    QTC_ASSERT(m_tempVsProject, return);
 
-    QMapIterator<IFile *, IConfigurationContainer *> it(m_fileConfigurations);
+    IFiles *files = m_tempVsProject->files();
 
-    while (it.hasNext()) {
-        it.next();
-        IConfigurationContainer *container = it.value();
+    QTC_ASSERT(files, return);
 
-        if (!container)
-            continue;
+    for (int i = 0; i < files->fileContainerCount(); ++i)
+        addConfigToFiles(files->fileContainer(i), newConfigName, copyFrom);
 
-        if (copyFrom.isEmpty()) {
-            QStringList list = newConfigName.split(QLatin1Char('|'));
-            IConfiguration *newConfig = m_buildConfigurations->createNewConfiguration(list[0], list[1]);
-            VisualStudioUtils::leaveOnlyCppTool(newConfig);
-            container->addConfiguration(newConfig);
-        } else {
-            IConfiguration *config = container->configuration(copyFrom);
+    for (int i = 0; i < files->fileCount(); ++i)
+        addConfigToFiles(files->file(i), newConfigName, copyFrom);
+}
 
-            if (config) {
-                IConfiguration *newConfig = config->clone();
-                if (newConfig) {
-                    newConfig->setFullName(newConfigName);
-                    container->addConfiguration(newConfig);
-                }
+void FileConfigurationsEditWidget::addConfigToFiles(IFileContainer *container, const QString &newConfigName, const QString &copyFrom)
+{
+    QTC_ASSERT(container, return);
+
+    for (int i = 0; i < container->childCount(); ++i)
+        addConfigToFiles(container->fileContainer(i), newConfigName, copyFrom);
+
+    for (int i = 0; i < container->fileCount(); ++i)
+        addConfigToFiles(container->file(i), newConfigName, copyFrom);
+}
+
+void FileConfigurationsEditWidget::addConfigToFiles(IFile *file, const QString &newConfigName, const QString &copyFrom)
+{
+    QTC_ASSERT(file, return);
+    QTC_ASSERT(file->configurationContainer(), return);
+
+    IConfigurationContainer *container = file->configurationContainer();
+
+    if (!container)
+        return;
+
+    if (copyFrom.isEmpty()) {
+        QStringList list = newConfigName.split(QLatin1Char('|'));
+        IConfiguration *newConfig = m_tempVsProject->configurations()->
+                                                    configurationContainer()->createNewConfiguration(list[0], list[1]);
+        VisualStudioUtils::leaveOnlyCppTool(newConfig);
+        container->addConfiguration(newConfig);
+    } else {
+        IConfiguration *config = container->configuration(copyFrom);
+
+        if (config) {
+            IConfiguration *newConfig = config->clone();
+            if (newConfig) {
+                newConfig->setFullName(newConfigName);
+                container->addConfiguration(newConfig);
             }
         }
     }
 }
 
-void FileConfigurationsEditWidget::readFileBuildConfigurations()
+void FileConfigurationsEditWidget::renameConfig(const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform)
 {
-    IFiles *files = m_vsProject->files();
+    QTC_ASSERT(m_tempVsProject, return);
 
-    for (int i = 0; i < files->fileContainerCount(); ++i) {
-        IFileContainer *fileContainer = files->fileContainer(i);
-        readFileBuildConfigurations(fileContainer);
-    }
+    IFiles *files = m_tempVsProject->files();
 
-    for (int i = 0; i < files->fileCount(); ++i) {
-        IFile *file = files->file(i);
-        readFileBuildConfigurations(file);
-    }
+    QTC_ASSERT(files, return);
+
+    for (int i = 0; i < files->fileContainerCount(); ++i)
+        renameConfig(files->fileContainer(i), newConfigNameWithPlatform, oldConfigNameWithPlatform);
+
+    for (int i = 0; i < files->fileCount(); ++i)
+        renameConfig(files->file(i), newConfigNameWithPlatform, oldConfigNameWithPlatform);
 }
 
-void FileConfigurationsEditWidget::readFileBuildConfigurations(IFileContainer *container)
+void FileConfigurationsEditWidget::renameConfig(IFileContainer *container,
+                                                const QString &newConfigNameWithPlatform,
+                                                const QString &oldConfigNameWithPlatform)
 {
     QTC_ASSERT(container, return);
 
-    for (int i = 0; i < container->childCount(); ++i) {
-        IFileContainer *fileContainer = container->fileContainer(i);
-        readFileBuildConfigurations(fileContainer);
-    }
+    for (int i = 0; i < container->childCount(); ++i)
+        renameConfig(container->fileContainer(i), newConfigNameWithPlatform, oldConfigNameWithPlatform);
 
-    for (int i = 0; i < container->fileCount(); ++i) {
-        IFile *file = container->file(i);
-        readFileBuildConfigurations(file);
-    }
+    for (int i = 0; i < container->fileCount(); ++i)
+        renameConfig(container->file(i), newConfigNameWithPlatform, oldConfigNameWithPlatform);
 }
 
-void FileConfigurationsEditWidget::readFileBuildConfigurations(IFile *file)
+void FileConfigurationsEditWidget::renameConfig(IFile *file,
+                                                const QString &newConfigNameWithPlatform,
+                                                const QString &oldConfigNameWithPlatform)
 {
     QTC_ASSERT(file, return);
     QTC_ASSERT(file->configurationContainer(), return);
 
-    IConfigurationContainer *configCont = 0;
+    IConfigurationContainer *container = file->configurationContainer();
 
-    if (file != m_file)
-        configCont = file->configurationContainer()->clone();
-    else {
-        configCont = file->configurationContainer()->clone();
-        connect(configCont, SIGNAL(configurationAdded(IConfiguration*)), this, SLOT(addConfigWidget(IConfiguration*)));
-    }
+    if (!container)
+        return;
 
-    m_fileConfigurations[file] = configCont;
+    IConfiguration *config = container->configuration(oldConfigNameWithPlatform);
+    if (config)
+        config->setFullName(newConfigNameWithPlatform);
+}
+
+void FileConfigurationsEditWidget::removeConfig(const QString &configNameWithPlatform)
+{
+    QTC_ASSERT(m_tempVsProject, return);
+
+    IFiles *files = m_tempVsProject->files();
+
+    QTC_ASSERT(files, return);
+
+    for (int i = 0; i < files->fileContainerCount(); ++i)
+        removeConfig(files->fileContainer(i), configNameWithPlatform);
+
+    for (int i = 0; i < files->fileCount(); ++i)
+        removeConfig(files->file(i), configNameWithPlatform);
+}
+
+void FileConfigurationsEditWidget::removeConfig(IFileContainer *container, const QString &configNameWithPlatform)
+{
+    QTC_ASSERT(container, return);
+
+    for (int i = 0; i < container->childCount(); ++i)
+        removeConfig(container->fileContainer(i), configNameWithPlatform);
+
+    for (int i = 0; i < container->fileCount(); ++i)
+        removeConfig(container->file(i), configNameWithPlatform);
+}
+
+void FileConfigurationsEditWidget::removeConfig(IFile *file, const QString &configNameWithPlatform,)
+{
+    QTC_ASSERT(file, return);
+    QTC_ASSERT(file->configurationContainer(), return);
+
+    IConfigurationContainer *container = file->configurationContainer();
+
+    if (!container)
+        return;
+
+    container->removeConfiguration(configNameWithPlatform);
 }
 
 void FileConfigurationsEditWidget::cleanUpConfig(IConfiguration *config)
@@ -357,7 +380,7 @@ void FileConfigurationsEditWidget::cleanUpConfig(IConfiguration *config)
     if (configWidget)
         configWidget->saveData();
 
-    IConfiguration *projectConfig = m_vsProject->configurations()->configurationContainer()->configuration(config->fullName());
+    IConfiguration *projectConfig = m_tempVsProject->configurations()->configurationContainer()->configuration(config->fullName());
 
     VisualStudioUtils::cleanUpConfigAttributes(config, projectConfig);
     VisualStudioUtils::cleanUpConfigTools(config, projectConfig);

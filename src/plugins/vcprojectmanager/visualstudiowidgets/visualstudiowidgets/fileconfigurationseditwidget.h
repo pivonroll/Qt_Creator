@@ -52,6 +52,7 @@ class FileConfigurationsEditWidget : public VcNodeWidget
 
 public:
     FileConfigurationsEditWidget(IFile *file, IVisualStudioProject *project);
+    ~FileConfigurationsEditWidget();
 
     // VcNodeWidget interface
     void saveData();
@@ -62,20 +63,25 @@ private slots:
     void onRenameConfig(QString newConfigName, QString oldConfigNameWithPlatform);
     void onRemoveConfig(QString configNameWithPlatform);
 
-    void addConfigWidget(IConfiguration *config);
-
 private:
     void addConfigToProjectBuild(const QString &newConfigName, const QString &copyFrom);
     void addConfigToFiles(const QString &newConfigName, const QString &copyFrom);
-    void readFileBuildConfigurations();
-    void readFileBuildConfigurations(IFileContainer *container);
-    void readFileBuildConfigurations(IFile *file);
+    void addConfigToFiles(IFileContainer *container, const QString &newConfigName, const QString &copyFrom);
+    void addConfigToFiles(IFile *file, const QString &newConfigName, const QString &copyFrom);
+
+    void renameConfig(const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
+    void renameConfig(IFileContainer *container, const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
+    void renameConfig(IFile *file, const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
+
+    void removeConfig(const QString &configNameWithPlatform);
+    void removeConfig(IFileContainer *container, const QString &configNameWithPlatform);
+    void removeConfig(IFile *file, const QString &configNameWithPlatform);
+
     void cleanUpConfig(IConfiguration *config);
 
-    IFile *m_file;
     IVisualStudioProject *m_vsProject;
+    IVisualStudioProject *m_tempVsProject;
     ConfigurationsWidget *m_configsWidget;
-    IConfigurationContainer *m_buildConfigurations;
 };
 
 } // namespace Internal
