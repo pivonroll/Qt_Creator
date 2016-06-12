@@ -71,6 +71,8 @@ public:
 
     QString relativePath() const;
     void setRelativePath(const QString &relativePath);
+    IFile *findFile(const QString &canonicalFilePath) const;
+    IFileContainer *findFileContainer(const QStringList &path) const;
 
     // IVcProjectXMLNode interface
     void processNode(const QDomNode &node);

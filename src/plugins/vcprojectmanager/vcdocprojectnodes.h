@@ -35,10 +35,10 @@
 namespace VcProjectManager {
 namespace Internal {
 
-class IVisualStudioProject;
 class IFileContainer;
 class IFile;
 class VcDocProjectNode;
+class VcProjectFile;
 
 class VcFileNode : public ProjectExplorer::FileNode
 {
@@ -46,7 +46,7 @@ class VcFileNode : public ProjectExplorer::FileNode
     friend class VcFileContainerNode;
 
 public:
-    VcFileNode(IFile *fileModel, VcDocProjectNode *vcDocProject);
+    VcFileNode(VcDocProjectNode *vcDocProject);
     ~VcFileNode();
 
     /*!
@@ -65,9 +65,6 @@ signals:
      * \brief Emitted when settings dialog is accepted.
      */
     void settingsDialogAccepted();
-
-private:
-    IFile *m_vcFileModel;
 };
 
 class VcFileContainerNode : public ProjectExplorer::FolderNode
@@ -81,15 +78,10 @@ public:
         VcContainerType_Folder
     };
 
-    VcFileContainerNode(IFileContainer *fileContainerModel, VcDocProjectNode *vcDocProjNode);
+    VcFileContainerNode(const ::Utils::FileName &filePath, VcDocProjectNode *vcDocProjNode);
     ~VcFileContainerNode();
 
     bool showInSimpleTree() const;
-
-    /*!
-     * \return a type of container.
-     */
-    VcContainerType containerType() const;
 
     /*!
      * \brief Adds a file node to this file container.
@@ -136,9 +128,10 @@ protected:
      * and creates and then adds file or file container nodes to this file container node.
      */
     void readChildren();
+    void readFolderPathInsideProjectTree(QStringList &path) const;
+    IFileContainer *findFileContainer() const;
 
 private:
-    IFileContainer *m_vcFileContainerModel;
     VcContainerType m_vcContainerType;
     VcDocProjectNode *m_parentVcDocProjNode;
 };
@@ -149,7 +142,7 @@ class VcDocProjectNode : public ProjectExplorer::ProjectNode
     friend class VcFileContainerNode;
 
 public:
-    VcDocProjectNode(IVisualStudioProject* vcProjectModel);
+    VcDocProjectNode(VcProjectFile* vcProjectFile);
     ~VcDocProjectNode();
 
     /*!
@@ -220,8 +213,7 @@ signals:
 
 private:
     VcFileNode *findFileNode(const QString &filePath);
-
-    IVisualStudioProject *m_vcProjectModel;
+    VcProjectFile *m_vcProjectFile;
 };
 
 } // namespace Internal

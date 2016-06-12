@@ -104,6 +104,16 @@ Item *ItemGroup::findItemWithInclude(const QString &include) const
     return nullptr;
 }
 
+Item *ItemGroup::findItemWithName(const QString &name) const
+{
+    foreach (Item *item, m_items) {
+        if (item && item->name() == name)
+            return item;
+    }
+
+    return nullptr;
+}
+
 QString ItemGroup::condition() const
 {
     return m_condition;

@@ -39,6 +39,7 @@
 #include <visualstudiointerfaces/iprojectfactories.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
 #include "utils.h"
+#include "vcprojectfile.h"
 
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projecttree.h>
@@ -49,9 +50,8 @@
 namespace VcProjectManager {
 namespace Internal {
 
-VcFileNode::VcFileNode(IFile *fileModel, VcDocProjectNode *vcDocProject)
-    : ProjectExplorer::FileNode(::Utils::FileName::fromString(fileModel->canonicalPath()), fileModel->fileType(), false),
-      m_vcFileModel(fileModel)
+VcFileNode::VcFileNode(const ::Utils::FileName &filePath, ProjectExplorer::FileType fileType, VcDocProjectNode *vcDocProject)
+    : ProjectExplorer::FileNode(filePath, fileType, false)
 {
     Q_UNUSED(vcDocProject)
     //    connect(this, SIGNAL(settingsDialogAccepted()), vcDocProject, SIGNAL(settingsDialogAccepted()));
@@ -63,10 +63,11 @@ VcFileNode::~VcFileNode()
 
 void VcFileNode::showSettingsWidget()
 {
+    // get IFile model from IVisualStudioProject
     FileSettingsWidget *settingsWidget = new FileSettingsWidget(m_vcFileModel);
     if (settingsWidget) {
+//        connect(settingsWidget, SIGNAL(accepted()), this, SIGNAL(settingsDialogAccepted()));
         settingsWidget->show();
-        //        connect(settingsWidget, SIGNAL(accepted()), this, SIGNAL(settingsDialogAccepted()));
     }
 }
 
@@ -75,9 +76,8 @@ void VcFileNode::readChildren(VcDocProjectNode *vcDocProj)
     Q_UNUSED(vcDocProj)
 }
 
-VcFileContainerNode::VcFileContainerNode(IFileContainer *fileContainerModel, VcDocProjectNode *vcDocProjNode)
-    : ProjectExplorer::FolderNode(::Utils::FileName::fromString(fileContainerModel->displayName())),
-      m_vcFileContainerModel(fileContainerModel),
+VcFileContainerNode::VcFileContainerNode(const ::Utils::FileName &filePath, VcDocProjectNode *vcDocProjNode)
+    : ProjectExplorer::FolderNode(filePath),
       m_parentVcDocProjNode(vcDocProjNode)
 {
     m_vcContainerType = VcContainerType_Filter;
@@ -97,24 +97,11 @@ bool VcFileContainerNode::showInSimpleTree() const
     return true;
 }
 
-VcFileContainerNode::VcContainerType VcFileContainerNode::containerType() const
-{
-    if (m_vcFileContainerModel->containerType() == QLatin1String(Constants::VC_PROJECT_FILE_CONTAINER_FILTER))
-        return VcContainerType_Filter;
-    return VcContainerType_Folder;
-}
-
 void VcFileContainerNode::addFileNode(const QString &filePath)
 {
-    QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_parentVcDocProjNode->m_vcProjectModel->filePath(), filePath);
-    IFile *file = m_parentVcDocProjNode->m_vcProjectModel->projectFactories()->fileFactory()->createFile(relativeFilePath,
-                                                                                                         VisualStudioUtils::getFileType(::Utils::FileName::fromString(filePath)));
-
-    if (!file)
-        return;
-
-    file->setRelativePath(relativeFilePath);
-    VcFileNode *fileNode = new VcFileNode(file, m_parentVcDocProjNode);
+    VcFileNode *fileNode = new VcFileNode(::Utils::FileName::fromString(filePath),
+                                          VisualStudioUtils::getFileType(::Utils::FileName::fromString(filePath),
+                                          m_parentVcDocProjNode);
 
     if (!appendFileNode(fileNode)) {
         delete file;
@@ -124,26 +111,36 @@ void VcFileContainerNode::addFileNode(const QString &filePath)
 
 bool VcFileContainerNode::appendFileNode(VcFileNode *fileNode)
 {
-    if (!m_vcFileContainerModel || !fileNode || !fileNode->m_vcFileModel)
-        return false;
-
+    // check if a file already exists
     if (m_fileNodes.contains(fileNode))
         return false;
     else {
         foreach (ProjectExplorer::FileNode *fNode, m_fileNodes) {
-            VcFileNode *vcFileNode = dynamic_cast<VcFileNode *>(fNode);
-
-            if (vcFileNode &&
-                    vcFileNode->m_vcFileModel &&
-                    vcFileNode->m_vcFileModel->relativePath() == fileNode->m_vcFileModel->relativePath())
+            if (fNode->path() == fileNode->path())
                 return false;
         }
     }
 
-    m_vcFileContainerModel->addFile(fileNode->m_vcFileModel);
+    // if file does not exist, add it
+    QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()
+                                                                   ->filePath(), fileNode->path());
+    IFile *file = m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()->
+            projectFactories()->fileFactory()->createFile(relativeFilePath, fileNode->fileType());
+
+    if (!file)
+        return false;
+
+    file->setRelativePath(relativeFilePath);
+
+    // find a proper IFileContainer which is represented by this node
+    IFileContainer *fileContainer = findFileContainer();
+
+    fileContainer->addFile(file);
     QList<ProjectExplorer::FileNode *> vcFileNodes;
     vcFileNodes << fileNode;
     m_parentVcDocProjNode->addFileNodes(vcFileNodes);
+    m_parentVcDocProjNode->m_vcProjectFile->
+            visualStudioProject()->saveToFile(m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()->filePath());
     return true;
 }
 
@@ -159,111 +156,131 @@ void VcFileContainerNode::addFileContainerNode(const QString &name, VcContainerT
     if (containerType.isEmpty())
         return;
 
-    IFileContainer *fileContainerModel = m_parentVcDocProjNode->m_vcProjectModel->
-            projectFactories()->fileFactory()->createFileContainer(m_vcFileContainerModel->relativePath() + QLatin1String("\\") + name, containerType);
+    VcFileContainerNode *folderNode = new VcFileContainerNode(::Utils::FileName::fromString(name), m_parentVcDocProjNode);
 
-    fileContainerModel->setDisplayName(name);
-    VcFileContainerNode *folderNode = new VcFileContainerNode(fileContainerModel, m_parentVcDocProjNode);
+    QStringList folderPath;
+    readFolderPathInsideProjectTree(folderPath);
+    folderNode->setPath(folderPath.join(QLatin1String("\\")) + QLatin1String("\\") + name);
 
-    if (!appendFileContainerNode(folderNode)) {
-        delete fileContainerModel;
+    if (!appendFileContainerNode(folderNode))
         delete folderNode;
-    }
 }
 
 bool VcFileContainerNode::appendFileContainerNode(VcFileContainerNode *fileContainer)
 {
-    if (!m_vcFileContainerModel || !fileContainer || !fileContainer->m_vcFileContainerModel)
-        return false;
-
     if (m_subFolderNodes.contains(fileContainer))
         return false;
     else {
         foreach (ProjectExplorer::FolderNode *fNode, m_subFolderNodes) {
-            VcFileContainerNode *vcFileContainerNode = dynamic_cast<VcFileContainerNode *>(fNode);
-
-            if (vcFileContainerNode &&
-                    vcFileContainerNode->m_vcFileContainerModel &&
-                    vcFileContainerNode->m_vcFileContainerModel->displayName() == fileContainer->m_vcFileContainerModel->displayName())
+            if (fNode->displayName() == fileContainer->displayName())
                 return false;
         }
     }
 
-    m_vcFileContainerModel->addFileContainer(fileContainer->m_vcFileContainerModel);
+    IFileContainer *fileContainerModel = m_parentVcDocProjNode->m_vcProjectFile->
+            visualStudioProject()->projectFactories()->fileFactory()->
+            createFileContainer(fileContainer->path(), m_vcContainerType);
+
+    fileContainerModel->setDisplayName(fileContainer->displayName());
+
+    IFileContainer *fileCont = findFileContainer();
+
+    fileCont->addFileContainer(fileContainerModel);
     QList<ProjectExplorer::FolderNode *> vcFolderNodes;
     vcFolderNodes << fileContainer;
     addFolderNodes(vcFolderNodes);
-    m_parentVcDocProjNode->m_vcProjectModel->saveToFile(m_parentVcDocProjNode->m_vcProjectModel->filePath());
+    m_parentVcDocProjNode->m_vcProjectFile->
+            visualStudioProject()->saveToFile(m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()->filePath());
     return true;
 }
 
 void VcFileContainerNode::removeFileContainerNode(VcFileContainerNode *fileContainer)
 {
-    if (!fileContainer || !fileContainer->m_vcFileContainerModel)
-        return;
-
-    IFileContainer *fileContainerModel = fileContainer->m_vcFileContainerModel;
+    IFileContainer *fileContainerModel = findFileContainer();
 
     QList<ProjectExplorer::FolderNode *> folderNodesToRemove;
     folderNodesToRemove << fileContainer;
     m_parentVcDocProjNode->removeFolderNodes(folderNodesToRemove);
 
     m_vcFileContainerModel->removeFileContainer(fileContainerModel);
-    m_parentVcDocProjNode->m_vcProjectModel->saveToFile(m_parentVcDocProjNode->m_vcProjectModel->filePath());
+    m_parentVcDocProjNode->m_vcProjectFile
+            ->visualStudioProject()->saveToFile(m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()->filePath());
 }
 
 void VcFileContainerNode::removeFileNode(VcFileNode *fileNode)
 {
-    if (!fileNode || !fileNode->m_vcFileModel)
-        return;
+    IFileContainer *fileContainerModel = findFileContainer();
 
-    IFile *file = fileNode->m_vcFileModel;
+    IFile *file = m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()
+            ->files()->findFile(fileNode->path());
 
     QList<ProjectExplorer::FileNode *> fileNodesToRemove;
     fileNodesToRemove << fileNode;
     m_parentVcDocProjNode->removeFileNodes(fileNodesToRemove);
 
-    m_vcFileContainerModel->removeFile(file);
-    m_parentVcDocProjNode->m_vcProjectModel->saveToFile(m_parentVcDocProjNode->m_vcProjectModel->filePath());
+    fileContainerModel->removeFile(file);
+    m_parentVcDocProjNode->m_vcProjectFile
+            ->visualStudioProject()->saveToFile(m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()->filePath());
 }
 
 void VcFileContainerNode::readChildren()
 {
     QList<ProjectExplorer::FolderNode *> vcFolderNodes;
+    IFileContainer *fileContainerModel = findFileContainer();
 
-    for (int i = 0; i < m_vcFileContainerModel->childCount(); ++i) {
-        IFileContainer *fileCont = m_vcFileContainerModel->fileContainer(i);
-        if (fileCont)
-            vcFolderNodes.append(new VcFileContainerNode(fileCont, m_parentVcDocProjNode));
+    for (int i = 0; i < fileContainerModel->childCount(); ++i) {
+        IFileContainer *fileCont = fileContainerModel->fileContainer(i);
+
+        if (fileCont) {
+            VcFileContainerNode *newVcFileCont = new VcFileContainerNode(::Utils::FileName::fromString(fileCont->relativePath(), m_parentVcDocProjNode);
+            newVcFileCont->setDisplayName(fileCont->displayName());
+            vcFolderNodes.append(newVcFileCont);
+        }
     }
 
     addFolderNodes(vcFolderNodes);
 
     QList<ProjectExplorer::FileNode *> vcFileNodes;
 
-    for (int i = 0; i < m_vcFileContainerModel->fileCount(); ++i) {
-        IFile *file = m_vcFileContainerModel->file(i);
+    for (int i = 0; i < fileContainerModel->fileCount(); ++i) {
+        IFile *file = fileContainerModel->file(i);
 
         if (file)
-            vcFileNodes.append(new VcFileNode(file, m_parentVcDocProjNode));
+            vcFileNodes.append(new VcFileNode(::Utils::FileName::fromString(file->canonicalPath()), m_parentVcDocProjNode));
     }
 
     addFileNodes(vcFileNodes);
 }
 
+void VcFileContainerNode::readFolderPathInsideProjectTree(QStringList &path) const
+{
+    path.push_front(displayName());
+
+    FolderNode *folderNode = parentFolderNode();
+
+    if (folderNode) {
+        VcFileContainerNode *fileContNode = dynamic_cast<VcFileContainerNode *>(folderNode);
+        fileContNode->readFolderPathInsideProjectTree(path);
+    }
+}
+
+IFileContainer *VcFileContainerNode::findFileContainer() const
+{
+    QStringList folderPath;
+    readFolderPathInsideProjectTree(folderPath);
+    IFileContainer *fileCont = m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()
+                                ->files()->findFileContainer(folderPath);
+    return fileCont;
+}
+
 VcFileNode *VcFileContainerNode::findFileNode(const QString &filePath)
 {
-    VcFileNode *fileNode = 0;
+    VcFileNode *fileNode = nullptr;
     foreach (ProjectExplorer::FileNode *f, fileNodes()) {
         // There can be one match only here!
-        if (f->path().toString() != filePath)
-            continue;
-        fileNode = static_cast<VcFileNode *>(f);
-        break;
+        if (f->path().toString() == filePath)
+            return static_cast<VcFileNode *>(f);
     }
-
-    if (fileNode)
-        return fileNode;
 
     foreach (ProjectExplorer::FolderNode *folderNode, m_subFolderNodes) {
         VcFileContainerNode *containerNode = static_cast<VcFileContainerNode *>(folderNode);
@@ -273,29 +290,32 @@ VcFileNode *VcFileContainerNode::findFileNode(const QString &filePath)
             return fileNode;
     }
 
-    return 0;
+    return nullptr;
 }
 
-VcDocProjectNode::VcDocProjectNode(IVisualStudioProject *vcProjectModel)
-    : ProjectExplorer::ProjectNode(::Utils::FileName::fromString(vcProjectModel->filePath())),
-      m_vcProjectModel(vcProjectModel)
+VcDocProjectNode::VcDocProjectNode(VcProjectFile *vcProjectFile)
+    : ProjectExplorer::ProjectNode(::Utils::FileName::fromString(vcProjectFile->visualStudioProject()->filePath())),
+      m_vcProjectFile(vcProjectFile)
 {
-    if (!m_vcProjectModel->files())
+    if (!m_vcProjectFile->visualStudioProject()->files())
         return;
 
     QList<ProjectExplorer::FolderNode *> vcFolderNodes;
-    for (int i = 0; i < m_vcProjectModel->files()->fileContainerCount(); ++i) {
-        IFileContainer *fileContainer = m_vcProjectModel->files()->fileContainer(i);
-        if (fileContainer)
-            vcFolderNodes.append(new VcFileContainerNode(fileContainer, this));
+    for (int i = 0; i < m_vcProjectFile->visualStudioProject()->files()->fileContainerCount(); ++i) {
+        IFileContainer *fileContainer = m_vcProjectFile->visualStudioProject()->files()->fileContainer(i);
+        if (fileContainer) {
+            VcFileContainerNode *newVcFileContNode = new VcFileContainerNode(::Utils::FileName::fromString(fileContainer->relativePath()), this);
+            newVcFileContNode->setDisplayName(fileContainer->displayName());
+            vcFolderNodes.append(newVcFileContNode);
+        }
     }
     addFolderNodes(vcFolderNodes);
 
     QList<ProjectExplorer::FileNode *> vcFileNodes;
-    for (int i = 0; i < m_vcProjectModel->files()->fileCount(); ++i) {
-        IFile *file = m_vcProjectModel->files()->file(i);
+    for (int i = 0; i < m_vcProjectFile->visualStudioProject()->files()->fileCount(); ++i) {
+        IFile *file = m_vcProjectFile->visualStudioProject()->files()->file(i);
         if (file)
-            vcFileNodes.append(new VcFileNode(file, this));
+            vcFileNodes.append(new VcFileNode(::Utils::FileName::fromString(file->canonicalPath()), this));
     }
     addFileNodes(vcFileNodes);
 }
@@ -354,10 +374,10 @@ bool VcDocProjectNode::addFiles(const QStringList &filePaths, QStringList *notAd
 
         if (vcContainerNode) {
             foreach (const QString &filePath, filePaths) {
-                QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
+                QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectFile->visualStudioProject()->filePath(), filePath);
 
                 // if file is already in the project don't add it
-                if (m_vcProjectModel->files()->fileExists(relativeFilePath))
+                if (m_vcProjectFile->visualStudioProject()->files()->fileExists(relativeFilePath))
                     filesNotAdded << filePath;
 
                 else {
@@ -373,10 +393,10 @@ bool VcDocProjectNode::addFiles(const QStringList &filePaths, QStringList *notAd
 
         if (projectNode) {
             foreach (const QString &filePath, filePaths) {
-                QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
+                QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectFile->visualStudioProject()->filePath(), filePath);
 
                 // if file is already in the project don't add it
-                if (m_vcProjectModel->files()->fileExists(relativeFilePath))
+                if (m_vcProjectFile->visualStudioProject()->files()->fileExists(relativeFilePath))
                     filesNotAdded << filePath;
 
                 else {
@@ -391,7 +411,7 @@ bool VcDocProjectNode::addFiles(const QStringList &filePaths, QStringList *notAd
         *notAdded = filesNotAdded;
 
     if (anyFileAdded)
-        m_vcProjectModel->saveToFile(m_vcProjectModel->filePath());
+        m_vcProjectFile->visualStudioProject()->saveToFile(m_vcProjectFile->visualStudioProject()->filePath());
 
     return filesNotAdded.isEmpty();
 }
@@ -401,9 +421,9 @@ bool VcDocProjectNode::removeFiles(const QStringList &filePaths, QStringList *no
     QStringList filesNotRemoved;
 
     foreach (const QString &filePath, filePaths) {
-        QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
+        QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectFile->visualStudioProject()->filePath(), filePath);
 
-        if (m_vcProjectModel->files()->fileExists(relativeFilePath)) {
+        if (m_vcProjectFile->visualStudioProject()->files()->fileExists(relativeFilePath)) {
             VcFileNode *fileNode = static_cast<VcFileNode *>(findFileNode(filePath));
 
             if (fileNode) {
@@ -461,18 +481,9 @@ QString VcDocProjectNode::projectDirectory() const
 
 void VcDocProjectNode::addFileNode(const QString &filePath)
 {
-    QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectModel->filePath(), filePath);
-    IFile *file = m_vcProjectModel->projectFactories()->fileFactory()->createFile(relativeFilePath,
-                                                                                  VisualStudioUtils::getFileType(::Utils::FileName::fromString(filePath)));
-
-    if (!file)
-        return;
-
-    file->setRelativePath(relativeFilePath);
-    VcFileNode *fileNode = new VcFileNode(file, this);
+    VcFileNode *fileNode = new VcFileNode(::Utils::FileName(filePath), this);
 
     if (!appendFileNode(fileNode)) {
-        delete file;
         delete fileNode;
     }
 }
@@ -489,21 +500,17 @@ void VcDocProjectNode::addFileContainerNode(const QString &name, VcFileContainer
     if (containerType.isEmpty())
         return;
 
-    IFileContainer *fileContainerModel = m_vcProjectModel->
-            projectFactories()->fileFactory()->createFileContainer(name, containerType);
-
-    fileContainerModel->setDisplayName(name);
-    VcFileContainerNode *folderNode = new VcFileContainerNode(fileContainerModel, this);
+    VcFileContainerNode *folderNode = new VcFileContainerNode(::Utils::FileName::fromString(name), this);
+    folderNode->setDisplayName(name);
 
     if (!appendFileContainerNode(folderNode)) {
-        delete fileContainerModel;
         delete folderNode;
     }
 }
 
 bool VcDocProjectNode::appendFileContainerNode(VcFileContainerNode *fileContainerNode)
 {
-    if (!m_vcProjectModel || !fileContainerNode || !fileContainerNode->m_vcFileContainerModel)
+    if (!m_vcProjectFile->visualStudioProject() || !fileContainerNode)
         return false;
 
     if (m_subFolderNodes.contains(fileContainerNode))
@@ -512,40 +519,44 @@ bool VcDocProjectNode::appendFileContainerNode(VcFileContainerNode *fileContaine
         foreach (ProjectExplorer::FolderNode *fNode, m_subFolderNodes) {
             VcFileContainerNode *vcFileContainerNode = dynamic_cast<VcFileContainerNode *>(fNode);
 
-            if (vcFileContainerNode &&
-                    vcFileContainerNode->m_vcFileContainerModel &&
-                    fileContainerNode->m_vcFileContainerModel &&
-                    vcFileContainerNode->m_vcFileContainerModel->displayName() == fileContainerNode->m_vcFileContainerModel->displayName())
+            if(fNode->displayName() == fileContainerNode->displayName())
                 return false;
         }
     }
 
-    m_vcProjectModel->files()->addFileContainer(fileContainerNode->m_vcFileContainerModel);
+    IFileContainer *fileContainerModel = m_vcProjectFile->visualStudioProject()->
+            projectFactories()->fileFactory()->createFileContainer(fileContainerNode->displayName(), containerType);
+
+    m_vcProjectFile->visualStudioProject()->files()->addFileContainer(fileContainerModel);
 
     QList<ProjectExplorer::FolderNode *> vcFolderNodes;
     vcFolderNodes << fileContainerNode;
     addFolderNodes(vcFolderNodes);
-    m_vcProjectModel->saveToFile(m_vcProjectModel->filePath());
+    m_vcProjectFile->visualStudioProject()->saveToFile(m_vcProjectFile->visualStudioProject()->filePath());
     return true;
 }
 
 bool VcDocProjectNode::appendFileNode(VcFileNode *fileNode)
 {
-    if (!m_vcProjectModel || !fileNode || !fileNode->m_vcFileModel)
-        return false;
-
     if (m_fileNodes.contains(fileNode))
         return false;
     else {
         foreach (ProjectExplorer::FileNode *fNode, m_fileNodes) {
-            VcFileNode *vcFileNode = dynamic_cast<VcFileNode *>(fNode);
-
-            if (vcFileNode->m_vcFileModel && vcFileNode->m_vcFileModel->relativePath() == fileNode->m_vcFileModel->relativePath())
+            if (fNode->path() == fileNode->path())
                 return false;
         }
     }
 
-    m_vcProjectModel->files()->addFile(fileNode->m_vcFileModel);
+    QString relativeFilePath = VisualStudioUtils::fileRelativePath(m_vcProjectFile->visualStudioProject()->filePath(), filePath);
+    IFile *file = m_vcProjectFile->visualStudioProject()->projectFactories()->
+            fileFactory()->createFile(relativeFilePath, VisualStudioUtils::getFileType(::Utils::FileName::fromString(filePath)));
+
+    if (!file)
+        return;
+
+    file->setRelativePath(relativeFilePath);
+
+    m_vcProjectFile->visualStudioProject()->files()->addFile(file);
     QList<ProjectExplorer::FileNode *> vcFileNodes;
     vcFileNodes << fileNode;
     addFileNodes(vcFileNodes);
@@ -554,37 +565,29 @@ bool VcDocProjectNode::appendFileNode(VcFileNode *fileNode)
 
 void VcDocProjectNode::removeFileNode(VcFileNode *fileNode)
 {
-    if (!m_vcProjectModel || !fileNode || !fileNode->m_vcFileModel)
-        return;
-
-    QString relativePath = fileNode->m_vcFileModel->relativePath();
+    QString relativePath = VisualStudioUtils::fileRelativePath(m_vcProjectFile->visualStudioProject()->filePath(), fileNode->path());
 
     QList<ProjectExplorer::FileNode *> fileNodesToRemove;
     fileNodesToRemove << fileNode;
     removeFileNodes(fileNodesToRemove);
 
-    IFile *filePtr = m_vcProjectModel->files()->file(relativePath);
+    IFile *filePtr = m_vcProjectFile->visualStudioProject()->files()->file(relativePath);
 
-    m_vcProjectModel->files()->removeFile(filePtr);
-    m_vcProjectModel->saveToFile(m_vcProjectModel->filePath());
+    m_vcProjectFile->visualStudioProject()->files()->removeFile(filePtr);
+    delete filePtr;
+    m_vcProjectFile->visualStudioProject()->saveToFile(m_vcProjectFile->visualStudioProject()->filePath());
 }
 
 void VcDocProjectNode::removeFileContainerNode(VcFileContainerNode *fileContainerNode)
 {
-    if (!m_vcProjectModel || m_vcProjectModel->documentVersion() != VcDocConstants::DV_MSVC_2005)
-        return;
-
-    if (!fileContainerNode || !fileContainerNode->m_vcFileContainerModel)
-        return;
-
-    IFileContainer *fileContainer = fileContainerNode->m_vcFileContainerModel;
+    IFileContainer *fileContainer = m_vcProjectFile->visualStudioProject()->files()->findFileContainer(fileContainer->displayName());
 
     QList<ProjectExplorer::FolderNode *> folderNodesToRemove;
     folderNodesToRemove << fileContainerNode;
     removeFolderNodes(folderNodesToRemove);
 
-    m_vcProjectModel->files()->removeFileContainer(fileContainer);
-    m_vcProjectModel->saveToFile(m_vcProjectModel->filePath());
+    m_vcProjectFile->visualStudioProject()->files()->removeFileContainer(fileContainer);
+    m_vcProjectFile->visualStudioProject()->saveToFile(m_vcProjectFile->visualStudioProject()->filePath());
 }
 
 void VcDocProjectNode::showSettingsDialog()
@@ -601,17 +604,12 @@ void VcDocProjectNode::showSettingsDialog()
 
 VcFileNode *VcDocProjectNode::findFileNode(const QString &filePath)
 {
-    VcFileNode *fileNode = 0;
+    VcFileNode *fileNode = nullptr;
     foreach (ProjectExplorer::FileNode *f, fileNodes()) {
         // There can be one match only here!
-        if (f->path().toString() != filePath)
-            continue;
-        fileNode = static_cast<VcFileNode *>(f);
-        break;
+        if (f->path().toString() == filePath)
+            return static_cast<VcFileNode *>(f);
     }
-
-    if (fileNode)
-        return fileNode;
 
     foreach (ProjectExplorer::FolderNode *folderNode, m_subFolderNodes) {
         VcFileContainerNode *containerNode = static_cast<VcFileContainerNode *>(folderNode);
@@ -621,7 +619,7 @@ VcFileNode *VcDocProjectNode::findFileNode(const QString &filePath)
             return fileNode;
     }
 
-    return 0;
+    return nullptr;
 }
 
 } // namespace Internal

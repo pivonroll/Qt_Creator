@@ -59,6 +59,11 @@ public:
     virtual IFile *file(int index) const = 0;
 
     /*!
+     * \return a file with relative path same as \a relativePath.
+     */
+    virtual IFile *file(const QString &relativePath) const = 0;
+
+    /*!
      * \return a count of files in this container.
      */
     virtual int fileCount() const = 0;
@@ -122,6 +127,8 @@ public:
 
     virtual QString relativePath() const = 0;
     virtual void setRelativePath(const QString &relativePath) = 0;
+    virtual IFile *findFile(const QString &canonicalFilePath) const = 0;
+    virtual IFileContainer *findFileContainer(const QStringList &path) const = 0;
 };
 
 } // namespace Internal

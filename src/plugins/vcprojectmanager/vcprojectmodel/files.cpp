@@ -199,6 +199,35 @@ void Files::removeFileContainer(IFileContainer *fileContainer)
     m_fileContainers.removeOne(fileContainer);
 }
 
+IFile *Files::findFile(const QString &canonicalFilePath) const
+{
+    foreach (IFile *file, m_files) {
+        if (file->canonicalPath() == canonicalFilePath)
+            return file;
+    }
+
+    foreach (IFileContainer *fileContainer, m_fileContainers) {
+        IFile *file = fileContainer->findFile(canonicalFilePath);
+        if (file)
+            return file;
+    }
+
+    return nullptr;
+}
+
+IFileContainer *Files::findFileContainer(const QStringList &path) const
+{
+    if (path.isEmpty())
+        return nullptr;
+
+    foreach (IFileContainer *container, m_fileContainers) {
+        if (container->displayName() == path[0])
+            return container->findFileContainer(path.removeAt(0));
+    }
+
+    return nullptr;
+}
+
 void Files::swap(Files &first, Files &second)
 {
     std::swap(first.m_fileContainers, second.m_fileContainers);

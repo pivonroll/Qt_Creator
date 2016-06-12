@@ -90,6 +90,7 @@ public:
     void addItemGroup(ItemGroup *itemGroup);
     void removeItemGroup(ItemGroup *itemGroup);
     ItemGroup *findItemGroupWithLabel(const QString &label) const;
+    ItemGroup *findItemGroupWithName(const QString &label) const;
 
     ImportGroup *importGroup(int index) const;
     int importGroupCount() const;

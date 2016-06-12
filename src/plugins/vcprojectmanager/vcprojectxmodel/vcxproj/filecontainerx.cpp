@@ -279,6 +279,35 @@ void FileContainerX::setRelativePath(const QString &relativePath)
         m_filterItem->setInclude(relativePath);
 }
 
+IFile *FileContainerX::findFile(const QString &canonicalFilePath) const
+{
+    foreach (IFile *file, m_files) {
+        if (file->canonicalPath() ==  canonicalFilePath)
+            return file;
+    }
+
+    foreach (IFileContainer *fileContainer, m_fileContainers) {
+        IFile *file = fileContainer->findFile(canonicalFilePath);
+        if (file)
+            return file;
+    }
+
+    return nullptr;
+}
+
+IFileContainer *FileContainerX::findFileContainer(const QStringList &path) const
+{
+    if (path.isEmpty())
+        return this;
+
+    foreach (IFileContainer *fileCont, m_fileContainers) {
+        if (fileCont->displayName() == path[0])
+            return fileCont->findFileContainer(path.removeAt(0));
+    }
+
+    return nullptr;
+}
+
 void FileContainerX::processNode(const QDomNode &node)
 {
     Q_UNUSED(node);

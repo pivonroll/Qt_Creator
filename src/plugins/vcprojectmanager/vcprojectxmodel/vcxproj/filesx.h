@@ -76,10 +76,10 @@ private:
     FilesX();
     static void swap(FilesX &first, FilesX &second);
     void readFileContainers();
+    void readFileContainers(ItemGroup *itemGroup, const QStringList &pathList);
 
-    void createFileContainer(ItemGroup *itemGroup, const QStringList &pathList);
-    FileContainerX *findFileContainer(IFileContainer *container, const QString &containerName) const;
     FileContainerX *findFileContainer(const QString &containerName) const; // recursive search
+    FileContainerX *findFileContainer(IFileContainer *container, const QString &containerName) const;
     FileContainerX *findFileContainerRecursive(IFileContainer *container, const QString &containerName) const;
 
     void readFiles();

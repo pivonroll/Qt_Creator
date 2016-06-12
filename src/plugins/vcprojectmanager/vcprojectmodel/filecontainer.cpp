@@ -116,6 +116,35 @@ void FileContainer::setRelativePath(const QString &relativePath)
     m_relativePath = list.join(QLatin1Char('\\'));
 }
 
+IFile *FileContainer::findFile(const QString &canonicalFilePath) const
+{
+    foreach (IFile *file, m_files) {
+        if (file->canonicalPath() == canonicalFilePath)
+            return file;
+    }
+
+    foreach (IFileContainer *fileCont, m_fileContainers) {
+        IFile *file = fileCont->findFile(canonicalFilePath);
+        if (file)
+            return file;
+    }
+
+    return nullptr;
+}
+
+IFileContainer *FileContainer::findFileContainer(const QStringList &path) const
+{
+    if (path.isEmpty())
+        return this;
+
+    foreach (IFileContainer *fileCont, m_fileContainers) {
+        if (fileCont->displayName() == path[0])
+            return fileCont->findFileContainer(path.removeAt(0));
+    }
+
+    return nullptr;
+}
+
 FileContainer::FileContainer()
     : m_parentProjectDoc(nullptr),
       m_attributeContainer(nullptr)
@@ -155,6 +184,17 @@ IFile *FileContainer::file(int index) const
 {
     QTC_ASSERT(0 <= index && index < m_files.size(), return 0);
     return m_files[index];
+}
+
+IFile *FileContainer::file(const QString &relativePath) const
+{
+    foreach (IFile *file, m_files) {
+        if (file->relativePath() == relativePath) {
+            return file;
+        }
+    }
+
+    return nullptr;
 }
 
 int FileContainer::fileCount() const

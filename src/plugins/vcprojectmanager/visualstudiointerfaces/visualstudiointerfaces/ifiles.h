@@ -32,6 +32,8 @@
 
 #include "ivcprojectnodemodel.h"
 
+QT_FORWARD_DECLARE_CLASS(QStringList)
+
 namespace VcProjectManager {
 namespace Internal {
 
@@ -91,6 +93,9 @@ public:
      * \brief Removes file container from the list of top level file containers.
      */
     virtual void removeFileContainer(IFileContainer *fileContainer) = 0;
+
+    virtual IFile *findFile(const QString &canonicalFilePath) const = 0;
+    virtual IFileContainer *findFileContainer(const QStringList &path) const = 0;
 };
 
 } // namespace Internal

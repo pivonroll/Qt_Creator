@@ -176,7 +176,16 @@ void FilesX::swap(FilesX &first, FilesX &second)
 
 void FilesX::readFileContainers()
 {
-    ItemGroup *itemGroup = Utils::findItemGroupWithName(QLatin1String(FILTER_ITEM), m_filters);
+    ItemGroup *itemGroup = nullptr;
+
+    for (int i = 0; i < m_filters->itemGroupCount(); ++i) {
+        itemGroup = m_filters->itemGroup(i);
+
+        Item *item = itemGroup->findItemWithName(QLatin1String(FILTER_ITEM));
+
+        if (item)
+            break;
+    }
 
     if (!itemGroup)
         return;
@@ -187,12 +196,12 @@ void FilesX::readFileContainers()
         if (item && item->name() == QLatin1String(FILTER_ITEM)) {
             QStringList pathList = item->include().split(QLatin1Char('\\'));
 
-            createFileContainer(itemGroup, pathList);
+            readFileContainers(itemGroup, pathList);
         }
     }
 }
 
-void FilesX::createFileContainer(ItemGroup *itemGroup, const QStringList &pathList)
+void FilesX::readFileContainers(ItemGroup *itemGroup, const QStringList &pathList)
 {
     if (pathList.isEmpty())
         return;
@@ -201,29 +210,39 @@ void FilesX::createFileContainer(ItemGroup *itemGroup, const QStringList &pathLi
     FileContainerX *container = m_private;
 
     foreach (const QString &path, pathList) {
+        // construct the relative path
         relativePath << path;
+
+        // check if file container with that path already exists
         FileContainerX *fileContainer = findFileContainer(container, path);
 
+        // if it does not exists add it
         if (!fileContainer) {
             fileContainer = new FileContainerX;
-            Item *item = itemGroup->findItemWithInclude(relativePath.join(QLatin1Char('\\')));
-
-            if (item)
-                fileContainer->m_filterItem = item;
-
-            else {
-                item = new Item(relativePath.join(QLatin1Char('\\')));
-                item->setName(QLatin1String(FILTER_ITEM));
-                itemGroup->addItem(item);
-            }
-
             fileContainer->setDisplayName(path);
             fileContainer->setRelativePath(relativePath.join(QLatin1Char('\\')));
             container->addFileContainer(fileContainer);
         }
-
         container = fileContainer;
     }
+}
+
+FileContainerX *FilesX::findFileContainer(const QString &containerName) const
+{
+    FileContainerX *fileContX = m_private;
+    FileContainerX *cont = findFileContainer(fileContX, containerName);
+
+    if (cont)
+        return cont;
+
+    for (int i = 0; i < m_private->childCount(); ++i) {
+        cont = findFileContainerRecursive(m_private->fileContainer(i), containerName);
+
+        if (cont)
+            return cont;
+    }
+
+    return nullptr;
 }
 
 FileContainerX *FilesX::findFileContainer(IFileContainer *container, const QString &containerName) const
@@ -258,24 +277,6 @@ FileContainerX *FilesX::findFileContainerRecursive(IFileContainer *container, co
 
         if (foundCont)
             return foundCont;
-    }
-
-    return nullptr;
-}
-
-FileContainerX *FilesX::findFileContainer(const QString &containerName) const
-{
-    FileContainerX *fileContX = m_private;
-    FileContainerX *cont = findFileContainer(fileContX, containerName);
-
-    if (cont)
-        return cont;
-
-    for (int i = 0; i < m_private->childCount(); ++i) {
-        cont = findFileContainerRecursive(m_private->fileContainer(i), containerName);
-
-        if (cont)
-            return cont;
     }
 
     return nullptr;

@@ -244,6 +244,16 @@ ItemGroup *Project::findItemGroupWithLabel(const QString &label) const
     return nullptr;
 }
 
+ItemGroup *Project::findItemGroupWithName(const QString &label) const
+{
+    foreach (ItemGroup *item, m_itemGroups) {
+        if (item && item->() == label)
+            return item;
+    }
+
+    return nullptr;
+}
+
 ImportGroup *Project::importGroup(int index) const
 {
     QTC_ASSERT(0 <= index && index < m_importGroups.size(), return nullptr);

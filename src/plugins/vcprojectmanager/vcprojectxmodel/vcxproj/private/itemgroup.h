@@ -57,6 +57,7 @@ public:
     void addItem(Item *item);
     void removeItem(Item *item);
     Item *findItemWithInclude(const QString &include) const;
+    Item *findItemWithName(const QString &name) const;
 
     QString condition() const;
     void setCondition(const QString &condition);
