@@ -69,12 +69,10 @@ ConfigurationsEditWidget::ConfigurationsEditWidget(VcProjectManager::Internal::I
                                                    IConfigurationContainer *configContainer)
     : m_vsProject(vsProj)
 {
-    m_tempVsProject = m_vsProject->clone();
-
     m_configsWidget = new ConfigurationsWidget;
-    IConfigurationContainer *buildConfigurations = m_tempVsProject->configurations()->configurationContainer();
+    IConfigurationContainer *buildConfigurations = m_vsProject->configurations()->configurationContainer();
 
-    if (configContainer == m_tempVsProject->configurations()->configurationContainer()) {
+    if (configContainer == m_vsProject->configurations()->configurationContainer()) {
         connect(buildConfigurations, SIGNAL(configurationAdded(IConfiguration*)), this, SLOT(addConfigWidget(IConfiguration*)));
 
         for (int i = 0; i < buildConfigurations->configurationCount(); ++i) {
@@ -103,8 +101,6 @@ ConfigurationsEditWidget::~ConfigurationsEditWidget()
  */
 void ConfigurationsEditWidget::saveData()
 {
-    delete m_vsProject;
-    m_vsProject = m_tempVsProject;
 }
 
 /*!
@@ -187,7 +183,7 @@ void ConfigurationsEditWidget::onRenameConfig(QString newConfigName, QString old
 
         QString oldConfigNamePl = copyFromConfigName + QLatin1Char('|') + platform->displayName();
         QString newConfigNamePl = newConfigName + QLatin1Char('|') + platform->displayName();
-        IConfiguration *config = m_tempVsProject->configurations()->configurationContainer()->configuration(oldConfigNamePl);
+        IConfiguration *config = m_vsProject->configurations()->configurationContainer()->configuration(oldConfigNamePl);
 
         if (config)
             config->setFullName(newConfigNamePl);
@@ -213,7 +209,7 @@ void ConfigurationsEditWidget::onRemoveConfig(QString configNameWithPlatform)
             continue;
 
         QString configName = copyFromConfigName + QLatin1Char('|') + platform->displayName();
-        m_tempVsProject->configurations()->configurationContainer()->removeConfiguration(configName);
+        m_vsProject->configurations()->configurationContainer()->removeConfiguration(configName);
         m_configsWidget->removeConfiguration(configName);
 
         removeConfigFromFiles(configNameWithPlatform);
@@ -241,14 +237,14 @@ void ConfigurationsEditWidget::addConfigToProjectBuild(const QString &newConfigN
     if (copyFrom.isEmpty()) {
         IConfiguration *newConfig = m_vsProject->createDefaultBuildConfiguration(newConfigName);
         if (newConfig)
-            m_tempVsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
+            m_vsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
     } else {
-        IConfiguration *config = m_tempVsProject->configurations()->configurationContainer()->configuration(copyFrom);
+        IConfiguration *config = m_vsProject->configurations()->configurationContainer()->configuration(copyFrom);
 
         if (config) {
             IConfiguration *newConfig = config->clone();
             newConfig->setFullName(newConfigName);
-            m_tempVsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
+            m_vsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
         }
     }
 }
@@ -262,8 +258,8 @@ void ConfigurationsEditWidget::addConfigToProjectBuild(const QString &newConfigN
  */
 void ConfigurationsEditWidget::addConfigToFiles(const QString &newConfigName, const QString &copyFrom)
 {
-    QTC_ASSERT(m_tempVsProject, return);
-    QTC_ASSERT(m_tempVsProject->files(), return);
+    QTC_ASSERT(m_vsProject, return);
+    QTC_ASSERT(m_vsProject->files(), return);
 
     IFiles *files = m_vsProject->files();
 
@@ -305,8 +301,8 @@ void ConfigurationsEditWidget::addConfigToFiles(IFile *file, const QString &newC
 void ConfigurationsEditWidget::renameFileBuildConfiguration(const QString &newConfigNameWithPlatform,
                                                             const QString &oldConfigNameWithPlatform)
 {
-    QTC_ASSERT(m_tempVsProject, return);
-    QTC_ASSERT(m_tempVsProject->files(), return);
+    QTC_ASSERT(m_vsProject, return);
+    QTC_ASSERT(m_vsProject->files(), return);
 
     IFiles *files = m_vsProject->files();
 
@@ -342,8 +338,8 @@ void ConfigurationsEditWidget::renameFileBuildConfiguration(IFile *file, const
 
 void ConfigurationsEditWidget::removeConfigFromFiles(const QString &configNameWithPlatform)
 {
-    QTC_ASSERT(m_tempVsProject, return);
-    QTC_ASSERT(m_tempVsProject->files(), return);
+    QTC_ASSERT(m_vsProject, return);
+    QTC_ASSERT(m_vsProject->files(), return);
 
     IFiles *files = m_vsProject->files();
 

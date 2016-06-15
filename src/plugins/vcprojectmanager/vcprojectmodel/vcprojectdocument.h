@@ -40,7 +40,7 @@
 #include "../msbuildversionmanager.h"
 
 #include <visualstudiointerfaces/ivisualstudioproject.h>
-#include <visualstudiowidgets/vcnodewidget.h>
+#include <widgets/visualstudiowidgets/vcnodewidget.h>
 
 #include <QtGlobal>
 

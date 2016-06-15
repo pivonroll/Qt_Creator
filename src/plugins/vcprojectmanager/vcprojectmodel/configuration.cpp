@@ -40,7 +40,7 @@
 #include "vcprojectdocument.h"
 
 #include <visualstudiotoolattributes/tooldescription.h>
-#include <visualstudiowidgets/configurationbasewidget.h>
+#include <widgets/visualstudiowidgets/configurationbasewidget.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 #include <visualstudiointerfaces/iprojectfactories.h>
 

@@ -27,39 +27,65 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_CONFIGURATION_BASE_WIDGET_H
-#define VCPROJECTMANAGER_INTERNAL_CONFIGURATION_BASE_WIDGET_H
+#include "filesettingswidget.h"
+#include <visualstudiointerfaces/ifile.h>
+#include <widgets/visualstudiowidgets/fileconfigurationseditwidget.h>
+#include <widgets/visualstudiowidgets/projectsettingswidget.h>
 
-#include <visualstudiowidgets/vcnodewidget.h>
-
-QT_BEGIN_NAMESPACE
-class QListWidget;
-class QStackedWidget;
-QT_END_NAMESPACE
+#include <QVBoxLayout>
 
 namespace VcProjectManager {
 namespace Internal {
 
-class IConfiguration;
+/*!
+ * \class FileSettingsWidget
+ * A wrapper container for file build configuration widgets.
+ */
 
-class ConfigurationBaseWidget : public VcNodeWidget
+FileSettingsWidget::FileSettingsWidget(IFile *file, QWidget *parent)
+    : VcNodeWidget(parent)
 {
-    Q_OBJECT
-public:
-    explicit ConfigurationBaseWidget(IConfiguration *config);
-    ~ConfigurationBaseWidget();
+    ProjectSettingsWidget *projectSettingsWidget = new ProjectSettingsWidget(this);
 
-    void saveData();
+    // add Configurations
+    m_fileConfigurationsWidget = static_cast<FileConfigurationsEditWidget *>(file->createSettingsWidget());
+    projectSettingsWidget->addWidget(tr("Configurations"), m_fileConfigurationsWidget);
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->setMargin(0);
+    layout->addWidget(projectSettingsWidget);
+    setLayout(layout);
 
-protected:
-    QListWidget *m_listWidget;
-    QStackedWidget *m_stackWidget;
+    connect(projectSettingsWidget, SIGNAL(okButtonClicked()), this, SLOT(onOkButtonClicked()));
+    connect(projectSettingsWidget, SIGNAL(cancelButtonClicked()), this, SLOT(onCancelButtonClicked()));
+}
 
-    IConfiguration *m_config;
-    QList<VcNodeWidget *> m_toolWidgets;
-};
+/*!
+ * \reimp
+ */
+void FileSettingsWidget::saveData()
+{
+    m_fileConfigurationsWidget->saveData();
+}
+
+/*!
+ * \brief Called when Ok button is clicked.
+ */
+void FileSettingsWidget::onOkButtonClicked()
+{
+    saveData();
+    hide();
+    emit accepted();
+    deleteLater();
+}
+
+/*!
+ * \brief Called when Cancel button is clicked.
+ */
+void FileSettingsWidget::onCancelButtonClicked()
+{
+    hide();
+    deleteLater();
+}
 
 } // namespace Internal
 } // namespace VcProjectManager
-
-#endif // VCPROJECTMANAGER_INTERNAL_CONFIGURATION_BASE_WIDGET_H

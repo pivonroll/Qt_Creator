@@ -31,7 +31,7 @@
 
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 
-#include <visualstudiowidgets/toolwidgets/stringtoolattributesettingsitem.h>
+#include <widgets/visualstudiowidgets/toolwidgets/stringtoolattributesettingsitem.h>
 
 namespace VcProjectManager {
 namespace Internal {

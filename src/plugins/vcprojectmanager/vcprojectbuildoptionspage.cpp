@@ -31,8 +31,8 @@
 #include "vcprojectbuildoptionspage.h"
 #include "vcschemamanager.h"
 
-#include <visualstudiowidgets/schemaoptionswidget.h>
-#include <visualstudiowidgets/toolschemawidget.h>
+#include <widgets/pluginwidgets/schemaoptionswidget.h>
+#include <widgets/pluginwidgets/toolschemawidget.h>
 
 #include <projectexplorer/projectexplorerconstants.h>
 

@@ -32,7 +32,7 @@
 
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/ivcprojectnodemodel.h>
-#include <visualstudiowidgets/toolwidgets/toolsettingswidget.h>
+#include <widgets/visualstudiowidgets/toolwidgets/toolsettingswidget.h>
 
 QT_BEGIN_NAMESPACE
 class QDomElement;

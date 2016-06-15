@@ -31,7 +31,7 @@
 #include "vcdocprojectnodes.h"
 #include "vcprojectmanagerconstants.h"
 
-#include <visualstudiowidgets/vcenternamedialog.h>
+#include <widgets/visualstudiowidgets/vcenternamedialog.h>
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>

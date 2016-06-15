@@ -39,8 +39,8 @@
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
 #include <visualstudiointerfaces/iconfigurationcontainer.h>
 #include <visualstudiointerfaces/itools.h>
-#include <visualstudiowidgets/configurationseditwidget.h>
-#include <visualstudiowidgets/projectsettingswidget.h>
+#include <widgets/visualstudiowidgets/configurationseditwidget.h>
+#include <widgets/visualstudiowidgets/projectsettingswidget.h>
 
 #include <visualstudiotoolattributes/tooldescription.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>

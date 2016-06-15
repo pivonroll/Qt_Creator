@@ -31,7 +31,7 @@
 
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 
-#include <visualstudiowidgets/toolwidgets/booltoolattributesettingsitem.h>
+#include <widgets/visualstudiowidgets/toolwidgets/booltoolattributesettingsitem.h>
 
 namespace VcProjectManager {
 namespace Internal {

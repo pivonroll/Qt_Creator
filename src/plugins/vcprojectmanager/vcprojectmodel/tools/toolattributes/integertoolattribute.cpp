@@ -31,7 +31,7 @@
 
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 
-#include <visualstudiowidgets/toolwidgets/integertoolattributesettingsitem.h>
+#include <widgets/visualstudiowidgets/toolwidgets/integertoolattributesettingsitem.h>
 
 namespace VcProjectManager {
 namespace Internal {

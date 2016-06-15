@@ -50,7 +50,7 @@
 
 #include <visualstudiotoolattributes/tooldescription.h>
 
-#include <visualstudiowidgets/fileconfigurationseditwidget.h>
+#include <widgets/visualstudiowidgets/fileconfigurationseditwidget.h>
 
 #include <coreplugin/icore.h>
 #include <utils/fileutils.h>

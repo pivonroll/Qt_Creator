@@ -34,7 +34,7 @@
 #include <visualstudiotoolattributes/toolsectiondescription.h>
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 
-#include <visualstudiowidgets/toolwidgets/toolsectionsettingswidget.h>
+#include <widgets/visualstudiowidgets/toolwidgets/toolsectionsettingswidget.h>
 
 #include <visualstudiointerfaces/itoolattribute.h>
 

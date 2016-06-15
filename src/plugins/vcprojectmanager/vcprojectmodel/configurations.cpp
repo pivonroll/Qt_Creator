@@ -32,7 +32,7 @@
 #include "configurations.h"
 #include "vcprojectdocument.h"
 #include "vcprojectdocument_constants.h"
-#include <visualstudiowidgets/configurationseditwidget.h>
+#include <widgets/visualstudiowidgets/configurationseditwidget.h>
 
 #include <QDomNode>
 

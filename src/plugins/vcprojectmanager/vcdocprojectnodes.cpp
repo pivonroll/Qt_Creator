@@ -30,7 +30,7 @@
 #include "vcprojectmanagerconstants.h"
 #include "vcdocprojectnodes.h"
 
-#include <visualstudiowidgets/filesettingswidget.h>
+#include <widgets/visualstudiowidgets/filesettingswidget.h>
 
 #include <visualstudiointerfaces/ifile.h>
 #include <visualstudiointerfaces/ifilecontainer.h>

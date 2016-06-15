@@ -49,7 +49,7 @@
 #include <visualstudiointerfaces/itoolattributecontainer.h>
 #include <visualstudiointerfaces/itoolsection.h>
 #include <visualstudiointerfaces/ivisualstudioproject.h>
-#include <visualstudiowidgets/fileconfigurationsettingswidget.h>
+#include <widgets/visualstudiowidgets/fileconfigurationsettingswidget.h>
 
 #include <visualstudiotoolattributes/tooldescription.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>

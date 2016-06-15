@@ -30,7 +30,8 @@
 #include "msbuildversionmanager.h"
 #include "vcprojectkitinformation.h"
 #include "vcprojectmanagerconstants.h"
-#include <visualstudiowidgets/vcprojectkitconfigwidget.h>
+
+#include <widgets/pluginwidgets/vcprojectkitconfigwidget.h>
 
 #include <projectexplorer/projectexplorerconstants.h>
 

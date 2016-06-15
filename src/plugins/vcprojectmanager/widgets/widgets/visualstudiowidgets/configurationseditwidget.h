@@ -75,7 +75,6 @@ private:
     void removeConfigFromFiles(IFile *file, const QString &configNameWithPlatform);
 
     IVisualStudioProject *m_vsProject;
-    IVisualStudioProject *m_tempVsProject;
     ConfigurationsWidget *m_configsWidget;
     QMap<IFile *, IConfigurationContainer *> m_fileConfigurations;
 };
