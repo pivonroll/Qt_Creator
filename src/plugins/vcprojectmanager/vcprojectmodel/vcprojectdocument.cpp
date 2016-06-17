@@ -395,8 +395,8 @@ VcProjectDocumentWidget::VcProjectDocumentWidget(VcProjectDocument *vcDoc)
     layout->addWidget(projectSettingsWidget);
     setLayout(layout);
 
-    connect(projectSettingsWidget, SIGNAL(okButtonClicked()), this, SLOT(onOkButtonClicked()));
-    connect(projectSettingsWidget, SIGNAL(cancelButtonClicked()), this, SLOT(onCancelButtonClicked()));
+    connect(projectSettingsWidget, &ProjectSettingsWidget::okButtonClicked, this, &VcProjectDocumentWidget::onOkButtonClicked);
+    connect(projectSettingsWidget, &ProjectSettingsWidget::cancelButtonClicked, this, &VcProjectDocumentWidget::onCancelButtonClicked);
 }
 
 VcProjectDocumentWidget::~VcProjectDocumentWidget()
@@ -419,6 +419,7 @@ void VcProjectDocumentWidget::onOkButtonClicked()
 void VcProjectDocumentWidget::onCancelButtonClicked()
 {
     hide();
+    emit cancelled();
     deleteLater();
 }
 

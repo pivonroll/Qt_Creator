@@ -45,6 +45,10 @@ public:
      * \brief Implement this in order to save data set in the widget which implements this interface.
      */
     virtual void saveData() = 0;
+
+signals:
+    void accepted();
+    void cancelled();
 };
 
 } // namespace Internal

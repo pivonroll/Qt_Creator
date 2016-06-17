@@ -86,7 +86,8 @@ bool VcXProjectFile::reload(QString *errorString, Core::IDocument::ReloadFlag fl
 
 VcDocProjectNode *VcXProjectFile::createProjectNode() const
 {
-    return new VcDocProjectNode(m_visualStudioProject);
+//    return new VcDocProjectNode(m_visualStudioProject);
+    return nullptr;
 }
 
 IVisualStudioProject *VcXProjectFile::visualStudioProject() const

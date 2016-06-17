@@ -96,14 +96,12 @@ IFileContainer *FileFactoryX::createFileContainer(const QString &containerPath, 
     FileContainerX *fileContainer = new FileContainerX;
     fileContainer->m_project = m_parentProjectDocument->m_project;
     fileContainer->m_filters = m_parentProjectDocument->m_filters;
-    fileContainer->m_filterItem = new Item;
-    fileContainer->m_filterItem->setName(containerType);
-    fileContainer->m_filterItem->setInclude(containerPath);
+
+    // add new file container to m_project and filters
 
     ItemMetaData *itemMetaData = new ItemMetaData;
     itemMetaData->setName(QLatin1String(UNIQUE_IDENTIFIER));
     // TODO(Radovan): add unique identifier id value
-    fileContainer->m_filterItem->addItemMetaData(itemMetaData);
 
     return fileContainer;
 }

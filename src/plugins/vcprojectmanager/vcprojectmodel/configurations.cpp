@@ -85,7 +85,7 @@ void Configurations::processNode(const QDomNode &node)
 
 VcNodeWidget *Configurations::createSettingsWidget()
 {
-    return new ConfigurationsEditWidget(m_vcProjDoc, m_configurationContainer);
+    return new ConfigurationsEditWidget(m_vcProjDoc);
 }
 
 QDomNode Configurations::toXMLDomNode(QDomDocument &domXMLDocument) const

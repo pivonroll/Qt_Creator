@@ -84,7 +84,7 @@ BasicConfigurationWidget::BasicConfigurationWidget(QWidget *parent) :
 
     horizontalSplitter->setStretchFactor(0, 1);
 
-    connect(m_tableWidget, SIGNAL(cellClicked(int,int)), this, SLOT(onTableCellClicked(int, int)));
+    connect(m_tableWidget, &QTableWidget::cellClicked, this, &BasicConfigurationWidget::onTableCellClicked);
 }
 
 BasicConfigurationWidget::~BasicConfigurationWidget()

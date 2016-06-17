@@ -147,7 +147,7 @@ private:
     /*!
      * \brief Reads tool description from tool description XML node.
      */
-    VcProjectManager::Internal::ToolDescription *readToolDescription(const QDomNode &domNode);
+    ToolDescription *readToolDescription(const QDomNode &domNode);
 
     QList<ToolDescription *> m_toolDescriptions;
     static ToolDescriptionDataManager *m_instance;

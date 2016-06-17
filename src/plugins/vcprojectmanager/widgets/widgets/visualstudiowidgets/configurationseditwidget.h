@@ -49,7 +49,7 @@ class ConfigurationsEditWidget : public VcNodeWidget
     Q_OBJECT
 
 public:
-    ConfigurationsEditWidget(IVisualStudioProject *vsProj, IConfigurationContainer *configContainer);
+    ConfigurationsEditWidget(IVisualStudioProject *vsProj);
     ~ConfigurationsEditWidget();
 
     void saveData();
@@ -76,7 +76,6 @@ private:
 
     IVisualStudioProject *m_vsProject;
     ConfigurationsWidget *m_configsWidget;
-    QMap<IFile *, IConfigurationContainer *> m_fileConfigurations;
 };
 
 } // Internal

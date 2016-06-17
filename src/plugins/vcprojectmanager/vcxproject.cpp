@@ -30,7 +30,7 @@
 #include "vcxproject.h"
 
 #include "vcdocprojectnodes.h"
-#include "vcxprojectfile.h"
+#include "vcprojectfile.h"
 #include "vcxprojectmanager.h"
 #include "vcprojectbuildconfiguration.h"
 #include "vcprojectkitinformation.h"
@@ -64,7 +64,7 @@ namespace Internal {
 VcXProject::VcXProject(VcXProjectManager *projectManager, const QString &canonicalFilePath)
     : m_projectManager(projectManager)
 {
-    m_projectFile = new VcXProjectFile(canonicalFilePath);
+    m_projectFile = new VcProjectFile(canonicalFilePath, VcDocConstants::DocumentVersion::DV_MSVC_2010);
     m_rootNode = m_projectFile->createProjectNode();
 }
 

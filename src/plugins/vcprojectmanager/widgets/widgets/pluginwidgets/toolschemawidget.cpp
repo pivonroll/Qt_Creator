@@ -96,11 +96,11 @@ ToolSchemaWidget::ToolSchemaWidget(QWidget *parent) :
 
     ui->m_toolSchemaLineEdit->setText(vcSM->toolSchema());
 
-    connect(ui->m_toolSchemaBrowseButton, SIGNAL(clicked()), this, SLOT(onToolSchemaBrowseButton()));
-    connect(ui->m_addPushButton, SIGNAL(clicked()), this, SLOT(onToolXMLAddButton()));
-    connect(ui->m_removePushButton, SIGNAL(clicked()), this, SLOT(onToolXMLRemoveButton()));
-    connect(ui->m_toolXMLTable, SIGNAL(currentCellChanged(int, int, int, int)), this, SLOT(onCurrentRowChanged(int)));
-    connect(ui->m_editToolPathPushButton, SIGNAL(clicked()), this, SLOT(onToolXMLPathChanged()));
+    connect(ui->m_toolSchemaBrowseButton, &QPushButton::clicked, this, &ToolSchemaWidget::onToolSchemaBrowseButton);
+    connect(ui->m_addPushButton, &QPushButton::clicked, this, &ToolSchemaWidget::onToolXMLAddButton);
+    connect(ui->m_removePushButton, &QPushButton::clicked, this, &ToolSchemaWidget::onToolXMLRemoveButton);
+    connect(ui->m_toolXMLTable, &QTableWidget::currentCellChanged, this, &ToolSchemaWidget::onCurrentRowChanged);
+    connect(ui->m_editToolPathPushButton, &QPushButton::clicked, this, &ToolSchemaWidget::onToolXMLPathChanged);
 }
 
 ToolSchemaWidget::~ToolSchemaWidget()

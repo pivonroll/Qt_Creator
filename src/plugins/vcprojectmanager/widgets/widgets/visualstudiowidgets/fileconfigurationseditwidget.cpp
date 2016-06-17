@@ -57,8 +57,8 @@
 #include <visualstudiointerfaces/ivisualstudioproject.h>
 
 // figure this out
-#include "../../vcprojectmodel/configurationcontainer.h"
-#include "../../vcprojectxmodel/vcxproj/configurationcontainerx.h"
+#include "../../../vcprojectmodel/configurationcontainer.h"
+#include "../../../vcprojectxmodel/vcxproj/configurationcontainerx.h"
 
 #include <utils/qtcassert.h>
 
@@ -98,9 +98,9 @@ FileConfigurationsEditWidget::FileConfigurationsEditWidget(IFile *file, IVisualS
             m_configsWidget->addConfiguration(config->fullName(), config->createSettingsWidget());
     }
 
-    connect(m_configsWidget, SIGNAL(addNewConfigSignal(QString, QString)), this, SLOT(onAddNewConfig(QString, QString)));
-    connect(m_configsWidget, SIGNAL(renameConfigSignal(QString,QString)), this, SLOT(onRenameConfig(QString, QString)));
-    connect(m_configsWidget, SIGNAL(removeConfigSignal(QString)), this, SLOT(onRemoveConfig(QString)));
+    connect(m_configsWidget, &ConfigurationsWidget::addNewConfigSignal, this, &FileConfigurationsEditWidget::onAddNewConfig);
+    connect(m_configsWidget, &ConfigurationsWidget::renameConfigSignal, this, &FileConfigurationsEditWidget::onRenameConfig);
+    connect(m_configsWidget, &ConfigurationsWidget::removeConfigSignal, this, &FileConfigurationsEditWidget::onRemoveConfig);
 }
 
 FileConfigurationsEditWidget::~FileConfigurationsEditWidget()

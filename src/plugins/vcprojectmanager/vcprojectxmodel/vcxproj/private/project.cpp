@@ -247,7 +247,7 @@ ItemGroup *Project::findItemGroupWithLabel(const QString &label) const
 ItemGroup *Project::findItemGroupWithName(const QString &label) const
 {
     foreach (ItemGroup *item, m_itemGroups) {
-        if (item && item->() == label)
+        if (item && item->label() == label)
             return item;
     }
 

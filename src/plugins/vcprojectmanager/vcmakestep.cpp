@@ -279,7 +279,7 @@ VcMakeStepConfigWidget::VcMakeStepConfigWidget(VcMakeStep *makeStep) :
     if (m_makeStep)
         m_msBuildPath->setText(msBuild->m_executable);
 
-    connect(m_makeStep->target(), SIGNAL(kitChanged()), this, SLOT(msBuildUpdated()));
+    connect(m_makeStep->target(), &ProjectExplorer::Target::kitChanged, this, &VcMakeStepConfigWidget::msBuildUpdated);
 }
 
 QString VcMakeStepConfigWidget::displayName() const

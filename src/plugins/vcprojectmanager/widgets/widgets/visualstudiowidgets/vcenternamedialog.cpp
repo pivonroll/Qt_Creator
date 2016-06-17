@@ -46,7 +46,7 @@ VcEnterNameDialog::VcEnterNameDialog(const QString &containerType, QWidget *pare
 {
     ui->setupUi(this);
     ui->m_containerTypeLabel->setText(containerType);
-    connect(ui->m_buttonBox, SIGNAL(accepted()), this, SLOT(okButtonClicked()));
+    connect(ui->m_buttonBox, &QDialogButtonBox::accepted, this, &VcEnterNameDialog::okButtonClicked);
 }
 
 VcEnterNameDialog::~VcEnterNameDialog()

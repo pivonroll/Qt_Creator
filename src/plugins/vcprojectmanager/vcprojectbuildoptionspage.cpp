@@ -47,6 +47,7 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
+#include <QProcess>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -65,11 +66,11 @@ VcProjectEditMsBuildDialog::VcProjectEditMsBuildDialog(QWidget *parent) :
     mainLayout->addLayout(filePathLayout);
     mainLayout->addWidget(buttonBox);
 
-    connect(buttonBox->button(QDialogButtonBox::Ok), SIGNAL(clicked()),
-            this, SLOT(accept()));
-    connect(buttonBox->button(QDialogButtonBox::Cancel), SIGNAL(clicked()),
-            this, SLOT(reject()));
-    connect(m_browseButton, SIGNAL(clicked()), this, SLOT(showBrowseFileDialog()));
+    connect(buttonBox->button(QDialogButtonBox::Ok), &QPushButton::clicked,
+            this, &VcProjectEditMsBuildDialog::accept);
+    connect(buttonBox->button(QDialogButtonBox::Cancel), &QPushButton::clicked,
+            this, &VcProjectEditMsBuildDialog::reject);
+    connect(m_browseButton, &QPushButton::clicked, this, &VcProjectEditMsBuildDialog::showBrowseFileDialog);
 }
 
 VcProjectEditMsBuildDialog::~VcProjectEditMsBuildDialog()
@@ -171,19 +172,19 @@ VcProjectBuildOptionsWidget::VcProjectBuildOptionsWidget(QWidget *parent) :
     mainlayout->setStretchFactor(m_schemaOptionsWidget, 0);
     mainlayout->setStretchFactor(m_toolSchemaWidget, 1);
 
-    connect(m_addMsBuildButton, SIGNAL(clicked()), this, SIGNAL(addNewButtonClicked()));
-    connect(m_editBuildButton, SIGNAL(clicked()), this, SIGNAL(editButtonClicked()));
-    connect(m_deleteBuildButton, SIGNAL(clicked()), this, SIGNAL(deleteButtonClicked()));
-    connect(m_buildTableWidget, SIGNAL(cellClicked(int, int)), this, SLOT(onTableRowIndexChange(int)));
+    connect(m_addMsBuildButton, &QPushButton::clicked, this, &VcProjectBuildOptionsWidget::addNewButtonClicked);
+    connect(m_editBuildButton, &QPushButton::clicked, this, &VcProjectBuildOptionsWidget::editButtonClicked);
+    connect(m_deleteBuildButton, &QPushButton::clicked, this, &VcProjectBuildOptionsWidget::deleteButtonClicked);
+    connect(m_buildTableWidget, &QTableWidget::cellClicked, this, &VcProjectBuildOptionsWidget::onTableRowIndexChange);
 
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
     QList<MsBuildInformation *> msBuildInfos = msBVM->msBuildInformations();
     foreach (MsBuildInformation *msBuildInfo, msBuildInfos)
         insertMsBuildIntoTable(msBuildInfo);
 
-    connect(msBVM, SIGNAL(msBuildAdded(Core::Id)), this, SLOT(onMsBuildAdded(Core::Id)));
-    connect(msBVM, SIGNAL(msBuildRemoved(Core::Id)), this, SLOT(onMsBuildRemoved(Core::Id)));
-    connect(msBVM, SIGNAL(msBuildReplaced(Core::Id,Core::Id)), this, SLOT(onMsBuildReplaced(Core::Id,Core::Id)));
+    connect(msBVM, &MsBuildVersionManager::msBuildAdded, this, &VcProjectBuildOptionsWidget::onMsBuildAdded);
+    connect(msBVM, &MsBuildVersionManager::msBuildRemoved, this, &VcProjectBuildOptionsWidget::onMsBuildRemoved);
+    connect(msBVM, &MsBuildVersionManager::msBuildReplaced, this, &VcProjectBuildOptionsWidget::onMsBuildReplaced);
 }
 
 VcProjectBuildOptionsWidget::~VcProjectBuildOptionsWidget()
@@ -313,9 +314,9 @@ void VcProjectBuildOptionsWidget::saveSettings() const
 {
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
 
-    disconnect(msBVM, SIGNAL(msBuildAdded(Core::Id)), this, SLOT(onMsBuildAdded(Core::Id)));
-    disconnect(msBVM, SIGNAL(msBuildRemoved(Core::Id)), this, SLOT(onMsBuildRemoved(Core::Id)));
-    disconnect(msBVM, SIGNAL(msBuildReplaced(Core::Id,Core::Id)), this, SLOT(onMsBuildReplaced(Core::Id,Core::Id)));
+    disconnect(msBVM, &MsBuildVersionManager::msBuildAdded, this, &VcProjectBuildOptionsWidget::onMsBuildAdded);
+    disconnect(msBVM, &MsBuildVersionManager::msBuildRemoved, this, &VcProjectBuildOptionsWidget::onMsBuildRemoved);
+    disconnect(msBVM, &MsBuildVersionManager::msBuildReplaced, this, &VcProjectBuildOptionsWidget::onMsBuildReplaced);
 
     if (msBVM) {
         foreach (const Core::Id &id, m_removedMsBuilds)
@@ -327,9 +328,9 @@ void VcProjectBuildOptionsWidget::saveSettings() const
         msBVM->saveSettings();
     }
 
-    connect(msBVM, SIGNAL(msBuildAdded(Core::Id)), this, SLOT(onMsBuildAdded(Core::Id)));
-    connect(msBVM, SIGNAL(msBuildRemoved(Core::Id)), this, SLOT(onMsBuildRemoved(Core::Id)));
-    connect(msBVM, SIGNAL(msBuildReplaced(Core::Id,Core::Id)), this, SLOT(onMsBuildReplaced(Core::Id,Core::Id)));
+    connect(msBVM, &MsBuildVersionManager::msBuildAdded, this, &VcProjectBuildOptionsWidget::onMsBuildAdded);
+    connect(msBVM, &MsBuildVersionManager::msBuildRemoved, this, &VcProjectBuildOptionsWidget::onMsBuildRemoved);
+    connect(msBVM, &MsBuildVersionManager::msBuildReplaced, this, &VcProjectBuildOptionsWidget::onMsBuildReplaced);
 
     m_schemaOptionsWidget->saveSettings();
     m_toolSchemaWidget->saveSettings();
@@ -470,9 +471,9 @@ QWidget *VcProjectBuildOptionsPage::widget()
     if (!m_optionsWidget) {
         m_optionsWidget = new VcProjectBuildOptionsWidget;
 
-        connect(m_optionsWidget, SIGNAL(addNewButtonClicked()), this, SLOT(addNewMsBuild()));
-        connect(m_optionsWidget, SIGNAL(editButtonClicked()), this, SLOT(editMsBuild()));
-        connect(m_optionsWidget, SIGNAL(deleteButtonClicked()), this, SLOT(deleteMsBuild()));
+        connect(m_optionsWidget, &VcProjectBuildOptionsWidget::addNewButtonClicked, this, &VcProjectBuildOptionsPage::addNewMsBuild);
+        connect(m_optionsWidget, &VcProjectBuildOptionsWidget::editButtonClicked, this, &VcProjectBuildOptionsPage::editMsBuild);
+        connect(m_optionsWidget, &VcProjectBuildOptionsWidget::deleteButtonClicked, this, &VcProjectBuildOptionsPage::deleteMsBuild);
     }
     return m_optionsWidget;
 }
@@ -509,8 +510,7 @@ void VcProjectBuildOptionsPage::startVersionCheck()
         return;
 
     m_validator.m_process = new QProcess();
-    connect(m_validator.m_process, SIGNAL(finished(int)),
-            this, SLOT(versionCheckFinished()));
+    connect(m_validator.m_process, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(versionCheckFinished()));
 
     m_validator.m_process->start(m_validator.m_executable, QStringList(QLatin1String("/version")));
     m_validator.m_process->waitForStarted();

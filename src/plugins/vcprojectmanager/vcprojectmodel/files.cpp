@@ -220,9 +220,12 @@ IFileContainer *Files::findFileContainer(const QStringList &path) const
     if (path.isEmpty())
         return nullptr;
 
+    QStringList tempPath = path;
     foreach (IFileContainer *container, m_fileContainers) {
-        if (container->displayName() == path[0])
-            return container->findFileContainer(path.removeAt(0));
+        if (container->displayName() == tempPath[0]) {
+            tempPath.removeAt(0);
+            return container->findFileContainer(tempPath);
+        }
     }
 
     return nullptr;

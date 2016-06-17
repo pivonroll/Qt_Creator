@@ -55,7 +55,6 @@ FilesX::FilesX(Project *project, Project *filters, VcProjectDocumentX *parentPro
 {
     m_private->m_filters = m_filters;
     m_private->m_project = m_project;
-    m_private->m_filterItem = nullptr;
     m_private->m_parentContainer = nullptr;
 
     readFiles();
@@ -140,6 +139,16 @@ IFileContainer *FilesX::fileContainer(int index) const
 void FilesX::removeFileContainer(IFileContainer *fileContainer)
 {
     m_private->removeFileContainer(fileContainer);
+}
+
+IFile *FilesX::findFile(const QString &canonicalFilePath) const
+{
+    return nullptr;
+}
+
+IFileContainer *FilesX::findFileContainer(const QStringList &path) const
+{
+    return nullptr;
 }
 
 void FilesX::processNode(const QDomNode &node)

@@ -80,7 +80,7 @@ bool VcProjectManagerPlugin::initialize(const QStringList &arguments, QString *e
 
     VcProjectBuildOptionsPage *confPage = new VcProjectBuildOptionsPage;
     addAutoReleasedObject(confPage);
-    addAutoReleasedObject(new VcManager(confPage));
+    addAutoReleasedObject(new VcProjectManager(confPage));
     addAutoReleasedObject(new VcXProjectManager);
     addAutoReleasedObject(new VcProjectBuildConfigurationFactory);
     addAutoReleasedObject(new VcMakeStepFactory);

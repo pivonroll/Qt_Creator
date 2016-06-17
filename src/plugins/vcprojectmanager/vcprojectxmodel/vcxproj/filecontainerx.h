@@ -56,6 +56,7 @@ public:
     QString containerType() const;
     void addFile(IFile *file);
     IFile *file(int index) const;
+    IFile *file(const QString &relativePath) const;
     int fileCount() const;
     void removeFile(IFile *file);
     void addFileContainer(IFileContainer *fileContainer);

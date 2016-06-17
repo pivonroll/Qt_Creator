@@ -122,9 +122,6 @@ private slots:
     virtual void onOkButtonClicked();
     virtual void onCancelButtonClicked();
 
-signals:
-    void accepted();
-
 protected:
     VcProjectDocument *m_vcDoc;
     ConfigurationsEditWidget *m_configurationsWidget;

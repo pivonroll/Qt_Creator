@@ -55,8 +55,8 @@ FileSettingsWidget::FileSettingsWidget(IFile *file, QWidget *parent)
     layout->addWidget(projectSettingsWidget);
     setLayout(layout);
 
-    connect(projectSettingsWidget, SIGNAL(okButtonClicked()), this, SLOT(onOkButtonClicked()));
-    connect(projectSettingsWidget, SIGNAL(cancelButtonClicked()), this, SLOT(onCancelButtonClicked()));
+    connect(projectSettingsWidget, &ProjectSettingsWidget::okButtonClicked, this, &FileSettingsWidget::onOkButtonClicked);
+    connect(projectSettingsWidget, &ProjectSettingsWidget::cancelButtonClicked, this, &FileSettingsWidget::onCancelButtonClicked);
 }
 
 /*!

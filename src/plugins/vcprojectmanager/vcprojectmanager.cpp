@@ -46,17 +46,17 @@ namespace Internal {
  * When Qt Creator wants to open Visual Studio project files,
  * it will create an instance of this class.
  */
-VcManager::VcManager(VcProjectBuildOptionsPage *configPage)
+VcProjectManager::VcProjectManager(VcProjectBuildOptionsPage *configPage)
 {
     Q_UNUSED(configPage)
 }
 
-QString VcManager::mimeType() const
+QString VcProjectManager::mimeType() const
 {
     return QLatin1String(Constants::VCPROJ_MIMETYPE);
 }
 
-ProjectExplorer::Project *VcManager::openProject(const QString &fileName, QString *errorString)
+ProjectExplorer::Project *VcProjectManager::openProject(const QString &fileName, QString *errorString)
 {
     QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
 

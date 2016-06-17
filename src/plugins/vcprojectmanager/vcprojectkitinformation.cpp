@@ -51,8 +51,8 @@ VcProjectKitInformation::VcProjectKitInformation()
 {
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
 
-    connect(msBVM, SIGNAL(msBuildRemoved(Core::Id)), this, SLOT(onMSBuildRemoved(Core::Id)));
-    connect(msBVM, SIGNAL(msBuildReplaced(Core::Id, Core::Id)), this, SLOT(onMSBuildReplaced(Core::Id, Core::Id)));
+    connect(msBVM, &MsBuildVersionManager::msBuildRemoved, this, &VcProjectKitInformation::onMSBuildRemoved);
+    connect(msBVM, &MsBuildVersionManager::msBuildReplaced, this, &VcProjectKitInformation::onMSBuildReplaced);
 }
 
 VcProjectKitInformation::~VcProjectKitInformation()

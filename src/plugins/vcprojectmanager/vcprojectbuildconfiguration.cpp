@@ -102,7 +102,7 @@ ProjectExplorer::BuildConfiguration::BuildType VcProjectBuildConfiguration::buil
 void VcProjectBuildConfiguration::setConfiguration(IConfiguration *config)
 {
     m_configuration = config;
-    connect(m_configuration, SIGNAL(nameChanged()), this, SLOT(reloadConfigurationName()));
+    connect(m_configuration, &IConfiguration::nameChanged, this, &VcProjectBuildConfiguration::reloadConfigurationName);
 }
 
 QVariantMap VcProjectBuildConfiguration::toMap() const

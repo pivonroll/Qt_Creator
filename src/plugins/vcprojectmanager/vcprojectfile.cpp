@@ -39,6 +39,7 @@ namespace VcProjectManager {
 namespace Internal {
 
 VcProjectFile::VcProjectFile(const QString &filePath, VcDocConstants::DocumentVersion docVersion)
+    : m_tempModel(nullptr)
 {
     setFilePath(Utils::FileName::fromString(filePath));
     m_documentModel = new VcProjectDocument(filePath, docVersion);
@@ -94,10 +95,10 @@ bool VcProjectFile::reload(QString *errorString, Core::IDocument::ReloadFlag fla
  * used to display file content of project in Qt Creator's project explorer.
  * \return root node of a tree representation for project.
  */
-VcDocProjectNode *VcProjectFile::createVcDocNode() const
+VcDocProjectNode *VcProjectFile::createProjectNode()
 {
     if (m_documentModel)
-        return new VcDocProjectNode(m_documentModel);
+        return new VcDocProjectNode(this);
     return 0;
 }
 
@@ -114,6 +115,34 @@ void VcProjectFile::reloadVcDoc()
 IVisualStudioProject *VcProjectFile::visualStudioProject() const
 {
     return m_documentModel;
+}
+
+void VcProjectFile::setVisualStudioProject(IVisualStudioProject *documentModel)
+{
+    m_documentModel = documentModel;
+}
+
+void VcProjectFile::showSettingsDialog()
+{
+    m_tempModel = m_documentModel->clone();
+    VcNodeWidget *settingsWidget = m_tempModel->createSettingsWidget();
+
+    if (settingsWidget) {
+        connect(settingsWidget, &VcNodeWidget::accepted, this, &VcProjectFile::onSettingsDialogAccepted);
+        connect(settingsWidget, &VcNodeWidget::cancelled, this, &VcProjectFile::onSettingDislogCancelled);
+        settingsWidget->show();
+    }
+}
+
+void VcProjectFile::onSettingsDialogAccepted()
+{
+    std::swap(m_documentModel, m_tempModel);
+    delete m_tempModel;
+}
+
+void VcProjectFile::onSettingDislogCancelled()
+{
+    delete m_tempModel;
 }
 
 } // namespace Internal

@@ -79,7 +79,7 @@
 namespace VcProjectManager {
 namespace Internal {
 
-VcProject::VcProject(VcManager *projectManager, const QString &projectFilePath, VcDocConstants::DocumentVersion docVersion)
+VcProject::VcProject(VcProjectManager *projectManager, const QString &projectFilePath, VcDocConstants::DocumentVersion docVersion)
     : m_projectManager(projectManager)
     , m_projectFile(new VcProjectFile(projectFilePath, docVersion))
 {
@@ -87,14 +87,12 @@ VcProject::VcProject(VcManager *projectManager, const QString &projectFilePath, 
         setProjectContext(Core::Context(Constants::VC_PROJECT_2005_ID));
     else
         setProjectContext(Core::Context(Constants::VC_PROJECT_ID));
-    m_rootNode = m_projectFile->createVcDocNode();
+    m_rootNode = m_projectFile->createProjectNode();
 
     if (m_projectFile->visualStudioProject()->documentVersion() != VcDocConstants::DV_MSVC_2005)
         setId(Core::Id(Constants::VC_PROJECT_ID));
     else
         setId(Core::Id(Constants::VC_PROJECT_2005_ID));
-
-    //    connect(m_rootNode, SIGNAL(settingsDialogAccepted()), this, SLOT(onSettingsDialogAccepted()));
 }
 
 VcProject::~VcProject()
@@ -158,7 +156,7 @@ void VcProject::reloadProjectNodes()
 {
     delete m_rootNode;
     m_projectFile->reloadVcDoc();
-    m_rootNode = m_projectFile->createVcDocNode();
+    m_rootNode = m_projectFile->createProjectNode();
 
     updateCodeModels();
 

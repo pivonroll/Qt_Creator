@@ -59,11 +59,19 @@ public:
 
     bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
 
-    VcDocProjectNode *createVcDocNode() const;
+    VcDocProjectNode *createProjectNode();
     void reloadVcDoc();
     IVisualStudioProject *visualStudioProject() const;
+    void setVisualStudioProject(IVisualStudioProject *documentModel);
+    void showSettingsDialog();
+
+private slots:
+    void onSettingsDialogAccepted();
+    void onSettingDislogCancelled();
+
 private:
     IVisualStudioProject *m_documentModel;
+    IVisualStudioProject *m_tempModel;
 };
 
 } // namespace Internal

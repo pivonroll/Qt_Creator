@@ -32,7 +32,6 @@ SOURCES += \
     $$PWD/widgets/pluginwidgets/vcprojectkitconfigwidget.cpp \
     $$PWD/widgets/visualstudiowidgets/projectsettingswidget.cpp \
     $$PWD/widgets/visualstudiowidgets/toolwidgets/booltoolattributesettingsitem.cpp \
-    $$PWD/widgets/visualstudiowidgets/toolwidgets/iattributesettingsdataitem.cpp \
     $$PWD/widgets/visualstudiowidgets/toolwidgets/integertoolattributesettingsitem.cpp \
     $$PWD/widgets/visualstudiowidgets/toolwidgets/itoolattributesettingswidget.cpp \
     $$PWD/widgets/visualstudiowidgets/toolwidgets/stringlisttoolattributesettingsitem.cpp \
@@ -53,10 +52,10 @@ SOURCES += \
 
 
 FORMS += \
-    $$PWD/widgets/pluginwidgets/projectsettingswidget.ui \
     $$PWD/widgets/pluginwidgets/schemaoptionswidget.ui \
     $$PWD/widgets/pluginwidgets/toolschemawidget.ui \
     $$PWD/widgets/visualstudiowidgets/configurationswidget.ui \
     $$PWD/widgets/visualstudiowidgets/fileconfigurationsettingswidget.ui \
     $$PWD/widgets/visualstudiowidgets/newconfigitemdialog.ui \
-    $$PWD/widgets/visualstudiowidgets/vcenternamewidget.ui
+    $$PWD/widgets/visualstudiowidgets/vcenternamewidget.ui \
+    $$PWD/widgets/visualstudiowidgets/projectsettingswidget.ui

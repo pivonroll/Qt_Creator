@@ -67,6 +67,9 @@ public:
     IFileContainer *fileContainer(int index) const;
     void removeFileContainer(IFileContainer *fileContainer);
 
+    IFile *findFile(const QString &canonicalFilePath) const;
+    IFileContainer *findFileContainer(const QStringList &path) const;
+
     // IVcProjectXMLNode interface
     void processNode(const QDomNode &node);
     VcNodeWidget *createSettingsWidget();

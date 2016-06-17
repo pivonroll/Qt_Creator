@@ -56,9 +56,9 @@ SchemaOptionsWidget::SchemaOptionsWidget(QWidget *parent) :
         ui->m_schema2008LineEdit->setText(schemaManager->documentSchema(Constants::SV_2008));
     }
 
-    connect(ui->m_schema2003BrowseButton, SIGNAL(clicked()), this, SLOT(onBrowseSchema2003ButtonClick()));
-    connect(ui->m_schema2005BrowseButton, SIGNAL(clicked()), this, SLOT(onBrowseSchema2005ButtonClick()));
-    connect(ui->m_schema2008BrowseButton, SIGNAL(clicked()), this, SLOT(onBrowseSchema2008ButtonClick()));
+    connect(ui->m_schema2003BrowseButton, &QPushButton::clicked, this, &SchemaOptionsWidget::onBrowseSchema2003ButtonClick);
+    connect(ui->m_schema2005BrowseButton, &QPushButton::clicked, this, &SchemaOptionsWidget::onBrowseSchema2005ButtonClick);
+    connect(ui->m_schema2008BrowseButton, &QPushButton::clicked, this, &SchemaOptionsWidget::onBrowseSchema2008ButtonClick);
 }
 
 SchemaOptionsWidget::~SchemaOptionsWidget()

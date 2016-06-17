@@ -135,11 +135,14 @@ IFile *FileContainer::findFile(const QString &canonicalFilePath) const
 IFileContainer *FileContainer::findFileContainer(const QStringList &path) const
 {
     if (path.isEmpty())
-        return this;
+        return const_cast<FileContainer *>(this);
 
+    QStringList tempPath = path;
     foreach (IFileContainer *fileCont, m_fileContainers) {
-        if (fileCont->displayName() == path[0])
-            return fileCont->findFileContainer(path.removeAt(0));
+        if (fileCont->displayName() == tempPath[0]) {
+            tempPath.removeAt(0);
+            return fileCont->findFileContainer(tempPath);
+        }
     }
 
     return nullptr;

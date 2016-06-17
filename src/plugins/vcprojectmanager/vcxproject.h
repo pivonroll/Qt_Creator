@@ -40,7 +40,7 @@ namespace Internal {
 
 class VcXProjectManager;
 class VcDocProjectNode;
-class VcXProjectFile;
+class VcProjectFile;
 
 class VcXProject : public ProjectExplorer::Project
 {
@@ -67,7 +67,7 @@ private:
     VcXProjectManager *m_projectManager;
     QString m_filePath;
     VcDocProjectNode *m_rootNode;
-    VcXProjectFile *m_projectFile;
+    VcProjectFile *m_projectFile;
     QFuture<void> m_codeModelFuture;
 };
 

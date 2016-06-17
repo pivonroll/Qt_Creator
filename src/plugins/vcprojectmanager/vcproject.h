@@ -47,7 +47,7 @@ namespace Internal {
 
 class VcProjectFile;
 class VcDocProjectNode;
-class VcManager;
+class VcProjectManager;
 class VcProjectBuildConfiguration;
 
 class VcProject : public ProjectExplorer::Project
@@ -55,7 +55,7 @@ class VcProject : public ProjectExplorer::Project
     Q_OBJECT
 
 public:
-    VcProject(VcManager *projectManager, const QString &projectFilePath, VcDocConstants::DocumentVersion docVersion);
+    VcProject(VcProjectManager *projectManager, const QString &projectFilePath, VcDocConstants::DocumentVersion docVersion);
     ~VcProject();
 
     QString displayName() const;
@@ -81,7 +81,7 @@ private:
     void importBuildConfigurations();
     void allProjectFile(QStringList &allFiles) const;
 
-    VcManager *m_projectManager;
+    VcProjectManager *m_projectManager;
     VcProjectFile *m_projectFile;
     VcDocProjectNode *m_rootNode;
     QFuture<void> m_codeModelFuture;

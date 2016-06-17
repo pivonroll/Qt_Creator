@@ -106,10 +106,10 @@ void MenuHandler::initialize()
     cmd->setAttribute(Core::Command::CA_Hide);
     fileContextMenu->addAction(cmd, ProjectExplorer::Constants::G_FILE_OTHER);
 
-    connect(m_projectProperties, SIGNAL(triggered()), this, SLOT(onShowProjectSettings()));
-    connect(m_addFilter, SIGNAL(triggered()), this, SLOT(onAddFilter()));
-    connect(m_removeFilter, SIGNAL(triggered()), this, SLOT(onRemoveFilter()));
-    connect(m_fileProperties, SIGNAL(triggered()), this, SLOT(onShowFileSettings()));
+    connect(m_projectProperties, &QAction::triggered, this, &MenuHandler::onShowProjectSettings);
+    connect(m_addFilter, &QAction::triggered, this, &MenuHandler::onAddFilter);
+    connect(m_removeFilter, &QAction::triggered, this, &MenuHandler::onRemoveFilter);
+    connect(m_fileProperties, &QAction::triggered, this, &MenuHandler::onShowFileSettings);
 }
 
 /*!
@@ -171,12 +171,12 @@ void MenuHandler::initialize2005()
     cmd->setAttribute(Core::Command::CA_Hide);
     fileContextMenu->addAction(cmd, ProjectExplorer::Constants::G_FILE_OTHER);
 
-    connect(m_projectProperties2005, SIGNAL(triggered()), this, SLOT(onShowProjectSettings()));
-    connect(m_addFilter2005, SIGNAL(triggered()), this, SLOT(onAddFilter()));
-    connect(m_removeFilter2005, SIGNAL(triggered()), this, SLOT(onRemoveFilter()));
-    connect(m_addFolder2005, SIGNAL(triggered()), this, SLOT(onAddFolder()));
-    connect(m_removeFolder2005, SIGNAL(triggered()), this, SLOT(onRemoveFolder()));
-    connect(m_fileProperties2005, SIGNAL(triggered()), this, SLOT(onShowFileSettings()));
+    connect(m_projectProperties2005, &QAction::triggered, this, &MenuHandler::onShowProjectSettings);
+    connect(m_addFilter2005, &QAction::triggered, this, &MenuHandler::onAddFilter);
+    connect(m_removeFilter2005, &QAction::triggered, this, &MenuHandler::onRemoveFilter);
+    connect(m_addFolder2005, &QAction::triggered, this, &MenuHandler::onAddFolder);
+    connect(m_removeFolder2005, &QAction::triggered, this, &MenuHandler::onRemoveFolder);
+    connect(m_fileProperties2005, &QAction::triggered, this, &MenuHandler::onShowFileSettings);
 }
 
 /*!

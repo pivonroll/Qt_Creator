@@ -103,7 +103,7 @@ FileConfigurationSettingsWidget::FileConfigurationSettingsWidget(IConfiguration 
             ui->m_tool->setCurrentIndex(index);
     }
 
-    connect(ui->m_tool, SIGNAL(currentIndexChanged(int)), this, SLOT(changeTool(int)));
+    connect(ui->m_tool, &QComboBox::currentIndexChanged, this, &FileConfigurationSettingsWidget::changeTool);
 }
 
 FileConfigurationSettingsWidget::~FileConfigurationSettingsWidget()

@@ -37,12 +37,12 @@ namespace Internal {
 
 class VcProjectBuildOptionsPage;
 
-class VcManager : public ProjectExplorer::IProjectManager
+class VcProjectManager : public ProjectExplorer::IProjectManager
 {
     Q_OBJECT
 
 public:
-    VcManager(VcProjectBuildOptionsPage *configPage);
+    VcProjectManager(VcProjectBuildOptionsPage *configPage);
 
     QString mimeType() const;
     ProjectExplorer::Project *openProject(const QString &fileName, QString *errorString);

@@ -91,7 +91,7 @@ ConfigurationBaseWidget::ConfigurationBaseWidget(IConfiguration *config)
         }
     }
 
-    connect(m_listWidget, SIGNAL(currentRowChanged(int)), m_stackWidget, SLOT(setCurrentIndex(int)));
+    connect(m_listWidget, &QListWidget::currentRowChanged, m_stackWidget, &QStackedWidget::setCurrentIndex);
 }
 
 ConfigurationBaseWidget::~ConfigurationBaseWidget()

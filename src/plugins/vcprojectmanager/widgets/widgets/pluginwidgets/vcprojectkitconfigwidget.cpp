@@ -48,10 +48,10 @@ VcProjectKitConfigWidget::VcProjectKitConfigWidget(ProjectExplorer::Kit *k,
 
     refresh();
 
-    connect(m_comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(currentMsBuildChanged(int)));
-    connect(msBVM, SIGNAL(msBuildAdded(Core::Id)), this, SLOT(onMsBuildAdded(Core::Id)));
-    connect(msBVM, SIGNAL(msBuildReplaced(Core::Id,Core::Id)), this, SLOT(onMsBuildReplaced(Core::Id,Core::Id)));
-    connect(msBVM, SIGNAL(msBuildRemoved(Core::Id)), this, SLOT(onMsBuildRemoved(Core::Id)));
+    connect(m_comboBox, &QComboBox::currentIndexChanged, this, &VcProjectKitConfigWidget::currentMsBuildChanged);
+    connect(msBVM, &MsBuildVersionManager::msBuildAdded, this, &VcProjectKitConfigWidget::onMsBuildAdded);
+    connect(msBVM, &MsBuildVersionManager::msBuildReplaced, this, &VcProjectKitConfigWidget::onMsBuildReplaced);
+    connect(msBVM, &MsBuildVersionManager::msBuildRemoved, this, &VcProjectKitConfigWidget::onMsBuildRemoved);
 }
 
 VcProjectKitConfigWidget::~VcProjectKitConfigWidget()

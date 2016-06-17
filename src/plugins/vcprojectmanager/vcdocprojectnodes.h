@@ -37,6 +37,7 @@ namespace Internal {
 
 class IFileContainer;
 class IFile;
+class IVisualStudioProject;
 class VcDocProjectNode;
 class VcProjectFile;
 
@@ -46,7 +47,7 @@ class VcFileNode : public ProjectExplorer::FileNode
     friend class VcFileContainerNode;
 
 public:
-    VcFileNode(VcDocProjectNode *vcDocProject);
+    VcFileNode(const ::Utils::FileName &filePath, ProjectExplorer::FileType fileType, VcDocProjectNode *vcDocProject);
     ~VcFileNode();
 
     /*!
@@ -122,6 +123,8 @@ public:
      * \return a file node which file path is \a filePath.
      */
     VcFileNode *findFileNode(const QString &filePath);
+    VcContainerType vcContainerType() const;
+
 protected:
     /*!
      * \brief Reads files and file containers from project's file container
@@ -129,6 +132,7 @@ protected:
      */
     void readChildren();
     void readFolderPathInsideProjectTree(QStringList &path) const;
+    static QString toString(VcContainerType type);
     IFileContainer *findFileContainer() const;
 
 private:
@@ -214,6 +218,7 @@ signals:
 private:
     VcFileNode *findFileNode(const QString &filePath);
     VcProjectFile *m_vcProjectFile;
+    IVisualStudioProject *m_tempProject;
 };
 
 } // namespace Internal

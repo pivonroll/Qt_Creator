@@ -66,9 +66,9 @@ ProjectSettingsWidget::ProjectSettingsWidget(QWidget *parent) :
     layout->addWidget(splitter);
 
     ui->m_mainWidget->setLayout(layout);
-    connect(m_widgetList, SIGNAL(currentRowChanged(int)), m_stackedWidgets, SLOT(setCurrentIndex(int)));
-    connect(ui->m_buttonBox, SIGNAL(accepted()), this, SIGNAL(okButtonClicked()));
-    connect(ui->m_buttonBox, SIGNAL(rejected()), this, SIGNAL(cancelButtonClicked()));
+    connect(m_widgetList, &QListWidget::currentRowChanged, m_stackedWidgets, &QStackedWidget::setCurrentIndex);
+    connect(ui->m_buttonBox, QDialogButtonBox::accepted, this, &ProjectSettingsWidget::okButtonClicked);
+    connect(ui->m_buttonBox, QDialogButtonBox::rejected, this, &ProjectSettingsWidget::cancelButtonClicked);
 }
 
 ProjectSettingsWidget::~ProjectSettingsWidget()

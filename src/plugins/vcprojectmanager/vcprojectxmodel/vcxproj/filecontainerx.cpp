@@ -118,6 +118,16 @@ IFile *FileContainerX::file(int index) const
     return m_files[index];
 }
 
+IFile *FileContainerX::file(const QString &relativePath) const
+{
+    foreach (IFile *file, m_files) {
+        if (file->relativePath() == relativePath)
+            return file;
+    }
+
+    return nullptr;
+}
+
 int FileContainerX::fileCount() const
 {
     return m_files.size();

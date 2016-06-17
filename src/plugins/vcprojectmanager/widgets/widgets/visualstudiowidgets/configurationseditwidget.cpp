@@ -49,8 +49,8 @@
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 // figure this out
-#include "../../vcprojectmodel/configurationcontainer.h"
-#include "../../vcprojectxmodel/vcxproj/configurationcontainerx.h"
+#include "../../../vcprojectmodel/configurationcontainer.h"
+#include "../../../vcprojectxmodel/vcxproj/configurationcontainerx.h"
 
 #include <utils/qtcassert.h>
 
@@ -65,21 +65,21 @@ namespace Internal {
  * Widget which represents all build configurations in Visual Studio project.
  */
 
-ConfigurationsEditWidget::ConfigurationsEditWidget(VcProjectManager::Internal::IVisualStudioProject *vsProj,
-                                                   IConfigurationContainer *configContainer)
+ConfigurationsEditWidget::ConfigurationsEditWidget(VcProjectManager::Internal::IVisualStudioProject *vsProj)
     : m_vsProject(vsProj)
 {
     m_configsWidget = new ConfigurationsWidget;
     IConfigurationContainer *buildConfigurations = m_vsProject->configurations()->configurationContainer();
 
-    if (configContainer == m_vsProject->configurations()->configurationContainer()) {
-        connect(buildConfigurations, SIGNAL(configurationAdded(IConfiguration*)), this, SLOT(addConfigWidget(IConfiguration*)));
+    connect(buildConfigurations,
+            &IConfigurationContainer::configurationAdded,
+            this,
+            &ConfigurationsEditWidget::addConfigWidget);
 
-        for (int i = 0; i < buildConfigurations->configurationCount(); ++i) {
-            IConfiguration *config = buildConfigurations->configuration(i);
-            if (config)
-                m_configsWidget->addConfiguration(config->fullName(), config->createSettingsWidget());
-        }
+    for (int i = 0; i < buildConfigurations->configurationCount(); ++i) {
+        IConfiguration *config = buildConfigurations->configuration(i);
+        if (config)
+            m_configsWidget->addConfiguration(config->fullName(), config->createSettingsWidget());
     }
 
     QVBoxLayout *layout = new QVBoxLayout;
@@ -87,9 +87,9 @@ ConfigurationsEditWidget::ConfigurationsEditWidget(VcProjectManager::Internal::I
     layout->addWidget(m_configsWidget);
     setLayout(layout);
 
-    connect(m_configsWidget, SIGNAL(addNewConfigSignal(QString, QString)), this, SLOT(onAddNewConfig(QString, QString)));
-    connect(m_configsWidget, SIGNAL(renameConfigSignal(QString,QString)), this, SLOT(onRenameConfig(QString, QString)));
-    connect(m_configsWidget, SIGNAL(removeConfigSignal(QString)), this, SLOT(onRemoveConfig(QString)));
+    connect(m_configsWidget, &ConfigurationsWidget::addNewConfigSignal, this, &ConfigurationsEditWidget::onAddNewConfig);
+    connect(m_configsWidget, &ConfigurationsWidget::renameConfigSignal, this, &ConfigurationsEditWidget::onRenameConfig);
+    connect(m_configsWidget, &ConfigurationsWidget::removeConfigSignal, this, &ConfigurationsEditWidget::onRemoveConfig);
 }
 
 ConfigurationsEditWidget::~ConfigurationsEditWidget()
