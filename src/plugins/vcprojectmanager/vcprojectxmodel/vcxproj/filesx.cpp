@@ -146,8 +146,21 @@ IFile *FilesX::findFile(const QString &canonicalFilePath) const
     return nullptr;
 }
 
-IFileContainer *FilesX::findFileContainer(const QStringList &path) const
+IFileContainer *FilesX::findFileContainer(const QString &relativePath) const
 {
+    if (relativePath.isEmpty())
+        return nullptr;
+
+    foreach (IFileContainer *container, m_private->m_fileContainers) {
+        if (container->relativePath() == relativePath)
+            return container->findFileContainer(relativePath);
+
+        auto fileCont = container->findFileContainer(relativePath);
+
+        if (fileCont)
+            return fileCont;
+    }
+
     return nullptr;
 }
 
@@ -202,16 +215,15 @@ void FilesX::readFileContainers()
     for (int i = 0; i < itemGroup->itemCount(); ++i) {
         Item *item = itemGroup->item(i);
 
-        if (item && item->name() == QLatin1String(FILTER_ITEM)) {
-            QStringList pathList = item->include().split(QLatin1Char('\\'));
-
-            readFileContainers(itemGroup, pathList);
-        }
+        if (item && item->name() == QLatin1String(FILTER_ITEM))
+            readFileContainers(itemGroup, item);
     }
 }
 
-void FilesX::readFileContainers(ItemGroup *itemGroup, const QStringList &pathList)
+void FilesX::readFileContainers(ItemGroup *itemGroup, Item *item)
 {
+    QStringList pathList = item->include().split(QLatin1Char('\\'));
+
     if (pathList.isEmpty())
         return;
 
@@ -223,72 +235,24 @@ void FilesX::readFileContainers(ItemGroup *itemGroup, const QStringList &pathLis
         relativePath << path;
 
         // check if file container with that path already exists
-        FileContainerX *fileContainer = findFileContainer(container, path);
+        FileContainerX *fileContainer = static_cast<FileContainerX *>(findFileContainer(relativePath.join(QLatin1Char('\\'))));
 
         // if it does not exists add it
         if (!fileContainer) {
+            Item *filterItem = itemGroup->findItemWithInclude(relativePath.join(QLatin1Char('\\')));
+
             fileContainer = new FileContainerX;
             fileContainer->setDisplayName(path);
             fileContainer->setRelativePath(relativePath.join(QLatin1Char('\\')));
-            container->addFileContainer(fileContainer);
+
+            fileContainer->m_filterItem = filterItem;
+            fileContainer->m_filters = m_filters;
+            fileContainer->m_project = m_project;
+
+            container->m_fileContainers << fileContainer;
         }
         container = fileContainer;
     }
-}
-
-FileContainerX *FilesX::findFileContainer(const QString &containerName) const
-{
-    FileContainerX *fileContX = m_private;
-    FileContainerX *cont = findFileContainer(fileContX, containerName);
-
-    if (cont)
-        return cont;
-
-    for (int i = 0; i < m_private->childCount(); ++i) {
-        cont = findFileContainerRecursive(m_private->fileContainer(i), containerName);
-
-        if (cont)
-            return cont;
-    }
-
-    return nullptr;
-}
-
-FileContainerX *FilesX::findFileContainer(IFileContainer *container, const QString &containerName) const
-{
-    if (!container)
-        return nullptr;
-
-    for (int i = 0; i < container->childCount(); ++i) {
-        FileContainerX *childContainer = dynamic_cast<FileContainerX *>(container->fileContainer(i));
-
-        if (childContainer && childContainer->displayName() == containerName)
-            return childContainer;
-    }
-
-    return nullptr;
-}
-
-FileContainerX *FilesX::findFileContainerRecursive(IFileContainer *container, const QString &containerName) const
-{
-    if (!container)
-        return nullptr;
-
-    FileContainerX *childContainer = findFileContainer(container, containerName);
-
-    if (childContainer)
-        return childContainer;
-
-    for (int i = 0; i < container->childCount(); ++i) {
-        IFileContainer *cont = container->fileContainer(i);
-
-        FileContainerX *foundCont = findFileContainerRecursive(cont, containerName);
-
-        if (foundCont)
-            return foundCont;
-    }
-
-    return nullptr;
 }
 
 void FilesX::readFiles()
@@ -300,8 +264,8 @@ void FilesX::readFiles()
 
 void FilesX::readFileGroup(const QString &groupName)
 {
-    ItemGroup *filterItemGroup = Utils::findItemGroupWithName(groupName, m_filters);
-    ItemGroup *projectItemGroup = Utils::findItemGroupWithName(groupName, m_project);
+    ItemGroup *filterItemGroup = Utils::findItemGroupWhichContainsItemWithName(groupName, m_filters);
+    ItemGroup *projectItemGroup = Utils::findItemGroupWhichContainsItemWithName(groupName, m_project);
 
     if (!filterItemGroup || !projectItemGroup)
         return;
@@ -312,11 +276,11 @@ void FilesX::readFileGroup(const QString &groupName)
         Item *projectItem = projectItemGroup->findItemWithInclude(filterItem->include());
 
         if (filterItemMeta && projectItem) {
-            FileContainerX *cont = findFileContainer(filterItemMeta->value());
+            FileContainerX *cont = static_cast<FileContainerX *>(findFileContainer(filterItemMeta->value()));
 
             FileX *fileX = new FileX;
             fileX->m_filterItem = filterItem;
-            fileX->m_item = projectItem;
+            fileX->m_projectItem = projectItem;
             fileX->m_parentProjectDocument = m_parentProject;
             fileX->m_filters = m_filters;
 

@@ -358,7 +358,7 @@ void FileConfigurationsEditWidget::removeConfig(IFileContainer *container, const
         removeConfig(container->file(i), configNameWithPlatform);
 }
 
-void FileConfigurationsEditWidget::removeConfig(IFile *file, const QString &configNameWithPlatform,)
+void FileConfigurationsEditWidget::removeConfig(IFile *file, const QString &configNameWithPlatform)
 {
     QTC_ASSERT(file, return);
     QTC_ASSERT(file->configurationContainer(), return);

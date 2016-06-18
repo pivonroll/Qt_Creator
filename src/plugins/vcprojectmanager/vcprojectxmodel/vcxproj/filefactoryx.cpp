@@ -53,26 +53,26 @@ IFile *FileFactoryX::createFile(const QString &relativePath, ProjectExplorer::Fi
     file->m_parentProjectDocument = m_parentProjectDocument;
     file->m_project = m_parentProjectDocument->m_project;
     file->m_filters = m_parentProjectDocument->m_filters;
-    file->m_item = new Item;
+    file->m_projectItem = new Item;
     file->m_filterItem = new Item;
 
     switch (fileType) {
     case ProjectExplorer::UnknownFileType:
-        file->m_item->setName(QLatin1String(FILE_ITEM_NONE));
+        file->m_projectItem->setName(QLatin1String(FILE_ITEM_NONE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_NONE));
         break;
     case ProjectExplorer::HeaderType:
-        file->m_item->setName(QLatin1String(FILE_ITEM_CL_INCLUDE));
+        file->m_projectItem->setName(QLatin1String(FILE_ITEM_CL_INCLUDE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_CL_INCLUDE));
         break;
     case ProjectExplorer::SourceType:
-        file->m_item->setName(QLatin1String(FILE_ITEM_CL_COMPILE));
+        file->m_projectItem->setName(QLatin1String(FILE_ITEM_CL_COMPILE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_CL_COMPILE));
         break;
     case ProjectExplorer::FormType:
         break;
     case ProjectExplorer::ResourceType:
-        file->m_item->setName(QLatin1String(FILE_ITEM_RESOURCE_COMPILE));
+        file->m_projectItem->setName(QLatin1String(FILE_ITEM_RESOURCE_COMPILE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_RESOURCE_COMPILE));
         break;
     case ProjectExplorer::QMLType:
@@ -85,7 +85,7 @@ IFile *FileFactoryX::createFile(const QString &relativePath, ProjectExplorer::Fi
         break;
     }
 
-    file->m_item->setInclude(relativePath);
+    file->m_projectItem->setInclude(relativePath);
     file->m_filterItem->setInclude(relativePath);
 
     return file;

@@ -95,7 +95,7 @@ public:
     virtual void removeFileContainer(IFileContainer *fileContainer) = 0;
 
     virtual IFile *findFile(const QString &canonicalFilePath) const = 0;
-    virtual IFileContainer *findFileContainer(const QStringList &path) const = 0;
+    virtual IFileContainer *findFileContainer(const QString &relativePath) const = 0;
 };
 
 } // namespace Internal

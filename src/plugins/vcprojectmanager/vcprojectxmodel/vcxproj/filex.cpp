@@ -30,8 +30,10 @@
 #include "filex.h"
 
 
-#include "configurationx.h"
 #include "private/item.h"
+#include "private/itemmetadata.h"
+
+#include "configurationx.h"
 #include "vcprojectdocumentx.h"
 #include "configurationcontainerx.h"
 #include "tools/tool_constantsx.h"
@@ -59,7 +61,7 @@ namespace Internal {
 namespace VisualStudioProjectX {
 
 FileX::FileX()
-    : m_item(nullptr),
+    : m_projectItem(nullptr),
       m_filterItem(nullptr),
       m_project(nullptr),
       m_filters(nullptr),
@@ -68,7 +70,7 @@ FileX::FileX()
 
 FileX::FileX(const FileX &other)
 {
-    m_item = new Item(*other.m_item);
+    m_projectItem = new Item(*other.m_projectItem);
     m_filterItem = new Item(*other.m_filterItem);
     m_project = other.m_project;
     m_filters = other.m_filters;
@@ -89,24 +91,34 @@ FileX &FileX::operator=(FileX other)
 
 FileX::~FileX()
 {
-    if (!Utils::findItemGroupContainingItem(m_item, m_project))
-        delete m_item;
+    if (!Utils::findItemGroupContainingItem(m_projectItem, m_project))
+        delete m_projectItem;
 
     if (!Utils::findItemGroupContainingItem(m_filterItem, m_filters))
         delete m_filterItem;
 }
 
+QString FileX::displayName() const
+{
+    QString relativePath = m_projectItem->include();
+    int index = relativePath.lastIndexOf(QLatin1Char('\\'));
+    if (index == -1)
+        return relativePath;
+
+    return relativePath.mid(index + 1);
+}
+
 QString FileX::relativePath() const
 {
-    if (m_item)
-        return m_item->include();
+    if (m_projectItem)
+        return m_projectItem->include();
     return QString();
 }
 
 void FileX::setRelativePath(const QString &relativePath)
 {
-    if (m_item)
-        m_item->setInclude(relativePath);
+    if (m_projectItem)
+        m_projectItem->setInclude(relativePath);
 }
 
 QString FileX::canonicalPath() const
@@ -175,11 +187,37 @@ QDomNode FileX::toXMLDomNode(QDomDocument &domXMLDocument) const
     return QDomNode();
 }
 
+FileX *FileX::createNewFile(const QString &relativePath, const QString &filterPath)
+{
+    QString itemName;
+    if (relativePath.endsWith(QLatin1String(".h")))
+        itemName = QLatin1String("ClInclude");
+    else if (relativePath.endsWith(QLatin1String(".cpp")))
+        itemName = QLatin1String("ClCompile");
+    else if (relativePath.endsWith(QLatin1String(".txt")))
+        itemName = QLatin1String("Text");
+
+    FileX *newFileItem = new FileX();
+    newFileItem->m_filterItem = new Item;
+    newFileItem->m_filterItem->setInclude(relativePath);
+    newFileItem->m_filterItem->setName(itemName);
+    ItemMetaData *filterItemMetaData = new ItemMetaData;
+    newFileItem->m_filterItem->addItemMetaData(filterItemMetaData);
+    filterItemMetaData->setName(QLatin1String("Filter"));
+    filterItemMetaData->setValue(filterPath);
+
+    newFileItem->m_projectItem = new Item;
+    newFileItem->m_projectItem->setInclude(relativePath);
+    newFileItem->m_projectItem->setName(itemName);
+
+    return newFileItem;
+}
+
 void FileX::swap(FileX &first, FileX &second)
 {
     std::swap(first.m_filterItem, second.m_filterItem);
     std::swap(first.m_filters, second.m_filters);
-    std::swap(first.m_item, second.m_item);
+    std::swap(first.m_projectItem, second.m_projectItem);
     std::swap(first.m_parentProjectDocument, second.m_parentProjectDocument);
     std::swap(first.m_project, second.m_project);
 }

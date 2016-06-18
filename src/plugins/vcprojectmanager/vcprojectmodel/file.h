@@ -62,6 +62,7 @@ public:
     IConfigurationContainer *configurationContainer() const;
     IAttributeContainer *attributeContainer() const;
 
+    QString displayName() const;
     QString relativePath() const;
     void setRelativePath(const QString &relativePath);
     IFile *clone() const;

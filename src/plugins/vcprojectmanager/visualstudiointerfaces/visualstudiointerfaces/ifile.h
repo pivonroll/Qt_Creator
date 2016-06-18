@@ -44,6 +44,8 @@ class IAttributeContainer;
 class IFile : public IVcProjectXMLNode
 {
 public:
+    virtual QString displayName() const = 0;
+
     /*!
      * \return a relative path to a file.
      * Path is relative to .vcroj or .vcprojx file in which this file if referenced.

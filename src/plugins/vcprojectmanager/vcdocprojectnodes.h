@@ -131,7 +131,6 @@ protected:
      * and creates and then adds file or file container nodes to this file container node.
      */
     void readChildren();
-    void readFolderPathInsideProjectTree(QStringList &path) const;
     static QString toString(VcContainerType type);
     IFileContainer *findFileContainer() const;
 

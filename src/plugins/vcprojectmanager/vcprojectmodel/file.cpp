@@ -57,6 +57,7 @@
 
 #include <QDomNode>
 #include <QFileInfo>
+#include <QDir>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -151,6 +152,15 @@ IAttributeContainer *File::attributeContainer() const
     return m_attributeContainer;
 }
 
+QString File::displayName() const
+{
+    int index = m_relativePath.lastIndexOf(QLatin1Char('\\'));
+    if (index == -1)
+        return m_relativePath;
+
+    return m_relativePath.mid(index + 1);
+}
+
 QString File::relativePath() const
 {
     return m_relativePath;
@@ -175,7 +185,7 @@ QString File::canonicalPath() const
 {
     if (m_parentProjectDoc) {
         QFileInfo fileInfo(m_parentProjectDoc->filePath());
-        fileInfo = QFileInfo(fileInfo.canonicalPath() + QLatin1Char('/') + m_relativePath);
+        fileInfo = QFileInfo(QDir::toNativeSeparators(fileInfo.canonicalPath() + QLatin1Char('/') + m_relativePath));
         return fileInfo.canonicalFilePath();
     }
 

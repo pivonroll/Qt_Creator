@@ -66,8 +66,8 @@ ConfigurationsWidget::ConfigurationsWidget(QWidget *parent) :
     ui(new Ui::ConfigurationsWidget)
 {
     ui->setupUi(this);
-    connect(ui->m_configurationComboBox, &QComboBox::currentIndexChanged,
-            ui->m_configurationsStackWidget, &QStackedWidget::setCurrentIndex);
+    connect(ui->m_configurationComboBox, SIGNAL(currentIndexChanged(int)),
+            ui->m_configurationsStackWidget, SLOT(setCurrentIndex(int)));
 
     connect(ui->m_addNewConfigPushButton, &QPushButton::clicked, this, &ConfigurationsWidget::onAddNewConfig);
     connect(ui->m_removeConfigPushButton, &QPushButton::clicked, this, &ConfigurationsWidget::onRemoveConfig);

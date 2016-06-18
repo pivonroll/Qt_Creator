@@ -48,7 +48,7 @@ VcProjectKitConfigWidget::VcProjectKitConfigWidget(ProjectExplorer::Kit *k,
 
     refresh();
 
-    connect(m_comboBox, &QComboBox::currentIndexChanged, this, &VcProjectKitConfigWidget::currentMsBuildChanged);
+    connect(m_comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(currentMsBuildChanged(int)));
     connect(msBVM, &MsBuildVersionManager::msBuildAdded, this, &VcProjectKitConfigWidget::onMsBuildAdded);
     connect(msBVM, &MsBuildVersionManager::msBuildReplaced, this, &VcProjectKitConfigWidget::onMsBuildReplaced);
     connect(msBVM, &MsBuildVersionManager::msBuildRemoved, this, &VcProjectKitConfigWidget::onMsBuildRemoved);

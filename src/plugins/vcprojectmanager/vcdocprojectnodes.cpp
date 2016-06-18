@@ -72,7 +72,7 @@ void VcFileNode::readChildren(VcDocProjectNode *vcDocProj)
 }
 
 VcFileContainerNode::VcFileContainerNode(const ::Utils::FileName &filePath, VcDocProjectNode *vcDocProjNode)
-    : ProjectExplorer::FolderNode(filePath),
+    : ProjectExplorer::FolderNode(filePath, ProjectExplorer::FolderNodeType, filePath.fileName()),
       m_parentVcDocProjNode(vcDocProjNode)
 {
     m_vcContainerType = VcContainerType_Filter;
@@ -149,11 +149,8 @@ void VcFileContainerNode::addFileContainerNode(const QString &name, VcContainerT
     if (containerType.isEmpty())
         return;
 
-    VcFileContainerNode *folderNode = new VcFileContainerNode(::Utils::FileName::fromString(name), m_parentVcDocProjNode);
-
-    QStringList folderPath;
-    readFolderPathInsideProjectTree(folderPath);
-    folderNode->setPath(::Utils::FileName::fromString(folderPath.join(QLatin1String("\\")) + QLatin1String("\\") + name));
+    ::Utils::FileName parentFolderPath = path();
+    VcFileContainerNode *folderNode = new VcFileContainerNode(parentFolderPath.appendPath(name), m_parentVcDocProjNode);
 
     if (!appendFileContainerNode(folderNode))
         delete folderNode;
@@ -248,18 +245,6 @@ void VcFileContainerNode::readChildren()
     addFileNodes(vcFileNodes);
 }
 
-void VcFileContainerNode::readFolderPathInsideProjectTree(QStringList &path) const
-{
-    path.push_front(displayName());
-
-    FolderNode *folderNode = parentFolderNode();
-
-    if (folderNode) {
-        VcFileContainerNode *fileContNode = dynamic_cast<VcFileContainerNode *>(folderNode);
-        fileContNode->readFolderPathInsideProjectTree(path);
-    }
-}
-
 QString VcFileContainerNode::toString(VcFileContainerNode::VcContainerType type)
 {
     return type == VcContainerType_Filter ? QLatin1String("Filter") : QLatin1String("Folder");
@@ -267,10 +252,8 @@ QString VcFileContainerNode::toString(VcFileContainerNode::VcContainerType type)
 
 IFileContainer *VcFileContainerNode::findFileContainer() const
 {
-    QStringList folderPath;
-    readFolderPathInsideProjectTree(folderPath);
     IFileContainer *fileCont = m_parentVcDocProjNode->m_vcProjectFile->visualStudioProject()
-                                ->files()->findFileContainer(folderPath);
+                                ->files()->findFileContainer(path().toString());
     return fileCont;
 }
 
@@ -595,7 +578,7 @@ void VcDocProjectNode::removeFileNode(VcFileNode *fileNode)
 void VcDocProjectNode::removeFileContainerNode(VcFileContainerNode *fileContainerNode)
 {
     IFileContainer *fileContainer = m_vcProjectFile->visualStudioProject()->
-            files()->findFileContainer(QStringList(fileContainer->displayName()));
+            files()->findFileContainer(fileContainerNode->displayName());
 
     QList<ProjectExplorer::FolderNode *> folderNodesToRemove;
     folderNodesToRemove << fileContainerNode;

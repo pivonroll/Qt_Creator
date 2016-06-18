@@ -75,7 +75,7 @@ public:
     QString relativePath() const;
     void setRelativePath(const QString &relativePath);
     IFile *findFile(const QString &canonicalFilePath) const;
-    IFileContainer *findFileContainer(const QStringList &path) const;
+    IFileContainer *findFileContainer(const QString &relativePath) const;
 
 private:
     FileContainer();

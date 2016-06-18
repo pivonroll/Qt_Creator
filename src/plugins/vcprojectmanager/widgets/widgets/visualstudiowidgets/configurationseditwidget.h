@@ -64,9 +64,9 @@ private slots:
 
 private:
     void addConfigToProjectBuild(const QString &newConfigName, const QString &copyFrom);
-    void addConfigToFiles(const QString &newConfigName, const QString &copyFrom);
-    void addConfigToFiles(IFileContainer *container, const QString &newConfigName, const QString &copyFrom);
-    void addConfigToFiles(IFile *file, const QString &newConfigName, const QString &copyFrom);
+    void addConfigToFiles(const QString &newFullConfigName, const QString &copyFromFullConfigName);
+    void addConfigToFiles(IFileContainer *container, const QString &newFullConfigName, const QString &copyFromFullConfigName);
+    void addConfigToFiles(IFile *file, const QString &newFullConfigName, const QString &copyFromFullConfigName);
     void renameFileBuildConfiguration(const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
     void renameFileBuildConfiguration(IFileContainer *container, const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);
     void renameFileBuildConfiguration(IFile *file, const QString &newConfigNameWithPlatform, const QString &oldConfigNameWithPlatform);

@@ -49,13 +49,13 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
 
-ItemGroup *Utils::findItemGroupWithName(const QString &itemName, Project *docProject)
+ItemGroup *Utils::findItemGroupWhichContainsItemWithName(const QString &itemName, Project *docProject)
 {
     if (docProject) {
         for (int i = 0; i < docProject->itemGroupCount(); ++i) {
             ItemGroup *itemGroup = docProject->itemGroup(i);
 
-            if (itemGroup && itemGroupContainsItemName(itemName, itemGroup))
+            if (itemGroup && itemGroupContainsItemWithName(itemName, itemGroup))
                 return itemGroup;
         }
     }
@@ -91,7 +91,7 @@ bool Utils::groupContainsItem(Item *item, ItemGroup *itemGroup)
     return false;
 }
 
-bool Utils::itemGroupContainsItemName(const QString &itemName, ItemGroup *itemGroup)
+bool Utils::itemGroupContainsItemWithName(const QString &itemName, ItemGroup *itemGroup)
 {
     if (itemGroup) {
         for (int i = 0; i < itemGroup->itemCount(); ++i) {

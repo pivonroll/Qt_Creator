@@ -48,10 +48,10 @@ class ItemDefinitionGroup;
 class Utils
 {
 public:
-    static ItemGroup *findItemGroupWithName(const QString &itemName, Project *docProject);
+    static ItemGroup *findItemGroupWhichContainsItemWithName(const QString &itemName, Project *docProject);
     static ItemGroup *findItemGroupContainingItem(Item *item, Project *docProject);
     static bool groupContainsItem(Item *item, ItemGroup *itemGroup);
-    static bool itemGroupContainsItemName(const QString &itemName, ItemGroup *itemGroup);
+    static bool itemGroupContainsItemWithName(const QString &itemName, ItemGroup *itemGroup);
 };
 
 } // namespace VisualStudioProjectX

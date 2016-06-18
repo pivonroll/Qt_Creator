@@ -42,6 +42,7 @@
 #include <utils/qtcassert.h>
 
 #include <QDomNode>
+#include <QUuid>
 
 namespace VcProjectManager {
 namespace Internal {
@@ -49,8 +50,10 @@ namespace VisualStudioProjectX {
 
 FileContainerX::FileContainerX(const FileContainerX &other)
 {
+    m_filterItem = new Item(*other.m_filterItem);
     m_project = other.m_project;
     m_filters = other.m_filters;
+    m_parentContainer = other.m_parentContainer;
 }
 
 FileContainerX::FileContainerX(FileContainerX &&other)
@@ -83,32 +86,18 @@ void FileContainerX::addFile(IFile *file)
     if (!fileX)
         return;
 
-    if (m_filterItem) {
-        ItemMetaData *itemMetaData = new ItemMetaData;
-        itemMetaData->setName(QLatin1String(FILTER_ITEM));
-        itemMetaData->setValue(m_filterItem->include());
-        fileX->m_filterItem->addItemMetaData(itemMetaData);
-    }
+    // insert into filters
+    ItemGroup *itemGroup = Utils::findItemGroupWhichContainsItemWithName(fileX->m_filterItem->name(),
+                                                                         m_filters);
+    itemGroup->addItem(fileX->m_filterItem);
+    fileX->m_filters = m_filters;
 
-    if (fileX->m_filterItem) {
-        ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupWithName(fileX->m_filterItem->name(), m_filters);
+    // insert into projects
+    itemGroup = Utils::findItemGroupWhichContainsItemWithName(fileX->m_filterItem->name(),
+                                                              m_project);
+    itemGroup->addItem(fileX->m_projectItem);
+    fileX->m_project = m_project;
 
-        if (!itemGroup) {
-            itemGroup = new ItemGroup;
-            m_filters->addItemGroup(itemGroup);
-        }
-
-        itemGroup->addItem(fileX->m_filterItem);
-
-        itemGroup = VisualStudioProjectX::Utils::findItemGroupWithName(fileX->m_filterItem->name(), m_project);
-
-        if (!itemGroup) {
-            itemGroup = new ItemGroup;
-            m_project->addItemGroup(itemGroup);
-        }
-
-        itemGroup->addItem(fileX->m_filterItem);
-    }
     m_files.append(file);
 }
 
@@ -167,31 +156,13 @@ void FileContainerX::addFileContainer(IFileContainer *fileContainer)
     if (!fileContX)
         return;
 
+    ItemGroup *itemGroup = Utils::findItemGroupWhichContainsItemWithName(fileContX->m_filterItem->name(),
+                                                                         m_filters);
+    itemGroup->addItem(fileContX->m_filterItem);
+
     fileContX->m_filters = m_filters;
     fileContX->m_project = m_project;
-    fileContX->m_parentContainer = this;
 
-    FileContainerX *parentCont = m_parentContainer;
-    QString relativePath;
-    while (parentCont) {
-        relativePath.prepend(parentCont->displayName() + QLatin1Char('\\'));
-        parentCont = parentCont->m_parentContainer;
-    }
-
-    fileContX->m_filterItem->setName(QLatin1String(FILTER_ITEM));
-
-    // if for some reason some other file container created fileContX file container we need to set include path properly
-    QStringList stringList = fileContX->m_filterItem->include().split(QLatin1Char('\\'));
-    fileContX->m_filterItem->setInclude(relativePath + QLatin1Char('\\') + stringList.last());
-
-    ItemGroup *filterGroup = VisualStudioProjectX::Utils::findItemGroupWithName(QLatin1String(FILTER_ITEM), m_filters);
-
-    if (!filterGroup) {
-        filterGroup = new ItemGroup;
-        m_filters->addItemGroup(filterGroup);
-    }
-
-    filterGroup->addItem(fileContX->m_filterItem);
     m_fileContainers.append(fileContainer);
 }
 
@@ -305,14 +276,19 @@ IFile *FileContainerX::findFile(const QString &canonicalFilePath) const
     return nullptr;
 }
 
-IFileContainer *FileContainerX::findFileContainer(const QStringList &path) const
+IFileContainer *FileContainerX::findFileContainer(const QString &relativePath) const
 {
-    if (path.isEmpty())
-        return this;
+    if (relativePath.isEmpty())
+        return nullptr;
 
     foreach (IFileContainer *fileCont, m_fileContainers) {
-        if (fileCont->displayName() == path[0])
-            return fileCont->findFileContainer(path.removeAt(0));
+        if (fileCont->relativePath() == relativePath)
+            return fileCont;
+
+        IFileContainer *cont = fileCont->findFileContainer(relativePath);
+
+        if (cont)
+            return cont;
     }
 
     return nullptr;
@@ -332,6 +308,28 @@ QDomNode FileContainerX::toXMLDomNode(QDomDocument &domXMLDocument) const
 {
     Q_UNUSED(domXMLDocument);
     return QDomNode();
+}
+
+FileContainerX *FileContainerX::createNewFileContainer(const QString &relativePath, const QString &containerType, const QString &extensions)
+{
+    FileContainerX *newFileContainer = new FileContainerX;
+    newFileContainer->m_filterItem = new Item;
+    newFileContainer->m_filterItem->setName(containerType);
+    newFileContainer->m_filterItem->setInclude(relativePath);
+
+    ItemMetaData *newItemMetaData = new ItemMetaData;
+    newItemMetaData->setName(QLatin1String("UniqueIdentifier"));
+    newItemMetaData->setValue(QLatin1Char('{') + QUuid::createUuid().toString() + QLatin1Char('}'));
+    newFileContainer->m_filterItem->addItemMetaData(newItemMetaData);
+
+    if (!extensions.isEmpty()) {
+        newItemMetaData = new ItemMetaData;
+        newItemMetaData->setName(QLatin1String("Extensions"));
+        newItemMetaData->setValue(extensions);
+        newFileContainer->m_filterItem->addItemMetaData(newItemMetaData);
+    }
+
+    return newFileContainer;
 }
 
 FileContainerX::FileContainerX()
@@ -396,7 +394,7 @@ bool FileContainerX::isFileInAFilter(Item *item, const QString &fullFilterName)
 
 void FileContainerX::removeAllFiltersInAFilter(const QString &fullFilterName)
 {
-    ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupWithName(QLatin1String(FILTER_ITEM), m_filters);
+    ItemGroup *itemGroup = VisualStudioProjectX::Utils::findItemGroupWhichContainsItemWithName(QLatin1String(FILTER_ITEM), m_filters);
 
     if (!itemGroup)
         return;

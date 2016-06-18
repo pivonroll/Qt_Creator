@@ -73,12 +73,14 @@ public:
     QString relativePath() const;
     void setRelativePath(const QString &relativePath);
     IFile *findFile(const QString &canonicalFilePath) const;
-    IFileContainer *findFileContainer(const QStringList &path) const;
+    IFileContainer *findFileContainer(const QString &relativePath) const;
 
     // IVcProjectXMLNode interface
     void processNode(const QDomNode &node);
     VcNodeWidget *createSettingsWidget();
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
+
+    static FileContainerX* createNewFileContainer(const QString &relativePath, const QString &containerType, const QString &extensions = QString());
 
 private:
     FileContainerX();
@@ -96,6 +98,8 @@ private:
     FileContainerX *m_parentContainer;
     QList<IFile *> m_files;
     QList<IFileContainer *> m_fileContainers;
+
+    Item *m_filterItem;
 };
 
 } // namespace VisualStudioProjectX

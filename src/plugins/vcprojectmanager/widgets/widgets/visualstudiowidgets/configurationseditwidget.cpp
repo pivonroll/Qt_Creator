@@ -256,7 +256,7 @@ void ConfigurationsEditWidget::addConfigToProjectBuild(const QString &newConfigN
  * If \a copyFrom is an empty string then new default configuration will be created and
  * add to a list of file's build configurations.
  */
-void ConfigurationsEditWidget::addConfigToFiles(const QString &newConfigName, const QString &copyFrom)
+void ConfigurationsEditWidget::addConfigToFiles(const QString &newFullConfigName, const QString &copyFromFullConfigName)
 {
     QTC_ASSERT(m_vsProject, return);
     QTC_ASSERT(m_vsProject->files(), return);
@@ -264,36 +264,36 @@ void ConfigurationsEditWidget::addConfigToFiles(const QString &newConfigName, co
     IFiles *files = m_vsProject->files();
 
     for (int i = 0; i < files->fileContainerCount(); ++i)
-        renameFileBuildConfiguration(files->fileContainer(i), newConfigNameWithPlatform, oldConfigNameWithPlatform);
+        renameFileBuildConfiguration(files->fileContainer(i), newFullConfigName, copyFromFullConfigName);
 
     for (int i = 0; i < files->fileCount(); ++i)
-        renameFileBuildConfiguration(files->file(i), newConfigNameWithPlatform, oldConfigNameWithPlatform);
+        renameFileBuildConfiguration(files->file(i), newFullConfigName, copyFromFullConfigName);
 }
 
-void ConfigurationsEditWidget::addConfigToFiles(IFileContainer *container, const QString &newConfigName, const QString &copyFrom)
+void ConfigurationsEditWidget::addConfigToFiles(IFileContainer *container, const QString &newFullConfigName, const QString &copyFromFullConfigName)
 {
     QTC_ASSERT(container, return);
 
     for (int i = 0; i < container->childCount(); ++i)
-        addConfigToFiles(container->fileContainer(i), newConfigName, copyFrom);
+        addConfigToFiles(container->fileContainer(i), newFullConfigName, copyFromFullConfigName);
 
     for (int i = 0; i < container->fileCount(); ++i)
-        addConfigToFiles(container->file(i), newConfigName, copyFrom);
+        addConfigToFiles(container->file(i), newFullConfigName, copyFromFullConfigName);
 }
 
-void ConfigurationsEditWidget::addConfigToFiles(IFile *file, const QString &newConfigName, const QString &copyFrom)
+void ConfigurationsEditWidget::addConfigToFiles(IFile *file, const QString &newFullConfigName, const QString &copyFromFullConfigName)
 {
     QTC_ASSERT(file, return);
     QTC_ASSERT(file->configurationContainer(), return);
 
-    IConfiguration *config = file->configurationContainer()->configuration(copyFrom);
+    IConfiguration *config = file->configurationContainer()->configuration(copyFromFullConfigName);
 
     if (!config)
         return;
 
     IConfiguration *newConfig = config->clone();
     if (newConfig) {
-        newConfig->setFullName(newConfigName);
+        newConfig->setFullName(newFullConfigName);
         file->configurationContainer()->addConfiguration(newConfig);
     }
 }

@@ -56,6 +56,7 @@ public:
     ~FileX();
 
     // IFile interface
+    QString displayName() const;
     QString relativePath() const;
     void setRelativePath(const QString &relativePath);
     QString canonicalPath() const;
@@ -70,15 +71,18 @@ public:
     VcNodeWidget *createSettingsWidget();
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
+    static FileX *createNewFile(const QString &relativePath, const QString &filterPath);
+
 private:
     static void swap(FileX &first, FileX &second);
 
-    Item *m_item;
+    Item *m_projectItem;
     Item *m_filterItem;
     Project *m_project;
     Project *m_filters;
 
     VcProjectDocumentX *m_parentProjectDocument;
+    QString m_relativeFilePath;
 };
 
 } // namespace VisualStudioProjectX
