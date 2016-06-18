@@ -58,7 +58,7 @@ public:
     void saveData();
 
 private slots:
-    void onAddNewConfig(QString newConfigName, QString copyFrom);
+    void onAddNewConfig(QString newConfigName, QString copyFromFullName);
     void onNewConfigAdded(IConfiguration *config);
     void onRenameConfig(QString newConfigName, QString oldConfigNameWithPlatform);
     void onRemoveConfig(QString configNameWithPlatform);

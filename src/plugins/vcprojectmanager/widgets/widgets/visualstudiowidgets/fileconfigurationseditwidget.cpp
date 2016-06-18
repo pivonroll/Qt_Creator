@@ -107,24 +107,23 @@ void FileConfigurationsEditWidget::saveData()
 {
 }
 
-void FileConfigurationsEditWidget::onAddNewConfig(QString newConfigName, QString copyFrom)
+void FileConfigurationsEditWidget::onAddNewConfig(QString newConfigName, QString copyFromFullName)
 {
     QTC_ASSERT(m_vsProject->platforms(), return);
 
     IPlatforms *platforms = m_vsProject->platforms();
-    QString copyFromConfigName = copyFrom.split(QLatin1Char('|')).at(0);
+    QString copyFromConfigName = copyFromFullName.split(QLatin1Char('|')).at(0);
 
     QStringList errorMessages;
 
+    // go through all platforms
     for (int i = 0; i < platforms->platformCount(); ++i) {
         IPlatform *platform = platforms->platform(i);
-
-        if (!platform)
-            continue;
 
         QString newFullConfigName = newConfigName + QLatin1Char('|') + platform->displayName();
         QString copyFromFullConfigName;
 
+        // check if configuration, we want to add, already exists
         if (m_vsProject->configurations()->configurationContainer()->configuration(newFullConfigName)) {
             QString message = tr("Configuration %1 already exists.");
             message = message.arg(newFullConfigName);
@@ -134,7 +133,9 @@ void FileConfigurationsEditWidget::onAddNewConfig(QString newConfigName, QString
             if (!copyFromConfigName.isEmpty())
                 copyFromFullConfigName = copyFromConfigName + QLatin1Char('|') + platform->displayName();
 
+            // add a configuration to the project
             addConfigToProjectBuild(newFullConfigName, copyFromFullConfigName);
+            // add a configuration to files
             addConfigToFiles(newFullConfigName, copyFromFullConfigName);
         }
     }
@@ -210,17 +211,21 @@ void FileConfigurationsEditWidget::onRemoveConfig(QString configNameWithPlatform
 
 void FileConfigurationsEditWidget::addConfigToProjectBuild(const QString &newConfigName, const QString &copyFrom)
 {
+    // if copy from is empty that means we want to add a default configuration
     if (copyFrom.isEmpty()) {
         IConfiguration *newConfig = m_vsProject->createDefaultBuildConfiguration(newConfigName);
         if (newConfig)
             m_vsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
     } else {
+        // else add a clone of the existing configuration with changed name
         IConfiguration *config = m_vsProject->configurations()->configurationContainer()->configuration(copyFrom);
 
         if (config) {
             IConfiguration *newConfig = config->clone();
             newConfig->setFullName(newConfigName);
             m_vsProject->configurations()->configurationContainer()->addConfiguration(newConfig);
+        } else {
+
         }
     }
 }
