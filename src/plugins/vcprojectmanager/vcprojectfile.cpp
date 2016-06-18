@@ -33,6 +33,8 @@
 #include "vcprojectmanagerconstants.h"
 #include "vcprojectmodel/vcprojectdocument.h"
 
+#include "utils.h"
+
 #include <QFileInfo>
 
 namespace VcProjectManager {
@@ -134,15 +136,38 @@ void VcProjectFile::showSettingsDialog()
     }
 }
 
+void VcProjectFile::showFileSettingsDialog(const QString &canonicalFilePath)
+{
+    FILE_EXISTS_ASSERT(canonicalFilePath)
+
+    m_tempModel = m_documentModel->clone();
+    IFile *file = m_tempModel->files()->findFile(canonicalFilePath);
+
+    if (!file) {
+        delete m_tempModel;
+        m_tempModel = nullptr;
+        return;
+    }
+
+    VcNodeWidget *settingsWidget = file->createSettingsWidget();
+    if (settingsWidget) {
+        connect(settingsWidget, &VcNodeWidget::accepted, this, &VcProjectFile::onSettingsDialogAccepted);
+        connect(settingsWidget, &VcNodeWidget::cancelled, this, &VcProjectFile::onSettingDislogCancelled);
+        settingsWidget->show();
+    }
+}
+
 void VcProjectFile::onSettingsDialogAccepted()
 {
     std::swap(m_documentModel, m_tempModel);
     delete m_tempModel;
+    m_tempModel = nullptr;
 }
 
 void VcProjectFile::onSettingDislogCancelled()
 {
     delete m_tempModel;
+    m_tempModel = nullptr;
 }
 
 } // namespace Internal

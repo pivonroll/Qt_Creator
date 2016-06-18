@@ -66,6 +66,9 @@ signals:
      * \brief Emitted when settings dialog is accepted.
      */
     void settingsDialogAccepted();
+
+private:
+    VcDocProjectNode *m_parentProjectNode;
 };
 
 class VcFileContainerNode : public ProjectExplorer::FolderNode

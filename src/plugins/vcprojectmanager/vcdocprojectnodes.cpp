@@ -53,8 +53,8 @@ namespace Internal {
 
 VcFileNode::VcFileNode(const ::Utils::FileName &filePath, ProjectExplorer::FileType fileType, VcDocProjectNode *vcDocProject)
     : ProjectExplorer::FileNode(filePath, fileType, false)
+    , m_parentProjectNode(vcDocProject)
 {
-    Q_UNUSED(vcDocProject)
 }
 
 VcFileNode::~VcFileNode()
@@ -63,7 +63,7 @@ VcFileNode::~VcFileNode()
 
 void VcFileNode::showSettingsWidget()
 {
-
+    m_parentProjectNode->m_vcProjectFile->showFileSettingsDialog(path().toString());
 }
 
 void VcFileNode::readChildren(VcDocProjectNode *vcDocProj)

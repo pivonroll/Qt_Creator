@@ -64,6 +64,7 @@ public:
     IVisualStudioProject *visualStudioProject() const;
     void setVisualStudioProject(IVisualStudioProject *documentModel);
     void showSettingsDialog();
+    void showFileSettingsDialog(const QString &canonicalFilePath);
 
 private slots:
     void onSettingsDialogAccepted();
