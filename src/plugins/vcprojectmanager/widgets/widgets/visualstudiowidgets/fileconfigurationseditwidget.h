@@ -80,7 +80,6 @@ private:
     void cleanUpConfig(IConfiguration *config);
 
     IVisualStudioProject *m_vsProject;
-    IVisualStudioProject *m_tempVsProject;
     ConfigurationsWidget *m_configsWidget;
 };
 
