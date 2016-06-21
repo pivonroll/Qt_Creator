@@ -42,6 +42,8 @@
 #include "vcprojx_constants.h"
 #include "utilsx.h"
 
+#include <vcdebuging.h>
+
 #include <visualstudiointerfaces/iconfiguration.h>
 #include "../condition_parser/expression/evaluatearguments.h"
 
@@ -80,11 +82,12 @@ void ConfigurationContainerX::addConfiguration(IConfiguration *config)
 {
     ConfigurationX *configX = static_cast<ConfigurationX *>(config);
 
-    if (!configX)
-        return;
+    QTC_ASSERT(configX, return);
 
-    if (findConfiguration(configX->fullName()))
+    if (findConfiguration(configX->fullName())) {
+        vs_debugPrint(QLatin1String("Configuration with name: ") + configX->fullName() + QLatin1String(" already exists"));
         return;
+    }
 
     m_configs.append(configX);
 }

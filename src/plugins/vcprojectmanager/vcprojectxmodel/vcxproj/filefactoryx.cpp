@@ -37,6 +37,8 @@
 #include "vcprojectdocumentx.h"
 #include "vcprojx_constants.h"
 
+#include <QUuid>
+
 namespace VcProjectManager {
 namespace Internal {
 namespace VisualStudioProjectX {
@@ -91,19 +93,19 @@ IFile *FileFactoryX::createFile(const QString &relativePath, ProjectExplorer::Fi
     return file;
 }
 
-IFileContainer *FileFactoryX::createFileContainer(const QString &containerPath, const QString &containerType) const
+IFileContainer *FileFactoryX::createFileContainer(const QString &relativePath, const QString &containerType) const
 {
-    FileContainerX *fileContainer = new FileContainerX;
-    fileContainer->m_project = m_parentProjectDocument->m_project;
-    fileContainer->m_filters = m_parentProjectDocument->m_filters;
+    FileContainerX *newFileContainer = new FileContainerX;
+    newFileContainer->m_filterItem = new Item;
+    newFileContainer->m_filterItem->setName(containerType);
+    newFileContainer->m_filterItem->setInclude(relativePath);
 
-    // add new file container to m_project and filters
+    ItemMetaData *newItemMetaData = new ItemMetaData;
+    newItemMetaData->setName(QLatin1String("UniqueIdentifier"));
+    newItemMetaData->setValue(QLatin1Char('{') + QUuid::createUuid().toString() + QLatin1Char('}'));
+    newFileContainer->m_filterItem->addItemMetaData(newItemMetaData);
 
-    ItemMetaData *itemMetaData = new ItemMetaData;
-    itemMetaData->setName(QLatin1String(UNIQUE_IDENTIFIER));
-    // TODO(Radovan): add unique identifier id value
-
-    return fileContainer;
+    return newFileContainer;
 }
 
 } // namespace VisualStudioProjectX

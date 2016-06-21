@@ -310,28 +310,6 @@ QDomNode FileContainerX::toXMLDomNode(QDomDocument &domXMLDocument) const
     return QDomNode();
 }
 
-FileContainerX *FileContainerX::createNewFileContainer(const QString &relativePath, const QString &containerType, const QString &extensions)
-{
-    FileContainerX *newFileContainer = new FileContainerX;
-    newFileContainer->m_filterItem = new Item;
-    newFileContainer->m_filterItem->setName(containerType);
-    newFileContainer->m_filterItem->setInclude(relativePath);
-
-    ItemMetaData *newItemMetaData = new ItemMetaData;
-    newItemMetaData->setName(QLatin1String("UniqueIdentifier"));
-    newItemMetaData->setValue(QLatin1Char('{') + QUuid::createUuid().toString() + QLatin1Char('}'));
-    newFileContainer->m_filterItem->addItemMetaData(newItemMetaData);
-
-    if (!extensions.isEmpty()) {
-        newItemMetaData = new ItemMetaData;
-        newItemMetaData->setName(QLatin1String("Extensions"));
-        newItemMetaData->setValue(extensions);
-        newFileContainer->m_filterItem->addItemMetaData(newItemMetaData);
-    }
-
-    return newFileContainer;
-}
-
 FileContainerX::FileContainerX()
     : m_filterItem(nullptr),
       m_project(nullptr),

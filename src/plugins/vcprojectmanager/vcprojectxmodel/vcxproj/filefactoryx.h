@@ -48,7 +48,7 @@ public:
 
     // IFileFactory interface
     IFile *createFile(const QString &relativePath, ProjectExplorer::FileType fileType) const;
-    IFileContainer *createFileContainer(const QString &containerPath, const QString &containerType) const;
+    IFileContainer *createFileContainer(const QString &relativePath, const QString &containerType) const;
 
 private:
     VcProjectDocumentX *m_parentProjectDocument;

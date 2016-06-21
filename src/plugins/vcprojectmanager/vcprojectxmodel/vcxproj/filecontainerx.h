@@ -80,8 +80,6 @@ public:
     VcNodeWidget *createSettingsWidget();
     QDomNode toXMLDomNode(QDomDocument &domXMLDocument) const;
 
-    static FileContainerX* createNewFileContainer(const QString &relativePath, const QString &containerType, const QString &extensions = QString());
-
 private:
     FileContainerX();
     static void swap(FileContainerX &first, FileContainerX &second);

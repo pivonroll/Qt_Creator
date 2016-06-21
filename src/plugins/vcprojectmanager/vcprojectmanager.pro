@@ -1,5 +1,9 @@
 QT += xml xmlpatterns
 
+CONFIG (debug, debug | release) {
+    DEFINES += VISUAL_STUDIO_PLUGIN_DEBUG
+}
+
 HEADERS = \
     $$PWD/vcprojectmanagerplugin.h \
     $$PWD/vcprojectmanagerconstants.h \
@@ -23,7 +27,7 @@ HEADERS = \
     $$PWD/visualstudiosolutionfile.h \
     $$PWD/visualstudiosolutionnode.h \
     $$PWD/visualstudioproject.h \
-    $$PWD/vcprojkitmatcher.h
+    $$PWD/vcprojkitmatcher.h \
 
 SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/vcprojectmanager.cpp \
@@ -55,9 +59,11 @@ RESOURCES += \
     $$PWD/vcproject.qrc
 
 include($$PWD/../../qtcreatorplugin.pri)
+include($$PWD/utils/utils.pri)
 include($$PWD/visualstudiointerfaces/visualstudiointerfaces.pri)
 include($$PWD/visualstudiotoolattributes/visualstudiotoolattributes.pri)
 include($$PWD/vcprojectmodel/vcprojectmodel.pri)
 include($$PWD/vcprojectxmodel/vcprojectxmodel.pri)
 include($$PWD/widgets/widgets.pri)
 include($$PWD/visualstudiosolution/visualstudiosolution.pri)
+
