@@ -42,7 +42,6 @@
 #include "utils.h"
 #include "vcprojectmodel/vcdocumentmodel.h"
 #include "vcprojectmodel/vcprojectdocument.h"
-#include "vcxprojectfile.h"
 
 #include <utils/mimetypes/mimedatabase.h>
 #include <projectexplorer/buildinfo.h>
@@ -254,11 +253,6 @@ IVisualStudioProject *VcProjectBuildConfigurationFactory::findVisualStudioProjec
 
             if (vcProjectFile)
                 return vcProjectFile->visualStudioProject();
-
-            VcXProjectFile *vcXProjectFile = dynamic_cast<VcXProjectFile *>(document);
-
-            if (vcXProjectFile)
-                return vcXProjectFile->visualStudioProject();
         }
     }
 

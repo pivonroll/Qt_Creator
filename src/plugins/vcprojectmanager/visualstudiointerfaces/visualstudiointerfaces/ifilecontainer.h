@@ -125,9 +125,27 @@ public:
      */
     virtual IFileContainer *clone() const = 0;
 
+    /*!
+     * \return a path relative to the project tree root
+     */
     virtual QString relativePath() const = 0;
+
+    /*!
+     * \param sets file container's relative path
+     */
     virtual void setRelativePath(const QString &relativePath) = 0;
+
+    /*!
+     * \brief Recursively goes through all files and all file containers in order to find a file with the \b canonical path.
+     * \return a pointer to a file which
+     */
     virtual IFile *findFile(const QString &canonicalFilePath) const = 0;
+
+    /*!
+     * \brief Recursively goes through all file containers in order to find a file container with the \b realtive path.
+     * \param relativePath is path which is relative to the project root in the project tree
+     * \return a pointer to file container whith the given relative path
+     */
     virtual IFileContainer *findFileContainer(const QString &relativePath) const = 0;
 };
 

@@ -143,6 +143,19 @@ void FilesX::removeFileContainer(IFileContainer *fileContainer)
 
 IFile *FilesX::findFile(const QString &canonicalFilePath) const
 {
+    foreach (IFile *file, m_private->m_files) {
+        if (file->canonicalPath() == canonicalFilePath)
+            return file;
+    }
+
+    foreach (IFileContainer *fileContainer, m_private->m_fileContainers) {
+        // recursively finds a file in a file container
+        IFile *file = fileContainer->findFile(canonicalFilePath);
+
+        if (file)
+            return file;
+    }
+
     return nullptr;
 }
 
@@ -267,8 +280,7 @@ void FilesX::readFileGroup(const QString &groupName)
     ItemGroup *filterItemGroup = Utils::findItemGroupWhichContainsItemWithName(groupName, m_filters);
     ItemGroup *projectItemGroup = Utils::findItemGroupWhichContainsItemWithName(groupName, m_project);
 
-    if (!filterItemGroup || !projectItemGroup)
-        return;
+    QTC_ASSERT(filterItemGroup && projectItemGroup, return);
 
     for (int i = 0; i < filterItemGroup->itemCount(); ++i) {
         Item *filterItem = filterItemGroup->item(i);

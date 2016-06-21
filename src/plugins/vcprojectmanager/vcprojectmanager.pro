@@ -18,13 +18,12 @@ HEADERS = \
     $$PWD/utils.h \
     $$PWD/vcxprojectmanager.h \
     $$PWD/vcxproject.h \
-    $$PWD/vcxprojectfile.h \
     $$PWD/vcdocprojectnodes.h \
-    visualstudiosolutionmanager.h \
-    visualstudiosolutionfile.h \
-    visualstudiosolutionnode.h \
-    visualstudioproject.h \
-    vcprojkitmatcher.h
+    $$PWD/visualstudiosolutionmanager.h \
+    $$PWD/visualstudiosolutionfile.h \
+    $$PWD/visualstudiosolutionnode.h \
+    $$PWD/visualstudioproject.h \
+    $$PWD/vcprojkitmatcher.h
 
 SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/vcprojectmanager.cpp \
@@ -41,13 +40,12 @@ SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/utils.cpp \
     $$PWD/vcxprojectmanager.cpp \
     $$PWD/vcxproject.cpp \
-    $$PWD/vcxprojectfile.cpp \
     $$PWD/vcdocprojectnodes.cpp \
-    visualstudiosolutionmanager.cpp \
-    visualstudiosolutionfile.cpp \
-    visualstudiosolutionnode.cpp \
-    visualstudioproject.cpp \
-    vcprojkitmatcher.cpp
+    $$PWD/visualstudiosolutionmanager.cpp \
+    $$PWD/visualstudiosolutionfile.cpp \
+    $$PWD/visualstudiosolutionnode.cpp \
+    $$PWD/visualstudioproject.cpp \
+    $$PWD/vcprojkitmatcher.cpp
 
 OTHER_FILES += \
     $$PWD/VcProject.mimetypes.xml \
