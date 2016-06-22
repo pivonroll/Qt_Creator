@@ -84,10 +84,9 @@ void ConfigurationContainerX::addConfiguration(IConfiguration *config)
 
     QTC_ASSERT(configX, return);
 
-    if (findConfiguration(configX->fullName())) {
-        vs_debugPrint(QLatin1String("Configuration with name: ") + configX->fullName() + QLatin1String(" already exists"));
-        return;
-    }
+    VS_DEBUG_ASSERT_ACTION(!findConfiguration(configX->fullName()),
+                            QLatin1String("Configuration with name: ") + configX->fullName() + QLatin1String(" already exists"),
+                            return);
 
     m_configs.append(configX);
 }
@@ -224,7 +223,9 @@ void ConfigurationContainerX::removeConfigurationFromProject(const QString &full
     // remove items in the project associated with removed configuration
     ConfigurationX *config = findConfiguration(fullName);
 
-    QTC_ASSERT(config != nullptr, return);
+    VS_DEBUG_ASSERT_ACTION(config != nullptr,
+                           QLatin1String("Configuration with name: ") + fullname + QLatin1String(" does not exist"),
+                           return);
 
     QStringList clist = fullName.split(QLatin1Char('|'));
 
@@ -234,24 +235,31 @@ void ConfigurationContainerX::removeConfigurationFromProject(const QString &full
 
     // delete from configuration item group
     ItemGroup *itemGroup = m_project->findItemGroupWithLabel(QLatin1String(PROJECT_CONFIGURATIONS));
-    if (itemGroup) {
-        return;
 
-        Item *item = itemGroup->findItemWithInclude(config->evaluationValue());
-        if (item) {
-            itemGroup->removeItem(item);
-            delete item;
-        }
+    VS_DEBUG_ASSERT_ACTION(itemGroup, QLatin1String("Item group not found!"), return);
+
+    Item *item = itemGroup->findItemWithInclude(config->evaluationValue());
+
+    VS_DEBUG_ASSERT(item != nullptr, QLatin1String("Item does not exist!"));
+
+    if (item) {
+        itemGroup->removeItem(item);
+        delete item;
     }
 
     // delete from property groups
     PropertyGroup *propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs);
+
+    VS_DEBUG_ASSERT(propertyGroup != nullptr, QLatin1String("PropertyGroup not found!"));
+
     if (propertyGroup) {
         m_project->removePropertyGroup(propertyGroup);
         delete propertyGroup;
     }
 
     propertyGroup = m_project->findPropertyGroupWithConditionAndLabel(evalArgs, QLatin1String(CONFIGURATION));
+    VS_DEBUG_ASSERT(propertyGroup != nullptr, QLatin1String("PropertyGroup not found!"));
+
     if (propertyGroup) {
         m_project->removePropertyGroup(propertyGroup);
         delete propertyGroup;
@@ -259,6 +267,8 @@ void ConfigurationContainerX::removeConfigurationFromProject(const QString &full
 
     // delete from item definition groups groups
     ItemDefinitionGroup *itemDefinitionGroup = m_project->findItemDefinitionGroupWithCondition(evalArgs);
+    VS_DEBUG_ASSERT(itemDefinitionGroup != nullptr, QLatin1String("ItemDefinitionGroup not found!"));
+
     if (itemDefinitionGroup) {
         m_project->removeItemDefinitionGroup(itemDefinitionGroup);
         delete itemDefinitionGroup;
@@ -266,6 +276,8 @@ void ConfigurationContainerX::removeConfigurationFromProject(const QString &full
 
     // delete from import groups
     ImportGroup *importGroup = m_project->findImportGroupWithConditionAndLabel(evalArgs, QLatin1String(PROPERTY_SHEETS));
+    VS_DEBUG_ASSERT(importGroup != nullptr, QLatin1String("ImportGroup not found!"));
+
     if (importGroup) {
         m_project->removeImportGroup(importGroup);
         delete importGroup;

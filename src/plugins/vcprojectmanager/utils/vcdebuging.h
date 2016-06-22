@@ -15,8 +15,12 @@
 #endif
 
 #ifdef VISUAL_STUDIO_PLUGIN_DEBUG
-#define vs_debugPrint(data) vs_dbg_print << data
+#define VS_DEBUG_PRINT(message) vs_dbg_print << message
 #else
-#define vs_debugPrint(data)
+#define VS_DEBUG_PRINT(mesage)
 #endif
+
+#define VS_DEBUG_ASSERT(cond, message) if (cond) {} else { VS_DEBUG_PRINT(QString::fromLatin1("\"" #cond "\"") + QLatin1String(" - ") + message); } do {} while (0)
+#define VS_DEBUG_ASSERT_ACTION(cond, message, action) if (cond) {} else { VS_DEBUG_PRINT(QString::fromLatin1("\"" #cond "\"") + QLatin1String(" - ") + message); action; } do {} while (0)
+
 
