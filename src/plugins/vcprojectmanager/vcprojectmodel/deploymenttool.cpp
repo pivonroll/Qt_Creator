@@ -69,7 +69,7 @@ void DeploymentTool::processNode(const QDomNode &node)
 
 VcNodeWidget *DeploymentTool::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode DeploymentTool::toXMLDomNode(QDomDocument &domXMLDocument) const

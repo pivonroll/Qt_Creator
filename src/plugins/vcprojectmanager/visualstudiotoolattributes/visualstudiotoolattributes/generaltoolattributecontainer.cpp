@@ -64,7 +64,7 @@ IToolAttribute *GeneralToolAttributeContainer::toolAttribute(int index) const
 {
     if (0 <= index && index < m_toolAttributes.size())
         return m_toolAttributes[index];
-    return 0;
+    return nullptr;
 }
 
 IToolAttribute *GeneralToolAttributeContainer::toolAttribute(const QString &attributeKey) const
@@ -74,7 +74,7 @@ IToolAttribute *GeneralToolAttributeContainer::toolAttribute(const QString &attr
             return toolAttr;
     }
 
-    return 0;
+    return nullptr;
 }
 
 int GeneralToolAttributeContainer::toolAttributeCount() const

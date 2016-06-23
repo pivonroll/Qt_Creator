@@ -97,7 +97,7 @@ void Files::processNode(const QDomNode &node)
 
 VcNodeWidget *Files::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode Files::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -137,7 +137,7 @@ IFile* Files::file(const QString &relativePath) const
         if (file->relativePath() == relativePath)
             return file;
     }
-    return 0;
+    return nullptr;
 }
 
 bool Files::fileExists(const QString &relativeFilePath) const
@@ -164,7 +164,7 @@ IFile *Files::file(int index) const
 {
     if (0 <= index && index < m_files.size())
         return m_files[index];
-    return 0;
+    return nullptr;
 }
 
 void Files::addFileContainer(IFileContainer *fileContainer)
@@ -191,7 +191,7 @@ IFileContainer *Files::fileContainer(int index) const
 {
     if (0 <= index && index < m_fileContainers.size())
         return m_fileContainers[index];
-    return 0;
+    return nullptr;
 }
 
 void Files::removeFileContainer(IFileContainer *fileContainer)

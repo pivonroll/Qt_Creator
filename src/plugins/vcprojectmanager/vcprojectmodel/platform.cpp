@@ -70,7 +70,7 @@ void Platform::processNode(const QDomNode &node)
 
 VcNodeWidget *Platform::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode Platform::toXMLDomNode(QDomDocument &domXMLDocument) const

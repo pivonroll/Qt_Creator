@@ -76,7 +76,7 @@ void DebuggerTools::removeTool(IDebuggerTool *tool)
 
 IDebuggerTool *DebuggerTools::tool(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_debuggerTools.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_debuggerTools.size(), return nullptr);
     return m_debuggerTools[index];
 }
 

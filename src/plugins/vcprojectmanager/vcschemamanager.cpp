@@ -49,14 +49,13 @@ namespace Internal {
  * This is a \b singleton.
  */
 
-VcSchemaManager* VcSchemaManager::m_instance = 0;
-
 /*!
  * \return an instance of a \class VcSchemaManager.
  */
 VcSchemaManager *VcSchemaManager::instance()
 {
-    return m_instance;
+    static VcSchemaManager instance;
+    return &instance;
 }
 
 VcSchemaManager::~VcSchemaManager()
@@ -205,7 +204,6 @@ void VcSchemaManager::saveSettings()
  */
 VcSchemaManager::VcSchemaManager()
 {
-    m_instance = this;
     loadSettings();
 }
 

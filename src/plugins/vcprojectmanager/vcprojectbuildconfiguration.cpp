@@ -197,13 +197,13 @@ QList<ProjectExplorer::BuildInfo *> VcProjectBuildConfigurationFactory::availabl
 
 VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::create(ProjectExplorer::Target *parent, const ProjectExplorer::BuildInfo *info) const
 {
-    QTC_ASSERT(parent, return 0);
-    QTC_ASSERT(info->factory() == this, return 0);
-    QTC_ASSERT(info->kitId == parent->kit()->id(), return 0);
-    QTC_ASSERT(!info->displayName.isEmpty(), return 0);
+    QTC_ASSERT(parent, return nullptr);
+    QTC_ASSERT(info->factory() == this, return nullptr);
+    QTC_ASSERT(info->kitId == parent->kit()->id(), return nullptr);
+    QTC_ASSERT(!info->displayName.isEmpty(), return nullptr);
 
     VcProjectFile *vcProjectFile = qobject_cast<VcProjectFile *>(parent->project()->document());
-    QTC_ASSERT(vcProjectFile, return 0);
+    QTC_ASSERT(vcProjectFile, return nullptr);
 
     VcProjectBuildConfiguration *bc = new VcProjectBuildConfiguration(parent);
     bc->setDisplayName(info->displayName);
@@ -211,8 +211,8 @@ VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::create(ProjectE
 
     ProjectExplorer::BuildStepList *buildSteps = bc->stepList(Core::Id(ProjectExplorer::Constants::BUILDSTEPS_BUILD));
     ProjectExplorer::BuildStepList *cleanSteps = bc->stepList(Core::Id(ProjectExplorer::Constants::BUILDSTEPS_CLEAN));
-    QTC_ASSERT(buildSteps, return 0);
-    QTC_ASSERT(cleanSteps, return 0);
+    QTC_ASSERT(buildSteps, return nullptr);
+    QTC_ASSERT(cleanSteps, return nullptr);
 
     VcMakeStep *makeStep = new VcMakeStep(buildSteps);
     QString argument(QLatin1String("/p:configuration=\"") + info->displayName + QLatin1String("\""));
@@ -237,7 +237,7 @@ bool VcProjectBuildConfigurationFactory::canClone(const ProjectExplorer::Target 
 VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::clone(ProjectExplorer::Target *parent, ProjectExplorer::BuildConfiguration *source)
 {
     if (!canClone(parent, source))
-        return 0;
+        return nullptr;
 
     VcProjectBuildConfiguration *old = static_cast<VcProjectBuildConfiguration *>(source);
     return new VcProjectBuildConfiguration(parent, old);
@@ -256,7 +256,7 @@ IVisualStudioProject *VcProjectBuildConfigurationFactory::findVisualStudioProjec
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 bool VcProjectBuildConfigurationFactory::canRestore(const ProjectExplorer::Target *parent, const QVariantMap &map) const
@@ -267,13 +267,13 @@ bool VcProjectBuildConfigurationFactory::canRestore(const ProjectExplorer::Targe
 VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::restore(ProjectExplorer::Target *parent, const QVariantMap &map)
 {
     if (!canRestore(parent, map))
-        return 0;
+        return nullptr;
 
     VcProjectBuildConfiguration *bc = new VcProjectBuildConfiguration(parent);
     if (bc->fromMap(map))
         return bc;
     delete bc;
-    return 0;
+    return nullptr;
 }
 
 /*!

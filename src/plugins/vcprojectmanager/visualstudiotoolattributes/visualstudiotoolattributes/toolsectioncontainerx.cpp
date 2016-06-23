@@ -84,7 +84,7 @@ IToolSection *ToolSectionContainerX::section(int index) const
 {
     if (0 <= index && index < m_toolSections.size())
         return m_toolSections[index];
-    return 0;
+    return nullptr;
 }
 
 IToolSection *ToolSectionContainerX::section(const QString &sectionName) const
@@ -94,7 +94,7 @@ IToolSection *ToolSectionContainerX::section(const QString &sectionName) const
             return sec;
         }
     }
-    return 0;
+    return nullptr;
 }
 
 int ToolSectionContainerX::sectionCount() const

@@ -82,7 +82,7 @@ void References::processNode(const QDomNode &node)
 
 VcNodeWidget *References::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode References::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -115,7 +115,7 @@ int References::referenceCount() const
 
 IReference *References::reference(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_references.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_references.size(), return nullptr);
     return m_references[index];
 }
 

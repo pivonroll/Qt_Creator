@@ -88,7 +88,7 @@ void ProjectReference::processNode(const QDomNode &node)
 
 VcNodeWidget *ProjectReference::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode ProjectReference::toXMLDomNode(QDomDocument &domXMLDocument) const

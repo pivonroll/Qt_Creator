@@ -79,7 +79,7 @@ void Globals::processNode(const QDomNode &node)
 
 VcNodeWidget *Globals::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode Globals::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -105,7 +105,7 @@ int Globals::globalCount() const
 
 IGlobal *Globals::global(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_globals.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_globals.size(), return nullptr);
     return m_globals[index];
 }
 

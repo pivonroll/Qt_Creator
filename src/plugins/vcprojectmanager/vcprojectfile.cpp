@@ -101,7 +101,7 @@ VcDocProjectNode *VcProjectFile::createProjectNode()
 {
     if (m_documentModel)
         return new VcDocProjectNode(this);
-    return 0;
+    return nullptr;
 }
 
 /*!

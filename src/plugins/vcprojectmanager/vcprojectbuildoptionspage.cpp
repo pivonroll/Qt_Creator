@@ -99,7 +99,7 @@ void VcProjectEditMsBuildDialog::setPath(const QString &path)
  */
 void VcProjectEditMsBuildDialog::showBrowseFileDialog()
 {
-    m_pathChooser->setText(QFileDialog::getOpenFileName(0, tr("Select Ms Build"), QString(), QLatin1String("*.exe")));
+    m_pathChooser->setText(QFileDialog::getOpenFileName(nullptr, tr("Select Ms Build"), QString(), QLatin1String("*.exe")));
 }
 
 MsBuildTableItem::MsBuildTableItem()
@@ -450,7 +450,7 @@ void VcProjectBuildOptionsWidget::insertMsBuildIntoTable(MsBuildInformation *msB
 }
 
 VcProjectBuildOptionsPage::VcProjectBuildOptionsPage() :
-    m_optionsWidget(0)
+    m_optionsWidget(nullptr)
 {
     setId(Core::Id("VcProject.MSBuild"));
     setDisplayName(tr("MS Build"));
@@ -489,7 +489,7 @@ void VcProjectBuildOptionsPage::apply()
 void VcProjectBuildOptionsPage::finish()
 {
     delete m_optionsWidget;
-    m_optionsWidget = 0;
+    m_optionsWidget = nullptr;
 }
 
 /*!
@@ -522,13 +522,13 @@ void VcProjectBuildOptionsPage::startVersionCheck()
  */
 void VcProjectBuildOptionsPage::addNewMsBuild()
 {
-    QString newMsBuild = QFileDialog::getOpenFileName(0, tr("Select Ms Build"), QString(), QLatin1String("*.exe"));
+    QString newMsBuild = QFileDialog::getOpenFileName(nullptr, tr("Select Ms Build"), QString(), QLatin1String("*.exe"));
 
     if (!m_optionsWidget || newMsBuild.isEmpty())
         return;
 
     if (m_optionsWidget->exists(newMsBuild)) {
-        QMessageBox::information(0, tr("Ms Build already present"), tr("Selected MSBuild.exe is already present in the list."));
+        QMessageBox::information(nullptr, tr("Ms Build already present"), tr("Selected MSBuild.exe is already present in the list."));
         return;
     }
 

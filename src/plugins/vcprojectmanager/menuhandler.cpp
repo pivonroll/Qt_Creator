@@ -43,18 +43,16 @@
 namespace VcProjectManager {
 namespace Internal {
 
-MenuHandler* MenuHandler::m_instance = 0;
-
 MenuHandler::MenuHandler()
 {
-    m_instance = this;
     initialize();
     initialize2005();
 }
 
 MenuHandler *MenuHandler::instance()
 {
-    return m_instance;
+    static MenuHandler instance;
+    return &instance;
 }
 
 MenuHandler::~MenuHandler()

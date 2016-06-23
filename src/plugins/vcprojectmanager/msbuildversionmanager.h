@@ -117,7 +117,6 @@ private:
     MsBuildVersionManager();
     void loadSettings();
 
-    static MsBuildVersionManager *m_instance;
     QList<MsBuildInformation *> m_msBuildInfos;
 };
 

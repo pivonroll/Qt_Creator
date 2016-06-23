@@ -339,7 +339,7 @@ bool VcMakeStepFactory::canCreate(ProjectExplorer::BuildStepList *parent, Core::
 ProjectExplorer::BuildStep* VcMakeStepFactory::create(ProjectExplorer::BuildStepList *parent, Core::Id id)
 {
     if (!canCreate(parent, id))
-        return 0;
+        return nullptr;
     VcMakeStep *step = new VcMakeStep(parent);
     return step;
 }
@@ -352,7 +352,7 @@ bool VcMakeStepFactory::canClone(ProjectExplorer::BuildStepList *parent, Project
 ProjectExplorer::BuildStep *VcMakeStepFactory::clone(ProjectExplorer::BuildStepList *parent, ProjectExplorer::BuildStep *product)
 {
     if (!canClone(parent, product))
-        return 0;
+        return nullptr;
     return new VcMakeStep(parent, static_cast<VcMakeStep *>(product));
 }
 
@@ -364,12 +364,12 @@ bool VcMakeStepFactory::canRestore(ProjectExplorer::BuildStepList *parent, const
 ProjectExplorer::BuildStep *VcMakeStepFactory::restore(ProjectExplorer::BuildStepList *parent, const QVariantMap &map)
 {
     if (!canRestore(parent, map))
-        return 0;
+        return nullptr;
     VcMakeStep *bs = new VcMakeStep(parent);
     if (bs->fromMap(map))
         return bs;
     delete bs;
-    return 0;
+    return nullptr;
 }
 
 QList<Core::Id> VcMakeStepFactory::availableCreationIds(ProjectExplorer::BuildStepList *parent) const

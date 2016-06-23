@@ -74,7 +74,7 @@ void PublishingItem::processNode(const QDomNode &node)
 
 VcNodeWidget *PublishingItem::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode PublishingItem::toXMLDomNode(QDomDocument &domXMLDocument) const

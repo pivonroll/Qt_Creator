@@ -91,12 +91,11 @@ void ConfigurationsWidget::addConfiguration(const QString &configName, QWidget *
 VcNodeWidget *ConfigurationsWidget::configWidget(const QString &configName)
 {
     for (int i = 0; i < ui->m_configurationComboBox->count(); ++i) {
-        QString name = ui->m_configurationComboBox->itemText(i);
         if (ui->m_configurationComboBox->itemText(i) == configName)
             return qobject_cast<VcNodeWidget *>(ui->m_configurationsStackWidget->widget(i));
     }
 
-    return 0;
+    return nullptr;
 }
 
 void ConfigurationsWidget::removeConfiguration(const QString &configNameWithPlatform)

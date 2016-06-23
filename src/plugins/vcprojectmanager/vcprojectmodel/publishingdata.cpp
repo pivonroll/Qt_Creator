@@ -88,7 +88,7 @@ void PublishingData::processNode(const QDomNode &node)
 
 VcNodeWidget *PublishingData::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode PublishingData::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -125,7 +125,7 @@ int PublishingData::publishingItemCount() const
 
 IPublishingItem *PublishingData::publishingItem(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_publishingItems.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_publishingItems.size(), return nullptr);
     return m_publishingItems[index];
 }
 

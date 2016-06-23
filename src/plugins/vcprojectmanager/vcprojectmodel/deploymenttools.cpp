@@ -78,7 +78,7 @@ void DeploymentTools::removeTool(IDeploymentTool *tool)
 
 IDeploymentTool *DeploymentTools::tool(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_deploymentTools.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_deploymentTools.size(), return nullptr);
     return m_deploymentTools[index];
 }
 

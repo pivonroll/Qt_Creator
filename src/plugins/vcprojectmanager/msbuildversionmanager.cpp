@@ -59,14 +59,13 @@ namespace Internal {
     List of available MSBuilds is saved when Qt Creator is closed.
  */
 
-MsBuildVersionManager *MsBuildVersionManager::m_instance = 0;
-
 /*!
     A static method that returns an instance of MsBuildVersionManager.
  */
 MsBuildVersionManager *MsBuildVersionManager::instance()
 {
-    return m_instance;
+    static MsBuildVersionManager instance;
+    return &instance;
 }
 
 /*!
@@ -120,7 +119,7 @@ MsBuildInformation *MsBuildVersionManager::msBuildInformation(Core::Id msBuildID
         if (info->getId() == msBuildID)
             return info;
     }
-    return 0;
+    return nullptr;
 }
 
 /*!
@@ -134,7 +133,7 @@ MsBuildInformation *MsBuildVersionManager::msBuildInformation(MsBuildInformation
         if (info->m_msBuildVersion >= minVersion && info->m_msBuildVersion <= maxVersion)
             return info;
     }
-    return 0;
+    return nullptr;
 }
 
 /*!
@@ -194,7 +193,7 @@ MsBuildInformation *MsBuildVersionManager::createMsBuildInfo(const QString &exec
     MsBuildInformation *newMsBuild = new MsBuildInformation(executablePath, version);
 
     // check if there is already a ms build with the same id, collision detection
-    MsBuildInformation *info = m_instance->msBuildInformation(newMsBuild->getId());
+    MsBuildInformation *info = MsBuildVersionManager::instance()->msBuildInformation(newMsBuild->getId());
     int i = 0;
 
     // if there is a id collision continue to generate id until unique id is created
@@ -203,7 +202,7 @@ MsBuildInformation *MsBuildVersionManager::createMsBuildInfo(const QString &exec
         QString temp = newMsBuild->m_executable + newMsBuild->m_versionString + argument;
         Core::Id newId(temp.toStdString().c_str());
         newMsBuild->setId(newId);
-        info = m_instance->msBuildInformation(newMsBuild->getId());
+        info = MsBuildVersionManager::instance()->msBuildInformation(newMsBuild->getId());
         ++i;
     }
 
@@ -215,7 +214,6 @@ MsBuildInformation *MsBuildVersionManager::createMsBuildInfo(const QString &exec
  */
 MsBuildVersionManager::MsBuildVersionManager()
 {
-    m_instance = this;
     loadSettings();
 }
 

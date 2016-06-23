@@ -55,14 +55,14 @@ AttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(const
         if (descDataItem->key() == attributeKey)
             return descDataItem;
     }
-    return 0;
+    return nullptr;
 }
 
 AttributeDescriptionDataItem *ToolSectionDescription::attributeDescription(int index) const
 {
     if (0 <= index && index <= m_toolAttributeDescs.size())
         return m_toolAttributeDescs[index];
-    return 0;
+    return nullptr;
 }
 
 int ToolSectionDescription::attributeDescriptionCount() const

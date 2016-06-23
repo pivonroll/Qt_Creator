@@ -52,8 +52,8 @@ namespace Internal {
  */
 
 IntegerToolAttributeSettingsItem::IntegerToolAttributeSettingsItem(IToolAttribute *toolAttribute)
-    : m_comboBox(0),
-      m_spinBox(0),
+    : m_comboBox(nullptr),
+      m_spinBox(nullptr),
       m_toolAttribute(toolAttribute)
 {
 

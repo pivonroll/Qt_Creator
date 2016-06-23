@@ -196,7 +196,7 @@ IConfiguration *File::createDefaultBuildConfiguration(const QString &configName,
 {
     Q_UNUSED(configName)
     Q_UNUSED(platformName)
-    return 0;
+    return nullptr;
 }
 
 void File::swap(File &first, File &second)

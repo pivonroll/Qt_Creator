@@ -58,14 +58,14 @@ ToolAttributeOption* processOptionValueAttributes(const QDomNode &node)
             return new ToolAttributeOption(domElement.value(), node.toElement().text());
     }
 
-    return 0;
+    return nullptr;
 }
 
 ToolAttributeOption* processOptionValues(const QDomNode &node)
 {
     QDomNode temp = node;
-    ToolAttributeOption *option = 0;
-    ToolAttributeOption *firstOption = 0;
+    ToolAttributeOption *option = nullptr;
+    ToolAttributeOption *firstOption = nullptr;
 
     while (!temp.isNull()) {
         ToolAttributeOption *newOption = processOptionValueAttributes(temp);
@@ -83,11 +83,10 @@ ToolAttributeOption* processOptionValues(const QDomNode &node)
 }
 } // unnamed namespace
 
-ToolDescriptionDataManager* ToolDescriptionDataManager::m_instance = 0;
-
 ToolDescriptionDataManager *ToolDescriptionDataManager::instance()
 {
-    return m_instance;
+    static ToolDescriptionDataManager instance;
+    return &instance;
 }
 
 void ToolDescriptionDataManager::readToolXMLFiles()
@@ -113,7 +112,7 @@ ToolDescription *ToolDescriptionDataManager::toolDescription(int index) const
 {
     if (0 <= index && index < m_toolDescriptions.size())
         return m_toolDescriptions[index];
-    return 0;
+    return nullptr;
 }
 
 ToolDescription *ToolDescriptionDataManager::toolDescription(const QString &toolKey) const
@@ -123,7 +122,7 @@ ToolDescription *ToolDescriptionDataManager::toolDescription(const QString &tool
             return toolDesc;
     }
 
-    return 0;
+    return nullptr;
 }
 
 ToolInfo ToolDescriptionDataManager::readToolInfo(const QString &filePath, QString *errorMsg, int *errorLine, int *errorColumn)
@@ -443,7 +442,7 @@ ToolDescription *ToolDescriptionDataManager::readToolDescription(const QDomNode 
         tempNode = tempNode.nextSibling();
 
     if (tempNode.isNull())
-        return 0;
+        return nullptr;
 
     ToolDescription *toolDesc = new ToolDescription();
     QDomNamedNodeMap namedNodeMap = tempNode.attributes();

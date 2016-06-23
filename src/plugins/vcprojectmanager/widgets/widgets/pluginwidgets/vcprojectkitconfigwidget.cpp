@@ -86,7 +86,7 @@ QWidget *VcProjectKitConfigWidget::mainWidget() const
 
 QWidget *VcProjectKitConfigWidget::buttonWidget() const
 {
-    return 0;
+    return nullptr;
 }
 
 void VcProjectKitConfigWidget::currentMsBuildChanged(int index)

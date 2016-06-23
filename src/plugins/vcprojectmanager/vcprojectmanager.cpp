@@ -65,7 +65,7 @@ ProjectExplorer::Project *VcProjectManager::openProject(const QString &fileName,
         if (errorString)
             *errorString = tr("Failed opening project '%1': Project file does not exist").
                 arg(QDir::toNativeSeparators(fileName));
-        return 0;
+        return nullptr;
     }
 
     // check if project is a valid vc project
@@ -81,7 +81,7 @@ ProjectExplorer::Project *VcProjectManager::openProject(const QString &fileName,
     if (errorString)
         *errorString = tr("Could not open project %1").arg(fileName);
 
-    return 0;
+    return nullptr;
 }
 
 

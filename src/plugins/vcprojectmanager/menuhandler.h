@@ -64,7 +64,6 @@ private slots:
     void onShowFileSettings();
 
 private:
-    static MenuHandler *m_instance;
     QAction *m_projectProperties;
     QAction *m_addFilter;
     QAction *m_removeFilter;

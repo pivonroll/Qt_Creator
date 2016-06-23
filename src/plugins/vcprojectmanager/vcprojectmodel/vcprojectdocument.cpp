@@ -315,7 +315,7 @@ IConfiguration *VcProjectDocument::createDefaultBuildConfiguration(const QString
 
 IProjectFactories *VcProjectDocument::projectFactories() const
 {
-    return 0;
+    return nullptr;
 }
 
 IVisualStudioProject *VcProjectDocument::clone() const

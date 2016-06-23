@@ -17,7 +17,7 @@ IFile *FileFactory::createFile(const QString &relativeFilePath, ProjectExplorer:
 {
     Q_UNUSED(fileType)
 
-    QTC_ASSERT(m_project != nullptr, return 0);
+    QTC_ASSERT(m_project != nullptr, return nullptr);
     File *newFile = new File(m_project);
     newFile->setRelativePath(relativeFilePath);
     return newFile;
@@ -27,7 +27,7 @@ IFileContainer *FileFactory::createFileContainer(const QString &containerPath, c
 {
     Q_UNUSED(containerPath)
     Q_UNUSED(containerType)
-    return 0;
+    return nullptr;
 }
 
 } // namespace Internal

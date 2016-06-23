@@ -36,7 +36,6 @@ namespace Internal {
 
 VisualStudioSolutionManager::VisualStudioSolutionManager()
 {
-
 }
 
 QString VisualStudioSolutionManager::mimeType() const

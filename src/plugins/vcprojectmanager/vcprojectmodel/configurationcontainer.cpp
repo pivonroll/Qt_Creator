@@ -85,14 +85,14 @@ IConfiguration *ConfigurationContainer::configuration(const QString &fullName) c
         if (config->fullName() == fullName)
             return config;
     }
-    return 0;
+    return nullptr;
 }
 
 IConfiguration *ConfigurationContainer::configuration(int index) const
 {
     if (0 <= index && index < m_configs.size())
         return m_configs[index];
-    return 0;
+    return nullptr;
 }
 
 int ConfigurationContainer::configurationCount() const
@@ -123,7 +123,7 @@ IConfiguration *ConfigurationContainer::createNewConfiguration(const QString &co
 {
     Q_UNUSED(configDisplayName)
     Q_UNUSED(platformName)
-    return 0;
+    return nullptr;
 }
 
 IConfigurationContainer *ConfigurationContainer::clone() const

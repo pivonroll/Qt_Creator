@@ -78,7 +78,7 @@ void Platforms::processNode(const QDomNode &node)
 
 VcNodeWidget *Platforms::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode Platforms::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -110,7 +110,7 @@ int Platforms::platformCount() const
 
 IPlatform *Platforms::platform(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_platforms.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_platforms.size(), return nullptr);
     return m_platforms[index];
 }
 

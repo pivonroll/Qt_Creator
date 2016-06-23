@@ -82,7 +82,7 @@ void FileContainer::processNode(const QDomNode &node)
 
 VcNodeWidget *FileContainer::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode FileContainer::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -186,7 +186,7 @@ void FileContainer::removeFile(IFile *file)
 
 IFile *FileContainer::file(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_files.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_files.size(), return nullptr);
     return m_files[index];
 }
 
@@ -221,7 +221,7 @@ int FileContainer::childCount() const
 
 IFileContainer *FileContainer::fileContainer(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_fileContainers.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_fileContainers.size(), return nullptr);
     return m_fileContainers[index];
 }
 

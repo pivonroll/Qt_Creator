@@ -33,7 +33,7 @@ namespace VcProjectManager {
 namespace Internal {
 
 ToolAttributeOption::ToolAttributeOption()
-    : m_nextOption(0),
+    : m_nextOption(nullptr),
       m_isNull(true)
 {
 }
@@ -41,7 +41,7 @@ ToolAttributeOption::ToolAttributeOption()
 ToolAttributeOption::ToolAttributeOption(const QString &description, const QString &value)
     : m_description(description),
       m_value(value),
-      m_nextOption(0),
+      m_nextOption(nullptr),
       m_isNull(false)
 {
 }

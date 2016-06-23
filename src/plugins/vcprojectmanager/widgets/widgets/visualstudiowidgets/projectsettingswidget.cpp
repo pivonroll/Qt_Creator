@@ -108,7 +108,7 @@ QWidget *ProjectSettingsWidget::widget(const QString &name)
             return m_stackedWidgets->widget(i);
     }
 
-    return 0;
+    return nullptr;
 }
 
 } // namespace Internal

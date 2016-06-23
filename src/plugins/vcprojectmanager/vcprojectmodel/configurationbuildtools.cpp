@@ -90,12 +90,12 @@ IConfigurationBuildTool *ConfigurationBuildTools::tool(const QString &toolKey) c
             return toolPtr;
     }
 
-    return 0;
+    return nullptr;
 }
 
 IConfigurationBuildTool *ConfigurationBuildTools::tool(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_tools.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_tools.size(), return nullptr);
     return m_tools[index];
 }
 

@@ -73,7 +73,7 @@ void DebuggerTool::processNode(const QDomNode &node)
 
 VcNodeWidget *DebuggerTool::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode DebuggerTool::toXMLDomNode(QDomDocument &domXMLDocument) const

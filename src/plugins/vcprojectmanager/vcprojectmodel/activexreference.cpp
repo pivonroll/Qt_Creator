@@ -114,7 +114,7 @@ void ActiveXReference::processNodeAttributes(const QDomElement &element)
 VcNodeWidget *ActiveXReference::createSettingsWidget()
 {
     // TODO(Radovan): Finish implementation
-    return 0;
+    return nullptr;
 }
 
 QDomNode ActiveXReference::toXMLDomNode(QDomDocument &domXMLDocument) const

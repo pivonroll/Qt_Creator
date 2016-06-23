@@ -61,7 +61,7 @@ FileConfigurationSettingsWidget::FileConfigurationSettingsWidget(IConfiguration 
     VcNodeWidget(parent),
     ui(new Ui::FileConfigurationSettingsWidget),
     m_fileBuildConfig(fileBuildConfig),
-    m_toolSettingsWidget(0),
+    m_toolSettingsWidget(nullptr),
     m_parentProjectDoc(parentProjectDoc)
 {
     ui->setupUi(this);
@@ -154,7 +154,7 @@ void FileConfigurationSettingsWidget::changeTool(int index)
         // flush data in order to save them
         m_toolSettingsWidget->saveData();
         m_toolSettingsWidget->deleteLater();
-        m_toolSettingsWidget = 0;
+        m_toolSettingsWidget = nullptr;
     }
 
     // add settings widget for the selected tool

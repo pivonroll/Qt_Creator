@@ -75,7 +75,7 @@ void DefaultToolFile::processNode(const QDomNode &node)
 
 VcNodeWidget *DefaultToolFile::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode DefaultToolFile::toXMLDomNode(QDomDocument &domXMLDocument) const

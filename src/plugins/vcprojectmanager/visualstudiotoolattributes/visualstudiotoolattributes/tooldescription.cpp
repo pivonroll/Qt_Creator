@@ -51,7 +51,7 @@ ToolDescription::~ToolDescription()
 
 ToolSectionDescription *ToolDescription::sectionDescription(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_sectionDescriptions.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_sectionDescriptions.size(), return nullptr);
     return m_sectionDescriptions[index];
 }
 

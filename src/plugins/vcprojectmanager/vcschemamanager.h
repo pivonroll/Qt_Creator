@@ -70,7 +70,6 @@ private:
     void loadSettings();
     bool similarToolXMLExistsFor(const QString &filePath);
 
-    static VcSchemaManager *m_instance;
     QMap<Constants::SchemaVersion, QString> m_documentSchemas;
     QString m_toolSchema;
     QHash<QString, QString> m_toolXMLPaths; //<tool_key, tool_xml_file_path>

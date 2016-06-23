@@ -89,7 +89,7 @@ void AssemblyReference::processNode(const QDomNode &node)
 
 VcNodeWidget *AssemblyReference::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode AssemblyReference::toXMLDomNode(QDomDocument &domXMLDocument) const

@@ -104,7 +104,7 @@ void VcProjectKitInformation::fix(ProjectExplorer::Kit *k)
 
     qWarning("Ms Build is no longer known, removing from kit \"%s\".",
              qPrintable(k->displayName()));
-    setMsBuild(k, 0); // make sure to clear out no longer known Ms Builds
+    setMsBuild(k, nullptr); // make sure to clear out no longer known Ms Builds
 }
 
 void VcProjectKitInformation::setup(ProjectExplorer::Kit *k)
@@ -143,7 +143,7 @@ ProjectExplorer::KitConfigWidget *VcProjectKitInformation::createConfigWidget(Pr
 MsBuildInformation *VcProjectKitInformation::msBuildInfo(const ProjectExplorer::Kit *k)
 {
     if (!k)
-        return 0;
+        return nullptr;
 
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
     return msBVM->msBuildInformation(Core::Id::fromSetting(k->value(Core::Id(Constants::VC_PROJECT_KIT_INFO_ID))));

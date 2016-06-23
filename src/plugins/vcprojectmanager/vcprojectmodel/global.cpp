@@ -71,7 +71,7 @@ void Global::processNode(const QDomNode &node)
 
 VcNodeWidget *Global::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode Global::toXMLDomNode(QDomDocument &domXMLDocument) const

@@ -82,7 +82,7 @@ void ToolFiles::processNode(const QDomNode &node)
 
 VcNodeWidget *ToolFiles::createSettingsWidget()
 {
-    return 0;
+    return nullptr;
 }
 
 QDomNode ToolFiles::toXMLDomNode(QDomDocument &domXMLDocument) const
@@ -109,7 +109,7 @@ int ToolFiles::toolFileCount() const
 
 IToolFile *ToolFiles::toolFile(int index) const
 {
-    QTC_ASSERT(0 <= index && index < m_toolFiles.size(), return 0);
+    QTC_ASSERT(0 <= index && index < m_toolFiles.size(), return nullptr);
     return m_toolFiles[index];
 }
 
