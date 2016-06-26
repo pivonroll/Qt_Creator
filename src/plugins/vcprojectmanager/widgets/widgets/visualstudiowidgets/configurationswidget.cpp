@@ -162,8 +162,8 @@ void ConfigurationsWidget::onRenameConfig()
 
     if (dlg.exec() == QDialog::Accepted &&
             !ui->m_configurationComboBox->currentText().isEmpty() &&
-            ui->m_configurationComboBox->currentText() != dlg.contanerName())
-        emit renameConfigSignal(dlg.contanerName(), ui->m_configurationComboBox->currentText());
+            ui->m_configurationComboBox->currentText() != dlg.containerName())
+        emit renameConfigSignal(dlg.containerName(), ui->m_configurationComboBox->currentText());
 }
 
 void ConfigurationsWidget::onRemoveConfig()

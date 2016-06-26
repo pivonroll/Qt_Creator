@@ -47,7 +47,7 @@ public:
     explicit VcEnterNameDialog(const QString &containerType, QWidget *parent = 0);
     ~VcEnterNameDialog();
 
-    QString contanerName() const;
+    QString containerName() const;
     void setContainerName(const QString &name);
 
 private slots:

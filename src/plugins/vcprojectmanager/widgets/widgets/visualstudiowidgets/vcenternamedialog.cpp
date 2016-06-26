@@ -57,7 +57,7 @@ VcEnterNameDialog::~VcEnterNameDialog()
 /*!
  * \return a name entered in the dialog's edit line.
  */
-QString VcEnterNameDialog::contanerName() const
+QString VcEnterNameDialog::containerName() const
 {
     return ui->m_containerName->text();
 }

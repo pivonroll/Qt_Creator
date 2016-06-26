@@ -198,11 +198,10 @@ void MenuHandler::onAddFolder()
     VcEnterNameDialog dlg(QLatin1String("Folder:"));
 
     if (dlg.exec() == QDialog::Accepted) {
-        QString folderName = dlg.contanerName();
+        QString folderName = dlg.containerName();
         ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-        if (!node)
-            return;
+        QTC_ASSERT(node, return);
 
         if (node->nodeType() == ProjectExplorer::FolderNodeType) {
             VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
@@ -224,11 +223,10 @@ void MenuHandler::onAddFilter()
     VcEnterNameDialog dlg(QLatin1String("Filter:"));
 
     if (dlg.exec() == QDialog::Accepted) {
-        QString filterName = dlg.contanerName();
+        QString filterName = dlg.containerName();
         ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-        if (!node)
-            return;
+        QTC_ASSERT(node, return);
 
         if (node->nodeType() == ProjectExplorer::FolderNodeType) {
             VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
