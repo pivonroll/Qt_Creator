@@ -224,7 +224,7 @@ void ConfigurationContainerX::removeConfigurationFromProject(const QString &full
     ConfigurationX *config = findConfiguration(fullName);
 
     VS_DEBUG_ASSERT_ACTION(config != nullptr,
-                           QLatin1String("Configuration with name: ") + fullname + QLatin1String(" does not exist"),
+                           QLatin1String("Configuration with name: ") + fullName + QLatin1String(" does not exist"),
                            return);
 
     QStringList clist = fullName.split(QLatin1Char('|'));

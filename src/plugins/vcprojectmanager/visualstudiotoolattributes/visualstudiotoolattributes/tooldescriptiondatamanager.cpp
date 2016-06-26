@@ -170,7 +170,6 @@ ToolInfo ToolDescriptionDataManager::readToolInfo(const QString &filePath, QStri
 
 ToolDescriptionDataManager::ToolDescriptionDataManager()
 {
-    m_instance = this;
     readToolXMLFiles();
 }
 

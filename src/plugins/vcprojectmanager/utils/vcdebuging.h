@@ -23,4 +23,5 @@
 #define VS_DEBUG_ASSERT(cond, message) if (cond) {} else { VS_DEBUG_PRINT(QString::fromLatin1("\"" #cond "\"") + QLatin1String(" - ") + message); } do {} while (0)
 #define VS_DEBUG_ASSERT_ACTION(cond, message, action) if (cond) {} else { VS_DEBUG_PRINT(QString::fromLatin1("\"" #cond "\"") + QLatin1String(" - ") + message); action; } do {} while (0)
 
+#define FILE_EXISTS_ASSERT(canonicalFilePath) QTC_ASSERT(QFileInfo((canonicalFilePath)).exists(), (qDebug() << QLatin1String("File does not exist: ") + canonicalFilePath));
 

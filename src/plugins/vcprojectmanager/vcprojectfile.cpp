@@ -34,6 +34,7 @@
 #include "vcprojectmodel/vcprojectdocument.h"
 
 #include "utils.h"
+#include <vcdebuging.h>
 
 #include <QFileInfo>
 

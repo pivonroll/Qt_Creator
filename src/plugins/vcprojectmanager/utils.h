@@ -36,13 +36,9 @@
 #include <utils/fileutils.h>
 #include <utils/qtcassert.h>
 #include <QString>
-#include <QFileInfo>
-#include <QDebug>
 
 namespace VcProjectManager {
 namespace Internal {
-
-#define FILE_EXISTS_ASSERT(canonicalFilePath) QTC_ASSERT(QFileInfo((canonicalFilePath)).exists(), (qDebug() << QLatin1String("File does not exist: ") + canonicalFilePath));
 
 class IConfiguration;
 class IConfigurationBuildTool;
