@@ -35,6 +35,7 @@
 
 #include <projectexplorer/projectexplorerconstants.h>
 
+#include <vcdebuging.h>
 #include <utils/qtcassert.h>
 
 namespace VcProjectManager {
@@ -50,7 +51,6 @@ namespace Internal {
 VcProjectKitInformation::VcProjectKitInformation()
 {
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
-
     connect(msBVM, &MsBuildVersionManager::msBuildRemoved, this, &VcProjectKitInformation::onMSBuildRemoved);
     connect(msBVM, &MsBuildVersionManager::msBuildReplaced, this, &VcProjectKitInformation::onMSBuildReplaced);
 }
@@ -102,8 +102,7 @@ void VcProjectKitInformation::fix(ProjectExplorer::Kit *k)
     if (msBuildInfo(k))
         return;
 
-    qWarning("Ms Build is no longer known, removing from kit \"%s\".",
-             qPrintable(k->displayName()));
+    VS_DEBUG_PRINT("Ms Build is no longer known, removing from kit: " + qPrintable(k->displayName()));
     setMsBuild(k, nullptr); // make sure to clear out no longer known Ms Builds
 }
 
@@ -142,8 +141,7 @@ ProjectExplorer::KitConfigWidget *VcProjectKitInformation::createConfigWidget(Pr
  */
 MsBuildInformation *VcProjectKitInformation::msBuildInfo(const ProjectExplorer::Kit *k)
 {
-    if (!k)
-        return nullptr;
+    QTC_ASSERT(k, return nullptr);
 
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
     return msBVM->msBuildInformation(Core::Id::fromSetting(k->value(Core::Id(Constants::VC_PROJECT_KIT_INFO_ID))));
@@ -155,6 +153,7 @@ MsBuildInformation *VcProjectKitInformation::msBuildInfo(const ProjectExplorer::
  */
 void VcProjectKitInformation::setMsBuild(ProjectExplorer::Kit *k, MsBuildInformation *msBuild)
 {
+    QTC_ASSERT(k, return);
     k->setValue(Core::Id(Constants::VC_PROJECT_KIT_INFO_ID), msBuild ? msBuild->getId().toSetting() : QVariant());
 }
 

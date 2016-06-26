@@ -173,8 +173,7 @@ void VcXProject::updateCodeModels()
                 for (int i = 0; i < configTool->sectionContainer()->sectionCount(); ++i) {
                     IToolSection *toolSection = configTool->sectionContainer()->section(i);
 
-                    if (!toolSection)
-                        continue;
+                    QTC_ASSERT(toolSection, continue);
 
                     IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(QLatin1String("PreprocessorDefinitions"));
 

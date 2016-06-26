@@ -69,11 +69,9 @@ namespace VisualStudioUtils {
  */
 bool checkIfVersion2003(const QString &filePath)
 {
-    VcSchemaManager *schemaMgr = VcSchemaManager::instance();
-    QString vc2003Schema = schemaMgr->documentSchema(Constants::SV_2003);
+    QString vc2003Schema = VcSchemaManager::instance()->documentSchema(Constants::SV_2003);
 
-    if (vc2003Schema.isEmpty())
-        return false;
+    QTC_ASSERT(!vc2003Schema.isEmpty(), return false);
 
     QFile schemaFile(vc2003Schema);
     schemaFile.open(QIODevice::ReadOnly);
@@ -99,10 +97,9 @@ bool checkIfVersion2003(const QString &filePath)
  */
 bool checkIfVersion2005(const QString &filePath)
 {
-    VcSchemaManager *schemaMgr = VcSchemaManager::instance();
-    QString vc2005Schema = schemaMgr->documentSchema(Constants::SV_2005);
-    if (vc2005Schema.isEmpty())
-        return false;
+    QString vc2005Schema = VcSchemaManager::instance()->documentSchema(Constants::SV_2005);
+
+    QTC_ASSERT(!vc2005Schema.isEmpty(), return false);
 
     QFile schemaFile(vc2005Schema);
     schemaFile.open(QIODevice::ReadOnly);
@@ -128,10 +125,9 @@ bool checkIfVersion2005(const QString &filePath)
  */
 bool checkIfVersion2008(const QString &filePath)
 {
-    VcSchemaManager *schemaMgr = VcSchemaManager::instance();
-    QString vc2008Schema = schemaMgr->documentSchema(Constants::SV_2008);
-    if (vc2008Schema.isEmpty())
-        return false;
+    QString vc2008Schema = VcSchemaManager::instance()->documentSchema(Constants::SV_2008);
+
+    QTC_ASSERT(!vc2008Schema.isEmpty(), return false);
 
     QFile schemaFile(vc2008Schema);
     schemaFile.open(QIODevice::ReadOnly);

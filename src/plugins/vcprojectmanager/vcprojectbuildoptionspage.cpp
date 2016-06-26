@@ -36,6 +36,8 @@
 
 #include <projectexplorer/projectexplorerconstants.h>
 
+#include <utils/qtcassert.h>
+
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -236,10 +238,9 @@ bool VcProjectBuildOptionsWidget::hasAnyBuilds() const
  */
 void VcProjectBuildOptionsWidget::insertMSBuild(MsBuildInformation *msBuild)
 {
-    if (msBuild) {
-        insertMsBuildIntoTable(msBuild);
-        m_newMsBuilds.append(msBuild);
-    }
+    QTC_ASSERT(msBuild, return);
+    insertMsBuildIntoTable(msBuild);
+    m_newMsBuilds.append(msBuild);
 }
 
 /*!
@@ -293,9 +294,7 @@ void VcProjectBuildOptionsWidget::replaceMsBuild(Core::Id msBuildId, MsBuildInfo
     if (msBVM->msBuildInformation(msBuildId)) {
         m_removedMsBuilds.append(msBuildId);
         m_newMsBuilds.append(newMsBuild);
-    }
-
-    else {
+    } else {
         m_newMsBuilds.append(newMsBuild);
         foreach (MsBuildInformation *info, m_newMsBuilds) {
             if (info->getId() == msBuildId) {
@@ -355,8 +354,8 @@ void VcProjectBuildOptionsWidget::onMsBuildAdded(Core::Id msBuildId)
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
     MsBuildInformation *msBuild = msBVM->msBuildInformation(msBuildId);
 
-    if (msBuild)
-        insertMsBuildIntoTable(msBuild);
+    QTC_ASSERT(msBuild, return);
+    insertMsBuildIntoTable(msBuild);
 }
 
 /*!
@@ -497,8 +496,8 @@ void VcProjectBuildOptionsPage::finish()
  */
 void VcProjectBuildOptionsPage::saveSettings()
 {
-    if (m_optionsWidget)
-        m_optionsWidget->saveSettings();
+    QTC_ASSERT(m_optionsWidget, return);
+    m_optionsWidget->saveSettings();
 }
 
 /*!
@@ -506,8 +505,7 @@ void VcProjectBuildOptionsPage::saveSettings()
  */
 void VcProjectBuildOptionsPage::startVersionCheck()
 {
-    if (m_validator.m_executable.isEmpty())
-        return;
+    QTC_ASSERT(!m_validator.m_executable.isEmpty(), return);
 
     m_validator.m_process = new QProcess();
     connect(m_validator.m_process, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(versionCheckFinished()));
@@ -524,8 +522,7 @@ void VcProjectBuildOptionsPage::addNewMsBuild()
 {
     QString newMsBuild = QFileDialog::getOpenFileName(nullptr, tr("Select Ms Build"), QString(), QLatin1String("*.exe"));
 
-    if (!m_optionsWidget || newMsBuild.isEmpty())
-        return;
+    QTC_ASSERT(m_optionsWidget && !newMsBuild.isEmpty(), return);
 
     if (m_optionsWidget->exists(newMsBuild)) {
         QMessageBox::information(nullptr, tr("Ms Build already present"), tr("Selected MSBuild.exe is already present in the list."));
@@ -544,8 +541,7 @@ void VcProjectBuildOptionsPage::addNewMsBuild()
  */
 void VcProjectBuildOptionsPage::editMsBuild()
 {
-    if (!m_optionsWidget)
-        return;
+    QTC_ASSERT(m_optionsWidget, return);
 
     MsBuildVersionManager *msBVM = MsBuildVersionManager::instance();
     MsBuildInformation *currentSelectedMsBuild = msBVM->msBuildInformation(m_optionsWidget->currentSelectedBuildId());
@@ -584,8 +580,7 @@ void VcProjectBuildOptionsPage::deleteMsBuild()
  */
 void VcProjectBuildOptionsPage::versionCheckFinished()
 {
-    if (!m_validator.m_process)
-        return;
+    QTC_ASSERT(m_validator.m_process, return);
 
     QString response = QVariant(m_validator.m_process->readAll()).toString();
     QStringList splitData = response.split(QLatin1Char('\n'));

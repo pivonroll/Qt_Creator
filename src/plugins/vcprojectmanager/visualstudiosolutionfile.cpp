@@ -59,9 +59,8 @@ VisualStudioSolutionFile::VisualStudioSolutionFile(const QString &filePath)
         Utils::MimeType projectMimeType = mdb.mimeTypeForFile(fullProjectPath);
         IVisualStudioProject *newProject = nullptr;
 
-        if (projectMimeType.matchesName(QLatin1String(Constants::VC_X_PROJ_MIMETYPE))) {
-            if(QFileInfo(fullProjectPath).exists())
-                newProject = new VcProjectDocumentX(fullProjectPath);
+        if (projectMimeType.matchesName(QLatin1String(Constants::VC_X_PROJ_MIMETYPE)) && QFileInfo(fullProjectPath).exists()) {
+            newProject = new VcProjectDocumentX(fullProjectPath);
         }
         else if (projectMimeType.matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE))) {
             // function getProjectVersion will only return DV_MSVC_2003, DV_MSVC_2005 or DV_MSVC_2008,

@@ -282,9 +282,7 @@ VcProjectBuildConfiguration *VcProjectBuildConfigurationFactory::restore(Project
  */
 bool VcProjectBuildConfigurationFactory::canHandle(const ProjectExplorer::Target *t) const
 {
-    QTC_ASSERT(t, return false);
-    if (!t->project()->supportsKit(t->kit()))
-        return false;
+    QTC_ASSERT(t || t->project()->supportsKit(t->kit()), return false);
     return qobject_cast<VcProject *>(t->project());
 }
 

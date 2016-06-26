@@ -38,6 +38,7 @@
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>
 
+#include <utils/qtcassert.h>
 #include <QFormLayout>
 #include <QLabel>
 
@@ -109,10 +110,10 @@ namespace VcProjectManager {
 namespace Internal {
 
 namespace {
-const char MS_ID[] = "VcProjectManager.MakeStep";
-const char CLEAN_KEY[] = "VcProjectManager.MakeStep.Clean";
-const char BUILD_TARGETS_KEY[] = "VcProjectManager.MakeStep.BuildTargets";
-const char ADDITIONAL_ARGUMENTS_KEY[] = "VcProjectManager.MakeStep.AdditionalArguments";
+const char MS_ID[] = "VisualStudioProjectManager.MakeStep";
+const char CLEAN_KEY[] = "VisualStudioProjectManager.MakeStep.Clean";
+const char BUILD_TARGETS_KEY[] = "VisualStudioProjectManager.MakeStep.BuildTargets";
+const char ADDITIONAL_ARGUMENTS_KEY[] = "VisualStudioProjectManager.MakeStep.AdditionalArguments";
 }
 
 /*!
@@ -209,8 +210,7 @@ QString VcMakeStep::buildArgumentsToString() const
  */
 void VcMakeStep::addBuildArgument(const QString &argument)
 {
-    if (m_buildArguments.contains(argument))
-        return;
+    QTC_ASSERT(!m_buildArguments.contains(argument), return);
     m_buildArguments.append(argument);
 }
 
@@ -276,9 +276,7 @@ VcMakeStepConfigWidget::VcMakeStepConfigWidget(VcMakeStep *makeStep) :
 
     MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(m_makeStep->target()->kit());
 
-    if (m_makeStep)
-        m_msBuildPath->setText(msBuild->m_executable);
-
+    m_msBuildPath->setText(msBuild->m_executable);
     connect(m_makeStep->target(), &ProjectExplorer::Target::kitChanged, this, &VcMakeStepConfigWidget::msBuildUpdated);
 }
 
@@ -310,7 +308,6 @@ void VcMakeStepConfigWidget::msBuildUpdated()
 
         if (info)
             m_msBuildPath->setText(info->m_executable);
-
         else
             m_msBuildPath->setText(tr("<MS Build not available>"));
     }
@@ -375,7 +372,8 @@ ProjectExplorer::BuildStep *VcMakeStepFactory::restore(ProjectExplorer::BuildSte
 QList<Core::Id> VcMakeStepFactory::availableCreationIds(ProjectExplorer::BuildStepList *parent) const
 {
     if (parent->target() && parent->target()->project() &&
-            (parent->target()->project()->id() == Constants::VC_PROJECT_ID || parent->target()->project()->id() == Constants::VC_PROJECT_2005_ID))
+            (parent->target()->project()->id() == Constants::VC_PROJECT_ID ||
+             parent->target()->project()->id() == Constants::VC_PROJECT_2005_ID))
             return QList<Core::Id>() << Core::Id(MS_ID);
 
     return QList<Core::Id>();

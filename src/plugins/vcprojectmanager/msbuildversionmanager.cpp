@@ -30,6 +30,7 @@
 #include "msbuildversionmanager.h"
 #include "vcprojectmanagerconstants.h"
 
+#include <utils/qtcassert.h>
 #include <coreplugin/icore.h>
 
 namespace VcProjectManager {
@@ -87,8 +88,7 @@ MsBuildVersionManager::~MsBuildVersionManager()
  */
 bool MsBuildVersionManager::addMsBuildInformation(MsBuildInformation *msBuildInfo)
 {
-    if (!msBuildInfo)
-        return false;
+    QTC_ASSERT(msBuildInfo, return false);
 
     foreach (MsBuildInformation *info, m_msBuildInfos) {
         if (info->m_executable == msBuildInfo->m_executable)
@@ -161,12 +161,11 @@ void MsBuildVersionManager::replace(Core::Id targetMsBuild, MsBuildInformation *
 {
     MsBuildInformation *oldMsBuild = msBuildInformation(targetMsBuild);
 
-    if (oldMsBuild) {
-        int index = m_msBuildInfos.indexOf(oldMsBuild);
-        m_msBuildInfos.replace(index, newMsBuild);
-        delete oldMsBuild;
-        emit msBuildReplaced(targetMsBuild, newMsBuild->getId());
-    }
+    QTC_ASSERT(oldMsBuild, return);
+    int index = m_msBuildInfos.indexOf(oldMsBuild);
+    m_msBuildInfos.replace(index, newMsBuild);
+    delete oldMsBuild;
+    emit msBuildReplaced(targetMsBuild, newMsBuild->getId());
 }
 
 /*!

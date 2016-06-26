@@ -105,9 +105,8 @@ VcProject::~VcProject()
 
 QString VcProject::displayName() const
 {
-    if (m_rootNode)
-        return m_rootNode->displayName();
-    return QString();
+    QTC_ASSERT(m_rootNode, return QString());
+    return m_rootNode->displayName();
 }
 
 Core::IDocument *VcProject::document() const
@@ -144,12 +143,12 @@ bool VcProject::needsConfiguration() const
 bool VcProject::supportsKit(ProjectExplorer::Kit *k, QString *errorMessage) const
 {
     VCProjKitMatcher matcher;
-    if (!matcher.matches(k)) {
-        if (errorMessage)
-            *errorMessage = tr("Kit toolchain does not support MSVC 2003, 2005 or 2008 ABI");
-        return false;
-    }
-    return true;
+
+    QTC_ASSERT(matcher.matches(k), return true);
+
+    if (errorMessage)
+        *errorMessage = tr("Kit toolchain does not support MSVC 2003, 2005 or 2008 ABI");
+    return false;
 }
 
 void VcProject::reloadProjectNodes()
@@ -182,34 +181,32 @@ void VcProject::onSettingsDialogAccepted()
     m_projectFile->visualStudioProject()->saveToFile(m_projectFile->filePath().toString());
     IConfigurations *configs = m_projectFile->visualStudioProject()->configurations();
 
-    if (!configs)
-        return;
+    QTC_ASSERT(configs, return);
 
     QList<ProjectExplorer::Target *> targetList = targets();
 
     // remove all deleted configurations
     foreach (ProjectExplorer::Target *target, targetList) {
-        if (!target)
-            continue;
+        QTC_ASSERT(target, continue);
+
         QList<ProjectExplorer::BuildConfiguration *> buildConfigurationList = target->buildConfigurations();
 
         foreach (ProjectExplorer::BuildConfiguration *bc, buildConfigurationList) {
             VcProjectBuildConfiguration *vcProjectBuildConfiguration = qobject_cast<VcProjectBuildConfiguration *>(bc);
-            if (!vcProjectBuildConfiguration)
-                continue;
+
+            QTC_ASSERT(vcProjectBuildConfiguration, continue);
+
             IConfiguration *lookFor = configs->configurationContainer()->configuration(vcProjectBuildConfiguration->displayName());
             if (!lookFor)
                 target->removeBuildConfiguration(vcProjectBuildConfiguration);
-
         }
     }
 
     // add all new build configurations
     foreach (ProjectExplorer::Target *target, targetList) {
-        if (target) {
-            target->updateDefaultBuildConfigurations();
-            target->updateDefaultDeployConfigurations();
-        }
+        QTC_ASSERT(target, continue);
+        target->updateDefaultBuildConfigurations();
+        target->updateDefaultDeployConfigurations();
     }
 }
 
@@ -276,8 +273,7 @@ void VcProject::updateCodeModels()
                 for (int i = 0; i < configTool->sectionContainer()->sectionCount(); ++i) {
                     IToolSection *toolSection = configTool->sectionContainer()->section(i);
 
-                    if (!toolSection)
-                        continue;
+                    QTC_ASSERT(toolSection, continue);
 
                     IToolAttribute *toolAttr = toolSection->attributeContainer()->toolAttribute(QLatin1String("PreprocessorDefinitions"));
 
@@ -342,14 +338,12 @@ void VcProject::allProjectFile(QStringList &allFiles) const
     if (m_projectFile && m_projectFile->visualStudioProject()) {
         for (int i = 0; i < m_projectFile->visualStudioProject()->files()->fileContainerCount(); ++i) {
             IFileContainer *fileContainer = m_projectFile->visualStudioProject()->files()->fileContainer(i);
-            if (fileContainer)
-                fileContainer->allFiles(allFiles);
+            fileContainer->allFiles(allFiles);
         }
 
         for (int i = 0; i < m_projectFile->visualStudioProject()->files()->fileCount(); ++i) {
             IFile *file = m_projectFile->visualStudioProject()->files()->file(i);
-            if (file)
-                allFiles.append(file->canonicalPath());
+            allFiles.append(file->canonicalPath());
         }
     }
 }

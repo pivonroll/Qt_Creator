@@ -88,8 +88,6 @@ bool VcProjectFile::reload(QString *errorString, Core::IDocument::ReloadFlag fla
     Q_UNUSED(errorString);
     Q_UNUSED(flag);
     Q_UNUSED(type);
-
-    // TODO: what's this for?
     return false;
 }
 
@@ -100,9 +98,8 @@ bool VcProjectFile::reload(QString *errorString, Core::IDocument::ReloadFlag fla
  */
 VcDocProjectNode *VcProjectFile::createProjectNode()
 {
-    if (m_documentModel)
-        return new VcDocProjectNode(this);
-    return nullptr;
+    QTC_ASSERT(m_documentModel, return nullptr);
+    return new VcDocProjectNode(this);
 }
 
 /*!
@@ -130,21 +127,21 @@ void VcProjectFile::showSettingsDialog()
     m_tempModel = m_documentModel->clone();
     VcNodeWidget *settingsWidget = m_tempModel->createSettingsWidget();
 
-    if (settingsWidget) {
-        connect(settingsWidget, &VcNodeWidget::accepted, this, &VcProjectFile::onSettingsDialogAccepted);
-        connect(settingsWidget, &VcNodeWidget::cancelled, this, &VcProjectFile::onSettingDislogCancelled);
-        settingsWidget->show();
-    }
+    QTC_ASSERT(settingsWidget, return);
+    connect(settingsWidget, &VcNodeWidget::accepted, this, &VcProjectFile::onSettingsDialogAccepted);
+    connect(settingsWidget, &VcNodeWidget::cancelled, this, &VcProjectFile::onSettingDislogCancelled);
+    settingsWidget->show();
 }
 
 void VcProjectFile::showFileSettingsDialog(const QString &canonicalFilePath)
 {
-    FILE_EXISTS_ASSERT(canonicalFilePath)
+    FILE_EXISTS_ASSERT(canonicalFilePath);
 
     m_tempModel = m_documentModel->clone();
     IFile *file = m_tempModel->files()->findFile(canonicalFilePath);
 
     if (!file) {
+        VS_DEBUG_PRINT("File: " + canonicalFilePath + " not found!");
         delete m_tempModel;
         m_tempModel = nullptr;
         return;
