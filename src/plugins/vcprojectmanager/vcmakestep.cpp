@@ -122,6 +122,7 @@ const char ADDITIONAL_ARGUMENTS_KEY[] = "VisualStudioProjectManager.MakeStep.Add
 
 VcMakeStep::VcMakeStep(ProjectExplorer::BuildStepList *bsl)
     : AbstractProcessStep(bsl, Core::Id(MS_ID))
+    , m_processParams(nullptr)
 {
 }
 
@@ -274,10 +275,11 @@ VcMakeStepConfigWidget::VcMakeStepConfigWidget(VcMakeStep *makeStep) :
     mainLayout->addRow(tr("Command:"), m_msBuildPath);
     setLayout(mainLayout);
 
-    MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(m_makeStep->target()->kit());
-
-    m_msBuildPath->setText(msBuild->m_executable);
     connect(m_makeStep->target(), &ProjectExplorer::Target::kitChanged, this, &VcMakeStepConfigWidget::msBuildUpdated);
+
+    MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(m_makeStep->target()->kit());
+    QTC_ASSERT(msBuild, return);
+    m_msBuildPath->setText(msBuild->m_executable);
 }
 
 QString VcMakeStepConfigWidget::displayName() const
@@ -289,6 +291,7 @@ QString VcMakeStepConfigWidget::summaryText() const
 {
     MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(m_makeStep->target()->kit());
 
+    QTC_ASSERT(msBuild, return QString());
     QFileInfo fileInfo(msBuild->m_executable);
     return QString(QLatin1String("<b>MsBuild:</b> %1 %2")).arg(fileInfo.fileName())
             .arg(m_makeStep->buildArgumentsToString());

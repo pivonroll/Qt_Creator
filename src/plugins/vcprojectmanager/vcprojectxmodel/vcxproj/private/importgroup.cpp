@@ -177,7 +177,6 @@ void ImportGroup::processAttributes(const QDomElement &nodeElement)
 
             if (domElement.name() == QLatin1String(CONDITION_ATTRIBUTE))
                 m_condition = domElement.value();
-
             else if (domElement.name() == QLatin1String(LABEL_ATTRIBUTE))
                 m_label = domElement.value();
         }

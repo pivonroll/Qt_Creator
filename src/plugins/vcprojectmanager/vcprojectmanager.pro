@@ -27,7 +27,6 @@ HEADERS = \
     $$PWD/visualstudiosolutionfile.h \
     $$PWD/visualstudiosolutionnode.h \
     $$PWD/visualstudioproject.h \
-    $$PWD/vcprojkitmatcher.h \
 
 SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/vcprojectmanager.cpp \
@@ -49,7 +48,6 @@ SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/visualstudiosolutionfile.cpp \
     $$PWD/visualstudiosolutionnode.cpp \
     $$PWD/visualstudioproject.cpp \
-    $$PWD/vcprojkitmatcher.cpp
 
 OTHER_FILES += \
     $$PWD/VcProject.mimetypes.xml \

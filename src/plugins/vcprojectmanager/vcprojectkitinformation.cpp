@@ -102,7 +102,7 @@ void VcProjectKitInformation::fix(ProjectExplorer::Kit *k)
     if (msBuildInfo(k))
         return;
 
-    VS_DEBUG_PRINT("Ms Build is no longer known, removing from kit: " + qPrintable(k->displayName()));
+    VS_DEBUG_PRINT(QLatin1String("Ms Build is no longer known, removing from kit: ") + k->displayName());
     setMsBuild(k, nullptr); // make sure to clear out no longer known Ms Builds
 }
 

@@ -34,7 +34,6 @@
 #include "vcxprojectmanager.h"
 #include "vcprojectbuildconfiguration.h"
 #include "vcprojectkitinformation.h"
-#include "vcprojkitmatcher.h"
 
 #include "vcprojectxmodel/vcxproj/tools/tool_constantsx.h"
 
@@ -126,8 +125,8 @@ ProjectExplorer::Project::RestoreResult VcXProject::fromMap(const QVariantMap &m
  */
 void VcXProject::importBuildConfigurations()
 {
-    VCProjKitMatcher matcher;
-    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(matcher);
+    ProjectExplorer::KitMatcher kitMatcher = preferredKitMatcher();
+    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(kitMatcher);
     if (!kit)
         kit = ProjectExplorer::KitManager::defaultKit();
 

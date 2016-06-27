@@ -141,7 +141,7 @@ void VcProjectFile::showFileSettingsDialog(const QString &canonicalFilePath)
     IFile *file = m_tempModel->files()->findFile(canonicalFilePath);
 
     if (!file) {
-        VS_DEBUG_PRINT("File: " + canonicalFilePath + " not found!");
+        VS_DEBUG_PRINT(QLatin1String("File: ") + canonicalFilePath + QLatin1String(" not found!"));
         delete m_tempModel;
         m_tempModel = nullptr;
         return;

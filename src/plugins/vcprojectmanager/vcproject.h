@@ -77,6 +77,7 @@ protected:
 
 private:
     void addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &sourceFiles);
+    bool matchesKit(const ProjectExplorer::Kit *k);
     void updateCodeModels();
     void importBuildConfigurations();
     void allProjectFile(QStringList &allFiles) const;

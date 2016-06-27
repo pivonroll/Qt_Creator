@@ -152,9 +152,7 @@ void Choose::processChildNodes(const QDomNode &node)
 
         m_otherwise = new Otherwise;
         m_otherwise->processNode(node);
-    }
-
-    else if (node.nodeName() == QLatin1String(WHEN_ITEM)) {
+    } else if (node.nodeName() == QLatin1String(WHEN_ITEM)) {
         When *whenElement = new When;
         whenElement->processNode(node);
     }

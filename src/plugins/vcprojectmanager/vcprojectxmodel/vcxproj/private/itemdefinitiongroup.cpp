@@ -162,9 +162,9 @@ void ItemDefinitionGroup::processNodeAttributes(const QDomElement &nodeElement)
 
 void ItemDefinitionGroup::processChildNodes(const QDomNode &node)
 {
-    ItemDefinition *itemMetaElement = new ItemDefinition;
-    itemMetaElement->processNode(node);
-    m_items.append(itemMetaElement);
+    ItemDefinition *itemDefinition = new ItemDefinition;
+    itemDefinition->processNode(node);
+    m_items.append(itemDefinition);
 
     QDomNode nextSibling = node.nextSibling();
     if (!nextSibling.isNull())

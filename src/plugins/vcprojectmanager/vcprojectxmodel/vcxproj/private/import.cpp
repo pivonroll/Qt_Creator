@@ -99,7 +99,6 @@ void Import::processNode(const QDomNode &node)
 
             if (domElement.name() == QLatin1String(CONDITION_ATTRIBUTE))
                 m_condition = domElement.value();
-
             else if (domElement.name() == QLatin1String(PROJECT_ATTRIBUTE))
                 m_project = domElement.value();
         }

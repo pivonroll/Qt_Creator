@@ -222,7 +222,7 @@ IFileContainer *Files::findFileContainer(const QString &relativePath) const
 
     foreach (IFileContainer *container, m_fileContainers) {
         if (container->relativePath() == relativePath)
-            return container->findFileContainer(relativePath);
+            return container;
 
         auto fileCont = container->findFileContainer(relativePath);
 

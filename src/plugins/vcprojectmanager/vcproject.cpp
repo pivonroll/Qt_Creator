@@ -36,7 +36,6 @@
 #include "vcprojectkitinformation.h"
 #include "vcprojectmanager.h"
 #include "vcprojectmanagerconstants.h"
-#include "vcprojkitmatcher.h"
 
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
@@ -64,6 +63,7 @@
 #include <projectexplorer/headerpath.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>
+#include <projectexplorer/kitmanager.h>
 
 #include <utils/qtcassert.h>
 
@@ -93,6 +93,10 @@ VcProject::VcProject(VcProjectManager *projectManager, const QString &projectFil
         setId(Core::Id(Constants::VC_PROJECT_ID));
     else
         setId(Core::Id(Constants::VC_PROJECT_2005_ID));
+
+    setPreferredKitMatcher(ProjectExplorer::KitMatcher([this](const ProjectExplorer::Kit *kit) -> bool {
+                               return matchesKit(kit);
+                           }));
 }
 
 VcProject::~VcProject()
@@ -142,9 +146,9 @@ bool VcProject::needsConfiguration() const
 
 bool VcProject::supportsKit(ProjectExplorer::Kit *k, QString *errorMessage) const
 {
-    VCProjKitMatcher matcher;
+    ProjectExplorer::KitMatcher kitMather = preferredKitMatcher();
 
-    QTC_ASSERT(matcher.matches(k), return true);
+    QTC_ASSERT(kitMather.matches(k), return true);
 
     if (errorMessage)
         *errorMessage = tr("Kit toolchain does not support MSVC 2003, 2005 or 2008 ABI");
@@ -237,6 +241,13 @@ void VcProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<Q
         addCxxModelFiles(subfolder, projectFiles);
 }
 
+bool VcProject::matchesKit(const ProjectExplorer::Kit *k)
+{
+    MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(k);
+    QTC_ASSERT(msBuild, return false);
+    return true;
+}
+
 /**
  * \brief Update editor Code Models
  *
@@ -318,8 +329,8 @@ void VcProject::updateCodeModels()
  */
 void VcProject::importBuildConfigurations()
 {
-    VCProjKitMatcher matcher;
-    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(matcher);
+    ProjectExplorer::KitMatcher kitMatcher = preferredKitMatcher();
+    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(kitMatcher);
     if (!kit)
         kit = ProjectExplorer::KitManager::defaultKit();
 
