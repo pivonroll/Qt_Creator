@@ -243,8 +243,8 @@ void VcProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<Q
 
 bool VcProject::matchesKit(const ProjectExplorer::Kit *k)
 {
-    MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(k);
-    QTC_ASSERT(msBuild, return false);
+    MsBuildInformation *msBuildInfo = VcProjectKitInformation::msBuildInfo(k);
+    QTC_ASSERT(msBuildInfo && msBuildInfo->m_msBuildVersion <= MsBuildInformation::MSBUILD_V_4_0, return false);
     return true;
 }
 

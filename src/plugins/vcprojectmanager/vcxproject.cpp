@@ -65,6 +65,10 @@ VcXProject::VcXProject(VcXProjectManager *projectManager, const QString &canonic
 {
     m_projectFile = new VcProjectFile(canonicalFilePath, VcDocConstants::DocumentVersion::DV_MSVC_2010);
     m_rootNode = m_projectFile->createProjectNode();
+
+    setPreferredKitMatcher(ProjectExplorer::KitMatcher([this](const ProjectExplorer::Kit *kit) -> bool {
+                               return matchesKit(kit);
+                           }));
 }
 
 VcXProject::~VcXProject()
@@ -144,6 +148,13 @@ void VcXProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<
     }
     foreach (const ProjectExplorer::FolderNode *subfolder, node->subFolderNodes())
         addCxxModelFiles(subfolder, projectFiles);
+}
+
+bool VcXProject::matchesKit(const ProjectExplorer::Kit *k)
+{
+    MsBuildInformation *msBuildInfo = VcProjectKitInformation::msBuildInfo(k);
+    QTC_ASSERT(msBuildInfo && msBuildInfo->m_msBuildVersion > MsBuildInformation::MSBUILD_V_4_0, return false);
+    return true;
 }
 
 void VcXProject::updateCodeModels()

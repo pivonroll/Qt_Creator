@@ -61,6 +61,7 @@ protected:
 
 private:
     void addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles);
+    bool matchesKit(const ProjectExplorer::Kit *k);
     void updateCodeModels();
     void importBuildConfigurations();
 
