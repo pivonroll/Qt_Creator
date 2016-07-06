@@ -34,6 +34,7 @@
 #include "visualstudiosolution/visualstudiosolutionparser/visualstudiosolutionparser.h"
 #include "vcprojectxmodel/vcxproj/vcprojectdocumentx.h"
 #include "vcprojectmodel/vcprojectdocument.h"
+#include "projectconstants.h"
 #include "utils.h"
 
 #include <utils/fileutils.h>
@@ -64,9 +65,9 @@ VisualStudioSolutionFile::VisualStudioSolutionFile(const QString &filePath)
         }
         else if (projectMimeType.matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE))) {
             // function getProjectVersion will only return DV_MSVC_2003, DV_MSVC_2005 or DV_MSVC_2008,
-            VcDocConstants::DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(fullProjectPath);
+            DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(fullProjectPath);
 
-            if (docVersion != VcDocConstants::DV_UNRECOGNIZED)
+            if (docVersion != DV_UNRECOGNIZED)
                 newProject = new VcProjectDocument(fullProjectPath, docVersion);
         }
 

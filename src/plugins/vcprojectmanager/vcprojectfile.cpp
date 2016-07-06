@@ -41,7 +41,7 @@
 namespace VcProjectManager {
 namespace Internal {
 
-VcProjectFile::VcProjectFile(const QString &filePath, VcDocConstants::DocumentVersion docVersion)
+VcProjectFile::VcProjectFile(const QString &filePath, DocumentVersion docVersion)
     : m_tempModel(nullptr)
 {
     setFilePath(Utils::FileName::fromString(filePath));
@@ -107,7 +107,7 @@ VcDocProjectNode *VcProjectFile::createProjectNode()
  */
 void VcProjectFile::reloadVcDoc()
 {
-    VcDocConstants::DocumentVersion docVersion = m_documentModel->documentVersion();
+    DocumentVersion docVersion = m_documentModel->documentVersion();
     delete m_documentModel;
     m_documentModel = new VcProjectDocument(filePath().toString(), docVersion);
 }

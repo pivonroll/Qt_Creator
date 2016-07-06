@@ -31,6 +31,7 @@
 #define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_H
 
 #include "msbuildversionmanager.h"
+#include "projectconstants.h"
 #include "vcprojectmodel/vcprojectdocument_constants.h"
 
 #include <projectexplorer/namedwidget.h>
@@ -55,7 +56,7 @@ class VcProject : public ProjectExplorer::Project
     Q_OBJECT
 
 public:
-    VcProject(VcProjectManager *projectManager, const QString &projectFilePath, VcDocConstants::DocumentVersion docVersion);
+    VcProject(VcProjectManager *projectManager, const QString &projectFilePath, DocumentVersion docVersion);
     ~VcProject();
 
     QString displayName() const;

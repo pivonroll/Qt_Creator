@@ -31,7 +31,7 @@
 #define VCPROJECTMANAGER_INTERNAL_I_VISUAL_STUDIO_PROJECT_H
 
 #include "ivcprojectnodemodel.h"
-#include "../vcprojectmodel/vcprojectdocument_constants.h"
+#include "../projectconstants.h"
 
 #include <QString>
 
@@ -111,7 +111,7 @@ public:
     /*!
      * \return a version of Visual Studio project which is represented with this object.
      */
-    virtual VcDocConstants::DocumentVersion documentVersion() const = 0;
+    virtual DocumentVersion documentVersion() const = 0;
 
     /*!
      * \brief Creates a default build configuration for this project and sets appropriate tools and attributes for it.

@@ -199,9 +199,9 @@ bool VcProjectDocumentX::saveToFile(const QString &filePath) const
     return false;
 }
 
-VcDocConstants::DocumentVersion VcProjectDocumentX::documentVersion() const
+DocumentVersion VcProjectDocumentX::documentVersion() const
 {
-    return VcDocConstants::DV_MSVC_2010;
+    return DV_MSVC_2010;
 }
 
 void VcProjectDocumentX::processNode(const QDomNode &node)

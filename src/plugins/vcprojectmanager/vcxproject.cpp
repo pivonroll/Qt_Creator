@@ -63,7 +63,7 @@ namespace Internal {
 VcXProject::VcXProject(VcXProjectManager *projectManager, const QString &canonicalFilePath)
     : m_projectManager(projectManager)
 {
-    m_projectFile = new VcProjectFile(canonicalFilePath, VcDocConstants::DocumentVersion::DV_MSVC_2010);
+    m_projectFile = new VcProjectFile(canonicalFilePath, DocumentVersion::DV_MSVC_2010);
     m_rootNode = m_projectFile->createProjectNode();
 
     setPreferredKitMatcher(ProjectExplorer::KitMatcher([this](const ProjectExplorer::Kit *kit) -> bool {

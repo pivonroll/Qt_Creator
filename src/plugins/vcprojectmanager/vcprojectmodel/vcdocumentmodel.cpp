@@ -38,7 +38,7 @@
 namespace VcProjectManager {
 namespace Internal {
 
-VcDocumentModel::VcDocumentModel(const QString &filePath, VcDocConstants::DocumentVersion version)
+VcDocumentModel::VcDocumentModel(const QString &filePath, DocumentVersion version)
 {
     m_vcProjectDocument = new VcProjectDocument(filePath, version);
 }

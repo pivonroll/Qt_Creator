@@ -1,0 +1,20 @@
+#ifndef VCPROJECTMANAGER_INTERNAL_PROJECTCONSTANTS_H
+#define VCPROJECTMANAGER_INTERNAL_PROJECTCONSTANTS_H
+
+namespace VcProjectManager {
+namespace Internal {
+
+enum DocumentVersion
+{
+    DV_UNRECOGNIZED,
+    DV_MSVC_2003,
+    DV_MSVC_2005,
+    DV_MSVC_2008,
+    DV_MSVC_2010,
+    DV_MSVC_2012,
+    DV_MSVC_2013,
+};
+
+} // Internal
+} // VcProjectManager
+#endif // VCPROJECTMANAGER_INTERNAL_PROJECTCONSTANTS_H

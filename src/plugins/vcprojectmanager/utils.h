@@ -31,6 +31,7 @@
 #define VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_UTILS_H
 
 #include "vcprojectmodel/vcprojectdocument_constants.h"
+#include "projectconstants.h"
 
 #include <projectexplorer/projectnodes.h>
 #include <utils/fileutils.h>
@@ -46,7 +47,7 @@ class IToolSection;
 
 namespace VisualStudioUtils {
 
-VcDocConstants::DocumentVersion getProjectVersion(const QString &projectPath);
+DocumentVersion getProjectVersion(const QString &projectPath);
 ProjectExplorer::FileType getFileType(const ::Utils::FileName &canonicalFilePath);
 QString fileRelativePath(const QString &topPath, const QString &innerPath);
 

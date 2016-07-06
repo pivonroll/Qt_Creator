@@ -79,7 +79,7 @@ bool VcProjectDocument::saveToFile(const QString &filePath) const
     return true;
 }
 
-VcDocConstants::DocumentVersion VcProjectDocument::documentVersion() const
+DocumentVersion VcProjectDocument::documentVersion() const
 {
     return m_documentVersion;
 }
@@ -129,7 +129,7 @@ IGlobals* VcProjectDocument::globals() const
     return m_globals;
 }
 
-VcProjectDocument::VcProjectDocument(const QString &filePath, VcDocConstants::DocumentVersion docVersion)
+VcProjectDocument::VcProjectDocument(const QString &filePath, DocumentVersion docVersion)
     : m_filePath(filePath),
       m_documentVersion(docVersion),
       m_platforms(new Platforms),

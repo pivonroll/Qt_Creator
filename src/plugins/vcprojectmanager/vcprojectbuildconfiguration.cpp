@@ -179,7 +179,7 @@ QList<ProjectExplorer::BuildInfo *> VcProjectBuildConfigurationFactory::availabl
     Q_UNUSED(k);
     QList<ProjectExplorer::BuildInfo *> result;
 
-    VcDocConstants::DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(projectPath);
+    DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(projectPath);
     VcProjectDocument vsProject = VcProjectDocument(projectPath, docVersion);
 
     QTC_ASSERT(vsProject.configurations(), return result);

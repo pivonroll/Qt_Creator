@@ -38,6 +38,7 @@
 #include "references.h"
 #include "toolfiles.h"
 #include "../msbuildversionmanager.h"
+#include "../projectconstants.h"
 
 #include <visualstudiointerfaces/ivisualstudioproject.h>
 #include <widgets/visualstudiowidgets/vcnodewidget.h>
@@ -56,7 +57,7 @@ class ConfigurationsEditWidget;
 class VcProjectDocument : public IVisualStudioProject
 {
 public:
-    VcProjectDocument(const QString &filePath, VcDocConstants::DocumentVersion docVersion);
+    VcProjectDocument(const QString &filePath, DocumentVersion docVersion);
     VcProjectDocument(const VcProjectDocument &other);
     VcProjectDocument(VcProjectDocument &&other);
     VcProjectDocument &operator=(VcProjectDocument other);
@@ -64,7 +65,7 @@ public:
 
     void processNode(const QDomNode &domDoc);
     bool saveToFile(const QString &filePath) const;
-    VcDocConstants::DocumentVersion documentVersion() const;
+    DocumentVersion documentVersion() const;
     QString filePath() const;
 
     IConfigurations *configurations() const;
@@ -97,7 +98,7 @@ protected:
     QList<QPair <QString, QString> > m_processingInstr;
     QString m_processingInstructionTarget;
 
-    VcDocConstants::DocumentVersion m_documentVersion;
+    DocumentVersion m_documentVersion;
     Platforms *m_platforms;
     Configurations *m_configurations;
     Files *m_files;

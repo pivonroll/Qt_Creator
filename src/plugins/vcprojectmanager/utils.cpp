@@ -32,6 +32,7 @@
 #include "vcprojectmanager/vcprojectmodel/tools/tool_constants.h"
 #include "vcprojectxmodel/vcxproj/tools/tool_constantsx.h"
 
+#include "projectconstants.h"
 #include "vcschemamanager.h"
 
 #include <visualstudiointerfaces/iattributecontainer.h>
@@ -150,16 +151,16 @@ bool checkIfVersion2008(const QString &filePath)
 /*!
  * \return version of Visual Studio Project. Project is passed as the \a projectPath.
  */
-VcDocConstants::DocumentVersion getProjectVersion(const QString &projectPath)
+DocumentVersion getProjectVersion(const QString &projectPath)
 {
     if (checkIfVersion2003(projectPath))
-        return VcDocConstants::DV_MSVC_2003;
+        return DV_MSVC_2003;
     else if (checkIfVersion2005(projectPath))
-        return VcDocConstants::DV_MSVC_2005;
+        return DV_MSVC_2005;
     else if (checkIfVersion2008(projectPath))
-        return VcDocConstants::DV_MSVC_2008;
+        return DV_MSVC_2008;
 
-    return VcDocConstants::DV_UNRECOGNIZED;
+    return DV_UNRECOGNIZED;
 }
 
 ProjectExplorer::FileType getFileType(const ::Utils::FileName &canonicalFilePath)

@@ -33,6 +33,7 @@
 #include "vcprojectmanagerconstants.h"
 #include "vcschemamanager.h"
 #include "utils.h"
+#include "projectconstants.h"
 #include "vcprojectmodel/vcprojectdocument_constants.h"
 
 #include <QtXmlPatterns/QXmlSchema>
@@ -70,9 +71,9 @@ ProjectExplorer::Project *VcProjectManager::openProject(const QString &fileName,
 
     // check if project is a valid vc project
     // versions supported are 2003, 2005 and 2008
-    VcDocConstants::DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(canonicalFilePath);
+    DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(canonicalFilePath);
 
-    if (docVersion != VcDocConstants::DV_UNRECOGNIZED) {
+    if (docVersion != DV_UNRECOGNIZED) {
         if (errorString)
             errorString->clear();
         return new VcProject(this, canonicalFilePath, docVersion);

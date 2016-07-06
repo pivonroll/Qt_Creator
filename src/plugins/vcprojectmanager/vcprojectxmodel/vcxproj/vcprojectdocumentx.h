@@ -66,7 +66,7 @@ public:
     IPublishingData *publishingData() const;
     QString filePath() const;
     bool saveToFile(const QString &filePath) const;
-    VcDocConstants::DocumentVersion documentVersion() const;
+    DocumentVersion documentVersion() const;
 
     void processNode(const QDomNode &node);
     VcNodeWidget *createSettingsWidget();

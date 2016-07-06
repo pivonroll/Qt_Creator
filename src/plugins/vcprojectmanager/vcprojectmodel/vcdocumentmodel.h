@@ -30,7 +30,7 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VC_DOCUMENT_MODEL_H
 #define VCPROJECTMANAGER_INTERNAL_VC_DOCUMENT_MODEL_H
 
-#include "vcprojectdocument_constants.h"
+#include "../projectconstants.h"
 
 #include <QString>
 
@@ -47,7 +47,7 @@ class IVisualStudioProject;
 class VcDocumentModel
 {
 public:
-    explicit VcDocumentModel(const QString &filePath, VcDocConstants::DocumentVersion version);
+    explicit VcDocumentModel(const QString &filePath, DocumentVersion version);
     VcDocumentModel(const VcDocumentModel &other);
     VcDocumentModel(VcDocumentModel &&other);
     VcDocumentModel& operator=(VcDocumentModel other);

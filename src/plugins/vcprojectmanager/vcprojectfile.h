@@ -31,6 +31,7 @@
 #define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
 
 #include "vcprojectmodel/vcprojectdocument_constants.h"
+#include "projectconstants.h"
 
 #include <coreplugin/idocument.h>
 
@@ -46,7 +47,7 @@ class VcProjectFile : public Core::IDocument
     Q_OBJECT
 
 public:
-    VcProjectFile(const QString &filePath, VcDocConstants::DocumentVersion docVersion);
+    VcProjectFile(const QString &filePath, DocumentVersion docVersion);
     ~VcProjectFile();
 
     bool save(QString *errorString, const QString &fileName = QString(), bool autoSave = false);

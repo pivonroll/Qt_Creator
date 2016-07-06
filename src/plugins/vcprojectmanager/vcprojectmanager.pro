@@ -27,6 +27,7 @@ HEADERS = \
     $$PWD/visualstudiosolutionfile.h \
     $$PWD/visualstudiosolutionnode.h \
     $$PWD/visualstudioproject.h \
+    projectconstants.h
 
 SOURCES = vcprojectmanagerplugin.cpp \
     $$PWD/vcprojectmanager.cpp \

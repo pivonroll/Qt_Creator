@@ -34,17 +34,6 @@ namespace VcProjectManager {
 namespace Internal {
 namespace VcDocConstants {
 
-enum DocumentVersion
-{
-    DV_UNRECOGNIZED,
-    DV_MSVC_2003,
-    DV_MSVC_2005,
-    DV_MSVC_2008,
-    DV_MSVC_2010,
-    DV_MSVC_2012,
-    DV_MSVC_2013,
-};
-
 // ActiveX Reference
 const char ACTIVEX_REFERENCE [] = "ActiveXReference";
 const char ACTIVEX_REFERENCE_CONTROL_GUID [] = "ControlGUID";
