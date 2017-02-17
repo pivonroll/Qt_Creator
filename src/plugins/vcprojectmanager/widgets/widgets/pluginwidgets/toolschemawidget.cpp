@@ -30,7 +30,7 @@
 #include "toolschemawidget.h"
 #include "ui_toolschemawidget.h"
 
-#include "../vcschemamanager.h"
+#include "../common/vcschemamanager.h"
 
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 

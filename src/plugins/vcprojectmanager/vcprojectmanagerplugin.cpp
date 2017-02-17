@@ -27,17 +27,17 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
+#include "common/vcschemamanager.h"
 #include "menuhandler.h"
-#include "msbuildversionmanager.h"
-#include "vcmakestep.h"
+#include "ms_build/msbuildversionmanager.h"
+#include "ms_build/vcmakestep.h"
 #include "vcprojectbuildconfiguration.h"
 #include "vcprojectbuildoptionspage.h"
 #include "vcprojectkitinformation.h"
-#include "vcprojectmanager.h"
-#include "vcxprojectmanager.h"
 #include "vcprojectmanagerplugin.h"
-#include "vcschemamanager.h"
-#include "visualstudiosolutionmanager.h"
+#include "visual_studio_old_version/vcprojectmanager.h"
+#include "visual_studio_new_version/vcxprojectmanager.h"
+#include "visualstudiosolution/visualstudiosolutionmanager.h"
 
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 

@@ -31,8 +31,8 @@
 
 #include "configurationswidget.h"
 #include "fileconfigurationseditwidget.h"
-#include "../utils.h"
-#include "../vcprojectmodel/tools/tool_constants.h"
+#include "../utils/utils.h"
+#include <vcprojectmodel/tools/tool_constants.h>
 
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 #include <visualstudiotoolattributes/tooldescription.h>
@@ -57,8 +57,8 @@
 #include <visualstudiointerfaces/ivisualstudioproject.h>
 
 // figure this out
-#include "../../../vcprojectmodel/configurationcontainer.h"
-#include "../../../vcprojectxmodel/vcxproj/configurationcontainerx.h"
+#include <vcprojectmodel/configurationcontainer.h>
+#include <vcprojectxmodel/configurationcontainerx.h>
 
 #include <utils/qtcassert.h>
 

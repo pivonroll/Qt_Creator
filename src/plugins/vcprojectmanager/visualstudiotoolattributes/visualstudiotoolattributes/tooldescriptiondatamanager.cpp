@@ -32,7 +32,7 @@
 #include "attributedescriptiondataitem.h"
 #include "toolattributeoption.h"
 #include "tooldescription.h"
-#include "../../../vcschemamanager.h"
+#include "../../../common/vcschemamanager.h"
 
 #include "toolsectiondescription.h"
 

@@ -30,14 +30,14 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_BUILD_CONFIGURATION_H
 #define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_BUILD_CONFIGURATION_H
 
-#include "vcproject.h"
-#include "vcprojectmodel/configuration.h"
+#include "visual_studio_old_version/vcproject.h"
 
 #include <projectexplorer/buildconfiguration.h>
 
 namespace VcProjectManager {
 namespace Internal {
 
+class IConfiguration;
 class IVisualStudioProject;
 
 class VcProjectBuildConfiguration : public ProjectExplorer::BuildConfiguration

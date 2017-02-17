@@ -27,56 +27,38 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
-#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_UTILS_H
+#define VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_UTILS_H
 
 #include "vcprojectmodel/vcprojectdocument_constants.h"
-#include "common/projectconstants.h"
+#include "../common/projectconstants.h"
 
-#include <coreplugin/idocument.h>
+#include <projectexplorer/projectnodes.h>
+#include <utils/fileutils.h>
+#include <utils/qtcassert.h>
+#include <QString>
 
 namespace VcProjectManager {
 namespace Internal {
 
-class VcDocProjectNode;
-class VcDocumentModel;
-class IVisualStudioProject;
+class IConfiguration;
+class IConfigurationBuildTool;
+class IToolSection;
 
-class VcProjectFile : public Core::IDocument
-{
-    Q_OBJECT
+namespace VisualStudioUtils {
 
-public:
-    VcProjectFile(const QString &filePath, DocumentVersion docVersion);
-    ~VcProjectFile();
+DocumentVersion getProjectVersion(const QString &projectPath);
+ProjectExplorer::FileType getFileType(const ::Utils::FileName &canonicalFilePath);
+QString fileRelativePath(const QString &topPath, const QString &innerPath);
 
-    bool save(QString *errorString, const QString &fileName = QString(), bool autoSave = false);
+void leaveOnlyCppTool(IConfiguration *config);
+void cleanUpConfigAttributes(IConfiguration *config, IConfiguration *projectConfig);
+void cleanUpConfigTools(IConfiguration *config, IConfiguration *projectConfig);
+void cleanUpConfigTool(IConfigurationBuildTool *tool, IConfigurationBuildTool *projTool);
+void cleanUpConfigToolSection(IToolSection *toolSection, IToolSection *projToolSection);
 
-    QString defaultPath() const;
-    QString suggestedFileName() const;
-
-    bool isModified() const;
-    bool isSaveAsAllowed() const;
-
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
-
-    VcDocProjectNode *createProjectNode();
-    void reloadVcDoc();
-    IVisualStudioProject *visualStudioProject() const;
-    void setVisualStudioProject(IVisualStudioProject *documentModel);
-    void showSettingsDialog();
-    void showFileSettingsDialog(const QString &canonicalFilePath);
-
-private slots:
-    void onSettingsDialogAccepted();
-    void onSettingDislogCancelled();
-
-private:
-    IVisualStudioProject *m_documentModel;
-    IVisualStudioProject *m_tempModel;
-};
-
+} // namespace Utils
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#endif // VCPROJECTMANAGER_INTERNAL_VISUAL_STUDIO_UTILS_H

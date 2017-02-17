@@ -27,56 +27,43 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
-#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_DOCUMENT_MODEL_H
+#define VCPROJECTMANAGER_INTERNAL_VC_DOCUMENT_MODEL_H
 
-#include "vcprojectmodel/vcprojectdocument_constants.h"
-#include "common/projectconstants.h"
+#include "../common/projectconstants.h"
 
-#include <coreplugin/idocument.h>
+#include <QString>
+
+QT_BEGIN_NAMESPACE
+class QFile;
+class QDomDocument;
+QT_END_NAMESPACE
 
 namespace VcProjectManager {
 namespace Internal {
 
-class VcDocProjectNode;
-class VcDocumentModel;
 class IVisualStudioProject;
 
-class VcProjectFile : public Core::IDocument
+class VcDocumentModel
 {
-    Q_OBJECT
-
 public:
-    VcProjectFile(const QString &filePath, DocumentVersion docVersion);
-    ~VcProjectFile();
+    explicit VcDocumentModel(const QString &filePath, DocumentVersion version);
+    VcDocumentModel(const VcDocumentModel &other);
+    VcDocumentModel(VcDocumentModel &&other);
+    VcDocumentModel& operator=(VcDocumentModel other);
+    virtual ~VcDocumentModel();
 
-    bool save(QString *errorString, const QString &fileName = QString(), bool autoSave = false);
-
-    QString defaultPath() const;
-    QString suggestedFileName() const;
-
-    bool isModified() const;
-    bool isSaveAsAllowed() const;
-
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
-
-    VcDocProjectNode *createProjectNode();
-    void reloadVcDoc();
-    IVisualStudioProject *visualStudioProject() const;
-    void setVisualStudioProject(IVisualStudioProject *documentModel);
-    void showSettingsDialog();
-    void showFileSettingsDialog(const QString &canonicalFilePath);
-
-private slots:
-    void onSettingsDialogAccepted();
-    void onSettingDislogCancelled();
+    IVisualStudioProject *vcProjectDocument() const;
+    bool saveToFile(const QString &filePath) const;
 
 private:
-    IVisualStudioProject *m_documentModel;
-    IVisualStudioProject *m_tempModel;
+    VcDocumentModel();
+    static void swap(VcDocumentModel &first, VcDocumentModel &second);
+    QDomDocument *m_document;
+    IVisualStudioProject *m_vcProjectDocument;
 };
 
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_DOCUMENT_MODEL_H

@@ -27,7 +27,6 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "vcmakestep.h"
 
 #include <visualstudiointerfaces/iconfiguration.h>
 #include <visualstudiointerfaces/iconfigurations.h>
@@ -35,10 +34,11 @@
 #include <visualstudiointerfaces/ifile.h>
 #include <visualstudiointerfaces/ifilecontainer.h>
 
-#include "vcmakestep.h"
+#include "ms_build/vcmakestep.h"
+#include "common/vcprojectmanagerconstants.h"
+
 #include "vcprojectbuildconfiguration.h"
 #include "vcprojectfile.h"
-#include "vcprojectmanagerconstants.h"
 #include "utils.h"
 #include "vcprojectmodel/vcdocumentmodel.h"
 #include "vcprojectmodel/vcprojectdocument.h"

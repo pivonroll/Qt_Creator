@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "toolsectiondescription.h"
 
-#include "../../vcprojectmodel/tools/toolsection.h"
+#include <vcprojectmodel/tools/toolsection.h>
 #include <visualstudiotoolattributes/attributedescriptiondataitem.h>
 
 namespace VcProjectManager {

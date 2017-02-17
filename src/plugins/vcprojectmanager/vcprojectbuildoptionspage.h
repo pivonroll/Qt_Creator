@@ -30,8 +30,6 @@
 #ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_BUILD_OPTIONS_WIDGET_H
 #define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_BUILD_OPTIONS_WIDGET_H
 
-#include "vcprojectmanagerconstants.h"
-
 #include <coreplugin/dialogs/ioptionspage.h>
 
 #include <QDialog>

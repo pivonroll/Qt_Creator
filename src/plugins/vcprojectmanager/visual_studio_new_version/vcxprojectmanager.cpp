@@ -27,56 +27,40 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
-#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#include "vcxprojectmanager.h"
+#include "../common/vcprojectmanagerconstants.h"
+#include "vcxproject.h"
 
-#include "vcprojectmodel/vcprojectdocument_constants.h"
-#include "common/projectconstants.h"
-
-#include <coreplugin/idocument.h>
+#include <QFileInfo>
+#include <QDir>
 
 namespace VcProjectManager {
 namespace Internal {
 
-class VcDocProjectNode;
-class VcDocumentModel;
-class IVisualStudioProject;
-
-class VcProjectFile : public Core::IDocument
+VcXProjectManager::VcXProjectManager()
 {
-    Q_OBJECT
+}
 
-public:
-    VcProjectFile(const QString &filePath, DocumentVersion docVersion);
-    ~VcProjectFile();
+QString VcXProjectManager::mimeType() const
+{
+    return QLatin1String(Constants::VC_X_PROJ_MIMETYPE);
+}
 
-    bool save(QString *errorString, const QString &fileName = QString(), bool autoSave = false);
+ProjectExplorer::Project *VcXProjectManager::openProject(const QString &fileName, QString *errorString)
+{
+    QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
 
-    QString defaultPath() const;
-    QString suggestedFileName() const;
+    // Check whether the project file exists.
+    if (canonicalFilePath.isEmpty()) {
+        if (errorString)
+            *errorString = tr("Failed opening project '%1': Project file does not exist").
+                arg(QDir::toNativeSeparators(fileName));
+        return nullptr;
+    }
 
-    bool isModified() const;
-    bool isSaveAsAllowed() const;
-
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
-
-    VcDocProjectNode *createProjectNode();
-    void reloadVcDoc();
-    IVisualStudioProject *visualStudioProject() const;
-    void setVisualStudioProject(IVisualStudioProject *documentModel);
-    void showSettingsDialog();
-    void showFileSettingsDialog(const QString &canonicalFilePath);
-
-private slots:
-    void onSettingsDialogAccepted();
-    void onSettingDislogCancelled();
-
-private:
-    IVisualStudioProject *m_documentModel;
-    IVisualStudioProject *m_tempModel;
-};
+    return new VcXProject(this, canonicalFilePath);
+}
 
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H

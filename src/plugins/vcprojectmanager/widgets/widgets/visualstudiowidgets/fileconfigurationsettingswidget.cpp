@@ -30,7 +30,7 @@
 #include "fileconfigurationsettingswidget.h"
 #include "ui_fileconfigurationsettingswidget.h"
 
-#include "../vcprojectmodel/vcprojectdocument_constants.h"
+#include <vcprojectmodel/vcprojectdocument_constants.h>
 
 #include <visualstudiotoolattributes/tooldescription.h>
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>

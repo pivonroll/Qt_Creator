@@ -28,7 +28,7 @@
 **
 ****************************************************************************/
 #include "vcprojectkitconfigwidget.h"
-#include "../msbuildversionmanager.h"
+#include "../ms_build/msbuildversionmanager.h"
 #include "../vcprojectkitinformation.h"
 
 #include <QComboBox>

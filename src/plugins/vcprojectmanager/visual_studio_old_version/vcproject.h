@@ -27,56 +27,76 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
-#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_H
+#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_H
 
+#include "../ms_build/msbuildversionmanager.h"
+#include "../common/projectconstants.h"
 #include "vcprojectmodel/vcprojectdocument_constants.h"
-#include "common/projectconstants.h"
 
-#include <coreplugin/idocument.h>
+#include <projectexplorer/namedwidget.h>
+#include <projectexplorer/project.h>
+
+#include <QFuture>
+
+namespace ProjectExplorer {
+class FolderNode;
+}
 
 namespace VcProjectManager {
 namespace Internal {
 
+class VcProjectFile;
 class VcDocProjectNode;
-class VcDocumentModel;
-class IVisualStudioProject;
+class VcProjectManager;
+class VcProjectBuildConfiguration;
 
-class VcProjectFile : public Core::IDocument
+class VcProject : public ProjectExplorer::Project
 {
     Q_OBJECT
 
 public:
-    VcProjectFile(const QString &filePath, DocumentVersion docVersion);
-    ~VcProjectFile();
+    VcProject(VcProjectManager *projectManager, const QString &projectFilePath, DocumentVersion docVersion);
+    ~VcProject();
 
-    bool save(QString *errorString, const QString &fileName = QString(), bool autoSave = false);
+    QString displayName() const;
+    Core::IDocument *document() const;
+    ProjectExplorer::IProjectManager *projectManager() const;
+    ProjectExplorer::ProjectNode *rootProjectNode() const;
+    QStringList files(FilesMode fileMode) const;
+    bool needsConfiguration() const;
+    bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage) const;
 
-    QString defaultPath() const;
-    QString suggestedFileName() const;
-
-    bool isModified() const;
-    bool isSaveAsAllowed() const;
-
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
-
-    VcDocProjectNode *createProjectNode();
-    void reloadVcDoc();
-    IVisualStudioProject *visualStudioProject() const;
-    void setVisualStudioProject(IVisualStudioProject *documentModel);
-    void showSettingsDialog();
-    void showFileSettingsDialog(const QString &canonicalFilePath);
+public slots:
+    void reloadProjectNodes();
 
 private slots:
     void onSettingsDialogAccepted();
-    void onSettingDislogCancelled();
+
+protected:
+    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage);
 
 private:
-    IVisualStudioProject *m_documentModel;
-    IVisualStudioProject *m_tempModel;
+    void addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &sourceFiles);
+    bool matchesKit(const ProjectExplorer::Kit *k);
+    void updateCodeModels();
+    void importBuildConfigurations();
+    void allProjectFile(QStringList &allFiles) const;
+
+    VcProjectManager *m_projectManager;
+    VcProjectFile *m_projectFile;
+    VcDocProjectNode *m_rootNode;
+    QFuture<void> m_codeModelFuture;
+};
+
+class VcProjectBuildSettingsWidget : public ProjectExplorer::NamedWidget
+{
+public:
+    VcProjectBuildSettingsWidget();
+    QString displayName() const;
 };
 
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_H

@@ -27,9 +27,9 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "msbuildversionmanager.h"
+#include "common/vcschemamanager.h"
+#include "ms_build/msbuildversionmanager.h"
 #include "vcprojectbuildoptionspage.h"
-#include "vcschemamanager.h"
 
 #include <widgets/pluginwidgets/schemaoptionswidget.h>
 #include <widgets/pluginwidgets/toolschemawidget.h>

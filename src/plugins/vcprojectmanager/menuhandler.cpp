@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "menuhandler.h"
 #include "vcdocprojectnodes.h"
-#include "vcprojectmanagerconstants.h"
+#include "common/vcprojectmanagerconstants.h"
 
 #include <widgets/visualstudiowidgets/vcenternamedialog.h>
 

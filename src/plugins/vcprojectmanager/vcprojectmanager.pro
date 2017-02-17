@@ -4,52 +4,6 @@ CONFIG (debug, debug | release) {
     DEFINES += VISUAL_STUDIO_PLUGIN_DEBUG
 }
 
-HEADERS = \
-    $$PWD/vcprojectmanagerplugin.h \
-    $$PWD/vcprojectmanagerconstants.h \
-    $$PWD/vcprojectmanager_global.h \
-    $$PWD/vcprojectmanager.h \
-    $$PWD/vcprojectfile.h \
-    $$PWD/vcproject.h \
-    $$PWD/vcprojectbuildconfiguration.h \
-    $$PWD/vcmakestep.h \
-    $$PWD/msbuildoutputparser.h \
-    $$PWD/vcprojectkitinformation.h \
-    $$PWD/msbuildversionmanager.h \
-    $$PWD/vcprojectbuildoptionspage.h \
-    $$PWD/vcschemamanager.h \
-    $$PWD/menuhandler.h \
-    $$PWD/utils.h \
-    $$PWD/vcxprojectmanager.h \
-    $$PWD/vcxproject.h \
-    $$PWD/vcdocprojectnodes.h \
-    $$PWD/visualstudiosolutionmanager.h \
-    $$PWD/visualstudiosolutionfile.h \
-    $$PWD/visualstudiosolutionnode.h \
-    $$PWD/visualstudioproject.h \
-    projectconstants.h
-
-SOURCES = vcprojectmanagerplugin.cpp \
-    $$PWD/vcprojectmanager.cpp \
-    $$PWD/vcprojectfile.cpp \
-    $$PWD/vcproject.cpp \
-    $$PWD/vcprojectbuildconfiguration.cpp \
-    $$PWD/vcmakestep.cpp \
-    $$PWD/msbuildoutputparser.cpp \
-    $$PWD/vcprojectkitinformation.cpp \
-    $$PWD/msbuildversionmanager.cpp \
-    $$PWD/vcprojectbuildoptionspage.cpp \
-    $$PWD/vcschemamanager.cpp \
-    $$PWD/menuhandler.cpp \
-    $$PWD/utils.cpp \
-    $$PWD/vcxprojectmanager.cpp \
-    $$PWD/vcxproject.cpp \
-    $$PWD/vcdocprojectnodes.cpp \
-    $$PWD/visualstudiosolutionmanager.cpp \
-    $$PWD/visualstudiosolutionfile.cpp \
-    $$PWD/visualstudiosolutionnode.cpp \
-    $$PWD/visualstudioproject.cpp \
-
 OTHER_FILES += \
     $$PWD/VcProject.mimetypes.xml \
     $$PWD/VcProjectManager.json.in
@@ -64,5 +18,30 @@ include($$PWD/visualstudiotoolattributes/visualstudiotoolattributes.pri)
 include($$PWD/vcprojectmodel/vcprojectmodel.pri)
 include($$PWD/vcprojectxmodel/vcprojectxmodel.pri)
 include($$PWD/widgets/widgets.pri)
+include($$PWD/visual_studio_old_version/visual_studio_old_version.pri)
+include($$PWD/visual_studio_new_version/visual_studio_new_version.pri)
 include($$PWD/visualstudiosolution/visualstudiosolution.pri)
+include($$PWD/common/common.pri)
+include($$PWD/ms_build/ms_build.pri)
+
+HEADERS += \
+    menuhandler.h \
+    vcdocprojectnodes.h \
+    vcprojectbuildconfiguration.h \
+    vcprojectbuildoptionspage.h \
+    vcprojectfile.h \
+    vcprojectkitinformation.h \
+    vcprojectmanager_global.h \
+    vcprojectmanagerplugin.h \
+    visualstudioproject.h
+
+SOURCES += \
+    menuhandler.cpp \
+    vcdocprojectnodes.cpp \
+    vcprojectbuildconfiguration.cpp \
+    vcprojectbuildoptionspage.cpp \
+    vcprojectfile.cpp \
+    vcprojectkitinformation.cpp \
+    vcprojectmanagerplugin.cpp \
+    visualstudioproject.cpp
 

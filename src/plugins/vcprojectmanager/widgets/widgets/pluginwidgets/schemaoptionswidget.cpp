@@ -29,7 +29,7 @@
 ****************************************************************************/
 #include "schemaoptionswidget.h"
 #include "ui_schemaoptionswidget.h"
-#include "../vcschemamanager.h"
+#include "../common/vcschemamanager.h"
 
 #include <QFileDialog>
 

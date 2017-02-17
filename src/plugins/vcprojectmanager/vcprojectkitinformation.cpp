@@ -27,9 +27,9 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "msbuildversionmanager.h"
+#include "ms_build/msbuildversionmanager.h"
 #include "vcprojectkitinformation.h"
-#include "vcprojectmanagerconstants.h"
+#include "common/vcprojectmanagerconstants.h"
 
 #include <widgets/pluginwidgets/vcprojectkitconfigwidget.h>
 

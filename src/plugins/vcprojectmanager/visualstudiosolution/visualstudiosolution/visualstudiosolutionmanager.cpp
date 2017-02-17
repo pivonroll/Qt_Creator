@@ -27,56 +27,28 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
-#define VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H
+#include "visualstudiosolutionmanager.h"
 
-#include "vcprojectmodel/vcprojectdocument_constants.h"
-#include "common/projectconstants.h"
-
-#include <coreplugin/idocument.h>
+#include "../visualstudioproject.h"
 
 namespace VcProjectManager {
 namespace Internal {
 
-class VcDocProjectNode;
-class VcDocumentModel;
-class IVisualStudioProject;
-
-class VcProjectFile : public Core::IDocument
+VisualStudioSolutionManager::VisualStudioSolutionManager()
 {
-    Q_OBJECT
+}
 
-public:
-    VcProjectFile(const QString &filePath, DocumentVersion docVersion);
-    ~VcProjectFile();
+QString VisualStudioSolutionManager::mimeType() const
+{
+    return QLatin1String("text/vs-solution");
+}
 
-    bool save(QString *errorString, const QString &fileName = QString(), bool autoSave = false);
-
-    QString defaultPath() const;
-    QString suggestedFileName() const;
-
-    bool isModified() const;
-    bool isSaveAsAllowed() const;
-
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
-
-    VcDocProjectNode *createProjectNode();
-    void reloadVcDoc();
-    IVisualStudioProject *visualStudioProject() const;
-    void setVisualStudioProject(IVisualStudioProject *documentModel);
-    void showSettingsDialog();
-    void showFileSettingsDialog(const QString &canonicalFilePath);
-
-private slots:
-    void onSettingsDialogAccepted();
-    void onSettingDislogCancelled();
-
-private:
-    IVisualStudioProject *m_documentModel;
-    IVisualStudioProject *m_tempModel;
-};
+ProjectExplorer::Project *VisualStudioSolutionManager::openProject(const QString &filePath, QString *errorString)
+{
+    Q_UNUSED(errorString)
+    return new VisualStudioProject(this, filePath);
+}
 
 } // namespace Internal
 } // namespace VcProjectManager
 
-#endif // VCPROJECTMANAGER_INTERNAL_VC_PROJECT_FILE_H

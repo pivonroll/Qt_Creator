@@ -30,10 +30,10 @@
 #include "vcprojectfile.h"
 
 #include "vcdocprojectnodes.h"
-#include "vcprojectmanagerconstants.h"
+#include "../common/vcprojectmanagerconstants.h"
 #include "vcprojectmodel/vcprojectdocument.h"
+#include "utils/utils.h"
 
-#include "utils.h"
 #include <vcdebuging.h>
 
 #include <QFileInfo>

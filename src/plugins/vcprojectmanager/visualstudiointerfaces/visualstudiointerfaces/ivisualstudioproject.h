@@ -31,7 +31,7 @@
 #define VCPROJECTMANAGER_INTERNAL_I_VISUAL_STUDIO_PROJECT_H
 
 #include "ivcprojectnodemodel.h"
-#include "../projectconstants.h"
+#include "../common/projectconstants.h"
 
 #include <QString>
 

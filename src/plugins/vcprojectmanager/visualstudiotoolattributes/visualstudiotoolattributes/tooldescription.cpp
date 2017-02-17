@@ -33,7 +33,7 @@
 
 #include <visualstudiointerfaces/itoolattribute.h>
 
-#include "../../vcprojectmodel/tools/configurationtool.h"
+#include <vcprojectmodel/tools/configurationtool.h>
 #include "toolsectiondescription.h"
 
 #include <utils/qtcassert.h>

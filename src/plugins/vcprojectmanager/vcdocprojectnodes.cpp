@@ -27,7 +27,7 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#include "vcprojectmanagerconstants.h"
+#include "common/vcprojectmanagerconstants.h"
 #include "vcdocprojectnodes.h"
 
 #include <widgets/visualstudiowidgets/filesettingswidget.h>

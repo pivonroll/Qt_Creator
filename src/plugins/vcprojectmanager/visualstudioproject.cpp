@@ -29,9 +29,9 @@
 ****************************************************************************/
 #include "visualstudioproject.h"
 
-#include "visualstudiosolutionfile.h"
-#include "visualstudiosolutionmanager.h"
-#include "visualstudiosolutionnode.h"
+#include "visualstudiosolution/visualstudiosolutionfile.h"
+#include "visualstudiosolution/visualstudiosolutionmanager.h"
+#include "visualstudiosolution/visualstudiosolutionnode.h"
 
 namespace VcProjectManager {
 namespace Internal {

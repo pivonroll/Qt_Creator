@@ -1,11 +1,18 @@
- 
+INCLUDEPATH += \
+                $$PWD \
 
 HEADERS += \
-    $$PWD/visualstudiosolutionparser/visualstudiosolutionparser.h \
-    $$PWD/visualstudiosolutionparser/projectreference.h \
-    $$PWD/visualstudiosolutionparser/globalsection.h \
-    $$PWD/visualstudiosolutionparser/globals.h \
-    $$PWD/visualstudiosolutionparser/solutionconfiguration.h
+    $$PWD/visualstudiosolution/visualstudiosolutionparser/visualstudiosolutionparser.h \
+    $$PWD/visualstudiosolution/visualstudiosolutionparser/projectreference.h \
+    $$PWD/visualstudiosolution/visualstudiosolutionparser/globalsection.h \
+    $$PWD/visualstudiosolution/visualstudiosolutionparser/globals.h \
+    $$PWD/visualstudiosolution/visualstudiosolutionparser/solutionconfiguration.h \
+    $$PWD/visualstudiosolution/visualstudiosolutionfile.h \
+    $$PWD/visualstudiosolution/visualstudiosolutionmanager.h \
+    $$PWD/visualstudiosolution/visualstudiosolutionnode.h
 
 SOURCES += \
-    $$PWD/visualstudiosolutionparser/visualstudiosolutionparser.cpp
+    $$PWD/visualstudiosolution/visualstudiosolutionparser/visualstudiosolutionparser.cpp \
+    $$PWD/visualstudiosolution/visualstudiosolutionfile.cpp \
+    $$PWD/visualstudiosolution/visualstudiosolutionmanager.cpp \
+    $$PWD/visualstudiosolution/visualstudiosolutionnode.cpp
