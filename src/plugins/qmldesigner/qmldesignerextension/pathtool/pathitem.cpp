@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -247,7 +247,7 @@ static void drawCubicSegments(const QList<CubicSegment> &cubicSegments, QPainter
 
 static void drawControlLine(const CubicSegment &cubicSegment, QPainter *painter)
 {
-    static QPen solidPen(QColor(104, 183, 214), 1, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin);
+    static const QPen solidPen(QColor(104, 183, 214), 1, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin);
     painter->setPen(solidPen);
     painter->drawLine(cubicSegment.firstControlPoint().coordinate(),
                       cubicSegment.secondControlPoint().coordinate());
@@ -281,9 +281,9 @@ static QRectF controlPointShape(-2, -2, 5, 5);
 
 static void drawControlPoint(const ControlPoint &controlPoint, const QList<ControlPoint> &selectionPoints, QPainter *painter)
 {
-    static QColor editPointColor(0, 110, 255);
-    static QColor controlVertexColor(0, 110, 255);
-    static QColor selectionPointColor(0, 255, 0);
+    static const QColor editPointColor(0, 110, 255);
+    static const QColor controlVertexColor(0, 110, 255);
+    static const QColor selectionPointColor(0, 255, 0);
 
     double originX = controlPoint.coordinate().x();
     double originY = controlPoint.coordinate().y();
@@ -885,7 +885,7 @@ void PathItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
         if (pickedControlPoint.isEditPoint()) {
             createEditPointContextMenu(pickedControlPoint, event->screenPos());
         } else {
-            double t;
+            double t = 0.0;
             CubicSegment minimumDistanceSegment = getMinimumDistanceSegment(event->pos(), m_cubicSegments, 20., &t);
             if (minimumDistanceSegment.isValid())
                 createCubicSegmentContextMenu(minimumDistanceSegment, event->screenPos(), t);

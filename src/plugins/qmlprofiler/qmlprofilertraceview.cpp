@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,6 +32,13 @@
 #include "qmlprofilerrangemodel.h"
 #include "qmlprofilerplugin.h"
 
+#include "inputeventsmodel.h"
+#include "pixmapcachemodel.h"
+#include "debugmessagesmodel.h"
+#include "flamegraphview.h"
+#include "memoryusagemodel.h"
+#include "scenegraphtimelinemodel.h"
+
 // Communication with the other views (limit events to range)
 #include "qmlprofilerviewmanager.h"
 
@@ -44,12 +46,15 @@
 #include "timeline/timelinemodelaggregator.h"
 #include "timeline/timelinerenderer.h"
 #include "timeline/timelineoverviewrenderer.h"
+#include "timeline/timelinetheme.h"
+#include "timeline/timelineformattime.h"
 
 #include <aggregation/aggregate.h>
 // Needed for the load&save actions in the context menu
-#include <analyzerbase/ianalyzertool.h>
+#include <debugger/analyzer/analyzermanager.h>
 #include <coreplugin/findplaceholder.h>
 #include <utils/styledbar.h>
+#include <utils/algorithm.h>
 
 #include <QQmlContext>
 #include <QToolButton>
@@ -66,8 +71,6 @@
 
 #include <math.h>
 
-using namespace QmlDebug;
-
 namespace QmlProfiler {
 namespace Internal {
 
@@ -76,30 +79,46 @@ class QmlProfilerTraceView::QmlProfilerTraceViewPrivate
 public:
     QmlProfilerTraceViewPrivate(QmlProfilerTraceView *qq) : q(qq) {}
     QmlProfilerTraceView *q;
-
-    QmlProfilerTool *m_profilerTool;
     QmlProfilerViewManager *m_viewContainer;
-
-    QSize m_sizeHint;
-
     QQuickWidget *m_mainView;
     QmlProfilerModelManager *m_modelManager;
+    QVariantList m_suspendedModels;
     Timeline::TimelineModelAggregator *m_modelProxy;
-
-
     Timeline::TimelineZoomControl *m_zoomControl;
 };
 
-QmlProfilerTraceView::QmlProfilerTraceView(QWidget *parent, QmlProfilerTool *profilerTool, QmlProfilerViewManager *container, QmlProfilerModelManager *modelManager)
+QmlProfilerTraceView::QmlProfilerTraceView(QWidget *parent, QmlProfilerViewManager *container,
+                                           QmlProfilerModelManager *modelManager)
     : QWidget(parent), d(new QmlProfilerTraceViewPrivate(this))
 {
-    setObjectName(QLatin1String("QML Profiler"));
+    setWindowTitle(tr("Timeline"));
+    setObjectName("QmlProfiler.Timeline.Dock");
 
     d->m_zoomControl = new Timeline::TimelineZoomControl(this);
-    connect(modelManager->traceTime(), &QmlProfilerTraceTime::timeChanged,
-            this, [this](qint64 start, qint64 end) {
-        d->m_zoomControl->setTrace(start, end);
-        d->m_zoomControl->setRange(start, start + (end - start) / 10);
+    connect(modelManager, &QmlProfilerModelManager::stateChanged, this, [modelManager, this]() {
+        switch (modelManager->state()) {
+        case QmlProfilerModelManager::Done: {
+            qint64 start = modelManager->traceTime()->startTime();
+            qint64 end = modelManager->traceTime()->endTime();
+            d->m_zoomControl->setTrace(start, end);
+            d->m_zoomControl->setRange(start, start + (end - start) / 10);
+            // Fall through
+        }
+        case QmlProfilerModelManager::Empty:
+            d->m_modelProxy->setModels(d->m_suspendedModels);
+            d->m_suspendedModels.clear();
+            break;
+        case QmlProfilerModelManager::ProcessingData:
+            break;
+        case QmlProfilerModelManager::ClearingData:
+            d->m_zoomControl->clear();
+            // Fall through
+        case QmlProfilerModelManager::AcquiringData:
+            // Temporarily remove the models, while we're changing them
+            d->m_suspendedModels = d->m_modelProxy->models();
+            d->m_modelProxy->setModels(QVariantList());
+            break;
+        }
     });
 
     QVBoxLayout *groupLayout = new QVBoxLayout;
@@ -126,26 +145,29 @@ QmlProfilerTraceView::QmlProfilerTraceView(QWidget *parent, QmlProfilerTool *pro
     groupLayout->addWidget(new Core::FindToolBarPlaceHolder(this));
     setLayout(groupLayout);
 
-    d->m_profilerTool = profilerTool;
     d->m_viewContainer = container;
-
     d->m_modelProxy = new Timeline::TimelineModelAggregator(modelManager->notesModel(), this);
     d->m_modelManager = modelManager;
 
-    // external models pushed on top
-    foreach (QmlProfilerTimelineModel *timelineModel,
-             QmlProfilerPlugin::instance->getModels(modelManager)) {
-        d->m_modelProxy->addModel(timelineModel);
+    QVariantList models;
+    models.append(QVariant::fromValue(new PixmapCacheModel(modelManager, d->m_modelProxy)));
+    models.append(QVariant::fromValue(new SceneGraphTimelineModel(modelManager, d->m_modelProxy)));
+    models.append(QVariant::fromValue(new MemoryUsageModel(modelManager, d->m_modelProxy)));
+    models.append(QVariant::fromValue(new InputEventsModel(modelManager, d->m_modelProxy)));
+    models.append(QVariant::fromValue(new DebugMessagesModel(modelManager, d->m_modelProxy)));
+    models.append(QVariant::fromValue(new QmlProfilerAnimationsModel(modelManager,
+                                                                     d->m_modelProxy)));
+    for (int i = 0; i < MaximumRangeType; ++i) {
+        models.append(QVariant::fromValue(new QmlProfilerRangeModel(modelManager, (RangeType)i,
+                                                                    d->m_modelProxy)));
     }
-
-    d->m_modelProxy->addModel(new QmlProfilerAnimationsModel(modelManager, d->m_modelProxy));
-
-    for (int i = 0; i < MaximumRangeType; ++i)
-        d->m_modelProxy->addModel(new QmlProfilerRangeModel(modelManager, (RangeType)i,
-                                                            d->m_modelProxy));
+    d->m_modelProxy->setModels(models);
 
     // Minimum height: 5 rows of 20 pixels + scrollbar of 50 pixels + 20 pixels margin
     setMinimumHeight(170);
+
+    Timeline::TimelineTheme::setupTheme(d->m_mainView->engine());
+    Timeline::TimeFormatter::setupTimeFormatter();
 
     d->m_mainView->rootContext()->setContextProperty(QLatin1String("timelineModelAggregator"),
                                                      d->m_modelProxy);
@@ -192,24 +214,6 @@ void QmlProfilerTraceView::selectByTypeId(int typeId)
     if (!rootObject)
         return;
     QMetaObject::invokeMethod(rootObject, "selectByTypeId", Q_ARG(QVariant,QVariant(typeId)));
-}
-
-void QmlProfilerTraceView::selectBySourceLocation(const QString &filename, int line, int column)
-{
-    QQuickItem *rootObject = d->m_mainView->rootObject();
-    if (!rootObject)
-        return;
-
-    for (int modelIndex = 0; modelIndex < d->m_modelProxy->modelCount(); ++modelIndex) {
-        int typeId = d->m_modelProxy->model(modelIndex)->selectionIdForLocation(filename, line,
-                                                                                column);
-        if (typeId != -1) {
-            QMetaObject::invokeMethod(rootObject, "selectBySelectionId",
-                                      Q_ARG(QVariant,QVariant(modelIndex)),
-                                      Q_ARG(QVariant,QVariant(typeId)));
-            return;
-        }
-    }
 }
 
 void QmlProfilerTraceView::selectByEventIndex(int modelId, int eventIndex)
@@ -259,19 +263,15 @@ void QmlProfilerTraceView::showContextMenu(QPoint position)
     QMenu menu;
     QAction *viewAllAction = 0;
 
-    QmlProfilerTool *profilerTool = qobject_cast<QmlProfilerTool *>(d->m_profilerTool);
-
-    if (profilerTool)
-        menu.addActions(profilerTool->profilerContextMenuActions());
-
+    menu.addActions(QmlProfilerTool::profilerContextMenuActions());
     menu.addSeparator();
 
-    QAction *getLocalStatsAction = menu.addAction(tr("Limit Events Pane to Current Range"));
-    if (!d->m_viewContainer->hasValidSelection())
+    QAction *getLocalStatsAction = menu.addAction(tr("Analyze Current Range"));
+    if (!hasValidSelection())
         getLocalStatsAction->setEnabled(false);
 
-    QAction *getGlobalStatsAction = menu.addAction(tr("Show Full Range in Events Pane"));
-    if (d->m_viewContainer->hasGlobalStats())
+    QAction *getGlobalStatsAction = menu.addAction(tr("Analyze Full Range"));
+    if (!d->m_modelManager->isRestrictedToRange())
         getGlobalStatsAction->setEnabled(false);
 
     if (d->m_zoomControl->traceDuration() > 0) {
@@ -287,13 +287,21 @@ void QmlProfilerTraceView::showContextMenu(QPoint position)
                                        d->m_zoomControl->traceEnd());
         }
         if (selectedAction == getLocalStatsAction) {
-            d->m_viewContainer->getStatisticsInRange(
-                        d->m_viewContainer->selectionStart(),
-                        d->m_viewContainer->selectionEnd());
+            d->m_modelManager->restrictToRange(selectionStart(), selectionEnd());
         }
         if (selectedAction == getGlobalStatsAction)
-            d->m_viewContainer->getStatisticsInRange(-1, -1);
+            d->m_modelManager->restrictToRange(-1, -1);
     }
+}
+
+bool QmlProfilerTraceView::isUsable() const
+{
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 8, 0))
+    return d->m_mainView->quickWindow()->rendererInterface()->graphicsApi()
+            == QSGRendererInterface::OpenGL;
+#else
+    return true;
+#endif
 }
 
 void QmlProfilerTraceView::changeEvent(QEvent *e)
@@ -414,6 +422,10 @@ bool TraceViewFindSupport::findOne(const QString &txt, Core::FindFlags findFlags
             m_currentPosition = current;
             m_view->selectByEventIndex(model->timelineModel(m_currentPosition),
                                        model->timelineIndex(m_currentPosition));
+            QWidget *findBar = QApplication::focusWidget();
+            m_view->updateCursorPosition(); // open file/line that belongs to event
+            QTC_ASSERT(findBar, return true);
+            findBar->setFocus();
             return true;
         }
         current += increment;

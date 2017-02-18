@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGER_BREAKPOINT_H
-#define DEBUGGER_BREAKPOINT_H
+#pragma once
 
 #include <QMetaType>
 #include <QString>
@@ -54,7 +48,6 @@ public:
     bool operator!() const { return !isValid(); }
     operator const void*() const { return isValid() ? this : 0; }
     quint32 toInternalId() const { return m_majorPart | (m_minorPart << 16); }
-    QByteArray toByteArray() const;
     QString toString() const;
     bool operator==(const BreakpointIdBase &id) const
         { return m_majorPart == id.m_majorPart && m_minorPart == id.m_minorPart; }
@@ -72,7 +65,7 @@ public:
     BreakpointModelId() { m_majorPart = m_minorPart = 0; }
     explicit BreakpointModelId(quint16 ma) { m_majorPart = ma; m_minorPart = 0; }
     BreakpointModelId(quint16 ma, quint16 mi) { m_majorPart = ma; m_minorPart = mi; }
-    explicit BreakpointModelId(const QByteArray &ba); // "21.2"
+    explicit BreakpointModelId(const QString &ba); // "21.2"
 };
 
 class BreakpointResponseId : public BreakpointIdBase
@@ -81,7 +74,7 @@ public:
     BreakpointResponseId() { m_majorPart = m_minorPart = 0; }
     explicit BreakpointResponseId(quint16 ma) { m_majorPart = ma; m_minorPart = 0; }
     BreakpointResponseId(quint16 ma, quint16 mi) { m_majorPart = ma; m_minorPart = mi; }
-    explicit BreakpointResponseId(const QByteArray &ba); // "21.2"
+    explicit BreakpointResponseId(const QString &ba); // "21.2"
 };
 
 
@@ -135,6 +128,18 @@ enum BreakpointPathUsage
     BreakpointUseShortPath            //!< Use filename only, in case source files are relocated.
 };
 
+enum BreakpointColumns
+{
+    BreakpointNumberColumn,
+    BreakpointFunctionColumn,
+    BreakpointFileColumn,
+    BreakpointLineColumn,
+    BreakpointAddressColumn,
+    BreakpointConditionColumn,
+    BreakpointIgnoreColumn,
+    BreakpointThreadsColumn
+};
+
 enum BreakpointParts
 {
     NoParts         = 0,
@@ -177,7 +182,7 @@ public:
     BreakpointParts differencesTo(const BreakpointParameters &rhs) const;
     bool isValid() const;
     bool equals(const BreakpointParameters &rhs) const;
-    bool conditionsMatch(const QByteArray &other) const;
+    bool conditionsMatch(const QString &other) const;
     bool isWatchpoint() const
         { return type == WatchpointAtAddress || type == WatchpointAtExpression; }
     // Enough for now.
@@ -185,7 +190,7 @@ public:
     bool isTracepoint() const { return tracepoint; }
     bool isCppBreakpoint() const;
     QString toString() const;
-    void updateLocation(const QByteArray &location); // file.cpp:42
+    void updateLocation(const QString &location); // file.cpp:42
 
     bool operator==(const BreakpointParameters &p) const { return equals(p); }
     bool operator!=(const BreakpointParameters &p) const { return !equals(p); }
@@ -194,7 +199,7 @@ public:
     bool enabled;            //!< Should we talk to the debugger engine?
     BreakpointPathUsage pathUsage;  //!< Should we use the full path when setting the bp?
     QString fileName;        //!< Short name of source file.
-    QByteArray condition;    //!< Condition associated with breakpoint.
+    QString condition;       //!< Condition associated with breakpoint.
     int ignoreCount;         //!< Ignore count associated with breakpoint.
     int lineNumber;          //!< Line in source file.
     quint64 address;         //!< Address for address based data breakpoints.
@@ -237,6 +242,3 @@ inline uint qHash(const Debugger::Internal::BreakpointModelId &id)
 
 Q_DECLARE_METATYPE(Debugger::Internal::BreakpointModelId)
 Q_DECLARE_METATYPE(Debugger::Internal::BreakpointResponseId)
-
-
-#endif // DEBUGGER_BREAKPOINT_H

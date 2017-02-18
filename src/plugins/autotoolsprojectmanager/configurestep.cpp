@@ -1,9 +1,9 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Openismus GmbH.
-** Authors: Peter Penz (ppenz@openismus.com)
-**          Patricia Santana Cruz (patriciasantanacruz@gmail.com)
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Openismus GmbH.
+** Author: Peter Penz (ppenz@openismus.com)
+** Author: Patricia Santana Cruz (patriciasantanacruz@gmail.com)
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -11,22 +11,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -72,90 +67,46 @@ static QString projectDirRelativeToBuildDir(BuildConfiguration *bc) {
 ////////////////////////////////
 // ConfigureStepFactory Class
 ////////////////////////////////
-ConfigureStepFactory::ConfigureStepFactory(QObject *parent) :
-    IBuildStepFactory(parent)
-{
-}
+ConfigureStepFactory::ConfigureStepFactory(QObject *parent) : IBuildStepFactory(parent)
+{ }
 
-QList<Core::Id> ConfigureStepFactory::availableCreationIds(BuildStepList *parent) const
+QList<BuildStepInfo> ConfigureStepFactory::availableSteps(BuildStepList *parent) const
 {
-    if (!canHandle(parent))
-        return QList<Core::Id>();
-    return QList<Core::Id>() << Core::Id(CONFIGURE_STEP_ID);
-}
+    if (parent->target()->project()->id() != Constants::AUTOTOOLS_PROJECT_ID
+            || parent->id() != ProjectExplorer::Constants::BUILDSTEPS_BUILD)
+        return {};
 
-QString ConfigureStepFactory::displayNameForId(Core::Id id) const
-{
-    if (id == CONFIGURE_STEP_ID)
-        return tr("Configure", "Display name for AutotoolsProjectManager::ConfigureStep id.");
-    return QString();
-}
-
-bool ConfigureStepFactory::canCreate(BuildStepList *parent, Core::Id id) const
-{
-    return canHandle(parent) && id == CONFIGURE_STEP_ID;
+    QString display = tr("Configure", "Display name for AutotoolsProjectManager::ConfigureStep id.");
+    return {{ CONFIGURE_STEP_ID, display }};
 }
 
 BuildStep *ConfigureStepFactory::create(BuildStepList *parent, Core::Id id)
 {
-    if (!canCreate(parent, id))
-        return 0;
+    Q_UNUSED(id)
     return new ConfigureStep(parent);
-}
-
-bool ConfigureStepFactory::canClone(BuildStepList *parent, BuildStep *source) const
-{
-    return canCreate(parent, source->id());
 }
 
 BuildStep *ConfigureStepFactory::clone(BuildStepList *parent, BuildStep *source)
 {
-    if (!canClone(parent, source))
-        return 0;
     return new ConfigureStep(parent, static_cast<ConfigureStep *>(source));
 }
 
-bool ConfigureStepFactory::canRestore(BuildStepList *parent, const QVariantMap &map) const
-{
-    return canCreate(parent, idFromMap(map));
-}
-
-BuildStep *ConfigureStepFactory::restore(BuildStepList *parent, const QVariantMap &map)
-{
-    if (!canRestore(parent, map))
-        return 0;
-    ConfigureStep *bs = new ConfigureStep(parent);
-    if (bs->fromMap(map))
-        return bs;
-    delete bs;
-    return 0;
-}
-
-bool ConfigureStepFactory::canHandle(BuildStepList *parent) const
-{
-    if (parent->target()->project()->id() == Constants::AUTOTOOLS_PROJECT_ID)
-        return parent->id() == ProjectExplorer::Constants::BUILDSTEPS_BUILD;
-    return false;
-}
 
 ////////////////////////
 // ConfigureStep class
 ////////////////////////
 ConfigureStep::ConfigureStep(BuildStepList* bsl) :
-    AbstractProcessStep(bsl, Core::Id(CONFIGURE_STEP_ID)),
-    m_runConfigure(false)
+    AbstractProcessStep(bsl, Core::Id(CONFIGURE_STEP_ID))
 {
     ctor();
 }
 
-ConfigureStep::ConfigureStep(BuildStepList *bsl, Core::Id id) :
-    AbstractProcessStep(bsl, id)
+ConfigureStep::ConfigureStep(BuildStepList *bsl, Core::Id id) : AbstractProcessStep(bsl, id)
 {
     ctor();
 }
 
-ConfigureStep::ConfigureStep(BuildStepList *bsl, ConfigureStep *bs) :
-    AbstractProcessStep(bsl, bs),
+ConfigureStep::ConfigureStep(BuildStepList *bsl, ConfigureStep *bs) : AbstractProcessStep(bsl, bs),
     m_additionalArguments(bs->additionalArguments())
 {
     ctor();
@@ -166,7 +117,7 @@ void ConfigureStep::ctor()
     setDefaultDisplayName(tr("Configure"));
 }
 
-bool ConfigureStep::init()
+bool ConfigureStep::init(QList<const BuildStep *> &earlierSteps)
 {
     BuildConfiguration *bc = buildConfiguration();
 
@@ -178,10 +129,10 @@ bool ConfigureStep::init()
     pp->setArguments(additionalArguments());
     pp->resolveAll();
 
-    return AbstractProcessStep::init();
+    return AbstractProcessStep::init(earlierSteps);
 }
 
-void ConfigureStep::run(QFutureInterface<bool>& interface)
+void ConfigureStep::run(QFutureInterface<bool>& fi)
 {
     BuildConfiguration *bc = buildConfiguration();
 
@@ -196,14 +147,13 @@ void ConfigureStep::run(QFutureInterface<bool>& interface)
     }
 
     if (!m_runConfigure) {
-        emit addOutput(tr("Configuration unchanged, skipping configure step."), BuildStep::MessageOutput);
-        interface.reportResult(true);
-        emit finished();
+        emit addOutput(tr("Configuration unchanged, skipping configure step."), BuildStep::OutputFormat::NormalMessage);
+        reportRunResult(fi, true);
         return;
     }
 
     m_runConfigure = false;
-    AbstractProcessStep::run(interface);
+    AbstractProcessStep::run(fi);
 }
 
 BuildStepConfigWidget *ConfigureStep::createConfigWidget()
@@ -257,26 +207,24 @@ bool ConfigureStep::fromMap(const QVariantMap &map)
 /////////////////////////////////////
 ConfigureStepConfigWidget::ConfigureStepConfigWidget(ConfigureStep *configureStep) :
     m_configureStep(configureStep),
-    m_summaryText(),
-    m_additionalArguments(0)
+    m_additionalArguments(new QLineEdit)
 {
     QFormLayout *fl = new QFormLayout(this);
     fl->setMargin(0);
     fl->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     setLayout(fl);
 
-    m_additionalArguments = new QLineEdit(this);
     fl->addRow(tr("Arguments:"), m_additionalArguments);
     m_additionalArguments->setText(m_configureStep->additionalArguments());
 
     updateDetails();
 
-    connect(m_additionalArguments, SIGNAL(textChanged(QString)),
-            configureStep, SLOT(setAdditionalArguments(QString)));
-    connect(configureStep, SIGNAL(additionalArgumentsChanged(QString)),
-            this, SLOT(updateDetails()));
-    connect(configureStep, SIGNAL(buildDirectoryChanged()),
-            this, SLOT(updateDetails()));
+    connect(m_additionalArguments, &QLineEdit::textChanged,
+            configureStep, &ConfigureStep::setAdditionalArguments);
+    connect(configureStep, &ConfigureStep::additionalArgumentsChanged,
+            this, &ConfigureStepConfigWidget::updateDetails);
+    connect(configureStep, &ConfigureStep::buildDirectoryChanged,
+            this, &ConfigureStepConfigWidget::updateDetails);
 }
 
 QString ConfigureStepConfigWidget::displayName() const

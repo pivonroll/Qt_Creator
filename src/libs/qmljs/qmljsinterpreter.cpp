@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -336,8 +331,8 @@ void CppComponentValue::processMembers(MemberProcessor *processor) const
             propertyFlags |= PropertyInfo::PointerType;
         else
             propertyFlags |= PropertyInfo::ValueType;
-            processor->processProperty(propertyName, valueForCppName(prop.typeName()),
-                                       PropertyInfo(propertyFlags));
+        processor->processProperty(propertyName, valueForCppName(prop.typeName()),
+                                   PropertyInfo(propertyFlags));
 
         // every property always has a onXyzChanged slot, even if the NOTIFY
         // signal has a different name
@@ -1122,11 +1117,13 @@ const Value *ObjectValue::lookupMember(const QString &name, const Context *conte
         }
     }
 
+    const ObjectValue *prototypeObject = 0;
+
     if (examinePrototypes && context) {
         PrototypeIterator iter(this, context);
         iter.next(); // skip this
         while (iter.hasNext()) {
-            const ObjectValue *prototypeObject = iter.next();
+            prototypeObject = iter.next();
             if (const Value *m = prototypeObject->lookupMember(name, context, foundInObject, false))
                 return m;
         }
@@ -1134,6 +1131,7 @@ const Value *ObjectValue::lookupMember(const QString &name, const Context *conte
 
     if (foundInObject)
         *foundInObject = 0;
+
     return 0;
 }
 
@@ -1351,6 +1349,7 @@ CppQmlTypesLoader::BuiltinObjects CppQmlTypesLoader::defaultQtObjects;
 CppQmlTypesLoader::BuiltinObjects CppQmlTypesLoader::loadQmlTypes(const QFileInfoList &qmlTypeFiles, QStringList *errors, QStringList *warnings)
 {
     QHash<QString, FakeMetaObject::ConstPtr> newObjects;
+    QStringList newDependencies;
 
     foreach (const QFileInfo &qmlTypeFile, qmlTypeFiles) {
         QString error, warning;
@@ -1360,7 +1359,8 @@ CppQmlTypesLoader::BuiltinObjects CppQmlTypesLoader::loadQmlTypes(const QFileInf
             file.close();
 
 
-            parseQmlTypeDescriptions(contents, &newObjects, 0, &error, &warning, qmlTypeFile.absoluteFilePath());
+            parseQmlTypeDescriptions(contents, &newObjects, 0, &newDependencies, &error, &warning,
+                                     qmlTypeFile.absoluteFilePath());
         } else {
             error = file.errorString();
         }
@@ -1382,6 +1382,7 @@ CppQmlTypesLoader::BuiltinObjects CppQmlTypesLoader::loadQmlTypes(const QFileInf
 void CppQmlTypesLoader::parseQmlTypeDescriptions(const QByteArray &contents,
                                                  BuiltinObjects *newObjects,
                                                  QList<ModuleApiInfo> *newModuleApis,
+                                                 QStringList *newDependencies,
                                                  QString *errorMessage,
                                                  QString *warningMessage, const QString &fileName)
 {
@@ -1401,7 +1402,7 @@ void CppQmlTypesLoader::parseQmlTypeDescriptions(const QByteArray &contents,
     errorMessage->clear();
     warningMessage->clear();
     TypeDescriptionReader reader(fileName, QString::fromUtf8(contents));
-    if (!reader(newObjects, newModuleApis)) {
+    if (!reader(newObjects, newModuleApis, newDependencies)) {
         if (reader.errorMessage().isEmpty())
             *errorMessage = QLatin1String("unknown error");
         else
@@ -1453,9 +1454,10 @@ void CppQmlTypes::load(const QString &originId, const T &fakeMetaObjects, const 
             object->setPrototype(proto);
     }
 }
+
 // explicitly instantiate load for list and hash
-template void CppQmlTypes::load< QList<FakeMetaObject::ConstPtr> >(const QString &, const QList<FakeMetaObject::ConstPtr> &, const QString &);
-template void CppQmlTypes::load< QHash<QString, FakeMetaObject::ConstPtr> >(const QString &, const QHash<QString, FakeMetaObject::ConstPtr> &, const QString &);
+template QMLJS_EXPORT void CppQmlTypes::load< QList<FakeMetaObject::ConstPtr> >(const QString &, const QList<FakeMetaObject::ConstPtr> &, const QString &);
+template QMLJS_EXPORT void CppQmlTypes::load< QHash<QString, FakeMetaObject::ConstPtr> >(const QString &, const QHash<QString, FakeMetaObject::ConstPtr> &, const QString &);
 
 QList<const CppComponentValue *> CppQmlTypes::createObjectsForImport(const QString &package, ComponentVersion version)
 {
@@ -2277,6 +2279,14 @@ ImportInfo ImportInfo::implicitDirectoryImport(const QString &directory)
 {
     ImportInfo info;
     info.m_type = ImportType::ImplicitDirectory;
+    info.m_path = directory;
+    return info;
+}
+
+ImportInfo ImportInfo::qrcDirectoryImport(const QString &directory)
+{
+    ImportInfo info;
+    info.m_type = ImportType::QrcDirectory;
     info.m_path = directory;
     return info;
 }

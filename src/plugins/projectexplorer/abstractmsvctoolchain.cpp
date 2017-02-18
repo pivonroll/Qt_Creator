@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,49 +9,44 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "abstractmsvctoolchain.h"
 
 #include "msvcparser.h"
+#include "projectexplorer.h"
+#include "projectexplorersettings.h"
+#include "taskhub.h"
 
-#include <projectexplorer/projectexplorer.h>
-#include <projectexplorer/projectexplorersettings.h>
-
+#include <utils/hostosinfo.h>
 #include <utils/qtcprocess.h>
 #include <utils/synchronousprocess.h>
+#include <utils/temporarydirectory.h>
 
 #include <QDir>
-#include <QTemporaryFile>
+#include <QSysInfo>
+#include <QTextCodec>
 
 enum { debug = 0 };
 
 namespace ProjectExplorer {
 namespace Internal {
 
-
-AbstractMsvcToolChain::AbstractMsvcToolChain(Core::Id typeId,
-                                             Detection d,
+AbstractMsvcToolChain::AbstractMsvcToolChain(Core::Id typeId, Core::Id l, Detection d,
                                              const Abi &abi,
-                                             const QString& vcvarsBat) :
-    ToolChain(typeId, d),
+                                             const QString& vcvarsBat) : ToolChain(typeId, d),
     m_lastEnvironment(Utils::Environment::systemEnvironment()),
     m_abi(abi),
     m_vcvarsBat(vcvarsBat)
@@ -60,6 +55,7 @@ AbstractMsvcToolChain::AbstractMsvcToolChain(Core::Id typeId,
     Q_ASSERT(abi.binaryFormat() == Abi::PEFormat);
     Q_ASSERT(abi.osFlavor() != Abi::WindowsMSysFlavor);
     Q_ASSERT(!m_vcvarsBat.isEmpty());
+    setLanguage(l);
 }
 
 AbstractMsvcToolChain::AbstractMsvcToolChain(Core::Id typeId, Detection d) :
@@ -74,7 +70,10 @@ Abi AbstractMsvcToolChain::targetAbi() const
 
 bool AbstractMsvcToolChain::isValid() const
 {
-    return !m_vcvarsBat.isEmpty();
+    if (m_vcvarsBat.isEmpty())
+        return false;
+    QFileInfo fi(m_vcvarsBat);
+    return fi.isFile() && fi.isExecutable();
 }
 
 QByteArray AbstractMsvcToolChain::predefinedMacros(const QStringList &cxxflags) const
@@ -97,11 +96,17 @@ ToolChain::CompilerFlags AbstractMsvcToolChain::compilerFlags(const QStringList 
     if (cxxflags.contains(QLatin1String("/Za")))
         flags &= ~MicrosoftExtensions;
 
-    if (m_abi.osFlavor() == Abi::WindowsMsvc2010Flavor
-            || m_abi.osFlavor() == Abi::WindowsMsvc2012Flavor
-            || m_abi.osFlavor() == Abi::WindowsMsvc2013Flavor
-            || m_abi.osFlavor() == Abi::WindowsMsvc2015Flavor)
-        flags |= StandardCxx11;
+    switch (m_abi.osFlavor()) {
+    case Abi::WindowsMsvc2010Flavor:
+    case Abi::WindowsMsvc2012Flavor: flags |= StandardCxx11;
+        break;
+    case Abi::WindowsMsvc2013Flavor:
+    case Abi::WindowsMsvc2015Flavor:
+    case Abi::WindowsMsvc2017Flavor: flags |= StandardCxx14;
+        break;
+    default:
+        break;
+    }
 
     return flags;
 }
@@ -110,15 +115,15 @@ ToolChain::CompilerFlags AbstractMsvcToolChain::compilerFlags(const QStringList 
  * Converts MSVC warning flags to clang flags.
  * @see http://msdn.microsoft.com/en-us/library/thxezb7y.aspx
  */
-AbstractMsvcToolChain::WarningFlags AbstractMsvcToolChain::warningFlags(const QStringList &cflags) const
+WarningFlags AbstractMsvcToolChain::warningFlags(const QStringList &cflags) const
 {
-    WarningFlags flags;
+    WarningFlags flags = WarningFlags::NoWarnings;
     foreach (QString flag, cflags) {
         if (!flag.isEmpty() && flag[0] == QLatin1Char('-'))
             flag[0] = QLatin1Char('/');
 
         if (flag == QLatin1String("/WX"))
-            flags |= WarningsAsErrors;
+            flags |= WarningFlags::AsErrors;
         else if (flag == QLatin1String("/W0") || flag == QLatin1String("/w"))
             inferWarningsForLevel(0, flags);
         else if (flag == QLatin1String("/W1"))
@@ -132,25 +137,25 @@ AbstractMsvcToolChain::WarningFlags AbstractMsvcToolChain::warningFlags(const QS
         if (add.triggered())
             continue;
         // http://msdn.microsoft.com/en-us/library/ay4h0tc9.aspx
-        add(4263, WarnOverloadedVirtual);
+        add(4263, WarningFlags::OverloadedVirtual);
         // http://msdn.microsoft.com/en-us/library/ytxde1x7.aspx
-        add(4230, WarnIgnoredQualfiers);
+        add(4230, WarningFlags::IgnoredQualfiers);
         // not exact match, http://msdn.microsoft.com/en-us/library/0hx5ckb0.aspx
-        add(4258, WarnHiddenLocals);
+        add(4258, WarningFlags::HiddenLocals);
         // http://msdn.microsoft.com/en-us/library/wzxffy8c.aspx
-        add(4265, WarnNonVirtualDestructor);
+        add(4265, WarningFlags::NonVirtualDestructor);
         // http://msdn.microsoft.com/en-us/library/y92ktdf2%28v=vs.90%29.aspx
-        add(4018, WarnSignedComparison);
+        add(4018, WarningFlags::SignedComparison);
         // http://msdn.microsoft.com/en-us/library/w099eeey%28v=vs.90%29.aspx
-        add(4068, WarnUnknownPragma);
+        add(4068, WarningFlags::UnknownPragma);
         // http://msdn.microsoft.com/en-us/library/26kb9fy0%28v=vs.80%29.aspx
-        add(4100, WarnUnusedParams);
+        add(4100, WarningFlags::UnusedParams);
         // http://msdn.microsoft.com/en-us/library/c733d5h9%28v=vs.90%29.aspx
-        add(4101, WarnUnusedLocals);
+        add(4101, WarningFlags::UnusedLocals);
         // http://msdn.microsoft.com/en-us/library/xb1db44s%28v=vs.90%29.aspx
-        add(4189, WarnUnusedLocals);
+        add(4189, WarningFlags::UnusedLocals);
         // http://msdn.microsoft.com/en-us/library/ttcz0bys%28v=vs.90%29.aspx
-        add(4996, WarnDeprecated);
+        add(4996, WarningFlags::Deprecated);
     }
     return flags;
 }
@@ -188,8 +193,7 @@ QString AbstractMsvcToolChain::makeCommand(const Utils::Environment &environment
     Utils::FileName tmp;
 
     if (useJom) {
-        tmp = environment.searchInPath(jom, QStringList()
-                                       << QCoreApplication::applicationDirPath());
+        tmp = environment.searchInPath(jom, QStringList(QCoreApplication::applicationDirPath()));
         if (!tmp.isEmpty())
             return tmp.toString();
     }
@@ -205,7 +209,16 @@ Utils::FileName AbstractMsvcToolChain::compilerCommand() const
 {
     Utils::Environment env = Utils::Environment::systemEnvironment();
     addToEnvironment(env);
-    return env.searchInPath(QLatin1String("cl.exe"));
+
+    Utils::FileName clexe = env.searchInPath(QLatin1String("cl.exe"), QStringList(), [](const QString &name) {
+        QDir dir(QDir::cleanPath(QFileInfo(name).absolutePath() + QStringLiteral("/..")));
+        do {
+            if (QFile::exists(dir.absoluteFilePath(QStringLiteral("vcvarsall.bat"))))
+                return true;
+        } while (dir.cdUp() && !dir.isRoot());
+        return false;
+    });
+    return clexe;
 }
 
 IOutputParser *AbstractMsvcToolChain::outputParser() const
@@ -237,20 +250,17 @@ QByteArray AbstractMsvcToolChain::msvcPredefinedMacros(const QStringList cxxflag
     return predefinedMacros;
 }
 
-
-bool AbstractMsvcToolChain::generateEnvironmentSettings(Utils::Environment &env,
+bool AbstractMsvcToolChain::generateEnvironmentSettings(const Utils::Environment &env,
                                                         const QString &batchFile,
                                                         const QString &batchArgs,
                                                         QMap<QString, QString> &envPairs)
 {
-    const QByteArray marker = "####################\r\n";
+    const QString marker = "####################";
     // Create a temporary file name for the output. Use a temporary file here
     // as I don't know another way to do this in Qt...
-    // Note, can't just use a QTemporaryFile all the way through as it remains open
-    // internally so it can't be streamed to later.
 
     // Create a batch file to create and save the env settings
-    Utils::TempFileSaver saver(QDir::tempPath() + QLatin1String("/XXXXXX.bat"));
+    Utils::TempFileSaver saver(Utils::TemporaryDirectory::masterDirectoryPath() + "/XXXXXX.bat");
 
     QByteArray call = "call ";
     call += Utils::QtcProcess::quoteArg(batchFile).toLocal8Bit();
@@ -258,76 +268,87 @@ bool AbstractMsvcToolChain::generateEnvironmentSettings(Utils::Environment &env,
         call += ' ';
         call += batchArgs.toLocal8Bit();
     }
+    if (Utils::HostOsInfo::isWindowsHost() && QSysInfo::WindowsVersion >= QSysInfo::WV_WINDOWS7)
+        saver.write("chcp 65001\r\n"); // Only works for Windows 7 or later
     saver.write(call + "\r\n");
-    saver.write("@echo " + marker);
+    saver.write("@echo " + marker.toLocal8Bit() + "\r\n");
     saver.write("set\r\n");
-    saver.write("@echo " + marker);
+    saver.write("@echo " + marker.toLocal8Bit() + "\r\n");
     if (!saver.finalize()) {
         qWarning("%s: %s", Q_FUNC_INFO, qPrintable(saver.errorString()));
         return false;
     }
 
-    Utils::QtcProcess run;
+    Utils::SynchronousProcess run;
+
     // As of WinSDK 7.1, there is logic preventing the path from being set
     // correctly if "ORIGINALPATH" is already set. That can cause problems
     // if Creator is launched within a session set up by setenv.cmd.
-    env.unset(QLatin1String("ORIGINALPATH"));
-    run.setEnvironment(env);
+    Utils::Environment runEnv = env;
+    runEnv.unset(QLatin1String("ORIGINALPATH"));
+    run.setEnvironment(runEnv.toStringList());
+    run.setTimeoutS(30);
     Utils::FileName cmdPath = Utils::FileName::fromUserInput(QString::fromLocal8Bit(qgetenv("COMSPEC")));
     if (cmdPath.isEmpty())
         cmdPath = env.searchInPath(QLatin1String("cmd.exe"));
     // Windows SDK setup scripts require command line switches for environment expansion.
-    QString cmdArguments = QLatin1String(" /E:ON /V:ON /c \"");
-    cmdArguments += QDir::toNativeSeparators(saver.fileName());
-    cmdArguments += QLatin1Char('"');
-    run.setCommand(cmdPath.toString(), cmdArguments);
+    QStringList cmdArguments({
+        QLatin1String("/E:ON"), QLatin1String("/V:ON"), QLatin1String("/c")});
+    cmdArguments << QDir::toNativeSeparators(saver.fileName());
     if (debug)
-        qDebug() << "readEnvironmentSetting: " << call << cmdPath << cmdArguments
-                 << " Env: " << env.size();
-    run.start();
+        qDebug() << "readEnvironmentSetting: " << call << cmdPath << cmdArguments.join(' ')
+                 << " Env: " << runEnv.size();
+    run.setCodec(QTextCodec::codecForName("UTF-8"));
+    Utils::SynchronousProcessResponse response = run.runBlocking(cmdPath.toString(), cmdArguments);
 
-    if (!run.waitForStarted()) {
-        qWarning("%s: Unable to run '%s': %s", Q_FUNC_INFO, qPrintable(batchFile),
-                 qPrintable(run.errorString()));
+    QString command = QDir::toNativeSeparators(batchFile);
+    if (!response.stdErr().isEmpty()) {
+        TaskHub::addTask(Task::Error,
+                         QCoreApplication::translate("ProjectExplorer::Internal::AbstractMsvcToolChain",
+                                                     "Failed to retrieve MSVC Environment from \"%1\":\n"
+                                                     "%2")
+                         .arg(command, response.stdErr()), Constants::TASK_CATEGORY_COMPILE);
         return false;
     }
-    if (!run.waitForFinished()) {
-        qWarning("%s: Timeout running '%s'", Q_FUNC_INFO, qPrintable(batchFile));
-        Utils::SynchronousProcess::stopProcess(run);
+
+    if (response.result != Utils::SynchronousProcessResponse::Finished) {
+        const QString message = response.exitMessage(cmdPath.toString(), 10);
+        qWarning().noquote() << message;
+        if (!batchArgs.isEmpty())
+            command += ' ' + batchArgs;
+        TaskHub::addTask(Task::Error,
+                         QCoreApplication::translate("ProjectExplorer::Internal::AbstractMsvcToolChain",
+                                                     "Failed to retrieve MSVC Environment from \"%1\":\n"
+                                                     "%2")
+                         .arg(command, message), Constants::TASK_CATEGORY_COMPILE);
         return false;
     }
+
     // The SDK/MSVC scripts do not return exit codes != 0. Check on stdout.
-    QByteArray stdOut = run.readAllStandardOutput();
-    if (!stdOut.isEmpty() && (stdOut.contains("Unknown") || stdOut.contains("Error")))
-        qWarning("%s: '%s' reports:\n%s", Q_FUNC_INFO, call.constData(), stdOut.constData());
+    const QString stdOut = response.stdOut();
 
     //
     // Now parse the file to get the environment settings
-    int start = stdOut.indexOf(marker);
+    const int start = stdOut.indexOf(marker);
     if (start == -1) {
         qWarning("Could not find start marker in stdout output.");
         return false;
     }
 
-    stdOut = stdOut.mid(start + marker.size());
-
-    int end = stdOut.indexOf(marker);
+    const int end = stdOut.indexOf(marker, start + 1);
     if (end == -1) {
         qWarning("Could not find end marker in stdout output.");
         return false;
     }
 
-    stdOut = stdOut.left(end);
+    const QString output = stdOut.mid(start, end - start);
 
-    QStringList lines = QString::fromLocal8Bit(stdOut).split(QLatin1String("\r\n"));
-    QRegExp regexp(QLatin1String("(\\w*)=(.*)"));
-    foreach (const QString &line, lines) {
-        if (regexp.exactMatch(line)) {
-            const QString varName = regexp.cap(1);
-            const QString varValue = regexp.cap(2);
-
-            if (!varValue.isEmpty())
-                envPairs.insert(varName, varValue);
+    foreach (const QString &line, output.split(QLatin1String("\n"))) {
+        const int pos = line.indexOf('=');
+        if (pos > 0) {
+            const QString varName = line.mid(0, pos);
+            const QString varValue = line.mid(pos + 1);
+            envPairs.insert(varName, varValue);
         }
     }
 
@@ -341,18 +362,18 @@ bool AbstractMsvcToolChain::generateEnvironmentSettings(Utils::Environment &env,
 void AbstractMsvcToolChain::inferWarningsForLevel(int warningLevel, WarningFlags &flags)
 {
     // reset all except unrelated flag
-    flags = flags & WarningsAsErrors;
+    flags = flags & WarningFlags::AsErrors;
 
     if (warningLevel >= 1)
-        flags |= WarningFlags(WarningsDefault | WarnIgnoredQualfiers | WarnHiddenLocals  | WarnUnknownPragma);
+        flags |= WarningFlags(WarningFlags::Default | WarningFlags::IgnoredQualfiers | WarningFlags::HiddenLocals  | WarningFlags::UnknownPragma);
     if (warningLevel >= 2)
-        flags |= WarningsAll;
+        flags |= WarningFlags::All;
     if (warningLevel >= 3) {
-        flags |= WarningFlags(WarningsExtra | WarnNonVirtualDestructor | WarnSignedComparison
-                | WarnUnusedLocals | WarnDeprecated);
+        flags |= WarningFlags(WarningFlags::Extra | WarningFlags::NonVirtualDestructor | WarningFlags::SignedComparison
+                | WarningFlags::UnusedLocals | WarningFlags::Deprecated);
     }
     if (warningLevel >= 4)
-        flags |= WarnUnusedParams;
+        flags |= WarningFlags::UnusedParams;
 }
 
 bool AbstractMsvcToolChain::operator ==(const ToolChain &other) const
@@ -366,7 +387,7 @@ bool AbstractMsvcToolChain::operator ==(const ToolChain &other) const
 }
 
 AbstractMsvcToolChain::WarningFlagAdder::WarningFlagAdder(const QString &flag,
-                                                    ToolChain::WarningFlags &flags) :
+                                                          WarningFlags &flags) :
     m_flags(flags),
     m_triggered(false)
 {
@@ -380,14 +401,14 @@ AbstractMsvcToolChain::WarningFlagAdder::WarningFlagAdder(const QString &flag,
     }
     bool ok = false;
     if (m_doesEnable)
-        m_warningCode = flag.mid(2).toInt(&ok);
+        m_warningCode = flag.midRef(2).toInt(&ok);
     else
-        m_warningCode = flag.mid(3).toInt(&ok);
+        m_warningCode = flag.midRef(3).toInt(&ok);
     if (!ok)
         m_triggered = true;
 }
 
-void AbstractMsvcToolChain::WarningFlagAdder::operator ()(int warningCode, ToolChain::WarningFlags flagsSet)
+void AbstractMsvcToolChain::WarningFlagAdder::operator ()(int warningCode, WarningFlags flagsSet)
 {
     if (m_triggered)
         return;
@@ -401,16 +422,10 @@ void AbstractMsvcToolChain::WarningFlagAdder::operator ()(int warningCode, ToolC
     }
 }
 
-void AbstractMsvcToolChain::WarningFlagAdder::operator ()(int warningCode, ToolChain::WarningFlag flag)
-{
-    (*this)(warningCode, WarningFlags(flag));
-}
-
 bool AbstractMsvcToolChain::WarningFlagAdder::triggered() const
 {
     return m_triggered;
 }
-
 
 } // namespace Internal
 } // namespace ProjectExplorer

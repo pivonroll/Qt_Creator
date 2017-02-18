@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -39,6 +34,7 @@
 #include "assistinterface.h"
 #include "assistproposalitem.h"
 #include "runner.h"
+#include "textdocumentmanipulator.h"
 
 #include <texteditor/texteditor.h>
 #include <texteditor/texteditorsettings.h>
@@ -89,8 +85,7 @@ public:
     virtual bool eventFilter(QObject *o, QEvent *e);
 
 private:
-    void proposalComputed();
-    void processProposalItem(AssistProposalItem *proposalItem);
+    void processProposalItem(AssistProposalItemInterface *proposalItem);
     void handlePrefixExpansion(const QString &newPrefix);
     void finalizeProposal();
     void explicitlyAborted();
@@ -98,8 +93,8 @@ private:
 private:
     CodeAssistant *q;
     TextEditorWidget *m_editorWidget;
-    QList<QuickFixAssistProvider *> m_quickFixProviders;
     Internal::ProcessorRunner *m_requestRunner;
+    QMetaObject::Connection m_runnerConnection;
     IAssistProvider *m_requestProvider;
     IAssistProcessor *m_asyncProcessor;
     AssistKind m_assistKind;
@@ -132,6 +127,7 @@ CodeAssistantPrivate::CodeAssistantPrivate(CodeAssistant *assistant)
     connect(&m_automaticProposalTimer, &QTimer::timeout,
             this, &CodeAssistantPrivate::automaticProposalTimeout);
 
+    m_settings = TextEditorSettings::completionSettings();
     connect(TextEditorSettings::instance(), &TextEditorSettings::completionSettingsChanged,
             this, &CodeAssistantPrivate::updateFromCompletionSettings);
 
@@ -141,23 +137,7 @@ CodeAssistantPrivate::CodeAssistantPrivate(CodeAssistant *assistant)
 
 void CodeAssistantPrivate::configure(TextEditorWidget *editorWidget)
 {
-    // @TODO: There's a list of providers but currently only the first one is used. Perhaps we
-    // should implement a truly mechanism to support multiple providers for an editor (either
-    // merging or not proposals) or just leave it as not extensible and store directly the one
-    // completion and quick-fix provider (getting rid of the list).
-
     m_editorWidget = editorWidget;
-    m_quickFixProviders = ExtensionSystem::PluginManager::getObjects<QuickFixAssistProvider>();
-
-    Core::Id editorId = m_editorWidget->textDocument()->id();
-    auto it = m_quickFixProviders.begin();
-    while (it != m_quickFixProviders.end()) {
-        if ((*it)->supportsEditor(editorId))
-            ++it;
-        else
-            it = m_quickFixProviders.erase(it);
-    }
-
     m_editorWidget->installEventFilter(this);
 }
 
@@ -201,7 +181,8 @@ void CodeAssistantPrivate::process()
             }
         }
 
-        startAutomaticProposalTimer();
+        if (!isDisplayingProposal())
+            startAutomaticProposalTimer();
     } else {
         m_assistKind = TextEditor::Completion;
     }
@@ -219,20 +200,19 @@ void CodeAssistantPrivate::requestProposal(AssistReason reason,
     if (!provider) {
         if (kind == Completion)
             provider = m_editorWidget->textDocument()->completionAssistProvider();
-        else if (!m_quickFixProviders.isEmpty())
-            provider = m_quickFixProviders.at(0);
+        else
+            provider = m_editorWidget->textDocument()->quickFixAssistProvider();
 
         if (!provider)
             return;
     }
 
+    AssistInterface *assistInterface = m_editorWidget->createAssistInterface(kind, reason);
+    if (!assistInterface)
+        return;
+
     m_assistKind = kind;
     IAssistProcessor *processor = provider->createProcessor();
-    AssistInterface *assistInterface = m_editorWidget->createAssistInterface(kind, reason);
-    if (!assistInterface) {
-        delete processor;
-        return;
-    }
 
     switch (provider->runType()) {
     case IAssistProvider::Synchronous: {
@@ -247,14 +227,21 @@ void CodeAssistantPrivate::requestProposal(AssistReason reason,
 
         m_requestProvider = provider;
         m_requestRunner = new ProcessorRunner;
+        m_runnerConnection = connect(m_requestRunner, &ProcessorRunner::finished,
+                                     this, [this, reason](){
+            // Since the request runner is a different thread, there's still a gap in which the
+            // queued signal could be processed after an invalidation of the current request.
+            if (!m_requestRunner || m_requestRunner != sender())
+                return;
+
+            IAssistProposal *proposal = m_requestRunner->proposal();
+            invalidateCurrentRequestData();
+            displayProposal(proposal, reason);
+            emit q->finished();
+        });
         connect(m_requestRunner, &ProcessorRunner::finished,
-                this, &CodeAssistantPrivate::proposalComputed);
-        connect(m_requestRunner, &ProcessorRunner::finished,
-                m_requestRunner, &QObject::deleteLater);
-        connect(m_requestRunner, &ProcessorRunner::finished,
-                q, &CodeAssistant::finished);
+                m_requestRunner, &ProcessorRunner::deleteLater);
         assistInterface->prepareForAsyncUse();
-        m_requestRunner->setReason(reason);
         m_requestRunner->setProcessor(processor);
         m_requestRunner->setAssistInterface(assistInterface);
         m_requestRunner->start();
@@ -263,14 +250,8 @@ void CodeAssistantPrivate::requestProposal(AssistReason reason,
     case IAssistProvider::Asynchronous: {
         processor->setAsyncCompletionAvailableHandler(
             [this, processor, reason](IAssistProposal *newProposal){
-                if (m_asyncProcessor != processor) {
-                    delete newProposal->model();
-                    delete newProposal;
-                    return;
-                }
-
-                invalidateCurrentRequestData();
                 QTC_CHECK(newProposal);
+                invalidateCurrentRequestData();
                 displayProposal(newProposal, reason);
 
                 emit q->finished();
@@ -282,10 +263,10 @@ void CodeAssistantPrivate::requestProposal(AssistReason reason,
             delete processor;
         } else if (!processor->performWasApplicable()) {
             delete processor;
+        } else { // ...async request was triggered
+            m_asyncProcessor = processor;
         }
 
-        // ...otherwise the async request was triggered
-        m_asyncProcessor = processor;
         break;
     }
     } // switch
@@ -295,23 +276,9 @@ void CodeAssistantPrivate::cancelCurrentRequest()
 {
     if (m_requestRunner) {
         m_requestRunner->setDiscardProposal(true);
-        disconnect(m_requestRunner, &ProcessorRunner::finished,
-                   this, &CodeAssistantPrivate::proposalComputed);
+        disconnect(m_runnerConnection);
     }
     invalidateCurrentRequestData();
-}
-
-void CodeAssistantPrivate::proposalComputed()
-{
-    // Since the request runner is a different thread, there's still a gap in which the queued
-    // signal could be processed after an invalidation of the current request.
-    if (!m_requestRunner || m_requestRunner != sender())
-        return;
-
-    IAssistProposal *newProposal = m_requestRunner->proposal();
-    AssistReason reason = m_requestRunner->reason();
-    invalidateCurrentRequestData();
-    displayProposal(newProposal, reason);
 }
 
 void CodeAssistantPrivate::displayProposal(IAssistProposal *newProposal, AssistReason reason)
@@ -340,6 +307,7 @@ void CodeAssistantPrivate::displayProposal(IAssistProposal *newProposal, AssistR
     if (m_proposal->isCorrective())
         m_proposal->makeCorrection(m_editorWidget);
 
+    m_editorWidget->keepAutoCompletionHighlight(true);
     basePosition = m_proposal->basePosition();
     m_proposalWidget = m_proposal->createWidget();
     connect(m_proposalWidget, &QObject::destroyed,
@@ -356,19 +324,17 @@ void CodeAssistantPrivate::displayProposal(IAssistProposal *newProposal, AssistR
     m_proposalWidget->setUnderlyingWidget(m_editorWidget);
     m_proposalWidget->setModel(m_proposal->model());
     m_proposalWidget->setDisplayRect(m_editorWidget->cursorRect(basePosition));
-    if (m_receivedContentWhileWaiting)
-        m_proposalWidget->setIsSynchronized(false);
-    else
-        m_proposalWidget->setIsSynchronized(true);
+    m_proposalWidget->setIsSynchronized(!m_receivedContentWhileWaiting);
     m_proposalWidget->showProposal(m_editorWidget->textAt(
                                        basePosition,
                                        m_editorWidget->position() - basePosition));
 }
 
-void CodeAssistantPrivate::processProposalItem(AssistProposalItem *proposalItem)
+void CodeAssistantPrivate::processProposalItem(AssistProposalItemInterface *proposalItem)
 {
     QTC_ASSERT(m_proposal, return);
-    proposalItem->apply(m_editorWidget, m_proposal->basePosition());
+    TextDocumentManipulator manipulator(m_editorWidget);
+    proposalItem->apply(manipulator, m_proposal->basePosition());
     destroyContext();
     process();
 }
@@ -440,8 +406,6 @@ void CodeAssistantPrivate::notifyChange()
             m_proposalWidget->updateProposal(
                 m_editorWidget->textAt(m_proposal->basePosition(),
                                      m_editorWidget->position() - m_proposal->basePosition()));
-            if (m_proposal->isFragile())
-                startAutomaticProposalTimer();
         }
     }
 }
@@ -458,6 +422,7 @@ void CodeAssistantPrivate::destroyContext()
     if (isWaitingForProposal()) {
         cancelCurrentRequest();
     } else if (isDisplayingProposal()) {
+        m_editorWidget->keepAutoCompletionHighlight(false);
         m_proposalWidget->closeProposal();
         disconnect(m_proposalWidget, &QObject::destroyed,
                    this, &CodeAssistantPrivate::finalizeProposal);
@@ -473,7 +438,7 @@ void CodeAssistantPrivate::startAutomaticProposalTimer()
 
 void CodeAssistantPrivate::automaticProposalTimeout()
 {
-    if (isWaitingForProposal() || (isDisplayingProposal() && !m_proposal->isFragile()))
+    if (isWaitingForProposal() || isDisplayingProposal())
         return;
 
     requestProposal(IdleEditor, Completion);
@@ -550,11 +515,6 @@ CodeAssistant::~CodeAssistant()
 void CodeAssistant::configure(TextEditorWidget *editorWidget)
 {
     d->configure(editorWidget);
-}
-
-void CodeAssistant::updateFromCompletionSettings(const CompletionSettings &settings)
-{
-    d->updateFromCompletionSettings(settings);
 }
 
 void CodeAssistant::process()

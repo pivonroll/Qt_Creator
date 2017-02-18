@@ -1,56 +1,71 @@
 DEFINES += CMAKEPROJECTMANAGER_LIBRARY
 include(../../qtcreatorplugin.pri)
 
-HEADERS = cmakebuildinfo.h \
+HEADERS = builddirmanager.h \
+    builddirreader.h \
+    cmakebuildinfo.h \
+    cmakebuildstep.h \
+    cmakeconfigitem.h \
     cmakeproject.h \
+    cmakeprojectimporter.h \
     cmakeprojectplugin.h \
     cmakeprojectmanager.h \
     cmakeprojectconstants.h \
     cmakeprojectnodes.h \
-    makestep.h \
     cmakerunconfiguration.h \
-    cmakeopenprojectwizard.h \
     cmakebuildconfiguration.h \
     cmakeeditor.h \
     cmakelocatorfilter.h \
     cmakefilecompletionassist.h \
     cmaketool.h \
     cmakeparser.h \
-    generatorinfo.h \
     cmakesettingspage.h \
+    cmakesnippetprovider.h \
     cmaketoolmanager.h \
     cmake_global.h \
     cmakekitinformation.h \
     cmakekitconfigwidget.h \
     cmakecbpparser.h \
-    cmakefile.h \
     cmakebuildsettingswidget.h \
     cmakeindenter.h \
-    cmakeautocompleter.h
+    cmakeautocompleter.h \
+    configmodel.h \
+    configmodelitemdelegate.h \
+    servermode.h \
+    servermodereader.h \
+    tealeafreader.h \
+    treescanner.h
 
-SOURCES = cmakeproject.cpp \
+SOURCES = builddirmanager.cpp \
+    builddirreader.cpp \
+    cmakebuildstep.cpp \
+    cmakeconfigitem.cpp \
+    cmakeproject.cpp \
+    cmakeprojectimporter.cpp \
     cmakeprojectplugin.cpp \
     cmakeprojectmanager.cpp \
     cmakeprojectnodes.cpp \
-    makestep.cpp \
     cmakerunconfiguration.cpp \
-    cmakeopenprojectwizard.cpp \
     cmakebuildconfiguration.cpp \
     cmakeeditor.cpp \
     cmakelocatorfilter.cpp \
     cmakefilecompletionassist.cpp \
     cmaketool.cpp \
     cmakeparser.cpp \
-    generatorinfo.cpp \
     cmakesettingspage.cpp \
+    cmakesnippetprovider.cpp \
     cmaketoolmanager.cpp \
     cmakekitinformation.cpp \
     cmakekitconfigwidget.cpp \
     cmakecbpparser.cpp \
-    cmakefile.cpp \
     cmakebuildsettingswidget.cpp \
     cmakeindenter.cpp \
-    cmakeautocompleter.cpp
-
+    cmakeautocompleter.cpp \
+    configmodel.cpp \
+    configmodelitemdelegate.cpp \
+    servermode.cpp \
+    servermodereader.cpp \
+    tealeafreader.cpp \
+    treescanner.cpp
 
 RESOURCES += cmakeproject.qrc

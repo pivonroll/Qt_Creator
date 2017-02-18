@@ -3,7 +3,7 @@ import qbs 1.0
 QtcPlugin {
     name: "QmlJSTools"
 
-    Depends { name: "Qt"; submodules: ["script", "widgets"] }
+    Depends { name: "Qt"; submodules: ["widgets"] }
     Depends { name: "Aggregation" }
     Depends { name: "CPlusPlus" }
     Depends { name: "LanguageUtils" }
@@ -44,28 +44,12 @@ QtcPlugin {
         "qmljstoolsplugin.h",
         "qmljstoolssettings.cpp",
         "qmljstoolssettings.h",
-        "qmlconsolemanager.cpp",
-        "qmlconsolemanager.h",
-        "qmlconsoleitemmodel.cpp",
-        "qmlconsoleitemmodel.h",
-        "qmlconsolepane.cpp",
-        "qmlconsolepane.h",
-        "qmlconsoleview.cpp",
-        "qmlconsoleview.h",
-        "qmlconsoleitemdelegate.cpp",
-        "qmlconsoleitemdelegate.h",
-        "qmlconsoleedit.cpp",
-        "qmlconsoleedit.h",
-        "qmlconsoleproxymodel.cpp",
-        "qmlconsoleproxymodel.h",
-        "qmljsinterpreter.cpp",
-        "qmljsinterpreter.h",
         "qmljstools.qrc"
     ]
 
     Group {
         name: "Tests"
-        condition: project.testsEnabled
+        condition: qtc.testsEnabled
         files: ["qmljstools_test.cpp"]
     }
 

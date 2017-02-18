@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,13 +31,16 @@
 #include <vcsbase/vcscommand.h>
 #include <vcsbase/vcsbaseconstants.h>
 #include <vcsbase/vcsbaseeditor.h>
-#include <vcsbase/vcsbaseeditorparameterwidget.h>
+#include <vcsbase/vcsbaseeditorconfig.h>
 #include <vcsbase/vcsbaseplugin.h>
 #include <utils/qtcassert.h>
 #include <utils/synchronousprocess.h>
 #include <diffeditor/diffeditorcontroller.h>
 #include <diffeditor/diffutils.h>
 #include <coreplugin/editormanager/editormanager.h>
+
+#include <utils/algorithm.h>
+#include <utils/hostosinfo.h>
 
 #include <QDir>
 #include <QFileInfo>
@@ -57,12 +55,12 @@ using namespace VcsBase;
 namespace Subversion {
 namespace Internal {
 
-class SubversionLogParameterWidget : public VcsBaseEditorParameterWidget
+class SubversionLogConfig : public VcsBaseEditorConfig
 {
     Q_OBJECT
 public:
-    SubversionLogParameterWidget(VcsBaseClientSettings &settings, QWidget *parent = 0) :
-        VcsBaseEditorParameterWidget(parent)
+    SubversionLogConfig(VcsBaseClientSettings &settings, QToolBar *toolBar) :
+        VcsBaseEditorConfig(toolBar)
     {
         mapSetting(addToggleButton(QLatin1String("--verbose"), tr("Verbose"),
                                    tr("Show files changed in each revision")),
@@ -72,7 +70,9 @@ public:
 
 SubversionClient::SubversionClient() : VcsBaseClient(new SubversionSettings)
 {
-    setLogParameterWidgetCreator([this] { return new SubversionLogParameterWidget(settings()); });
+    setLogConfigCreator([this](QToolBar *toolBar) {
+        return new SubversionLogConfig(settings(), toolBar);
+    });
 }
 
 VcsCommand *SubversionClient::createCommitCmd(const QString &repositoryRoot,
@@ -90,7 +90,7 @@ VcsCommand *SubversionClient::createCommitCmd(const QString &repositoryRoot,
     VcsCommand *cmd = createCommand(repositoryRoot);
     cmd->addFlags(VcsCommand::ShowStdOut);
     QStringList args(vcsCommandString(CommitCommand));
-    cmd->addJob(vcsBinary(), args << svnExtraOptions << files);
+    cmd->addJob(vcsBinary(), args << svnExtraOptions << escapeFiles(files));
     return cmd;
 }
 
@@ -141,20 +141,30 @@ QStringList SubversionClient::addAuthenticationOptions(const VcsBaseClientSettin
 QString SubversionClient::synchronousTopic(const QString &repository)
 {
     QStringList args;
-    args << QLatin1String("info");
 
-    QByteArray stdOut;
-    if (!vcsFullySynchronousExec(repository, args, &stdOut))
+    QString svnVersionBinary = vcsBinary().toString();
+    int pos = svnVersionBinary.lastIndexOf('/');
+    if (pos < 0)
+        svnVersionBinary.clear();
+    else
+        svnVersionBinary = svnVersionBinary.left(pos + 1);
+    svnVersionBinary.append(HostOsInfo::withExecutableSuffix("svnversion"));
+    const SynchronousProcessResponse result
+            = vcsFullySynchronousExec(repository, FileName::fromString(svnVersionBinary), args);
+    if (result.result != SynchronousProcessResponse::Finished)
         return QString();
 
-    const QString revisionString = QLatin1String("Revision: ");
-    // stdOut is ASCII only (at least in those areas we care about).
-    QString output = commandOutputFromLocal8Bit(stdOut);
-    foreach (const QString &line, output.split(QLatin1Char('\n'))) {
-        if (line.startsWith(revisionString))
-            return QString::fromLatin1("r") + line.mid(revisionString.count());
-    }
-    return QString();
+    return result.stdOut().trimmed();
+}
+
+QString SubversionClient::escapeFile(const QString &file)
+{
+    return (file.contains('@') && !file.endsWith('@')) ? file + '@' : file;
+}
+
+QStringList SubversionClient::escapeFiles(const QStringList &files)
+{
+    return Utils::transform(files, &SubversionClient::escapeFile);
 }
 
 class DiffController : public DiffEditorController
@@ -167,7 +177,7 @@ public:
     void setChangeNumber(int changeNumber);
 
 protected:
-    void reload();
+    void reload() override;
 
 private slots:
     void slotTextualDiffOutputReceived(const QString &contents);
@@ -201,7 +211,7 @@ void DiffController::setFilesList(const QStringList &filesList)
     if (isReloading())
         return;
 
-    m_filesList = filesList;
+    m_filesList = SubversionClient::escapeFiles(filesList);
 }
 
 void DiffController::setChangeNumber(int changeNumber)
@@ -290,7 +300,8 @@ void SubversionClient::diff(const QString &workingDirectory, const QStringList &
     Q_UNUSED(extraOptions);
 
     const QString vcsCmdString = vcsCommandString(DiffCommand);
-    const QString documentId = VcsBaseEditor::getTitleId(workingDirectory, files);
+    const QString documentId = QLatin1String(Constants::SUBVERSION_PLUGIN)
+            + QLatin1String(".Diff.") + VcsBaseEditor::getTitleId(workingDirectory, files);
     const QString title = vcsEditorTitle(vcsCmdString, documentId);
 
     DiffController *controller = findOrCreateDiffEditor(documentId, workingDirectory, title,
@@ -311,18 +322,15 @@ void SubversionClient::log(const QString &workingDir,
     if (logCount > 0)
         svnExtraOptions << QLatin1String("-l") << QString::number(logCount);
 
-    QStringList nativeFiles;
-    foreach (const QString& file, files)
-        nativeFiles.append(QDir::toNativeSeparators(file));
-
     // subversion stores log in UTF-8 and returns it back in user system locale.
     // So we do not need to encode it.
-    VcsBaseClient::log(workingDir, files, svnExtraOptions, enableAnnotationContextMenu);
+    VcsBaseClient::log(workingDir, escapeFiles(files), svnExtraOptions, enableAnnotationContextMenu);
 }
 
 void SubversionClient::describe(const QString &workingDirectory, int changeNumber, const QString &title)
 {
-    const QString documentId = VcsBaseEditor::editorTag(DiffOutput,
+    const QString documentId = QLatin1String(Constants::SUBVERSION_PLUGIN)
+            + QLatin1String(".Describe.") + VcsBaseEditor::editorTag(DiffOutput,
                                                         workingDirectory,
                                                         QStringList(),
                                                         QString::number(changeNumber));

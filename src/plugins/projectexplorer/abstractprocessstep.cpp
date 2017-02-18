@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,34 +9,29 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "abstractprocessstep.h"
 #include "ansifilterparser.h"
 #include "buildstep.h"
-#include "ioutputparser.h"
 #include "project.h"
 #include "task.h"
 
+#include <coreplugin/reaper.h>
+
 #include <utils/qtcassert.h>
-#include <utils/qtcprocess.h>
 
 #include <QTimer>
 #include <QDir>
@@ -88,27 +83,16 @@ using namespace ProjectExplorer;
 */
 
 AbstractProcessStep::AbstractProcessStep(BuildStepList *bsl, Core::Id id) :
-    BuildStep(bsl, id), m_timer(0), m_futureInterface(0),
-    m_ignoreReturnValue(false), m_process(0),
-    m_outputParserChain(0), m_skipFlush(false)
+    BuildStep(bsl, id)
 {
+    m_timer.setInterval(500);
+    connect(&m_timer, &QTimer::timeout, this, &AbstractProcessStep::checkForCancel);
 }
 
 AbstractProcessStep::AbstractProcessStep(BuildStepList *bsl,
                                          AbstractProcessStep *bs) :
-    BuildStep(bsl, bs), m_timer(0), m_futureInterface(0),
-    m_ignoreReturnValue(bs->m_ignoreReturnValue),
-    m_process(0), m_outputParserChain(0), m_skipFlush(false)
-{
-}
-
-AbstractProcessStep::~AbstractProcessStep()
-{
-    delete m_process;
-    delete m_timer;
-    // do not delete m_futureInterface, we do not own it.
-    delete m_outputParserChain;
-}
+    BuildStep(bsl, bs), m_ignoreReturnValue(bs->m_ignoreReturnValue)
+{ }
 
 /*!
      Deletes all existing output parsers and starts a new chain with the
@@ -119,22 +103,16 @@ AbstractProcessStep::~AbstractProcessStep()
 
 void AbstractProcessStep::setOutputParser(IOutputParser *parser)
 {
-    delete m_outputParserChain;
-    m_outputParserChain = new AnsiFilterParser;
+    m_outputParserChain.reset(new AnsiFilterParser);
     m_outputParserChain->appendOutputParser(parser);
 
-    if (m_outputParserChain) {
-        connect(m_outputParserChain, &IOutputParser::addOutput,
-                this, &AbstractProcessStep::outputAdded);
-        connect(m_outputParserChain, &IOutputParser::addTask,
-                this, &AbstractProcessStep::taskAdded);
-    }
+    connect(m_outputParserChain.get(), &IOutputParser::addOutput, this, &AbstractProcessStep::outputAdded);
+    connect(m_outputParserChain.get(), &IOutputParser::addTask, this, &AbstractProcessStep::taskAdded);
 }
 
 /*!
     Appends the given output parser to the existing chain of parsers.
 */
-
 void AbstractProcessStep::appendOutputParser(IOutputParser *parser)
 {
     if (!parser)
@@ -142,18 +120,17 @@ void AbstractProcessStep::appendOutputParser(IOutputParser *parser)
 
     QTC_ASSERT(m_outputParserChain, return);
     m_outputParserChain->appendOutputParser(parser);
-    return;
 }
 
 IOutputParser *AbstractProcessStep::outputParser() const
 {
-    return m_outputParserChain;
+    return m_outputParserChain.get();
 }
 
 void AbstractProcessStep::emitFaultyConfigurationMessage()
 {
     emit addOutput(tr("Configuration is faulty. Check the Issues view for details."),
-                   BuildStep::MessageOutput);
+                   BuildStep::OutputFormat::NormalMessage);
 }
 
 bool AbstractProcessStep::ignoreReturnValue()
@@ -178,8 +155,9 @@ void AbstractProcessStep::setIgnoreReturnValue(bool b)
     YourBuildStep::init().
 */
 
-bool AbstractProcessStep::init()
+bool AbstractProcessStep::init(QList<const BuildStep *> &earlierSteps)
 {
+    Q_UNUSED(earlierSteps);
     return true;
 }
 
@@ -190,15 +168,13 @@ bool AbstractProcessStep::init()
 
 void AbstractProcessStep::run(QFutureInterface<bool> &fi)
 {
-    m_futureInterface = &fi;
     QDir wd(m_param.effectiveWorkingDirectory());
     if (!wd.exists()) {
         if (!wd.mkpath(wd.absolutePath())) {
             emit addOutput(tr("Could not create directory \"%1\"")
                            .arg(QDir::toNativeSeparators(wd.absolutePath())),
-                           BuildStep::ErrorMessageOutput);
-            fi.reportResult(false);
-            emit finished();
+                           BuildStep::OutputFormat::ErrorMessage);
+            reportRunResult(fi, false);
             return;
         }
     }
@@ -206,61 +182,47 @@ void AbstractProcessStep::run(QFutureInterface<bool> &fi)
     QString effectiveCommand = m_param.effectiveCommand();
     if (!QFileInfo::exists(effectiveCommand)) {
         processStartupFailed();
-        fi.reportResult(false);
-        emit finished();
+        reportRunResult(fi, false);
         return;
     }
 
-    m_process = new Utils::QtcProcess();
-    if (Utils::HostOsInfo::isWindowsHost())
-        m_process->setUseCtrlCStub(true);
+    m_futureInterface = &fi;
+
+    m_process.reset(new Utils::QtcProcess());
+    m_process->setUseCtrlCStub(Utils::HostOsInfo::isWindowsHost());
     m_process->setWorkingDirectory(wd.absolutePath());
     m_process->setEnvironment(m_param.environment());
-
-    connect(m_process, SIGNAL(readyReadStandardOutput()),
-            this, SLOT(processReadyReadStdOutput()));
-    connect(m_process, SIGNAL(readyReadStandardError()),
-            this, SLOT(processReadyReadStdError()));
-
-    connect(m_process, SIGNAL(finished(int,QProcess::ExitStatus)),
-            this, SLOT(slotProcessFinished(int,QProcess::ExitStatus)));
-
     m_process->setCommand(effectiveCommand, m_param.effectiveArguments());
+
+    connect(m_process.get(), &QProcess::readyReadStandardOutput,
+            this, &AbstractProcessStep::processReadyReadStdOutput);
+    connect(m_process.get(), &QProcess::readyReadStandardError,
+            this, &AbstractProcessStep::processReadyReadStdError);
+    connect(m_process.get(), static_cast<void (QProcess::*)(int,QProcess::ExitStatus)>(&QProcess::finished),
+            this, &AbstractProcessStep::slotProcessFinished);
+
     m_process->start();
     if (!m_process->waitForStarted()) {
         processStartupFailed();
-        delete m_process;
-        m_process = 0;
-        fi.reportResult(false);
-        emit finished();
+        m_process.reset();
+        reportRunResult(fi, false);
         return;
     }
     processStarted();
-
-    m_timer = new QTimer();
-    connect(m_timer, SIGNAL(timeout()), this, SLOT(checkForCancel()));
-    m_timer->start(500);
-    m_killProcess = false;
+    m_timer.start();
 }
 
-void AbstractProcessStep::cleanUp()
+void AbstractProcessStep::cleanUp(QProcess *process)
 {
     // The process has finished, leftover data is read in processFinished
-    processFinished(m_process->exitCode(), m_process->exitStatus());
-    bool returnValue = processSucceeded(m_process->exitCode(), m_process->exitStatus()) || m_ignoreReturnValue;
+    processFinished(process->exitCode(), process->exitStatus());
+    const bool returnValue = processSucceeded(process->exitCode(), process->exitStatus()) || m_ignoreReturnValue;
 
-    // Clean up output parsers
-    if (m_outputParserChain) {
-        delete m_outputParserChain;
-        m_outputParserChain = 0;
-    }
+    m_outputParserChain.reset();
+    m_process.reset();
 
-    delete m_process;
-    m_process = 0;
-    m_futureInterface->reportResult(returnValue);
-    m_futureInterface = 0;
-
-    emit finished();
+    // Report result
+    reportRunResult(*m_futureInterface, returnValue);
 }
 
 /*!
@@ -275,7 +237,7 @@ void AbstractProcessStep::processStarted()
     emit addOutput(tr("Starting: \"%1\" %2")
                    .arg(QDir::toNativeSeparators(m_param.effectiveCommand()),
                         m_param.prettyArguments()),
-                   BuildStep::MessageOutput);
+                   BuildStep::OutputFormat::NormalMessage);
 }
 
 /*!
@@ -292,13 +254,13 @@ void AbstractProcessStep::processFinished(int exitCode, QProcess::ExitStatus sta
     QString command = QDir::toNativeSeparators(m_param.effectiveCommand());
     if (status == QProcess::NormalExit && exitCode == 0) {
         emit addOutput(tr("The process \"%1\" exited normally.").arg(command),
-                       BuildStep::MessageOutput);
+                       BuildStep::OutputFormat::NormalMessage);
     } else if (status == QProcess::NormalExit) {
         emit addOutput(tr("The process \"%1\" exited with code %2.")
-                       .arg(command, QString::number(m_process->exitCode())),
-                       BuildStep::ErrorMessageOutput);
+                       .arg(command, QString::number(exitCode)),
+                       BuildStep::OutputFormat::ErrorMessage);
     } else {
-        emit addOutput(tr("The process \"%1\" crashed.").arg(command), BuildStep::ErrorMessageOutput);
+        emit addOutput(tr("The process \"%1\" crashed.").arg(command), BuildStep::OutputFormat::ErrorMessage);
     }
 }
 
@@ -313,7 +275,8 @@ void AbstractProcessStep::processStartupFailed()
     emit addOutput(tr("Could not start process \"%1\" %2")
                    .arg(QDir::toNativeSeparators(m_param.effectiveCommand()),
                         m_param.prettyArguments()),
-                   BuildStep::ErrorMessageOutput);
+                   BuildStep::OutputFormat::ErrorMessage);
+    m_timer.stop();
 }
 
 /*!
@@ -330,6 +293,8 @@ bool AbstractProcessStep::processSucceeded(int exitCode, QProcess::ExitStatus st
 
 void AbstractProcessStep::processReadyReadStdOutput()
 {
+    if (!m_process)
+        return;
     m_process->setReadChannel(QProcess::StandardOutput);
     while (m_process->canReadLine()) {
         QString line = QString::fromLocal8Bit(m_process->readLine());
@@ -347,11 +312,13 @@ void AbstractProcessStep::stdOutput(const QString &line)
 {
     if (m_outputParserChain)
         m_outputParserChain->stdOutput(line);
-    emit addOutput(line, BuildStep::NormalOutput, BuildStep::DontAppendNewline);
+    emit addOutput(line, BuildStep::OutputFormat::Stdout, BuildStep::DontAppendNewline);
 }
 
 void AbstractProcessStep::processReadyReadStdError()
 {
+    if (!m_process)
+        return;
     m_process->setReadChannel(QProcess::StandardError);
     while (m_process->canReadLine()) {
         QString line = QString::fromLocal8Bit(m_process->readLine());
@@ -369,7 +336,7 @@ void AbstractProcessStep::stdError(const QString &line)
 {
     if (m_outputParserChain)
         m_outputParserChain->stdError(line);
-    emit addOutput(line, BuildStep::ErrorOutput, BuildStep::DontAppendNewline);
+    emit addOutput(line, BuildStep::OutputFormat::Stderr, BuildStep::DontAppendNewline);
 }
 
 QFutureInterface<bool> *AbstractProcessStep::futureInterface() const
@@ -379,15 +346,10 @@ QFutureInterface<bool> *AbstractProcessStep::futureInterface() const
 
 void AbstractProcessStep::checkForCancel()
 {
-    if (m_futureInterface->isCanceled() && m_timer->isActive()) {
-        if (!m_killProcess) {
-            m_process->terminate();
-            m_timer->start(5000);
-            m_killProcess = true;
-        } else {
-            m_process->kill();
-            m_timer->stop();
-        }
+    if (m_futureInterface->isCanceled() && m_timer.isActive()) {
+        m_timer.stop();
+
+        Core::Reaper::reap(m_process.release());
     }
 }
 
@@ -453,17 +415,19 @@ void AbstractProcessStep::outputAdded(const QString &string, BuildStep::OutputFo
 
 void AbstractProcessStep::slotProcessFinished(int, QProcess::ExitStatus)
 {
-    m_timer->stop();
-    delete m_timer;
-    m_timer = 0;
+    m_timer.stop();
 
-    QString line = QString::fromLocal8Bit(m_process->readAllStandardError());
-    if (!line.isEmpty())
-        stdError(line);
+    QProcess *process = m_process.get();
+    if (!process) // Happens when the process was canceled and handed over to the Reaper.
+        process = qobject_cast<QProcess *>(sender()); // The process was canceled!
 
-    line = QString::fromLocal8Bit(m_process->readAllStandardOutput());
-    if (!line.isEmpty())
-        stdOutput(line);
+    const QString stdErrLine = process ? QString::fromLocal8Bit(process->readAllStandardError()) : QString();
+    for (const QString &l : stdErrLine.split('\n'))
+        stdError(l);
 
-    cleanUp();
+    const QString stdOutLine = process ? QString::fromLocal8Bit(process->readAllStandardOutput()) : QString();
+    for (const QString &l : stdOutLine.split('\n'))
+        stdError(l);
+
+    cleanUp(process);
 }

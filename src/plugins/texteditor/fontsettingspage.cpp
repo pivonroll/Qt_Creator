@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,6 +32,7 @@
 #include <utils/fileutils.h>
 #include <utils/stringutils.h>
 #include <utils/qtcassert.h>
+#include <utils/theme/theme.h>
 
 #include <QFileDialog>
 #include <QFontDatabase>
@@ -180,42 +176,12 @@ FontSettingsPagePrivate::FontSettingsPagePrivate(const FormatDescriptions &fd,
     m_schemeListModel(new SchemeListModel),
     m_refreshingSchemeList(false)
 {
-    bool settingsFound = false;
     QSettings *settings = Core::ICore::settings();
     if (settings)
-        settingsFound = m_value.fromSettings(m_settingsGroup, m_descriptions, settings);
+        m_value.fromSettings(m_settingsGroup, m_descriptions, settings);
 
-    if (!settingsFound) { // Apply defaults
-        foreach (const FormatDescription &f, m_descriptions) {
-            Format &format = m_value.formatFor(f.id());
-            format.setForeground(f.foreground());
-            format.setBackground(f.background());
-            format.setBold(f.format().bold());
-            format.setItalic(f.format().italic());
-            format.setUnderlineColor(f.format().underlineColor());
-            format.setUnderlineStyle(f.format().underlineStyle());
-        }
-    } else if (m_value.colorSchemeFileName().isEmpty()) {
-        // No color scheme was loaded, but one might be imported from the ini file
-        ColorScheme defaultScheme;
-        foreach (const FormatDescription &f, m_descriptions) {
-            Format &format = defaultScheme.formatFor(f.id());
-            format.setForeground(f.foreground());
-            format.setBackground(f.background());
-            format.setBold(f.format().bold());
-            format.setItalic(f.format().italic());
-            format.setUnderlineColor(f.format().underlineColor());
-            format.setUnderlineStyle(f.format().underlineStyle());
-        }
-        if (m_value.colorScheme() != defaultScheme) {
-            // Save it as a color scheme file
-            QString schemeFileName = createColorSchemeFileName(QLatin1String("customized%1.xml"));
-            if (!schemeFileName.isEmpty()) {
-                if (m_value.saveColorScheme(schemeFileName) && settings)
-                    m_value.toSettings(m_settingsGroup, settings);
-            }
-        }
-    }
+    if (m_value.colorSchemeFileName().isEmpty())
+        m_value.loadColorScheme(FontSettings::defaultSchemeFileName(), m_descriptions);
 
     m_lastValue = m_value;
 }
@@ -227,19 +193,30 @@ FontSettingsPagePrivate::~FontSettingsPagePrivate()
 
 
 // ------- FormatDescription
-FormatDescription::FormatDescription(TextStyle id, const QString &displayName, const QString &tooltipText, const QColor &foreground) :
-    m_id(id),
-    m_displayName(displayName),
-    m_tooltipText(tooltipText)
+FormatDescription::FormatDescription(TextStyle id,
+                                     const QString &displayName,
+                                     const QString &tooltipText,
+                                     const QColor &foreground,
+                                     FormatDescription::ShowControls showControls)
+    : m_id(id),
+      m_displayName(displayName),
+      m_tooltipText(tooltipText),
+      m_showControls(showControls)
 {
     m_format.setForeground(foreground);
+    m_format.setBackground(defaultBackground(id));
 }
 
-FormatDescription::FormatDescription(TextStyle id, const QString &displayName, const QString &tooltipText, const Format &format) :
-    m_id(id),
-    m_format(format),
-    m_displayName(displayName),
-    m_tooltipText(tooltipText)
+FormatDescription::FormatDescription(TextStyle id,
+                                     const QString &displayName,
+                                     const QString &tooltipText,
+                                     const Format &format,
+                                     FormatDescription::ShowControls showControls)
+    : m_id(id),
+      m_format(format),
+      m_displayName(displayName),
+      m_tooltipText(tooltipText),
+      m_showControls(showControls)
 {
 }
 
@@ -247,57 +224,78 @@ FormatDescription::FormatDescription(TextStyle id,
                                      const QString &displayName,
                                      const QString &tooltipText,
                                      const QColor &underlineColor,
-                                     const QTextCharFormat::UnderlineStyle underlineStyle)
+                                     const QTextCharFormat::UnderlineStyle underlineStyle,
+                                     FormatDescription::ShowControls showControls)
     : m_id(id),
       m_displayName(displayName),
-      m_tooltipText(tooltipText)
+      m_tooltipText(tooltipText),
+      m_showControls(showControls)
 {
-    m_format.setForeground(QColor());
-    m_format.setBackground(QColor());
+    m_format.setForeground(defaultForeground(id));
+    m_format.setBackground(defaultBackground(id));
     m_format.setUnderlineColor(underlineColor);
     m_format.setUnderlineStyle(underlineStyle);
 }
 
-QColor FormatDescription::foreground() const
+FormatDescription::FormatDescription(TextStyle id,
+                                     const QString &displayName,
+                                     const QString &tooltipText,
+                                     FormatDescription::ShowControls showControls)
+    : m_id(id),
+      m_displayName(displayName),
+      m_tooltipText(tooltipText),
+      m_showControls(showControls)
 {
-    if (m_id == C_LINE_NUMBER) {
-        const QColor bg = QApplication::palette().background().color();
-        if (bg.value() < 128)
-            return QApplication::palette().foreground().color();
-        else
-            return QApplication::palette().dark().color();
-    } else if (m_id == C_CURRENT_LINE_NUMBER) {
-        const QColor bg = QApplication::palette().background().color();
-        if (bg.value() < 128)
-            return QApplication::palette().foreground().color();
-        else
-            return m_format.foreground();
-    } else if (m_id == C_PARENTHESES) {
-        return QColor(Qt::red);
-    }
-    return m_format.foreground();
+    m_format.setForeground(defaultForeground(id));
+    m_format.setBackground(defaultBackground(id));
 }
 
-QColor FormatDescription::background() const
+QColor FormatDescription::defaultForeground(TextStyle id)
 {
-    if (m_id == C_TEXT) {
+    if (id == C_LINE_NUMBER) {
+        const QPalette palette = Utils::Theme::initialPalette();
+        const QColor bg = palette.background().color();
+        if (bg.value() < 128)
+            return palette.foreground().color();
+        else
+            return palette.dark().color();
+    } else if (id == C_CURRENT_LINE_NUMBER) {
+        const QPalette palette = Utils::Theme::initialPalette();
+        const QColor bg = palette.background().color();
+        if (bg.value() < 128)
+            return palette.foreground().color();
+        else
+            return QColor();
+    } else if (id == C_PARENTHESES) {
+        return QColor(Qt::red);
+    } else if (id == C_AUTOCOMPLETE) {
+        return QColor(Qt::darkBlue);
+    }
+    return QColor();
+}
+
+QColor FormatDescription::defaultBackground(TextStyle id)
+{
+    if (id == C_TEXT) {
         return Qt::white;
-    } else if (m_id == C_LINE_NUMBER) {
-        return QApplication::palette().background().color();
-    } else if (m_id == C_SEARCH_RESULT) {
+    } else if (id == C_LINE_NUMBER) {
+        return Utils::Theme::initialPalette().background().color();
+    } else if (id == C_SEARCH_RESULT) {
         return QColor(0xffef0b);
-    } else if (m_id == C_PARENTHESES) {
+    } else if (id == C_PARENTHESES) {
         return QColor(0xb4, 0xee, 0xb4);
-    } else if (m_id == C_PARENTHESES_MISMATCH) {
+    } else if (id == C_PARENTHESES_MISMATCH) {
         return QColor(Qt::magenta);
-    } else if (m_id == C_CURRENT_LINE || m_id == C_SEARCH_SCOPE) {
-        const QPalette palette = QApplication::palette();
+    } else if (id == C_AUTOCOMPLETE) {
+        return QColor(192, 192, 255);
+    } else if (id == C_CURRENT_LINE || id == C_SEARCH_SCOPE) {
+        const QPalette palette = Utils::Theme::initialPalette();
         const QColor &fg = palette.color(QPalette::Highlight);
         const QColor &bg = palette.color(QPalette::Base);
 
         qreal smallRatio;
         qreal largeRatio;
-        if (m_id == C_CURRENT_LINE) {
+        if (id == C_CURRENT_LINE) {
             smallRatio = .3;
             largeRatio = .6;
         } else {
@@ -311,24 +309,21 @@ QColor FormatDescription::background() const
                                              fg.greenF() * ratio + bg.greenF() * (1 - ratio),
                                              fg.blueF() * ratio + bg.blueF() * (1 - ratio));
         return col;
-    } else if (m_id == C_SELECTION) {
-        const QPalette palette = QApplication::palette();
-        return palette.color(QPalette::Highlight);
-    } else if (m_id == C_OCCURRENCES) {
+    } else if (id == C_SELECTION) {
+        return Utils::Theme::initialPalette().color(QPalette::Highlight);
+    } else if (id == C_OCCURRENCES) {
         return QColor(180, 180, 180);
-    } else if (m_id == C_OCCURRENCES_RENAME) {
+    } else if (id == C_OCCURRENCES_RENAME) {
         return QColor(255, 100, 100);
-    } else if (m_id == C_DISABLED_CODE) {
+    } else if (id == C_DISABLED_CODE) {
         return QColor(239, 239, 239);
-    } else if (m_id == C_DIFF_FILE_LINE
-               || m_id == C_DIFF_CONTEXT_LINE
-               || m_id == C_DIFF_SOURCE_LINE
-               || m_id == C_DIFF_SOURCE_CHAR
-               || m_id == C_DIFF_DEST_LINE
-               || m_id == C_DIFF_DEST_CHAR) {
-        return m_format.background();
     }
     return QColor(); // invalid color
+}
+
+bool FormatDescription::showControl(FormatDescription::ShowControls showControl) const
+{
+    return m_showControls & showControl;
 }
 
 //  ------------ FontSettingsPage
@@ -353,6 +348,9 @@ QWidget *FontSettingsPage::widget()
         d_ptr->m_widget = new QWidget;
         d_ptr->m_ui = new Ui::FontSettingsPage;
         d_ptr->m_ui->setupUi(d_ptr->m_widget);
+        d_ptr->m_ui->colorSchemeGroupBox->setTitle(
+                    tr("Color Scheme for Qt Creator Theme \"%1\"")
+                    .arg(Utils::creatorTheme()->displayName()));
         d_ptr->m_ui->schemeComboBox->setModel(d_ptr->m_schemeListModel);
 
         d_ptr->m_ui->fontComboBox->setCurrentFont(d_ptr->m_value.family());
@@ -479,7 +477,7 @@ void FontSettingsPage::openCopyColorSchemeDialog()
     dialog->setLabelText(tr("Color scheme name:"));
     dialog->setTextValue(tr("%1 (copy)").arg(d_ptr->m_value.colorScheme().displayName()));
 
-    connect(dialog, SIGNAL(textValueSelected(QString)), this, SLOT(copyColorScheme(QString)));
+    connect(dialog, &QInputDialog::textValueSelected, this, &FontSettingsPage::copyColorScheme);
     dialog->open();
 }
 
@@ -533,8 +531,8 @@ void FontSettingsPage::confirmDeleteColorScheme()
     messageBox->addButton(deleteButton, QMessageBox::AcceptRole);
     messageBox->setDefaultButton(deleteButton);
 
-    connect(deleteButton, SIGNAL(clicked()), messageBox, SLOT(accept()));
-    connect(messageBox, SIGNAL(accepted()), this, SLOT(deleteColorScheme()));
+    connect(deleteButton, &QAbstractButton::clicked, messageBox, &QDialog::accept);
+    connect(messageBox, &QDialog::accepted, this, &FontSettingsPage::deleteColorScheme);
     messageBox->setAttribute(Qt::WA_DeleteOnClose);
     messageBox->open();
 }
@@ -648,7 +646,7 @@ void FontSettingsPage::saveSettings()
         d_ptr->m_lastValue = d_ptr->m_value;
         d_ptr->m_value.toSettings(d_ptr->m_settingsGroup, Core::ICore::settings());
 
-        QTimer::singleShot(0, this, SLOT(delayedChange()));
+        QTimer::singleShot(0, this, &FontSettingsPage::delayedChange);
     }
 }
 

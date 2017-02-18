@@ -21,9 +21,18 @@ mac {
 isEmpty(LLVM_INSTALL_DIR):LLVM_INSTALL_DIR=$$(LLVM_INSTALL_DIR)
 exists($$LLVM_INSTALL_DIR) {
     SUBDIRS += clangbackend
+
+    QTC_NO_CLANG_LIBTOOLING=$$(QTC_NO_CLANG_LIBTOOLING)
+    win32-msvc2015:lessThan(QT_CL_PATCH_VERSION, 24210): QTC_NO_CLANG_LIBTOOLING = 1
+    isEmpty(QTC_NO_CLANG_LIBTOOLING) {
+        SUBDIRS += clangrefactoringbackend
+        SUBDIRS += clangpchmanagerbackend
+    } else {
+        warning("Building the Clang refactoring back end and the pch manager plugins are disabled.")
+    }
 }
 
-BUILD_CPLUSPLUS_TOOLS = $$(BUILD_CPLUSPLUS_TOOLS)
+isEmpty(BUILD_CPLUSPLUS_TOOLS):BUILD_CPLUSPLUS_TOOLS=$$(BUILD_CPLUSPLUS_TOOLS)
 !isEmpty(BUILD_CPLUSPLUS_TOOLS) {
     SUBDIRS += cplusplus-ast2png \
         cplusplus-frontend \

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,7 +38,6 @@
 #include <projectexplorer/target.h>
 #include <utils/qtcassert.h>
 
-static const char QBS_CLEAN_ALL[] = "Qbs.CleanAll";
 static const char QBS_DRY_RUN[] = "Qbs.DryRun";
 static const char QBS_KEEP_GOING[] = "Qbs.DryKeepGoing";
 
@@ -80,8 +74,9 @@ QbsCleanStep::~QbsCleanStep()
     }
 }
 
-bool QbsCleanStep::init()
+bool QbsCleanStep::init(QList<const BuildStep *> &earlierSteps)
 {
+    Q_UNUSED(earlierSteps);
     if (static_cast<QbsProject *>(project())->isParsing() || m_job)
         return false;
 
@@ -105,18 +100,17 @@ void QbsCleanStep::run(QFutureInterface<bool> &fi)
     m_job = pro->clean(options);
 
     if (!m_job) {
-        m_fi->reportResult(false);
-        emit finished();
+        reportRunResult(*m_fi, false);
         return;
     }
 
     m_progressBase = 0;
 
-    connect(m_job, SIGNAL(finished(bool,qbs::AbstractJob*)), this, SLOT(cleaningDone(bool)));
-    connect(m_job, SIGNAL(taskStarted(QString,int,qbs::AbstractJob*)),
-            this, SLOT(handleTaskStarted(QString,int)));
-    connect(m_job, SIGNAL(taskProgress(int,qbs::AbstractJob*)),
-            this, SLOT(handleProgress(int)));
+    connect(m_job, &qbs::AbstractJob::finished, this, &QbsCleanStep::cleaningDone);
+    connect(m_job, &qbs::AbstractJob::taskStarted,
+            this, &QbsCleanStep::handleTaskStarted);
+    connect(m_job, &qbs::AbstractJob::taskProgress,
+            this, &QbsCleanStep::handleProgress);
 }
 
 ProjectExplorer::BuildStepConfigWidget *QbsCleanStep::createConfigWidget()
@@ -150,10 +144,6 @@ int QbsCleanStep::maxJobs() const
     return 1;
 }
 
-bool QbsCleanStep::cleanAll() const
-{
-    return m_qbsCleanOptions.cleanType() == qbs::CleanOptions::CleanupAll;
-}
 
 bool QbsCleanStep::fromMap(const QVariantMap &map)
 {
@@ -162,8 +152,6 @@ bool QbsCleanStep::fromMap(const QVariantMap &map)
 
     m_qbsCleanOptions.setDryRun(map.value(QLatin1String(QBS_DRY_RUN)).toBool());
     m_qbsCleanOptions.setKeepGoing(map.value(QLatin1String(QBS_KEEP_GOING)).toBool());
-    m_qbsCleanOptions.setCleanType(map.value(QLatin1String(QBS_CLEAN_ALL)).toBool()
-            ? qbs::CleanOptions::CleanupAll : qbs::CleanOptions::CleanupTemporaries);
 
     return true;
 }
@@ -173,8 +161,6 @@ QVariantMap QbsCleanStep::toMap() const
     QVariantMap map = ProjectExplorer::BuildStep::toMap();
     map.insert(QLatin1String(QBS_DRY_RUN), m_qbsCleanOptions.dryRun());
     map.insert(QLatin1String(QBS_KEEP_GOING), m_qbsCleanOptions.keepGoing());
-    map.insert(QLatin1String(QBS_CLEAN_ALL),
-               m_qbsCleanOptions.cleanType() == qbs::CleanOptions::CleanupAll);
 
     return map;
 }
@@ -188,12 +174,10 @@ void QbsCleanStep::cleaningDone(bool success)
     }
 
     QTC_ASSERT(m_fi, return);
-    m_fi->reportResult(success);
+    reportRunResult(*m_fi, success);
     m_fi = 0; // do not delete, it is not ours
     m_job->deleteLater();
     m_job = 0;
-
-    emit finished();
 }
 
 void QbsCleanStep::handleTaskStarted(const QString &desciption, int max)
@@ -216,7 +200,7 @@ void QbsCleanStep::createTaskAndOutput(ProjectExplorer::Task::TaskType type, con
                                                        Utils::FileName::fromString(file), line,
                                                        ProjectExplorer::Constants::TASK_CATEGORY_COMPILE);
     emit addTask(task, 1);
-    emit addOutput(message, NormalOutput);
+    emit addOutput(message, OutputFormat::Stdout);
 }
 
 void QbsCleanStep::setDryRun(bool dr)
@@ -241,15 +225,6 @@ void QbsCleanStep::setMaxJobs(int jobcount)
     emit changed();
 }
 
-void QbsCleanStep::setCleanAll(bool ca)
-{
-    qbs::CleanOptions::CleanType newType = ca
-            ? qbs::CleanOptions::CleanupAll : qbs::CleanOptions::CleanupTemporaries;
-    if (m_qbsCleanOptions.cleanType() == newType)
-        return;
-    m_qbsCleanOptions.setCleanType(newType);
-    emit changed();
-}
 
 // --------------------------------------------------------------------
 // QbsCleanStepConfigWidget:
@@ -258,18 +233,20 @@ void QbsCleanStep::setCleanAll(bool ca)
 QbsCleanStepConfigWidget::QbsCleanStepConfigWidget(QbsCleanStep *step) :
     m_step(step)
 {
-    connect(m_step, SIGNAL(displayNameChanged()), this, SLOT(updateState()));
-    connect(m_step, SIGNAL(changed()), this, SLOT(updateState()));
+    connect(m_step, &ProjectExplorer::ProjectConfiguration::displayNameChanged,
+            this, &QbsCleanStepConfigWidget::updateState);
+    connect(m_step, &QbsCleanStep::changed,
+            this, &QbsCleanStepConfigWidget::updateState);
 
     setContentsMargins(0, 0, 0, 0);
 
     m_ui = new Ui::QbsCleanStepConfigWidget;
     m_ui->setupUi(this);
 
-    connect(m_ui->cleanAllCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(changeCleanAll(bool)));
-    connect(m_ui->dryRunCheckBox, SIGNAL(toggled(bool)), this, SLOT(changeDryRun(bool)));
-    connect(m_ui->keepGoingCheckBox, SIGNAL(toggled(bool)), this, SLOT(changeKeepGoing(bool)));
+    connect(m_ui->dryRunCheckBox, &QAbstractButton::toggled,
+            this, &QbsCleanStepConfigWidget::changeDryRun);
+    connect(m_ui->keepGoingCheckBox, &QAbstractButton::toggled,
+            this, &QbsCleanStepConfigWidget::changeKeepGoing);
 
     updateState();
 }
@@ -291,11 +268,11 @@ QString QbsCleanStepConfigWidget::displayName() const
 
 void QbsCleanStepConfigWidget::updateState()
 {
-    m_ui->cleanAllCheckBox->setChecked(m_step->cleanAll());
     m_ui->dryRunCheckBox->setChecked(m_step->dryRun());
     m_ui->keepGoingCheckBox->setChecked(m_step->keepGoing());
 
-    QString command = QbsBuildConfiguration::equivalentCommandLine(m_step);
+    QString command = static_cast<QbsBuildConfiguration *>(m_step->buildConfiguration())
+            ->equivalentCommandLine(m_step);
     m_ui->commandLineTextEdit->setPlainText(command);
 
     QString summary = tr("<b>Qbs:</b> %1").arg(command);
@@ -303,11 +280,6 @@ void QbsCleanStepConfigWidget::updateState()
         m_summary = summary;
         emit updateSummary();
     }
-}
-
-void QbsCleanStepConfigWidget::changeCleanAll(bool ca)
-{
-    m_step->setCleanAll(ca);
 }
 
 void QbsCleanStepConfigWidget::changeDryRun(bool dr)
@@ -333,62 +305,22 @@ QbsCleanStepFactory::QbsCleanStepFactory(QObject *parent) :
     ProjectExplorer::IBuildStepFactory(parent)
 { }
 
-QList<Core::Id> QbsCleanStepFactory::availableCreationIds(ProjectExplorer::BuildStepList *parent) const
+QList<ProjectExplorer::BuildStepInfo> QbsCleanStepFactory::availableSteps(ProjectExplorer::BuildStepList *parent) const
 {
     if (parent->id() == ProjectExplorer::Constants::BUILDSTEPS_CLEAN
             && qobject_cast<QbsBuildConfiguration *>(parent->parent()))
-        return QList<Core::Id>() << Core::Id(Constants::QBS_CLEANSTEP_ID);
-    return QList<Core::Id>();
-}
-
-QString QbsCleanStepFactory::displayNameForId(Core::Id id) const
-{
-    if (id == Core::Id(Constants::QBS_CLEANSTEP_ID))
-        return tr("Qbs Clean");
-    return QString();
-}
-
-bool QbsCleanStepFactory::canCreate(ProjectExplorer::BuildStepList *parent, Core::Id id) const
-{
-    if (parent->id() != Core::Id(ProjectExplorer::Constants::BUILDSTEPS_CLEAN)
-            || !qobject_cast<QbsBuildConfiguration *>(parent->parent()))
-        return false;
-    return id == Core::Id(Constants::QBS_CLEANSTEP_ID);
+        return {{ Constants::QBS_CLEANSTEP_ID, tr("Qbs Clean") }};
+    return {};
 }
 
 ProjectExplorer::BuildStep *QbsCleanStepFactory::create(ProjectExplorer::BuildStepList *parent, Core::Id id)
 {
-    if (!canCreate(parent, id))
-        return 0;
+    Q_UNUSED(id);
     return new QbsCleanStep(parent);
-}
-
-bool QbsCleanStepFactory::canRestore(ProjectExplorer::BuildStepList *parent, const QVariantMap &map) const
-{
-    return canCreate(parent, ProjectExplorer::idFromMap(map));
-}
-
-ProjectExplorer::BuildStep *QbsCleanStepFactory::restore(ProjectExplorer::BuildStepList *parent, const QVariantMap &map)
-{
-    if (!canRestore(parent, map))
-        return 0;
-    QbsCleanStep *bs = new QbsCleanStep(parent);
-    if (!bs->fromMap(map)) {
-        delete bs;
-        return 0;
-    }
-    return bs;
-}
-
-bool QbsCleanStepFactory::canClone(ProjectExplorer::BuildStepList *parent, ProjectExplorer::BuildStep *product) const
-{
-    return canCreate(parent, product->id());
 }
 
 ProjectExplorer::BuildStep *QbsCleanStepFactory::clone(ProjectExplorer::BuildStepList *parent, ProjectExplorer::BuildStep *product)
 {
-    if (!canClone(parent, product))
-        return 0;
     return new QbsCleanStep(parent, static_cast<QbsCleanStep *>(product));
 }
 

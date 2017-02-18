@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,37 +9,39 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef TIMELINEMODEL_P_H
-#define TIMELINEMODEL_P_H
+#pragma once
 
 #include "timelinemodel.h"
+#include <functional>
 
 namespace Timeline {
 
+struct HueLookupTable {
+    QRgb table[360];
+    HueLookupTable();
+
+    QRgb operator[](int hue) const { return table[hue % 360]; }
+};
+
 class TIMELINE_EXPORT TimelineModel::TimelineModelPrivate {
 public:
-    static const int DefaultRowHeight = 30;
 
-    enum IdType { SelectionId, TypeId };
+    static const HueLookupTable hueTable;
+    static const int DefaultRowHeight = 30;
 
     enum BoxColorProperties {
         SelectionIdHueMultiplier = 25,
@@ -69,16 +71,15 @@ public:
         inline qint64 timestamp() const {return end;}
     };
 
-    TimelineModelPrivate(int modelId, const QString &displayName);
-    void init(TimelineModel *q);
+    TimelineModelPrivate(int modelId);
 
     int firstIndexNoParents(qint64 startTime) const;
 
     void incrementStartIndices(int index)
     {
-        for (int i = 0; i < endTimes.size(); ++i) {
-            if (endTimes[i].startIndex >= index)
-                endTimes[i].startIndex++;
+        for (RangeEnd &endTime : endTimes) {
+            if (endTime.startIndex >= index)
+                ++(endTime.startIndex);
         }
     }
 
@@ -128,28 +129,20 @@ public:
         return fromIndex;
     }
 
-    int prevItemById(IdType idType, int id, qint64 time, int currentSelected) const;
-    int nextItemById(IdType idType, int id, qint64 time, int currentSelected) const;
+    int prevItemById(std::function<bool(int)> matchesId, qint64 time, int currentSelected) const;
+    int nextItemById(std::function<bool(int)> matchesId, qint64 time, int currentSelected) const;
 
     QVector<Range> ranges;
     QVector<RangeEnd> endTimes;
 
     QVector<int> rowOffsets;
     const int modelId;
-    const QString displayName;
+    QString displayName;
 
     bool expanded;
     bool hidden;
     int expandedRowCount;
     int collapsedRowCount;
-
-protected:
-    TimelineModel *q_ptr;
-
-private:
-    Q_DECLARE_PUBLIC(TimelineModel)
 };
 
 } // namespace Timeline
-
-#endif // TIMELINEMODEL_P_H

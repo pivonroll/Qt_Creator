@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cdbparsehelpers.h"
 
-#include "bytearrayinputstream.h"
+#include "stringinputstream.h"
 
 #include <debugger/debuggerprotocol.h>
 #include <debugger/disassemblerlines.h>
@@ -173,14 +168,14 @@ BreakpointResponseId cdbIdToBreakpointResponseId(const GdbMi &id)
     return cdbIdToBreakpointId<BreakpointResponseId>(id);
 }
 
-QByteArray cdbAddBreakpointCommand(const BreakpointParameters &bpIn,
-                                   const QList<QPair<QString, QString> > &sourcePathMapping,
-                                   BreakpointModelId id /* = BreakpointId() */,
-                                   bool oneshot)
+QString cdbAddBreakpointCommand(const BreakpointParameters &bpIn,
+                                const QList<QPair<QString, QString> > &sourcePathMapping,
+                                BreakpointModelId id /* = BreakpointId() */,
+                                bool oneshot)
 {
     const BreakpointParameters bp = fixWinMSVCBreakpoint(bpIn);
-    QByteArray rc;
-    ByteArrayInputStream str(rc);
+    QString rc;
+    StringInputStream str(rc);
 
     if (bp.threadSpec >= 0)
         str << '~' << bp.threadSpec << ' ';
@@ -206,7 +201,7 @@ QByteArray cdbAddBreakpointCommand(const BreakpointParameters &bpIn,
     case BreakpointAtJavaScriptThrow:
     case UnknownBreakpointType:
     case LastBreakpointType:
-        QTC_ASSERT(false, return QByteArray());
+        QTC_ASSERT(false, return QString());
         break;
     case BreakpointByAddress:
         str << hex << hexPrefixOn << bp.address << hexPrefixOff << dec;
@@ -236,14 +231,14 @@ QByteArray cdbAddBreakpointCommand(const BreakpointParameters &bpIn,
     return rc;
 }
 
-QByteArray cdbClearBreakpointCommand(const BreakpointModelId &id)
+QString cdbClearBreakpointCommand(const BreakpointModelId &id)
 {
     const int firstBreakPoint = breakPointIdToCdbId(id);
     if (id.isMinor())
-        return "bc " + QByteArray::number(firstBreakPoint);
+        return "bc " + QString::number(firstBreakPoint);
     // If this is a major break point we also want to delete all sub break points
     const int lastBreakPoint = firstBreakPoint + cdbBreakPointIdMinorPart - 1;
-    return "bc " + QByteArray::number(firstBreakPoint) + '-' + QByteArray::number(lastBreakPoint);
+    return "bc " + QString::number(firstBreakPoint) + '-' + QString::number(lastBreakPoint);
 }
 
 // Helper to retrieve an int child from GDBMI
@@ -285,10 +280,10 @@ void parseBreakPoint(const GdbMi &gdbmi, BreakpointResponse *r,
     r->id = cdbIdToBreakpointResponseId(gdbmi["id"]);
     const GdbMi moduleG = gdbmi["module"];
     if (moduleG.isValid())
-        r->module = QString::fromLocal8Bit(moduleG.data());
+        r->module = moduleG.data();
     const GdbMi sourceFileName = gdbmi["srcfile"];
     if (sourceFileName.isValid()) {
-        r->fileName = QString::fromLocal8Bit(sourceFileName.data());
+        r->fileName = sourceFileName.data();
         const GdbMi lineNumber = gdbmi["srcline"];
         if (lineNumber.isValid())
             r->lineNumber = lineNumber.data().toULongLong(0, 0);
@@ -296,7 +291,7 @@ void parseBreakPoint(const GdbMi &gdbmi, BreakpointResponse *r,
     if (expression) {
         const GdbMi expressionG = gdbmi["expression"];
         if (expressionG.isValid())
-            *expression = QString::fromLocal8Bit(expressionG.data());
+            *expression = expressionG.data();
     }
     const GdbMi addressG = gdbmi["address"];
     if (addressG.isValid())
@@ -306,10 +301,10 @@ void parseBreakPoint(const GdbMi &gdbmi, BreakpointResponse *r,
     gdbmiChildToInt(gdbmi, "thread", &(r->threadSpec));
 }
 
-QByteArray cdbWriteMemoryCommand(quint64 addr, const QByteArray &data)
+QString cdbWriteMemoryCommand(quint64 addr, const QByteArray &data)
 {
-    QByteArray cmd;
-    ByteArrayInputStream str(cmd);
+    QString cmd;
+    StringInputStream str(cmd);
     str.setIntegerBase(16);
     str << "f " << addr << " L" << data.size();
     const int count = data.size();
@@ -352,14 +347,6 @@ QString debugByteArray(const QByteArray &a)
     return rc;
 }
 
-QString StringFromBase64EncodedUtf16(const QByteArray &a)
-{
-    QByteArray utf16 = QByteArray::fromBase64(a);
-    utf16.append('\0');
-    utf16.append('\0');
-    return QString::fromUtf16(reinterpret_cast<const unsigned short *>(utf16.constData()));
-}
-
 WinException::WinException() :
     exceptionCode(0), exceptionFlags(0), exceptionAddress(0),
     info1(0),info2(0), firstChance(false), lineNumber(0)
@@ -397,10 +384,10 @@ QString WinException::toString(bool includeLocation) const
         str << " (first chance)";
     if (includeLocation) {
         if (lineNumber) {
-            str << " at " << QLatin1String(file) << ':' << lineNumber;
+            str << " at " << file << ':' << lineNumber;
         } else {
             if (!function.isEmpty())
-                str << " in " << QLatin1String(function);
+                str << " in " << function;
         }
     }
     return rc;
@@ -538,7 +525,7 @@ bool parseCdbDisassemblerLine(const QString &line, DisassemblerLine *dLine, uint
     return true;
 }
 
-DisassemblerLines parseCdbDisassembler(const QByteArray &a)
+DisassemblerLines parseCdbDisassembler(const QString &a)
 {
     DisassemblerLines result;
     quint64 functionAddress = 0;
@@ -547,8 +534,7 @@ DisassemblerLines parseCdbDisassembler(const QByteArray &a)
     quint64 functionOffset = 0;
     QString sourceFile;
 
-    foreach (const QByteArray &lineBA, a.split('\n')) {
-        const QString line = QString::fromLatin1(lineBA);
+    foreach (const QString &line, a.split('\n')) {
         // New function. Append as comment line.
         if (parseCdbDisassemblerFunctionLine(line, &currentFunction, &functionOffset, &sourceFile)) {
             functionAddress = 0;
@@ -565,7 +551,7 @@ DisassemblerLines parseCdbDisassembler(const QByteArray &a)
                     result.appendSourceLine(sourceFile, sourceLine);
                 }
             } else {
-                qWarning("Unable to parse assembly line '%s'", lineBA.constData());
+                qWarning("Unable to parse assembly line '%s'", qPrintable(line));
                 disassemblyLine.fromString(line);
             }
             // Determine address of function from the first assembler line after a

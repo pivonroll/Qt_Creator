@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef ABSTRACTVIEW_H
-#define ABSTRACTVIEW_H
+#pragma once
 
 #include <qmldesignercorelib_global.h>
 
 #include <model.h>
 #include <modelnode.h>
 #include <abstractproperty.h>
+#include <documentmessage.h>
 #include <rewritertransaction.h>
 #include <commondefines.h>
 
@@ -55,6 +55,11 @@ namespace QmlDesigner {
 class NodeInstanceView;
 class RewriterView;
 class QmlModelState;
+
+enum DesignerWidgetFlags {
+    DisableOnError,
+    IgnoreErrors
+};
 
 class WidgetInfo {
 
@@ -89,23 +94,18 @@ public:
         NoPane,
         LeftPane,
         RightPane,
+        BottomPane,
         TopPane, // not used
-        BottomPane, // not used
-        CentralPane // not used
+        CentralPane
     };
-
-    WidgetInfo()
-        : widget(0),
-          toolBarWidgetFactory(0)
-    {
-    }
 
     QString uniqueId;
     QString tabName;
-    QWidget *widget;
+    QWidget *widget = nullptr;
     int placementPriority;
     PlacementHint placementHint;
-    ToolBarWidgetFactoryInterface *toolBarWidgetFactory;
+    ToolBarWidgetFactoryInterface *toolBarWidgetFactory = nullptr;
+    DesignerWidgetFlags widgetFlags = DesignerWidgetFlags::DisableOnError;
 };
 
 class QMLDESIGNERCORE_EXPORT AbstractView : public QObject
@@ -163,6 +163,8 @@ public:
 
     QList<ModelNode> allModelNodes() const;
 
+    void emitDocumentMessage(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings = QList<DocumentMessage>());
+    void emitDocumentMessage(const QString &error);
     void emitCustomNotification(const QString &identifier);
     void emitCustomNotification(const QString &identifier, const QList<ModelNode> &nodeList);
     void emitCustomNotification(const QString &identifier, const QList<ModelNode> &nodeList, const QList<QVariant> &data);
@@ -195,11 +197,12 @@ public:
     virtual void bindingPropertiesChanged(const QList<BindingProperty>& propertyList, PropertyChangeFlags propertyChange);
     virtual void signalHandlerPropertiesChanged(const QVector<SignalHandlerProperty>& propertyList, PropertyChangeFlags propertyChange);
     virtual void rootNodeTypeChanged(const QString &type, int majorVersion, int minorVersion);
+    virtual void nodeTypeChanged(const ModelNode& node, const TypeName &type, int majorVersion, int minorVersion);
 
-    virtual void instancePropertyChange(const QList<QPair<ModelNode, PropertyName> > &propertyList);
-    virtual void instanceErrorChange(const QVector<ModelNode> &errorNodeList);
+    virtual void instancePropertyChanged(const QList<QPair<ModelNode, PropertyName> > &propertyList);
+    virtual void instanceErrorChanged(const QVector<ModelNode> &errorNodeList);
     virtual void instancesCompleted(const QVector<ModelNode> &completedNodeList);
-    virtual void instanceInformationsChange(const QMultiHash<ModelNode, InformationName> &informationChangeHash);
+    virtual void instanceInformationsChanged(const QMultiHash<ModelNode, InformationName> &informationChangeHash);
     virtual void instancesRenderImageChanged(const QVector<ModelNode> &nodeList);
     virtual void instancesPreviewImageChanged(const QVector<ModelNode> &nodeList);
     virtual void instancesChildrenChanged(const QVector<ModelNode> &nodeList);
@@ -227,6 +230,8 @@ public:
 
     virtual void scriptFunctionsChanged(const ModelNode &node, const QStringList &scriptFunctionList);
 
+    virtual void documentMessagesChanged(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings);
+
     void changeRootNodeType(const TypeName &type, int majorVersion, int minorVersion);
 
     NodeInstanceView *nodeInstanceView() const;
@@ -237,6 +242,7 @@ public:
     QmlModelState currentState() const;
 
     int majorQtQuickVersion() const;
+    int minorQtQuickVersion() const;
 
     void resetView();
 
@@ -245,7 +251,7 @@ public:
     virtual bool hasWidget() const;
     virtual WidgetInfo widgetInfo();
 
-    QString contextHelpId() const;
+    virtual QString contextHelpId() const;
 
 protected:
     void setModel(Model * model);
@@ -255,7 +261,7 @@ protected:
                                        const QString &uniqueId = QString(),
                                        WidgetInfo::PlacementHint placementHint = WidgetInfo::NoPane,
                                        int placementPriority = 0,
-                                       const QString &tabName = QString());
+                                       const QString &tabName = QString(), DesignerWidgetFlags widgetFlags = DesignerWidgetFlags::DisableOnError);
 
 private: //functions
     QList<ModelNode> toModelNodeList(const QList<Internal::InternalNodePointer> &nodeList) const;
@@ -269,5 +275,3 @@ QMLDESIGNERCORE_EXPORT QList<Internal::InternalNodePointer> toInternalNodeList(c
 QMLDESIGNERCORE_EXPORT QList<ModelNode> toModelNodeList(const QList<Internal::InternalNodePointer> &nodeList, AbstractView *view);
 
 }
-
-#endif // ABSTRACTVIEW_H

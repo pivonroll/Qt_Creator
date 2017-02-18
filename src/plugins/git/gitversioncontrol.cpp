@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,8 @@
 
 #include <vcsbase/vcsbaseconstants.h>
 #include <vcsbase/vcscommand.h>
+
+#include <utils/hostosinfo.h>
 
 #include <QFileInfo>
 #include <QProcessEnvironment>
@@ -52,7 +49,7 @@ protected:
     QString trackFile(const QString &repository) override
     {
         const QString gitDir = m_client->findGitDirForRepository(repository);
-        return gitDir.isEmpty() ? QString() : (gitDir + QLatin1String("/HEAD"));
+        return gitDir.isEmpty() ? QString() : (gitDir + "/HEAD");
     }
 
     QString refreshTopic(const QString &repository) override
@@ -77,6 +74,12 @@ QString GitVersionControl::displayName() const
 Core::Id GitVersionControl::id() const
 {
     return Core::Id(VcsBase::Constants::VCS_ID_GIT);
+}
+
+bool GitVersionControl::isVcsFileOrDirectory(const Utils::FileName &fileName) const
+{
+    return fileName.toFileInfo().isDir()
+            && !fileName.fileName().compare(".git", Utils::HostOsInfo::fileNameCaseSensitivity());
 }
 
 bool GitVersionControl::isConfigured() const
@@ -110,13 +113,13 @@ bool GitVersionControl::vcsOpen(const QString & /*fileName*/)
 bool GitVersionControl::vcsAdd(const QString & fileName)
 {
     const QFileInfo fi(fileName);
-    return m_client->synchronousAdd(fi.absolutePath(), QStringList(fi.fileName()));
+    return m_client->synchronousAdd(fi.absolutePath(), { fi.fileName() });
 }
 
 bool GitVersionControl::vcsDelete(const QString & fileName)
 {
     const QFileInfo fi(fileName);
-    return m_client->synchronousDelete(fi.absolutePath(), true, QStringList(fi.fileName()));
+    return m_client->synchronousDelete(fi.absolutePath(), true, { fi.fileName() });
 }
 
 bool GitVersionControl::vcsMove(const QString &from, const QString &to)
@@ -136,7 +139,7 @@ QString GitVersionControl::vcsTopic(const QString &directory)
     QString topic = Core::IVersionControl::vcsTopic(directory);
     const QString commandInProgress = m_client->commandInProgressDescription(directory);
     if (!commandInProgress.isEmpty())
-        topic += QLatin1String(" (") + commandInProgress + QLatin1Char(')');
+        topic += " (" + commandInProgress + ')';
     return topic;
 }
 
@@ -145,10 +148,11 @@ Core::ShellCommand *GitVersionControl::createInitialCheckoutCommand(const QStrin
                                                                     const QString &localName,
                                                                     const QStringList &extraArgs)
 {
-    QStringList args;
-    args << QLatin1String("clone") << QLatin1String("--progress") << extraArgs << url << localName;
+    QStringList args = { "clone", "--progress" };
+    args << extraArgs << url << localName;
 
     auto command = new VcsBase::VcsCommand(baseDirectory.toString(), m_client->processEnvironment());
+    command->addFlags(VcsBase::VcsCommand::SuppressStdErr);
     command->addJob(m_client->vcsBinary(), args, -1);
     return command;
 }

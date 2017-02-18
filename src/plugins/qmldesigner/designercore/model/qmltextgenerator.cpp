@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -59,6 +59,23 @@ inline static QString doubleToString(double d)
             string.chop(1);
     }
     return string;
+}
+
+static QString unicodeEscape(const QString &stringValue)
+{
+    if (stringValue.count() == 1) {
+        ushort code = stringValue.at(0).unicode();
+        bool isUnicode = code <= 127;
+        if (isUnicode) {
+            return stringValue;
+        } else {
+            QString escaped;
+            escaped += "\\u";
+            escaped += QString::number(code, 16).rightJustified(4, '0');
+            return escaped;
+        }
+    }
+    return stringValue;
 }
 
 QmlTextGenerator::QmlTextGenerator(const PropertyNameList &propertyOrder, int indentDepth):
@@ -131,7 +148,9 @@ QString QmlTextGenerator::toQml(const AbstractProperty &property, int indentDept
             case QMetaType::UInt:
             case QMetaType::ULongLong:
                 return stringValue;
-
+            case QMetaType::QString:
+            case QMetaType::QChar:
+                return QStringLiteral("\"%1\"").arg(escape(unicodeEscape(stringValue)));
             default:
                 return QStringLiteral("\"%1\"").arg(escape(stringValue));
             }
@@ -144,7 +163,7 @@ QString QmlTextGenerator::toQml(const AbstractProperty &property, int indentDept
 
 QString QmlTextGenerator::toQml(const ModelNode &node, int indentDepth) const
 {
-    QString type = node.type();
+    QString type = QString::fromLatin1(node.type());
     QString url;
     if (type.contains('.')) {
         QStringList nameComponents = type.split('.');
@@ -232,13 +251,16 @@ QString QmlTextGenerator::propertyToQml(const AbstractProperty &property, int in
         if (property.isDynamic()) {
             result = QString(indentDepth, QLatin1Char(' '))
                     + QStringLiteral("property ")
-                    + property.dynamicTypeName()
+                    + QString::fromUtf8(property.dynamicTypeName())
                     + QStringLiteral(" ")
-                    + property.name()
+                    + QString::fromUtf8(property.name())
                     + QStringLiteral(": ")
                     + toQml(property, indentDepth);
         } else {
-            result = QString(indentDepth, QLatin1Char(' ')) + property.name() + QStringLiteral(": ") + toQml(property, indentDepth);
+            result = QString(indentDepth, QLatin1Char(' '))
+                    + QString::fromUtf8(property.name())
+                    + QStringLiteral(": ")
+                    + toQml(property, indentDepth);
         }
     }
 
@@ -250,6 +272,9 @@ QString QmlTextGenerator::propertyToQml(const AbstractProperty &property, int in
 QString QmlTextGenerator::escape(const QString &value)
 {
     QString result = value;
+
+    if (value.count() == 6 && value.startsWith("\\u")) //Do not dobule escape unicode chars
+        return result;
 
     result.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
 

@@ -1,7 +1,7 @@
 ############################################################################
 #
-# Copyright (C) 2015 The Qt Company Ltd.
-# Contact: http://www.qt.io/licensing
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
 #
 # This file is part of Qt Creator.
 #
@@ -9,24 +9,19 @@
 # Licensees holding valid commercial Qt licenses may use this file in
 # accordance with the commercial license agreement provided with the
 # Software or, alternatively, in accordance with the terms contained in
-# a written agreement between you and The Qt Company.  For licensing terms and
-# conditions see http://www.qt.io/terms-conditions.  For further information
-# use the contact form at http://www.qt.io/contact-us.
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
 #
-# GNU Lesser General Public License Usage
-# Alternatively, this file may be used under the terms of the GNU Lesser
-# General Public License version 2.1 or version 3 as published by the Free
-# Software Foundation and appearing in the file LICENSE.LGPLv21 and
-# LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-# following information to ensure the GNU Lesser General Public License
-# requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-# http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
 #
-# In addition, as a special exception, The Qt Company gives you certain additional
-# rights.  These rights are described in The Qt Company LGPL Exception
-# version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-#
-#############################################################################
+############################################################################
 
 from dumper import *
 
@@ -91,20 +86,24 @@ def readLiteral(d, value):
         return "<unsupported>"
 
 def dumpLiteral(d, value):
-    d.putValue(d.hexencode(readLiteral(d, value)), Hex2EncodedLatin1)
+    d.putValue(d.hexencode(readLiteral(d, value)), "latin1")
 
 def qdump__Core__Id(d, value):
-    try:
-        name = d.parseAndEvaluate("Core::nameForId(%d)" % value["m_id"])
+    val = value.extractPointer()
+    if True:
+        if d.isMsvcTarget():
+            name = d.nameForCoreId(val).address()
+        else:
+            name = d.parseAndEvaluate("Core::nameForId(0x%x)" % val).pointer()
         d.putSimpleCharArray(name)
-    except:
-        d.putValue(value["m_id"])
+    else:
+        d.putValue(val)
     d.putPlainChildren(value)
 
 def qdump__Debugger__Internal__GdbMi(d, value):
-    str = d.encodeByteArray(value["m_name"]) + "3a20" \
-        + d.encodeByteArray(value["m_data"])
-    d.putValue(str, Hex2EncodedLatin1)
+    val = d.encodeString(value["m_name"]) + "3a002000" \
+        + d.encodeString(value["m_data"])
+    d.putValue(val, "utf16")
     d.putPlainChildren(value)
 
 def qdump__Debugger__Internal__DisassemblerLine(d, value):
@@ -112,11 +111,11 @@ def qdump__Debugger__Internal__DisassemblerLine(d, value):
     d.putPlainChildren(value)
 
 def qdump__Debugger__Internal__WatchData(d, value):
-    d.putByteArrayValue(value["iname"])
+    d.putStringValue(value["iname"])
     d.putPlainChildren(value)
 
 def qdump__Debugger__Internal__WatchItem(d, value):
-    d.putByteArrayValue(value["iname"])
+    d.putStringValue(value["iname"])
     d.putPlainChildren(value)
 
 def qdump__Debugger__Internal__BreakpointModelId(d, value):
@@ -153,7 +152,7 @@ def qdump__CPlusPlus__FullySpecifiedType(d, value):
     if typeName == "CPlusPlus::NamedType":
         dumpLiteral(d, type["_name"])
     elif typeName == "CPlusPlus::PointerType":
-        d.putValue(d.hexencode(extractPointerType(d, type)), Hex2EncodedLatin1)
+        d.putValue(d.hexencode(extractPointerType(d, type)), "latin1")
     d.putPlainChildren(value)
 
 def qdump__CPlusPlus__NamedType(d, value):
@@ -162,7 +161,7 @@ def qdump__CPlusPlus__NamedType(d, value):
     d.putPlainChildren(value)
 
 def qdump__CPlusPlus__PointerType(d, value):
-    d.putValue(d.hexencode(extractPointerType(d, value)), Hex2EncodedLatin1)
+    d.putValue(d.hexencode(extractPointerType(d, value)), "latin1")
     d.putPlainChildren(value)
 
 def qdump__CPlusPlus__TemplateNameId(d, value):
@@ -214,8 +213,7 @@ def qdump__CPlusPlus__Internal__PPToken(d, value):
     offset = int(value["utf16charOffset"])
     #warn("size: %s, alloc: %s, offset: %s, length: %s, data: %s"
     #    % (size, alloc, offset, length, data))
-    d.putValue(d.readMemory(data + offset, min(100, length)),
-        Hex2EncodedLatin1)
+    d.putValue(d.readMemory(data + offset, min(100, length)), "latin1")
     d.putPlainChildren(value)
 
 def qdump__ProString(d, value):
@@ -225,8 +223,35 @@ def qdump__ProString(d, value):
         data += 2 * int(value["m_offset"])
         size = int(value["m_length"])
         s = d.readMemory(data, 2 * size)
-        d.putValue(s, Hex4EncodedLittleEndian)
+        d.putValue(s, "utf16")
     except:
         d.putEmptyValue()
     d.putPlainChildren(value)
 
+def qdump__ProKey(d, value):
+    qdump__ProString(d, value)
+    d.putBetterType(value.type)
+
+def qdump__Core__GeneratedFile(d, value):
+    d.putStringValue(value["m_d"]["d"]["path"])
+    d.putPlainChildren(value)
+
+def qdump__ProjectExplorer__Node(d, value):
+    d.putStringValue(value["m_filePath"])
+    d.putPlainChildren(value)
+
+def qdump__ProjectExplorer__FolderNode(d, value):
+    d.putStringValue(value["m_displayName"])
+    d.putPlainChildren(value)
+
+def qdump__ProjectExplorer__ProjectNode(d, value):
+    qdump__ProjectExplorer__FolderNode(d, value)
+
+def qdump__CMakeProjectManager__Internal__CMakeProjectNode(d, value):
+    qdump__ProjectExplorer__FolderNode(d, value)
+
+def qdump__QmakeProjectManager__QmakePriFileNode(d, value):
+    qdump__ProjectExplorer__FolderNode(d, value)
+
+def qdump__QmakeProjectManager__QmakeProFileNode(d, value):
+    qdump__ProjectExplorer__FolderNode(d, value)

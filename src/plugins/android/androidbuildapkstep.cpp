@@ -1,8 +1,8 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -10,22 +10,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -48,10 +43,19 @@
 
 #include <qtsupport/qtkitinformation.h>
 
-#include <utils/qtcprocess.h>
+#include <utils/synchronousprocess.h>
+#include <utils/utilsicons.h>
 
-#include <QInputDialog>
+#include <QDialogButtonBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
+#include <QProcess>
+#include <QPushButton>
+#include <QVBoxLayout>
+
+#include <memory>
 
 namespace Android {
 using namespace Internal;
@@ -62,13 +66,33 @@ const QLatin1String BuildTargetSdkKey("BuildTargetSdk");
 const QLatin1String VerboseOutputKey("VerboseOutput");
 const QLatin1String UseGradleKey("UseGradle");
 
+
+class PasswordInputDialog : public QDialog {
+public:
+    enum Context{
+      KeystorePassword = 1,
+      CertificatePassword
+    };
+
+    PasswordInputDialog(Context context, std::function<bool (const QString &)> callback,
+                        const QString &extraContextStr, QWidget *parent = nullptr);
+
+    static QString getPassword(Context context, std::function<bool (const QString &)> callback,
+                               const QString &extraContextStr, bool *ok = nullptr,
+                               QWidget *parent = nullptr);
+
+private:
+    std::function<bool (const QString &)> verifyCallback = [](const QString &) { return true; };
+    QLabel *inputContextlabel = new QLabel(this);
+    QLineEdit *inputEdit = new QLineEdit(this);
+    QLabel *warningIcon = new QLabel(this);
+    QLabel *warningLabel = new QLabel(this);
+    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                                       this);
+};
+
 AndroidBuildApkStep::AndroidBuildApkStep(ProjectExplorer::BuildStepList *parent, const Core::Id id)
     : ProjectExplorer::AbstractProcessStep(parent, id),
-      m_deployAction(BundleLibrariesDeployment),
-      m_signPackage(false),
-      m_verbose(false),
-      m_useGradle(false),
-      m_openPackageLocation(false),
       m_buildTargetSdk(AndroidConfig::apiLevelNameFor(AndroidConfigurations::currentConfig().highestAndroidSdk()))
 {
     const QtSupport::BaseQtVersion *version = QtSupport::QtKitInformation::qtVersion(target()->kit());
@@ -86,6 +110,7 @@ AndroidBuildApkStep::AndroidBuildApkStep(ProjectExplorer::BuildStepList *parent,
       m_verbose(other->m_verbose),
       m_useGradle(other->m_useGradle),
       m_openPackageLocation(other->m_openPackageLocation),
+      // leave m_openPackageLocationForRun at false
       m_buildTargetSdk(other->m_buildTargetSdk)
 {
     const QtSupport::BaseQtVersion *version = QtSupport::QtKitInformation::qtVersion(target()->kit());
@@ -97,30 +122,30 @@ AndroidBuildApkStep::AndroidBuildApkStep(ProjectExplorer::BuildStepList *parent,
     }
 }
 
-bool AndroidBuildApkStep::init()
+bool AndroidBuildApkStep::init(QList<const BuildStep *> &earlierSteps)
 {
     ProjectExplorer::BuildConfiguration *bc = buildConfiguration();
 
     if (m_signPackage) {
         // check keystore and certificate passwords
-        while (!AndroidManager::checkKeystorePassword(m_keystorePath.toString(), m_keystorePasswd)) {
-            if (!keystorePassword())
-                return false; // user canceled
-        }
+        if (!verifyKeystorePassword() || !verifyCertificatePassword())
+            return false;
 
-        while (!AndroidManager::checkCertificatePassword(m_keystorePath.toString(), m_keystorePasswd, m_certificateAlias, m_certificatePasswd)) {
-            if (!certificatePassword())
-                return false; // user canceled
-        }
-
-
-        if (bc->buildType() == ProjectExplorer::BuildConfiguration::Debug)
-            emit addOutput(tr("Warning: Signing a debug package."), BuildStep::ErrorMessageOutput);
+        if (bc->buildType() != ProjectExplorer::BuildConfiguration::Release)
+            emit addOutput(tr("Warning: Signing a debug or profile package."),
+                           OutputFormat::ErrorMessage);
     }
 
     QtSupport::BaseQtVersion *version = QtSupport::QtKitInformation::qtVersion(target()->kit());
     if (!version)
         return false;
+
+    int minSDKForKit = AndroidManager::minimumSDK(target()->kit());
+    if (AndroidManager::minimumSDK(target()) < minSDKForKit) {
+        emit addOutput(tr("The API level set for the APK is less than the minimum required by the kit."
+                          "\nThe minimum API level required by the kit is %1.").arg(minSDKForKit), OutputFormat::Stderr);
+        return false;
+    }
 
     JavaParser *parser = new JavaParser;
     parser->setProjectFileList(target()->project()->files(ProjectExplorer::Project::AllFiles));
@@ -131,7 +156,7 @@ bool AndroidBuildApkStep::init()
     m_openPackageLocationForRun = m_openPackageLocation;
     m_apkPath = AndroidManager::androidQtSupport(target())->apkPath(target()).toString();
 
-    bool result = AbstractProcessStep::init();
+    bool result = AbstractProcessStep::init(earlierSteps);
     if (!result)
         return false;
 
@@ -153,6 +178,50 @@ void AndroidBuildApkStep::processFinished(int exitCode, QProcess::ExitStatus sta
     AbstractProcessStep::processFinished(exitCode, status);
     if (m_openPackageLocationForRun && status == QProcess::NormalExit && exitCode == 0)
         QMetaObject::invokeMethod(this, "showInGraphicalShell", Qt::QueuedConnection);
+}
+
+bool AndroidBuildApkStep::verifyKeystorePassword()
+{
+    if (!m_keystorePath.exists()) {
+        addOutput(tr("Cannot sign the package. Invalid keystore path(%1).")
+                  .arg(m_keystorePath.toString()), OutputFormat::ErrorMessage);
+        return false;
+    }
+
+    if (AndroidManager::checkKeystorePassword(m_keystorePath.toString(), m_keystorePasswd))
+        return true;
+
+    bool success = false;
+    auto verifyCallback = std::bind(&AndroidManager::checkKeystorePassword,
+                                    m_keystorePath.toString(), std::placeholders::_1);
+    m_keystorePasswd = PasswordInputDialog::getPassword(PasswordInputDialog::KeystorePassword,
+                                                        verifyCallback, "", &success);
+    return success;
+}
+
+bool AndroidBuildApkStep::verifyCertificatePassword()
+{
+    if (!AndroidManager::checkCertificateExists(m_keystorePath.toString(), m_keystorePasswd,
+                                                 m_certificateAlias)) {
+        addOutput(tr("Cannot sign the package. Certificate alias %1 does not exist.")
+                  .arg(m_certificateAlias), OutputFormat::ErrorMessage);
+        return false;
+    }
+
+    if (AndroidManager::checkCertificatePassword(m_keystorePath.toString(), m_keystorePasswd,
+                                                 m_certificateAlias, m_certificatePasswd)) {
+        return true;
+    }
+
+    bool success = false;
+    auto verifyCallback = std::bind(&AndroidManager::checkCertificatePassword,
+                                    m_keystorePath.toString(), m_keystorePasswd,
+                                    m_certificateAlias, std::placeholders::_1);
+
+    m_certificatePasswd = PasswordInputDialog::getPassword(PasswordInputDialog::CertificatePassword,
+                                                           verifyCallback, m_certificateAlias,
+                                                           &success);
+    return success;
 }
 
 bool AndroidBuildApkStep::fromMap(const QVariantMap &map)
@@ -265,14 +334,12 @@ bool AndroidBuildApkStep::useGradle() const
 
 void AndroidBuildApkStep::setUseGradle(bool b)
 {
-    m_useGradle = b;
-    if (m_useGradle)
-        AndroidManager::updateGradleProperties(target());
-}
-
-bool AndroidBuildApkStep::runInGuiThread() const
-{
-    return true;
+    if (m_useGradle != b) {
+        m_useGradle = b;
+        if (m_useGradle)
+            AndroidManager::updateGradleProperties(target());
+        emit useGradleChanged();
+    }
 }
 
 bool AndroidBuildApkStep::verboseOutput() const
@@ -282,60 +349,96 @@ bool AndroidBuildApkStep::verboseOutput() const
 
 QAbstractItemModel *AndroidBuildApkStep::keystoreCertificates()
 {
-    QString rawCerts;
-    QProcess keytoolProc;
-    while (!rawCerts.length() || !m_keystorePasswd.length()) {
-        QStringList params;
-        params << QLatin1String("-list") << QLatin1String("-v") << QLatin1String("-keystore") << m_keystorePath.toUserOutput() << QLatin1String("-storepass");
-        if (!m_keystorePasswd.length())
-            keystorePassword();
-        if (!m_keystorePasswd.length())
-            return 0;
-        params << m_keystorePasswd;
-        params << QLatin1String("-J-Duser.language=en");
-        keytoolProc.start(AndroidConfigurations::currentConfig().keytoolPath().toString(), params);
-        if (!keytoolProc.waitForStarted() || !keytoolProc.waitForFinished()) {
-            QMessageBox::critical(0, tr("Error"),
-                                  tr("Failed to run keytool."));
-            return 0;
-        }
+    // check keystore passwords
+    if (!verifyKeystorePassword())
+        return nullptr;
 
-        if (keytoolProc.exitCode()) {
-            QMessageBox::critical(0, tr("Error"),
-                                  tr("Invalid password."));
-            m_keystorePasswd.clear();
-        }
-        rawCerts = QString::fromLatin1(keytoolProc.readAllStandardOutput());
-    }
-    return new CertificatesModel(rawCerts, this);
+    CertificatesModel *model = nullptr;
+    QStringList params
+            = { QLatin1String("-list"), QLatin1String("-v"), QLatin1String("-keystore"),
+                m_keystorePath.toUserOutput(), QLatin1String("-storepass") };
+
+    params << m_keystorePasswd;
+    params << QLatin1String("-J-Duser.language=en");
+
+    Utils::SynchronousProcess keytoolProc;
+    keytoolProc.setTimeoutS(30);
+    const Utils::SynchronousProcessResponse response
+            = keytoolProc.run(AndroidConfigurations::currentConfig().keytoolPath().toString(), params);
+    if (response.result > Utils::SynchronousProcessResponse::FinishedError)
+        QMessageBox::critical(0, tr("Error"), tr("Failed to run keytool."));
+    else
+        model = new CertificatesModel(response.stdOut(), this);
+
+    return model;
 }
 
-bool AndroidBuildApkStep::keystorePassword()
+PasswordInputDialog::PasswordInputDialog(PasswordInputDialog::Context context,
+                                         std::function<bool (const QString &)> callback,
+                                         const QString &extraContextStr,
+                                         QWidget *parent) :
+    QDialog(parent, Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint),
+    verifyCallback(callback)
+
 {
-    m_keystorePasswd.clear();
-    bool ok;
-    QString text = QInputDialog::getText(0, tr("Keystore"),
-                                         tr("Keystore password:"), QLineEdit::Password,
-                                         QString(), &ok);
-    if (ok && !text.isEmpty()) {
-        m_keystorePasswd = text;
-        return true;
-    }
-    return false;
+    inputEdit->setEchoMode(QLineEdit::Password);
+
+    warningIcon->setPixmap(Utils::Icons::WARNING.pixmap());
+    warningIcon->setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
+    warningIcon->hide();
+
+    warningLabel->hide();
+
+    auto warningLayout = new QHBoxLayout;
+    warningLayout->addWidget(warningIcon);
+    warningLayout->addWidget(warningLabel);
+
+    auto mainLayout = new QVBoxLayout(this);
+    mainLayout->addWidget(inputContextlabel);
+    mainLayout->addWidget(inputEdit);
+    mainLayout->addLayout(warningLayout);
+    mainLayout->addWidget(buttonBox);
+
+    connect(inputEdit, &QLineEdit::textChanged,[this](const QString &text) {
+        buttonBox->button(QDialogButtonBox::Ok)->setEnabled(!text.isEmpty());
+    });
+
+    connect(buttonBox, &QDialogButtonBox::accepted, [this]() {
+        if (verifyCallback(inputEdit->text())) {
+            accept(); // Dialog accepted.
+        } else {
+            warningIcon->show();
+            warningLabel->show();
+            warningLabel->setText(tr("Incorrect password."));
+            inputEdit->clear();
+            adjustSize();
+        }
+    });
+
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+    setWindowTitle(context == KeystorePassword ? tr("Keystore") : tr("Certificate"));
+
+    QString contextStr;
+    if (context == KeystorePassword)
+        contextStr = tr("Enter keystore password");
+    else
+        contextStr = tr("Enter certificate password");
+
+    contextStr += extraContextStr.isEmpty() ? QStringLiteral(":") :
+                                              QStringLiteral(" (%1):").arg(extraContextStr);
+    inputContextlabel->setText(contextStr);
 }
 
-bool AndroidBuildApkStep::certificatePassword()
+QString PasswordInputDialog::getPassword(Context context, std::function<bool (const QString &)> callback,
+                                         const QString &extraContextStr, bool *ok, QWidget *parent)
 {
-    m_certificatePasswd.clear();
-    bool ok;
-    QString text = QInputDialog::getText(0, tr("Certificate"),
-                                         tr("Certificate password (%1):").arg(m_certificateAlias), QLineEdit::Password,
-                                         QString(), &ok);
-    if (ok && !text.isEmpty()) {
-        m_certificatePasswd = text;
-        return true;
-    }
-    return false;
+    std::unique_ptr<PasswordInputDialog> dlg(new PasswordInputDialog(context, callback,
+                                                                     extraContextStr, parent));
+    bool isAccepted = dlg->exec() == QDialog::Accepted;
+    if (ok)
+        *ok = isAccepted;
+    return isAccepted ? dlg->inputEdit->text() : "";
 }
 
 } // namespace Android

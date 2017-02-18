@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef BINEDITORPLUGIN_H
-#define BINEDITORPLUGIN_H
+#pragma once
+
+#include "bineditorservice.h"
 
 #include <extensionsystem/iplugin.h>
 #include <coreplugin/editormanager/ieditorfactory.h>
@@ -40,9 +36,9 @@
 #include <QAction>
 
 namespace BinEditor {
-class BinEditorWidget;
-
 namespace Internal {
+
+class BinEditorWidget;
 class BinEditorFactory;
 
 class BinEditorPlugin : public ExtensionSystem::IPlugin
@@ -60,7 +56,7 @@ public:
     // Connect editor to settings changed signals.
     void initializeEditor(BinEditorWidget *editor);
 
-private slots:
+private:
     void undoAction();
     void redoAction();
     void copyAction();
@@ -69,15 +65,12 @@ private slots:
 
     void updateCurrentEditor(Core::IEditor *editor);
 
-private:
     Core::Context m_context;
     QAction *registerNewAction(Core::Id id, const QString &title = QString());
-    QAction *registerNewAction(Core::Id id, QObject *receiver, const char *slot,
-                               const QString &title = QString());
-    QAction *m_undoAction;
-    QAction *m_redoAction;
-    QAction *m_copyAction;
-    QAction *m_selectAllAction;
+    QAction *m_undoAction = nullptr;
+    QAction *m_redoAction = nullptr;
+    QAction *m_copyAction = nullptr;
+    QAction *m_selectAllAction = nullptr;
 
     QPointer<BinEditorWidget> m_currentEditor;
 };
@@ -95,7 +88,14 @@ private:
     BinEditorPlugin *m_owner;
 };
 
+class FactoryServiceImpl : public QObject, public FactoryService
+{
+    Q_OBJECT
+    Q_INTERFACES(BinEditor::FactoryService)
+
+public:
+    EditorService *createEditorService(const QString &title0, bool wantsEditor) override;
+};
+
 } // namespace Internal
 } // namespace BinEditor
-
-#endif // BINEDITORPLUGIN_H

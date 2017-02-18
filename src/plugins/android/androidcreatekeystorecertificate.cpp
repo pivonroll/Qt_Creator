@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,8 +27,9 @@
 #include "androidconfigurations.h"
 #include "ui_androidcreatekeystorecertificate.h"
 
+#include <utils/synchronousprocess.h>
+
 #include <QFileDialog>
-#include <QProcess>
 #include <QMessageBox>
 
 using namespace Android::Internal;
@@ -43,12 +39,18 @@ AndroidCreateKeystoreCertificate::AndroidCreateKeystoreCertificate(QWidget *pare
     ui(new Ui::AndroidCreateKeystoreCertificate)
 {
     ui->setupUi(this);
-    connect(ui->keystorePassLineEdit, SIGNAL(textChanged(QString)), this, SLOT(checkKeystorePassword()));
-    connect(ui->keystoreRetypePassLineEdit, SIGNAL(textChanged(QString)), this, SLOT(checkKeystorePassword()));
-    connect(ui->certificatePassLineEdit, SIGNAL(textChanged(QString)), this, SLOT(checkCertificatePassword()));
-    connect(ui->certificateRetypePassLineEdit, SIGNAL(textChanged(QString)), this, SLOT(checkCertificatePassword()));
-    connect(ui->certificateAliasLineEdit, SIGNAL(textChanged(QString)), this, SLOT(checkCertificateAlias()));
-    connect(ui->countryLineEdit, SIGNAL(textChanged(QString)), this, SLOT(checkCountryCode()));
+    connect(ui->keystorePassLineEdit, &QLineEdit::textChanged,
+            this, &AndroidCreateKeystoreCertificate::checkKeystorePassword);
+    connect(ui->keystoreRetypePassLineEdit, &QLineEdit::textChanged,
+            this, &AndroidCreateKeystoreCertificate::checkKeystorePassword);
+    connect(ui->certificatePassLineEdit, &QLineEdit::textChanged,
+            this, &AndroidCreateKeystoreCertificate::checkCertificatePassword);
+    connect(ui->certificateRetypePassLineEdit, &QLineEdit::textChanged,
+            this, &AndroidCreateKeystoreCertificate::checkCertificatePassword);
+    connect(ui->certificateAliasLineEdit, &QLineEdit::textChanged,
+            this, &AndroidCreateKeystoreCertificate::checkCertificateAlias);
+    connect(ui->countryLineEdit, &QLineEdit::textChanged,
+            this, &AndroidCreateKeystoreCertificate::checkCountryCode);
 }
 
 AndroidCreateKeystoreCertificate::~AndroidCreateKeystoreCertificate()
@@ -150,7 +152,7 @@ void AndroidCreateKeystoreCertificate::on_buttonBox_accepted()
     if (!validateUserInput())
         return;
 
-    m_keystoreFilePath = Utils::FileName::fromString(QFileDialog::getSaveFileName(this, tr("Keystore file name"),
+    m_keystoreFilePath = Utils::FileName::fromString(QFileDialog::getSaveFileName(this, tr("Keystore Filename"),
                                                                                   QDir::homePath() + QLatin1String("/android_release.keystore"),
                                                                                   tr("Keystore files (*.keystore *.jks)")));
     if (m_keystoreFilePath.isEmpty())
@@ -167,6 +169,7 @@ void AndroidCreateKeystoreCertificate::on_buttonBox_accepted()
     if (ui->stateNameLineEdit->text().length())
         distinguishedNames += QLatin1String(", S=") + ui->stateNameLineEdit->text().replace(QLatin1Char(','), QLatin1String("\\,"));
 
+    const QString command = AndroidConfigurations::currentConfig().keytoolPath().toString();
     QStringList params;
     params << QLatin1String("-genkey") << QLatin1String("-keyalg") << QLatin1String("RSA")
            << QLatin1String("-keystore") << m_keystoreFilePath.toString()
@@ -177,16 +180,13 @@ void AndroidCreateKeystoreCertificate::on_buttonBox_accepted()
            << QLatin1String("-keypass") << certificatePassword()
            << QLatin1String("-dname") << distinguishedNames;
 
-    QProcess genKeyCertProc;
-    genKeyCertProc.start(AndroidConfigurations::currentConfig().keytoolPath().toString(), params );
+    Utils::SynchronousProcess genKeyCertProc;
+    genKeyCertProc.setTimeoutS(15);
+    Utils::SynchronousProcessResponse response = genKeyCertProc.run(command, params);
 
-    if (!genKeyCertProc.waitForStarted() || !genKeyCertProc.waitForFinished())
-        return;
-
-    if (genKeyCertProc.exitCode()) {
-        QMessageBox::critical(this, tr("Error")
-                              , QString::fromLatin1(genKeyCertProc.readAllStandardOutput())
-                              + QString::fromLatin1(genKeyCertProc.readAllStandardError()));
+    if (response.result != Utils::SynchronousProcessResponse::Finished || response.exitCode != 0) {
+        QMessageBox::critical(this, tr("Error"),
+                              response.exitMessage(command, 15) + QLatin1Char('\n') + response.allOutput());
         return;
     }
     accept();

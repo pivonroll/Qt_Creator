@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,6 +33,7 @@
 #include <cpptools/baseeditordocumentprocessor.h>
 #include <cpptools/cppcodemodelinspectordumper.h>
 #include <cpptools/cppmodelmanager.h>
+#include <cpptools/cpptoolsbridge.h>
 #include <cpptools/cppworkingcopy.h>
 #include <projectexplorer/project.h>
 
@@ -51,6 +47,8 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSortFilterProxyModel>
+
+#include <algorithm>
 
 using namespace CPlusPlus;
 using namespace CppTools;
@@ -134,12 +132,10 @@ public:
     QItemSelectionModel *selectionModel() const;
     void selectIndex(const QModelIndex &index);
     void resizeColumns(int columnCount);
+    void clearFilter();
 
 signals:
     void filterChanged(const QString &filterText);
-
-public slots:
-    void clearFilter();
 
 private:
     QTreeView *view;
@@ -156,13 +152,13 @@ FilterableView::FilterableView(QWidget *parent)
 
     lineEdit = new QLineEdit(this);
     lineEdit->setPlaceholderText(QLatin1String("File Path"));
-    QObject::connect(lineEdit, SIGNAL(textChanged(QString)), SIGNAL(filterChanged(QString)));
+    QObject::connect(lineEdit, &QLineEdit::textChanged, this, &FilterableView::filterChanged);
 
     QLabel *label = new QLabel(QLatin1String("&Filter:"), this);
     label->setBuddy(lineEdit);
 
     QPushButton *clearButton = new QPushButton(QLatin1String("&Clear"), this);
-    QObject::connect(clearButton, SIGNAL(clicked()), SLOT(clearFilter()));
+    QObject::connect(clearButton, &QAbstractButton::clicked, this, &FilterableView::clearFilter);
 
     QHBoxLayout *filterBarLayout = new QHBoxLayout();
     filterBarLayout->addWidget(label);
@@ -203,6 +199,162 @@ void FilterableView::resizeColumns(int columnCount)
 void FilterableView::clearFilter()
 {
     lineEdit->clear();
+}
+
+// --- ProjectFilesModel --------------------------------------------------------------------------
+
+class ProjectFilesModel : public QAbstractListModel
+{
+    Q_OBJECT
+public:
+    ProjectFilesModel(QObject *parent);
+    void configure(const ProjectFiles &files);
+    void clear();
+
+    enum Columns { FileKindColumn, FilePathColumn, ColumnCount };
+
+    int rowCount(const QModelIndex &parent = QModelIndex()) const;
+    int columnCount(const QModelIndex &parent = QModelIndex()) const;
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
+    QVariant headerData(int section, Qt::Orientation orientation, int role) const;
+
+private:
+    ProjectFiles m_files;
+};
+
+ProjectFilesModel::ProjectFilesModel(QObject *parent) : QAbstractListModel(parent)
+{
+}
+
+void ProjectFilesModel::configure(const ProjectFiles &files)
+{
+    emit layoutAboutToBeChanged();
+    m_files = files;
+    emit layoutChanged();
+}
+
+void ProjectFilesModel::clear()
+{
+    emit layoutAboutToBeChanged();
+    m_files.clear();
+    emit layoutChanged();
+}
+
+int ProjectFilesModel::rowCount(const QModelIndex &/*parent*/) const
+{
+    return m_files.size();
+}
+
+int ProjectFilesModel::columnCount(const QModelIndex &/*parent*/) const
+{
+    return ProjectFilesModel::ColumnCount;
+}
+
+QVariant ProjectFilesModel::data(const QModelIndex &index, int role) const
+{
+    if (role == Qt::DisplayRole) {
+        const int row = index.row();
+        const int column = index.column();
+        if (column == FileKindColumn) {
+            return CMI::Utils::toString(m_files.at(row).kind);
+        } else if (column == FilePathColumn) {
+            return m_files.at(row).path;
+        }
+    }
+    return QVariant();
+}
+
+QVariant ProjectFilesModel::headerData(int section, Qt::Orientation orientation, int role) const
+{
+    if (orientation == Qt::Horizontal && role == Qt::DisplayRole) {
+        switch (section) {
+        case FileKindColumn:
+            return QLatin1String("File Kind");
+        case FilePathColumn:
+            return QLatin1String("File Path");
+        default:
+            return QVariant();
+        }
+    }
+    return QVariant();
+}
+
+// --- ProjectHeaderPathModel --------------------------------------------------------------------
+
+class ProjectHeaderPathsModel : public QAbstractListModel
+{
+    Q_OBJECT
+public:
+    ProjectHeaderPathsModel(QObject *parent);
+    void configure(const ProjectPartHeaderPaths &paths);
+    void clear();
+
+    enum Columns { TypeColumn, PathColumn, ColumnCount };
+
+    int rowCount(const QModelIndex &parent = QModelIndex()) const;
+    int columnCount(const QModelIndex &parent = QModelIndex()) const;
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
+    QVariant headerData(int section, Qt::Orientation orientation, int role) const;
+
+private:
+    ProjectPartHeaderPaths m_paths;
+};
+
+ProjectHeaderPathsModel::ProjectHeaderPathsModel(QObject *parent) : QAbstractListModel(parent)
+{
+}
+
+void ProjectHeaderPathsModel::configure(const ProjectPartHeaderPaths &paths)
+{
+    emit layoutAboutToBeChanged();
+    m_paths = paths;
+    emit layoutChanged();
+}
+
+void ProjectHeaderPathsModel::clear()
+{
+    emit layoutAboutToBeChanged();
+    m_paths.clear();
+    emit layoutChanged();
+}
+
+int ProjectHeaderPathsModel::rowCount(const QModelIndex &/*parent*/) const
+{
+    return m_paths.size();
+}
+
+int ProjectHeaderPathsModel::columnCount(const QModelIndex &/*parent*/) const
+{
+    return ProjectFilesModel::ColumnCount;
+}
+
+QVariant ProjectHeaderPathsModel::data(const QModelIndex &index, int role) const
+{
+    if (role == Qt::DisplayRole) {
+        const int row = index.row();
+        const int column = index.column();
+        if (column == TypeColumn) {
+            return CMI::Utils::toString(m_paths.at(row).type);
+        } else if (column == PathColumn) {
+            return m_paths.at(row).path;
+        }
+    }
+    return QVariant();
+}
+
+QVariant ProjectHeaderPathsModel::headerData(int section, Qt::Orientation orientation, int role) const
+{
+    if (orientation == Qt::Horizontal && role == Qt::DisplayRole) {
+        switch (section) {
+        case TypeColumn:
+            return QLatin1String("Type");
+        case PathColumn:
+            return QLatin1String("Path");
+        default:
+            return QVariant();
+        }
+    }
+    return QVariant();
 }
 
 // --- KeyValueModel ------------------------------------------------------------------------------
@@ -416,7 +568,7 @@ void IncludesModel::configure(const QList<Document::Include> &includes)
 {
     emit layoutAboutToBeChanged();
     m_includes = includes;
-    qStableSort(m_includes.begin(), m_includes.end(), includesSorter);
+    std::stable_sort(m_includes.begin(), m_includes.end(), includesSorter);
     emit layoutChanged();
 }
 
@@ -519,7 +671,7 @@ void DiagnosticMessagesModel::configure(
 {
     emit layoutAboutToBeChanged();
     m_messages = messages;
-    qStableSort(m_messages.begin(), m_messages.end(), diagnosticMessagesModelSorter);
+    std::stable_sort(m_messages.begin(), m_messages.end(), diagnosticMessagesModelSorter);
     emit layoutChanged();
 }
 
@@ -1027,6 +1179,11 @@ QVariant ProjectPartsModel::data(const QModelIndex &index, int role) const
             return m_projectPartsList.at(row)->displayName;
         else if (column == PartFilePathColumn)
             return QDir::toNativeSeparators(m_projectPartsList.at(row)->projectFile);
+    } else if (role == Qt::ForegroundRole) {
+        if (!m_projectPartsList.at(row)->selectedForBuilding) {
+            return QApplication::palette().color(QPalette::ColorGroup::Disabled,
+                                                 QPalette::ColorRole::Text);
+        }
     } else if (role == Qt::UserRole) {
         return m_projectPartsList.at(row)->id();
     }
@@ -1179,6 +1336,8 @@ CppCodeModelInspectorDialog::CppCodeModelInspectorDialog(QWidget *parent)
     , m_projectPartsModel(new ProjectPartsModel(this))
     , m_proxyProjectPartsModel(new QSortFilterProxyModel(this))
     , m_partGenericInfoModel(new KeyValueModel(this))
+    , m_projectFilesModel(new ProjectFilesModel(this))
+    , m_projectHeaderPathsModel(new ProjectHeaderPathsModel(this))
     , m_workingCopyView(new FilterableView(this))
     , m_workingCopyModel(new WorkingCopyModel(this))
     , m_proxyWorkingCopyModel(new QSortFilterProxyModel(this))
@@ -1189,7 +1348,7 @@ CppCodeModelInspectorDialog::CppCodeModelInspectorDialog(QWidget *parent)
     m_ui->workingCopySplitter->insertWidget(0, m_workingCopyView);
 
     setAttribute(Qt::WA_DeleteOnClose);
-    connect(Core::ICore::instance(), SIGNAL(coreAboutToClose()), SLOT(close()));
+    connect(Core::ICore::instance(), &Core::ICore::coreAboutToClose, this, &QWidget::close);
 
     m_proxySnapshotModel->setSourceModel(m_snapshotModel);
     m_proxySnapshotModel->setFilterKeyColumn(SnapshotModel::FilePathColumn);
@@ -1205,37 +1364,40 @@ CppCodeModelInspectorDialog::CppCodeModelInspectorDialog(QWidget *parent)
     m_proxyProjectPartsModel->setFilterKeyColumn(ProjectPartsModel::PartFilePathColumn);
     m_projectPartsView->setModel(m_proxyProjectPartsModel);
     m_ui->partGeneralView->setModel(m_partGenericInfoModel);
+    m_ui->projectFilesView->setModel(m_projectFilesModel);
+    m_ui->projectHeaderPathsView->setModel(m_projectHeaderPathsModel);
 
     m_proxyWorkingCopyModel->setSourceModel(m_workingCopyModel);
     m_proxyWorkingCopyModel->setFilterKeyColumn(WorkingCopyModel::FilePathColumn);
     m_workingCopyView->setModel(m_proxyWorkingCopyModel);
 
     connect(m_snapshotView->selectionModel(),
-            SIGNAL(currentRowChanged(QModelIndex,QModelIndex)),
-            SLOT(onDocumentSelected(QModelIndex,QModelIndex)));
-    connect(m_snapshotView, SIGNAL(filterChanged(QString)),
-            SLOT(onSnapshotFilterChanged(QString)));
-    connect(m_ui->snapshotSelector, SIGNAL(currentIndexChanged(int)),
-            SLOT(onSnapshotSelected(int)));
-    connect(m_ui->docSymbolsView, SIGNAL(expanded(QModelIndex)),
-            SLOT(onSymbolsViewExpandedOrCollapsed(QModelIndex)));
-    connect(m_ui->docSymbolsView, SIGNAL(collapsed(QModelIndex)),
-            SLOT(onSymbolsViewExpandedOrCollapsed(QModelIndex)));
+            &QItemSelectionModel::currentRowChanged,
+            this, &CppCodeModelInspectorDialog::onDocumentSelected);
+    connect(m_snapshotView, &FilterableView::filterChanged,
+            this, &CppCodeModelInspectorDialog::onSnapshotFilterChanged);
+    connect(m_ui->snapshotSelector,
+            static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &CppCodeModelInspectorDialog::onSnapshotSelected);
+    connect(m_ui->docSymbolsView, &QTreeView::expanded,
+            this, &CppCodeModelInspectorDialog::onSymbolsViewExpandedOrCollapsed);
+    connect(m_ui->docSymbolsView, &QTreeView::collapsed,
+            this, &CppCodeModelInspectorDialog::onSymbolsViewExpandedOrCollapsed);
 
     connect(m_projectPartsView->selectionModel(),
-            SIGNAL(currentRowChanged(QModelIndex,QModelIndex)),
-            SLOT(onProjectPartSelected(QModelIndex,QModelIndex)));
-    connect(m_projectPartsView, SIGNAL(filterChanged(QString)),
-            SLOT(onProjectPartFilterChanged(QString)));
+            &QItemSelectionModel::currentRowChanged,
+            this, &CppCodeModelInspectorDialog::onProjectPartSelected);
+    connect(m_projectPartsView, &FilterableView::filterChanged,
+            this, &CppCodeModelInspectorDialog::onProjectPartFilterChanged);
 
     connect(m_workingCopyView->selectionModel(),
-            SIGNAL(currentRowChanged(QModelIndex,QModelIndex)),
-            SLOT(onWorkingCopyDocumentSelected(QModelIndex,QModelIndex)));
-    connect(m_workingCopyView, SIGNAL(filterChanged(QString)),
-            SLOT(onWorkingCopyFilterChanged(QString)));
+            &QItemSelectionModel::currentRowChanged,
+            this, &CppCodeModelInspectorDialog::onWorkingCopyDocumentSelected);
+    connect(m_workingCopyView, &FilterableView::filterChanged,
+            this, &CppCodeModelInspectorDialog::onWorkingCopyFilterChanged);
 
-    connect(m_ui->refreshButton, SIGNAL(clicked()), SLOT(onRefreshRequested()));
-    connect(m_ui->closeButton, SIGNAL(clicked()), SLOT(close()));
+    connect(m_ui->refreshButton, &QAbstractButton::clicked, this, &CppCodeModelInspectorDialog::onRefreshRequested);
+    connect(m_ui->closeButton, &QAbstractButton::clicked, this, &QWidget::close);
 
     refresh();
 }
@@ -1367,7 +1529,7 @@ void CppCodeModelInspectorDialog::refresh()
     if (editor) {
         const QString editorFilePath = editor->document()->filePath().toString();
         cppEditorDocument = cmmi->cppEditorDocument(editorFilePath);
-        if (auto *documentProcessor = BaseEditorDocumentProcessor::get(editorFilePath)) {
+        if (auto *documentProcessor = CppToolsBridge::baseEditorDocumentProcessor(editorFilePath)) {
             const Snapshot editorSnapshot = documentProcessor->snapshot();
             m_snapshotInfos->append(SnapshotInfo(editorSnapshot, SnapshotInfo::EditorSnapshot));
             const QString editorSnapshotTitle
@@ -1418,7 +1580,7 @@ void CppCodeModelInspectorDialog::refresh()
 
     // Project Parts
     const ProjectPart::Ptr editorsProjectPart = cppEditorDocument
-        ? cppEditorDocument->processor()->parser()->projectPart()
+        ? cppEditorDocument->processor()->parser()->projectPartInfo().projectPart
         : ProjectPart::Ptr();
 
     const QList<ProjectInfo> projectInfos = cmmi->projectInfos();
@@ -1587,15 +1749,15 @@ static QString partTabName(int tabIndex, int numberOfEntries = -1)
 void CppCodeModelInspectorDialog::clearProjectPartData()
 {
     m_partGenericInfoModel->clear();
+    m_projectFilesModel->clear();
+    m_projectHeaderPathsModel->clear();
 
-    m_ui->partProjectFilesEdit->clear();
     m_ui->projectPartTab->setTabText(ProjectPartFilesTab, partTabName(ProjectPartFilesTab));
 
     m_ui->partToolchainDefinesEdit->clear();
     m_ui->partProjectDefinesEdit->clear();
     m_ui->projectPartTab->setTabText(ProjectPartDefinesTab, partTabName(ProjectPartDefinesTab));
 
-    m_ui->partHeaderPathsEdit->clear();
     m_ui->projectPartTab->setTabText(ProjectPartHeaderPathsTab,
                                      partTabName(ProjectPartHeaderPathsTab));
 
@@ -1621,6 +1783,8 @@ void CppCodeModelInspectorDialog::updateProjectPartData(const ProjectPart::Ptr &
                      QDir::toNativeSeparators(part->projectFile))
         << qMakePair(QString::fromLatin1("Project Name"), projectName)
         << qMakePair(QString::fromLatin1("Project File"), projectFilePath)
+        << qMakePair(QString::fromLatin1("Selected For Building"),
+                     CMI::Utils::toString(part->selectedForBuilding))
         << qMakePair(QString::fromLatin1("Language Version"),
                      CMI::Utils::toString(part->languageVersion))
         << qMakePair(QString::fromLatin1("Language Extensions"),
@@ -1635,7 +1799,7 @@ void CppCodeModelInspectorDialog::updateProjectPartData(const ProjectPart::Ptr &
     resizeColumns<KeyValueModel>(m_ui->partGeneralView);
 
     // Project Files
-    m_ui->partProjectFilesEdit->setPlainText(CMI::Utils::toString(part->files));
+    m_projectFilesModel->configure(part->files);
     m_ui->projectPartTab->setTabText(ProjectPartFilesTab,
         partTabName(ProjectPartFilesTab, part->files.size()));
 
@@ -1653,7 +1817,7 @@ void CppCodeModelInspectorDialog::updateProjectPartData(const ProjectPart::Ptr &
         partTabName(ProjectPartDefinesTab, numberOfDefines));
 
     // Header Paths
-    m_ui->partHeaderPathsEdit->setPlainText(CMI::Utils::pathListToString(part->headerPaths));
+    m_projectHeaderPathsModel->configure(part->headerPaths);
     m_ui->projectPartTab->setTabText(ProjectPartHeaderPathsTab,
         partTabName(ProjectPartHeaderPathsTab, part->headerPaths.size()));
 

@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Brian McGillion and Hugues Delorme
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Brian McGillion and Hugues Delorme
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "vcsbaseclient.h"
 #include "vcscommand.h"
 #include "vcsbaseclientsettings.h"
-#include "vcsbaseeditorparameterwidget.h"
+#include "vcsbaseeditorconfig.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/vcsmanager.h>
@@ -48,24 +43,12 @@
 #include <QStringList>
 #include <QDir>
 #include <QProcess>
-#include <QSignalMapper>
 #include <QTextCodec>
 #include <QDebug>
 #include <QFileInfo>
 #include <QByteArray>
 #include <QVariant>
 #include <QProcessEnvironment>
-
-static void commandFinished(VcsBase::VcsBaseEditorWidget *editor, VcsBase::VcsCommand *cmd)
-{
-    if (!cmd->lastExecutionSuccess()) {
-        editor->reportCommandFinished(false, cmd->lastExecutionExitCode(), cmd->cookie());
-    } else if (cmd->cookie().type() == QVariant::Int) {
-        const int line = cmd->cookie().toInt();
-        if (line >= 0)
-            editor->gotoLine(line);
-    }
-}
 
 /*!
     \class VcsBase::VcsBaseClient
@@ -136,12 +119,8 @@ VcsCommand *VcsBaseClientImpl::createCommand(const QString &workingDirectory,
 {
     auto cmd = new VcsCommand(workingDirectory, processEnvironment());
     cmd->setDefaultTimeoutS(vcsTimeoutS());
-    if (editor) {
+    if (editor)
         editor->setCommand(cmd);
-        connect(editor, &QObject::destroyed, cmd, &VcsCommand::abort);
-        connect(cmd, &VcsCommand::finished,
-                editor, [editor, cmd]() { commandFinished(editor, cmd); });
-    }
     if (mode == VcsWindowOutputBind) {
         cmd->addFlags(VcsCommand::ShowStdOut);
         if (editor) // assume that the commands output is the important thing
@@ -155,7 +134,7 @@ VcsCommand *VcsBaseClientImpl::createCommand(const QString &workingDirectory,
 
 void VcsBaseClientImpl::enqueueJob(VcsCommand *cmd, const QStringList &args,
                                    const QString &workingDirectory,
-                                   Utils::ExitCodeInterpreter *interpreter)
+                                   const Utils::ExitCodeInterpreter &interpreter) const
 {
     cmd->addJob(vcsBinary(), args, vcsTimeoutS(), workingDirectory, interpreter);
     cmd->execute();
@@ -175,13 +154,37 @@ QString VcsBaseClientImpl::commandOutputFromLocal8Bit(const QByteArray &a)
 
 QStringList VcsBaseClientImpl::commandOutputLinesFromLocal8Bit(const QByteArray &a)
 {
-    QString output = commandOutputFromLocal8Bit(a);
+    return splitLines(commandOutputFromLocal8Bit(a));
+}
+
+QStringList VcsBaseClientImpl::splitLines(const QString &s)
+{
     const QChar newLine = QLatin1Char('\n');
+    QString output = s;
     if (output.endsWith(newLine))
         output.truncate(output.size() - 1);
     if (output.isEmpty())
         return QStringList();
     return output.split(newLine);
+}
+
+QString VcsBaseClientImpl::stripLastNewline(const QString &in)
+{
+    if (in.endsWith('\n'))
+        return in.left(in.count() - 1);
+    return in;
+}
+
+Utils::SynchronousProcessResponse
+VcsBaseClientImpl::vcsFullySynchronousExec(const QString &workingDir, const Utils::FileName &binary,
+                                           const QStringList &args, unsigned flags,
+                                           int timeoutS, QTextCodec *codec) const
+{
+    VcsCommand command(workingDir, processEnvironment());
+    command.addFlags(flags);
+    if (codec)
+        command.setCodec(codec);
+    return command.runCommand(binary, args, (timeoutS > 0) ? timeoutS : vcsTimeoutS());
 }
 
 void VcsBaseClientImpl::resetCachedVcsInfo(const QString &workingDir)
@@ -202,23 +205,16 @@ void VcsBaseClientImpl::annotateRevisionRequested(const QString &workingDirector
     annotate(workingDirectory, file, changeCopy, line);
 }
 
-bool VcsBaseClientImpl::vcsFullySynchronousExec(const QString &workingDir, const QStringList &args,
-                                                QByteArray *outputData, QByteArray *errorData,
-                                                unsigned flags) const
+Utils::SynchronousProcessResponse
+VcsBaseClientImpl::vcsFullySynchronousExec(const QString &workingDir, const QStringList &args,
+                                           unsigned flags, int timeoutS, QTextCodec *codec) const
 {
-    QByteArray internalErrorData;
-    QScopedPointer<VcsCommand> command(createCommand(workingDir));
-    command->addFlags(flags);
-    bool result = command->runFullySynchronous(vcsBinary(), args, vcsTimeoutS(), outputData,
-                                               errorData ? errorData : &internalErrorData);
-    if (!internalErrorData.isEmpty() && !(flags & VcsCommand::SuppressStdErr))
-        VcsOutputWindow::appendError(commandOutputFromLocal8Bit(internalErrorData));
-    return result;
+    return vcsFullySynchronousExec(workingDir, vcsBinary(), args, flags, timeoutS, codec);
 }
 
 VcsCommand *VcsBaseClientImpl::vcsExec(const QString &workingDirectory, const QStringList &arguments,
                                        VcsBaseEditorWidget *editor, bool useOutputToWindow,
-                                       unsigned additionalFlags, const QVariant &cookie)
+                                       unsigned additionalFlags, const QVariant &cookie) const
 {
     VcsCommand *command = createCommand(workingDirectory, editor,
                                         useOutputToWindow ? VcsWindowOutputBind : NoOutputBind);
@@ -282,21 +278,21 @@ void VcsBaseClientImpl::saveSettings()
 class VcsBaseClientPrivate
 {
 public:
-    VcsBaseEditorParameterWidget *createDiffEditor();
-    VcsBaseEditorParameterWidget *createLogEditor();
+    VcsBaseEditorConfig *createDiffEditor(VcsBaseEditorWidget *editor);
+    VcsBaseEditorConfig *createLogEditor(VcsBaseEditorWidget *editor);
 
-    VcsBaseClient::ParameterWidgetCreator m_diffParamWidgetCreator;
-    VcsBaseClient::ParameterWidgetCreator m_logParamWidgetCreator;
+    VcsBaseClient::ConfigCreator m_diffConfigCreator;
+    VcsBaseClient::ConfigCreator m_logConfigCreator;
 };
 
-VcsBaseEditorParameterWidget *VcsBaseClientPrivate::createDiffEditor()
+VcsBaseEditorConfig *VcsBaseClientPrivate::createDiffEditor(VcsBaseEditorWidget *editor)
 {
-    return m_diffParamWidgetCreator ? m_diffParamWidgetCreator() : 0;
+    return m_diffConfigCreator ? m_diffConfigCreator(editor->toolBar()) : 0;
 }
 
-VcsBaseEditorParameterWidget *VcsBaseClientPrivate::createLogEditor()
+VcsBaseEditorConfig *VcsBaseClientPrivate::createLogEditor(VcsBaseEditorWidget *editor)
 {
-    return m_logParamWidgetCreator ? m_logParamWidgetCreator() : 0;
+    return m_logConfigCreator ? m_logConfigCreator(editor->toolBar()) : 0;
 }
 
 VcsBaseClient::StatusItem::StatusItem(const QString &s, const QString &f) :
@@ -320,10 +316,10 @@ bool VcsBaseClient::synchronousCreateRepository(const QString &workingDirectory,
 {
     QStringList args(vcsCommandString(CreateRepositoryCommand));
     args << extraOptions;
-    QByteArray outputData;
-    if (!vcsFullySynchronousExec(workingDirectory, args, &outputData))
+    Utils::SynchronousProcessResponse result = vcsFullySynchronousExec(workingDirectory, args);
+    if (result.result != Utils::SynchronousProcessResponse::Finished)
         return false;
-    VcsOutputWindow::append(commandOutputFromLocal8Bit(outputData));
+    VcsOutputWindow::append(result.stdOut());
 
     resetCachedVcsInfo(workingDirectory);
 
@@ -338,10 +334,10 @@ bool VcsBaseClient::synchronousClone(const QString &workingDir,
     QStringList args;
     args << vcsCommandString(CloneCommand)
          << extraOptions << srcLocation << dstLocation;
-    QByteArray stdOut;
-    const bool cloneOk = vcsFullySynchronousExec(workingDir, args, &stdOut);
+
+    Utils::SynchronousProcessResponse result = vcsFullySynchronousExec(workingDir, args);
     resetCachedVcsInfo(workingDir);
-    return cloneOk;
+    return result.result == Utils::SynchronousProcessResponse::Finished;
 }
 
 bool VcsBaseClient::synchronousAdd(const QString &workingDir, const QString &filename,
@@ -349,8 +345,7 @@ bool VcsBaseClient::synchronousAdd(const QString &workingDir, const QString &fil
 {
     QStringList args;
     args << vcsCommandString(AddCommand) << extraOptions << filename;
-    QByteArray stdOut;
-    return vcsFullySynchronousExec(workingDir, args, &stdOut);
+    return vcsFullySynchronousExec(workingDir, args).result == Utils::SynchronousProcessResponse::Finished;
 }
 
 bool VcsBaseClient::synchronousRemove(const QString &workingDir, const QString &filename,
@@ -358,8 +353,7 @@ bool VcsBaseClient::synchronousRemove(const QString &workingDir, const QString &
 {
     QStringList args;
     args << vcsCommandString(RemoveCommand) << extraOptions << filename;
-    QByteArray stdOut;
-    return vcsFullySynchronousExec(workingDir, args, &stdOut);
+    return vcsFullySynchronousExec(workingDir, args).result == Utils::SynchronousProcessResponse::Finished;
 }
 
 bool VcsBaseClient::synchronousMove(const QString &workingDir,
@@ -368,8 +362,7 @@ bool VcsBaseClient::synchronousMove(const QString &workingDir,
 {
     QStringList args;
     args << vcsCommandString(MoveCommand) << extraOptions << from << to;
-    QByteArray stdOut;
-    return vcsFullySynchronousExec(workingDir, args, &stdOut);
+    return vcsFullySynchronousExec(workingDir, args).result == Utils::SynchronousProcessResponse::Finished;
 }
 
 bool VcsBaseClient::synchronousPull(const QString &workingDir,
@@ -405,10 +398,9 @@ bool VcsBaseClient::synchronousPush(const QString &workingDir,
     return resp.result == Utils::SynchronousProcessResponse::Finished;
 }
 
-void VcsBaseClient::annotate(const QString &workingDir, const QString &file,
-                             const QString &revision /* = QString() */,
-                             int lineNumber /* = -1 */,
-                             const QStringList &extraOptions)
+VcsBaseEditorWidget *VcsBaseClient::annotate(
+        const QString &workingDir, const QString &file, const QString &revision /* = QString() */,
+        int lineNumber /* = -1 */, const QStringList &extraOptions)
 {
     const QString vcsCmdString = vcsCommandString(AnnotateCommand);
     QStringList args;
@@ -425,6 +417,7 @@ void VcsBaseClient::annotate(const QString &workingDir, const QString &file,
     VcsCommand *cmd = createCommand(workingDir, editor);
     cmd->setCookie(lineNumber);
     enqueueJob(cmd, args);
+    return editor;
 }
 
 void VcsBaseClient::diff(const QString &workingDir, const QStringList &files,
@@ -440,23 +433,25 @@ void VcsBaseClient::diff(const QString &workingDir, const QStringList &files,
                                                   vcsCmdString.toLatin1().constData(), id);
     editor->setWorkingDirectory(workingDir);
 
-    VcsBaseEditorParameterWidget *paramWidget = editor->configurationWidget();
-    if (!paramWidget && (paramWidget = d->createDiffEditor())) {
-        // editor has been just created, createVcsEditor() didn't set a configuration widget yet
-        connect(editor, &VcsBaseEditorWidget::diffChunkReverted,
-                paramWidget, &VcsBaseEditorParameterWidget::executeCommand);
-        connect(paramWidget, &VcsBaseEditorParameterWidget::commandExecutionRequested,
-                [=] { diff(workingDir, files, extraOptions); } );
-        editor->setConfigurationWidget(paramWidget);
+    QStringList effectiveArgs = extraOptions;
+    if (!editor->configurationAdded()) {
+        if (VcsBaseEditorConfig *paramWidget = d->createDiffEditor(editor)) {
+            // editor has been just created, createVcsEditor() didn't set a configuration widget yet
+            connect(editor, &VcsBaseEditorWidget::diffChunkReverted,
+                    paramWidget, &VcsBaseEditorConfig::executeCommand);
+            connect(paramWidget, &VcsBaseEditorConfig::commandExecutionRequested,
+                [=] { diff(workingDir, files, extraOptions + paramWidget->arguments()); } );
+            effectiveArgs = paramWidget->arguments();
+            editor->setConfigurationAdded();
+        }
     }
 
     QStringList args;
-    const QStringList paramArgs = paramWidget != 0 ? paramWidget->arguments() : QStringList();
-    args << vcsCmdString << extraOptions << paramArgs << files;
+    args << vcsCmdString << effectiveArgs << files;
     QTextCodec *codec = source.isEmpty() ? static_cast<QTextCodec *>(0) : VcsBaseEditor::getCodec(source);
     VcsCommand *command = createCommand(workingDir, editor);
     command->setCodec(codec);
-    enqueueJob(command, args, workingDir, exitCodeInterpreter(DiffCommand, command));
+    enqueueJob(command, args, workingDir, exitCodeInterpreter(DiffCommand));
 }
 
 void VcsBaseClient::log(const QString &workingDir, const QStringList &files,
@@ -473,17 +468,20 @@ void VcsBaseClient::log(const QString &workingDir, const QStringList &files,
                                                   vcsCmdString.toLatin1().constData(), id);
     editor->setFileLogAnnotateEnabled(enableAnnotationContextMenu);
 
-    VcsBaseEditorParameterWidget *paramWidget = editor->configurationWidget();
-    if (!paramWidget && (paramWidget = d->createLogEditor())) {
-        // editor has been just created, createVcsEditor() didn't set a configuration widget yet
-        connect(paramWidget, &VcsBaseEditorParameterWidget::commandExecutionRequested,
-                [=]() { this->log(workingDir, files, extraOptions, enableAnnotationContextMenu); } );
-        editor->setConfigurationWidget(paramWidget);
+    QStringList effectiveArgs = extraOptions;
+    if (!editor->configurationAdded()) {
+        if (VcsBaseEditorConfig *paramWidget = d->createLogEditor(editor)) {
+            // editor has been just created, createVcsEditor() didn't set a configuration widget yet
+            connect(paramWidget, &VcsBaseEditorConfig::commandExecutionRequested,
+                [=]() { this->log(workingDir, files, extraOptions + paramWidget->arguments(),
+                                  enableAnnotationContextMenu); } );
+            effectiveArgs = paramWidget->arguments();
+            editor->setConfigurationAdded();
+        }
     }
 
     QStringList args;
-    const QStringList paramArgs = paramWidget != 0 ? paramWidget->arguments() : QStringList();
-    args << vcsCmdString << extraOptions << paramArgs << files;
+    args << vcsCmdString << effectiveArgs << files;
     enqueueJob(createCommand(workingDir, editor), args);
 }
 
@@ -557,21 +555,20 @@ QString VcsBaseClient::vcsCommandString(VcsCommandTag cmd) const
     return QString();
 }
 
-Utils::ExitCodeInterpreter *VcsBaseClient::exitCodeInterpreter(VcsCommandTag cmd, QObject *parent) const
+Utils::ExitCodeInterpreter VcsBaseClient::exitCodeInterpreter(VcsCommandTag cmd) const
 {
     Q_UNUSED(cmd)
-    Q_UNUSED(parent)
-    return 0;
+    return Utils::defaultExitCodeInterpreter;
 }
 
-void VcsBaseClient::setDiffParameterWidgetCreator(ParameterWidgetCreator creator)
+void VcsBaseClient::setDiffConfigCreator(ConfigCreator creator)
 {
-    d->m_diffParamWidgetCreator = std::move(creator);
+    d->m_diffConfigCreator = std::move(creator);
 }
 
-void VcsBaseClient::setLogParameterWidgetCreator(ParameterWidgetCreator creator)
+void VcsBaseClient::setLogConfigCreator(ConfigCreator creator)
 {
-    d->m_logParamWidgetCreator = std::move(creator);
+    d->m_logConfigCreator = std::move(creator);
 }
 
 void VcsBaseClient::import(const QString &repositoryRoot, const QStringList &files,

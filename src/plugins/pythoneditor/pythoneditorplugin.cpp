@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "pythoneditorplugin.h"
 #include "pythoneditor.h"
 #include "pythoneditorconstants.h"
-#include "tools/pythonhighlighter.h"
+#include "pythonhighlighter.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/coreconstants.h>
@@ -48,16 +43,19 @@
 #include <projectexplorer/runconfiguration.h>
 #include <projectexplorer/runconfigurationaspects.h>
 #include <projectexplorer/project.h>
+#include <projectexplorer/runnables.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/iprojectmanager.h>
 #include <projectexplorer/projectnodes.h>
 
 #include <texteditor/texteditorconstants.h>
 
+#include <utils/algorithm.h>
 #include <utils/detailswidget.h>
 #include <utils/mimetypes/mimedatabase.h>
 #include <utils/pathchooser.h>
 #include <utils/qtcprocess.h>
+#include <utils/utilsicons.h>
 
 #include <QtPlugin>
 #include <QCoreApplication>
@@ -67,139 +65,6 @@ using namespace Core;
 using namespace ProjectExplorer;
 using namespace PythonEditor::Constants;
 using namespace Utils;
-
-/*******************************************************************************
- * List of Python keywords (includes "print" that isn't keyword in python 3
- ******************************************************************************/
-static const char *const LIST_OF_PYTHON_KEYWORDS[] = {
-    "and",
-    "as",
-    "assert",
-    "break",
-    "class",
-    "continue",
-    "def",
-    "del",
-    "elif",
-    "else",
-    "except",
-    "exec",
-    "finally",
-    "for",
-    "from",
-    "global",
-    "if",
-    "import",
-    "in",
-    "is",
-    "lambda",
-    "not",
-    "or",
-    "pass",
-    "print",
-    "raise",
-    "return",
-    "try",
-    "while",
-    "with",
-    "yield"
-};
-
-/*******************************************************************************
- * List of Python magic methods and attributes
- ******************************************************************************/
-static const char *const LIST_OF_PYTHON_MAGICS[] = {
-    // ctor & dtor
-    "__init__",
-    "__del__",
-    // string conversion functions
-    "__str__",
-    "__repr__",
-    "__unicode__",
-    // attribute access functions
-    "__setattr__",
-    "__getattr__",
-    "__delattr__",
-    // binary operators
-    "__add__",
-    "__sub__",
-    "__mul__",
-    "__truediv__",
-    "__floordiv__",
-    "__mod__",
-    "__pow__",
-    "__and__",
-    "__or__",
-    "__xor__",
-    "__eq__",
-    "__ne__",
-    "__gt__",
-    "__lt__",
-    "__ge__",
-    "__le__",
-    "__lshift__",
-    "__rshift__",
-    "__contains__",
-    // unary operators
-    "__pos__",
-    "__neg__",
-    "__inv__",
-    "__abs__",
-    "__len__",
-    // item operators like []
-    "__getitem__",
-    "__setitem__",
-    "__delitem__",
-    "__getslice__",
-    "__setslice__",
-    "__delslice__",
-    // other functions
-    "__cmp__",
-    "__hash__",
-    "__nonzero__",
-    "__call__",
-    "__iter__",
-    "__reversed__",
-    "__divmod__",
-    "__int__",
-    "__long__",
-    "__float__",
-    "__complex__",
-    "__hex__",
-    "__oct__",
-    "__index__",
-    "__copy__",
-    "__deepcopy__",
-    "__sizeof__",
-    "__trunc__",
-    "__format__",
-    // magic attributes
-    "__name__",
-    "__module__",
-    "__dict__",
-    "__bases__",
-    "__doc__"
-};
-
-/*******************************************************************************
- * List of python built-in functions and objects
- ******************************************************************************/
-static const char *const LIST_OF_PYTHON_BUILTINS[] = {
-    "range",
-    "xrange",
-    "int",
-    "float",
-    "long",
-    "hex",
-    "oct"
-    "chr",
-    "ord",
-    "len",
-    "abs",
-    "None",
-    "True",
-    "False"
-};
 
 namespace PythonEditor {
 namespace Internal {
@@ -229,8 +94,6 @@ class PythonProjectManager : public IProjectManager
 {
     Q_OBJECT
 public:
-    PythonProjectManager() {}
-
     QString mimeType() const override { return QLatin1String(PythonMimeType); }
     Project *openProject(const QString &fileName, QString *errorString) override;
 
@@ -245,13 +108,11 @@ class PythonProject : public Project
 {
 public:
     PythonProject(PythonProjectManager *manager, const QString &filename);
-    ~PythonProject();
+    ~PythonProject() override;
 
     QString displayName() const override { return m_projectName; }
-    IDocument *document() const override;
-    IProjectManager *projectManager() const override { return m_manager; }
+    PythonProjectManager *projectManager() const override;
 
-    ProjectNode *rootProjectNode() const override;
     QStringList files(FilesMode) const override { return m_files; }
     QStringList files() const { return m_files; }
 
@@ -270,42 +131,21 @@ private:
     QStringList processEntries(const QStringList &paths,
                                QHash<QString, QString> *map = 0) const;
 
-    PythonProjectManager *m_manager;
-    QString m_projectFileName;
     QString m_projectName;
-    PythonProjectFile *m_document;
     QStringList m_rawFileList;
     QStringList m_files;
     QHash<QString, QString> m_rawListEntries;
-
-    ProjectNode *m_rootNode;
 };
 
 class PythonProjectFile : public Core::IDocument
 {
 public:
-    PythonProjectFile(PythonProject *parent, QString fileName)
-        : IDocument(parent),
-          m_project(parent)
+    PythonProjectFile(PythonProject *parent, QString fileName) : m_project(parent)
     {
         setId("Generic.ProjectFile");
-        setMimeType(QLatin1String(PythonMimeType));
+        setMimeType(PythonMimeType);
         setFilePath(FileName::fromString(fileName));
     }
-
-    bool save(QString *errorString, const QString &fileName, bool autoSave) override
-    {
-        Q_UNUSED(errorString)
-        Q_UNUSED(fileName)
-        Q_UNUSED(autoSave)
-        return false;
-    }
-
-    QString defaultPath() const override { return QString(); }
-    QString suggestedFileName() const override { return QString(); }
-
-    bool isModified() const override { return false; }
-    bool isSaveAsAllowed() const override { return false; }
 
     ReloadBehavior reloadBehavior(ChangeTrigger state, ChangeType type) const override
     {
@@ -331,27 +171,18 @@ private:
 class PythonProjectNode : public ProjectNode
 {
 public:
-    PythonProjectNode(PythonProject *project, Core::IDocument *projectFile);
-
-    Core::IDocument *projectFile() const;
-    QString projectFilePath() const;
+    PythonProjectNode(PythonProject *project);
 
     bool showInSimpleTree() const override;
 
     QList<ProjectAction> supportedActions(Node *node) const override;
 
-    bool renameFile(const QString &filePath, const QString &newFilePath) override;
-    void refresh(QSet<QString> oldFileList = QSet<QString>());
+    QString addFileFilter() const override;
 
-private:
-    typedef QHash<QString, FolderNode *> FolderByName;
-    FolderNode *createFolderByName(const QStringList &components, int end);
-    FolderNode *findFolderByName(const QStringList &components, int end);
-    void removeEmptySubFolders(FolderNode *gparent, FolderNode *parent);
+    bool renameFile(const QString &filePath, const QString &newFilePath) override;
 
 private:
     PythonProject *m_project;
-    Core::IDocument *m_projectFile;
 };
 
 class PythonRunConfigurationWidget : public QWidget
@@ -368,7 +199,7 @@ private:
     QLabel *m_scriptLabel;
 };
 
-class PythonRunConfiguration : public ProjectExplorer::RunConfiguration
+class PythonRunConfiguration : public RunConfiguration
 {
     Q_OBJECT
 
@@ -378,7 +209,7 @@ class PythonRunConfiguration : public ProjectExplorer::RunConfiguration
     Q_PROPERTY(QString arguments READ arguments)
 
 public:
-    PythonRunConfiguration(ProjectExplorer::Target *parent, Core::Id id);
+    PythonRunConfiguration(Target *parent, Core::Id id);
 
     QWidget *createConfigurationWidget() override;
     QVariantMap toMap() const override;
@@ -395,7 +226,7 @@ public:
 
 private:
     friend class PythonRunConfigurationFactory;
-    PythonRunConfiguration(ProjectExplorer::Target *parent, PythonRunConfiguration *source);
+    PythonRunConfiguration(Target *parent, PythonRunConfiguration *source);
     QString defaultDisplayName() const;
 
     QString m_interpreter;
@@ -422,6 +253,7 @@ private:
     QString m_interpreter;
     QString m_mainScript;
     QString m_commandLineArguments;
+    Utils::Environment m_environment;
     ApplicationLauncher::Mode m_runMode;
     bool m_running;
 };
@@ -434,12 +266,12 @@ PythonRunConfiguration::PythonRunConfiguration(Target *parent, Core::Id id) :
     m_enabled(true)
 {
     Environment sysEnv = Environment::systemEnvironment();
-    const QString exec = sysEnv.searchInPath(QLatin1String("python")).toString();
-    m_interpreter = exec.isEmpty() ? QLatin1String("python") : exec;
+    const QString exec = sysEnv.searchInPath("python").toString();
+    m_interpreter = exec.isEmpty() ? "python" : exec;
 
-    addExtraAspect(new LocalEnvironmentAspect(this));
-    addExtraAspect(new ArgumentsAspect(this, QStringLiteral("PythonEditor.RunConfiguration.Arguments")));
-    addExtraAspect(new TerminalAspect(this, QStringLiteral("PythonEditor.RunConfiguration.UseTerminal")));
+    addExtraAspect(new LocalEnvironmentAspect(this, LocalEnvironmentAspect::BaseEnvironmentModifier()));
+    addExtraAspect(new ArgumentsAspect(this, "PythonEditor.RunConfiguration.Arguments"));
+    addExtraAspect(new TerminalAspect(this, "PythonEditor.RunConfiguration.UseTerminal"));
     setDefaultDisplayName(defaultDisplayName());
 }
 
@@ -455,25 +287,23 @@ PythonRunConfiguration::PythonRunConfiguration(Target *parent, PythonRunConfigur
 QVariantMap PythonRunConfiguration::toMap() const
 {
     QVariantMap map(RunConfiguration::toMap());
-    map.insert(QLatin1String(MainScriptKey), m_mainScript);
-    map.insert(QLatin1String(InterpreterKey), m_interpreter);
+    map.insert(MainScriptKey, m_mainScript);
+    map.insert(InterpreterKey, m_interpreter);
     return map;
 }
 
 bool PythonRunConfiguration::fromMap(const QVariantMap &map)
 {
-    m_mainScript = map.value(QLatin1String(MainScriptKey)).toString();
-    m_interpreter = map.value(QLatin1String(InterpreterKey)).toString();
+    m_mainScript = map.value(MainScriptKey).toString();
+    m_interpreter = map.value(InterpreterKey).toString();
     return RunConfiguration::fromMap(map);
 }
 
 QString PythonRunConfiguration::defaultDisplayName() const
 {
     QString result = tr("Run %1").arg(m_mainScript);
-    if (!m_enabled) {
-        result += QLatin1Char(' ');
-        result += tr("(disabled)");
-    }
+    if (!m_enabled)
+        result += ' ' + tr("(disabled)");
     return result;
 }
 
@@ -556,7 +386,7 @@ class PythonRunConfigurationFactory : public IRunConfigurationFactory
 public:
     PythonRunConfigurationFactory()
     {
-        setObjectName(QLatin1String("PythonRunConfigurationFactory"));
+        setObjectName("PythonRunConfigurationFactory");
     }
 
     QList<Core::Id> availableCreationIds(Target *parent, CreationMode mode) const override
@@ -621,37 +451,32 @@ private:
     }
 };
 
-
 PythonProject::PythonProject(PythonProjectManager *manager, const QString &fileName)
-    : m_manager(manager),
-      m_projectFileName(fileName)
 {
     setId(PythonProjectId);
-    setProjectContext(Context(PythonProjectContext));
-    setProjectLanguages(Context(ProjectExplorer::Constants::LANG_CXX));
+    setProjectManager(manager);
+    setDocument(new PythonProjectFile(this, fileName));
+    DocumentManager::addDocument(document());
+    setRootProjectNode(new PythonProjectNode(this));
 
-    QFileInfo fileInfo(m_projectFileName);
+    setProjectContext(Context(PythonProjectContext));
+    setProjectLanguages(Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
+
+    QFileInfo fileInfo = projectFilePath().toFileInfo();
 
     m_projectName = fileInfo.completeBaseName();
-    m_document = new PythonProjectFile(this, m_projectFileName);
 
-    DocumentManager::addDocument(m_document);
-
-    m_rootNode = new PythonProjectNode(this, m_document);
-
-    m_manager->registerProject(this);
+    projectManager()->registerProject(this);
 }
 
 PythonProject::~PythonProject()
 {
-    m_manager->unregisterProject(this);
-
-    delete m_rootNode;
+    projectManager()->unregisterProject(this);
 }
 
-IDocument *PythonProject::document() const
+PythonProjectManager *PythonProject::projectManager() const
 {
-    return m_document;
+    return static_cast<PythonProjectManager *>(Project::projectManager());
 }
 
 static QStringList readLines(const QString &absoluteFileName)
@@ -676,24 +501,23 @@ static QStringList readLines(const QString &absoluteFileName)
 
 bool PythonProject::saveRawFileList(const QStringList &rawFileList)
 {
-    bool result = saveRawList(rawFileList, m_projectFileName);
+    bool result = saveRawList(rawFileList, projectFilePath().toString());
 //    refresh(PythonProject::Files);
     return result;
 }
 
 bool PythonProject::saveRawList(const QStringList &rawList, const QString &fileName)
 {
-    DocumentManager::expectFileChange(fileName);
+    FileChangeBlocker changeGuarg(fileName);
     // Make sure we can open the file for writing
     FileSaver saver(fileName, QIODevice::Text);
     if (!saver.hasError()) {
         QTextStream stream(saver.file());
         foreach (const QString &filePath, rawList)
-            stream << filePath << QLatin1Char('\n');
+            stream << filePath << '\n';
         saver.setResult(&stream);
     }
     bool result = saver.finalize(ICore::mainWindow());
-    DocumentManager::unexpectFileChange(fileName);
     return result;
 }
 
@@ -701,7 +525,7 @@ bool PythonProject::addFiles(const QStringList &filePaths)
 {
     QStringList newList = m_rawFileList;
 
-    QDir baseDir(QFileInfo(m_projectFileName).dir());
+    QDir baseDir(projectDirectory().toString());
     foreach (const QString &filePath, filePaths)
         newList.append(baseDir.relativeFilePath(filePath));
 
@@ -713,7 +537,7 @@ bool PythonProject::addFiles(const QStringList &filePaths)
             toAdd << directory;
     }
 
-    bool result = saveRawList(newList, m_projectFileName);
+    bool result = saveRawList(newList, projectFilePath().toString());
     refresh();
 
     return result;
@@ -735,7 +559,7 @@ bool PythonProject::removeFiles(const QStringList &filePaths)
 bool PythonProject::setFiles(const QStringList &filePaths)
 {
     QStringList newList;
-    QDir baseDir(QFileInfo(m_projectFileName).dir());
+    QDir baseDir(projectFilePath().toString());
     foreach (const QString &filePath, filePaths)
         newList.append(baseDir.relativeFilePath(filePath));
 
@@ -750,7 +574,7 @@ bool PythonProject::renameFile(const QString &filePath, const QString &newFilePa
     if (i != m_rawListEntries.end()) {
         int index = newList.indexOf(i.value());
         if (index != -1) {
-            QDir baseDir(QFileInfo(m_projectFileName).dir());
+            QDir baseDir(projectFilePath().toString());
             newList.replace(index, baseDir.relativeFilePath(newFilePath));
         }
     }
@@ -761,8 +585,8 @@ bool PythonProject::renameFile(const QString &filePath, const QString &newFilePa
 void PythonProject::parseProject()
 {
     m_rawListEntries.clear();
-    m_rawFileList = readLines(m_projectFileName);
-    m_rawFileList << FileName::fromString(m_projectFileName).fileName();
+    m_rawFileList = readLines(projectFilePath().toString());
+    m_rawFileList << projectFilePath().fileName();
     m_files = processEntries(m_rawFileList, &m_rawListEntries);
     emit fileListChanged();
 }
@@ -770,33 +594,33 @@ void PythonProject::parseProject()
 /**
  * @brief Provides displayName relative to project node
  */
-class PythonFileNode : public ProjectExplorer::FileNode
+class PythonFileNode : public FileNode
 {
 public:
     PythonFileNode(const Utils::FileName &filePath, const QString &nodeDisplayName)
-        : ProjectExplorer::FileNode(filePath, SourceType, false)
+        : FileNode(filePath, FileType::Source, false)
         , m_displayName(nodeDisplayName)
     {}
 
-    QString displayName() const { return m_displayName; }
+    QString displayName() const override { return m_displayName; }
 private:
     QString m_displayName;
 };
 
 void PythonProject::refresh()
 {
-    m_rootNode->removeFileNodes(m_rootNode->fileNodes());
     parseProject();
 
-    QDir baseDir = FileName::fromString(m_projectFileName).toFileInfo().absoluteDir();
+    QDir baseDir(projectDirectory().toString());
 
-    QList<FileNode *> fileNodes;
-    foreach (const QString &file, m_files) {
-        QString displayName = baseDir.relativeFilePath(file);
-        fileNodes.append(new PythonFileNode(FileName::fromString(file), displayName));
-    }
+    QList<FileNode *> fileNodes
+            = Utils::transform(m_files, [baseDir](const QString &f) -> FileNode * {
+        const QString displayName = baseDir.relativeFilePath(f);
+        return new PythonFileNode(FileName::fromString(f), displayName);
+    });
+    rootProjectNode()->buildTree(fileNodes);
 
-    m_rootNode->addFileNodes(fileNodes);
+    emit parsingFinished();
 }
 
 /**
@@ -829,7 +653,7 @@ QStringList PythonProject::processEntries(const QStringList &paths,
                                            QHash<QString, QString> *map) const
 {
     const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    const QDir projectDir(QFileInfo(m_projectFileName).dir());
+    const QDir projectDir(projectDirectory().toString());
 
     QFileInfo fileInfo;
     QStringList absolutePaths;
@@ -854,18 +678,13 @@ QStringList PythonProject::processEntries(const QStringList &paths,
     return absolutePaths;
 }
 
-ProjectNode *PythonProject::rootProjectNode() const
-{
-    return m_rootNode;
-}
-
 Project::RestoreResult PythonProject::fromMap(const QVariantMap &map, QString *errorMessage)
 {
     Project::RestoreResult res = Project::fromMap(map, errorMessage);
     if (res == RestoreResult::Ok) {
         Kit *defaultKit = KitManager::defaultKit();
         if (!activeTarget() && defaultKit)
-            addTarget(new Target(this, defaultKit));
+            addTarget(createTarget(defaultKit));
 
         refresh();
 
@@ -874,7 +693,7 @@ Project::RestoreResult PythonProject::fromMap(const QVariantMap &map, QString *e
             const QList<RunConfiguration *> runConfigs = t->runConfigurations();
             foreach (const QString &file, m_files) {
                 // skip the 'project' file
-                if (file.endsWith(QLatin1String(".pyqtc")))
+                if (file.endsWith(".pyqtc"))
                     continue;
                 const Id id = idFromScript(file);
                 bool alreadyPresent = false;
@@ -893,22 +712,11 @@ Project::RestoreResult PythonProject::fromMap(const QVariantMap &map, QString *e
     return res;
 }
 
-PythonProjectNode::PythonProjectNode(PythonProject *project, Core::IDocument *projectFile)
-    : ProjectNode(projectFile->filePath())
+PythonProjectNode::PythonProjectNode(PythonProject *project)
+    : ProjectNode(project->projectDirectory())
     , m_project(project)
-    , m_projectFile(projectFile)
 {
-    setDisplayName(projectFile->filePath().toFileInfo().completeBaseName());
-}
-
-Core::IDocument *PythonProjectNode::projectFile() const
-{
-    return m_projectFile;
-}
-
-QString PythonProjectNode::projectFilePath() const
-{
-    return m_projectFile->filePath().toString();
+    setDisplayName(project->projectFilePath().toFileInfo().completeBaseName());
 }
 
 QHash<QString, QStringList> sortFilesIntoPaths(const QString &base, const QSet<QString> &files)
@@ -926,138 +734,13 @@ QHash<QString, QStringList> sortFilesIntoPaths(const QString &base, const QSet<Q
         } else {
             // 'file' is not part of the project.
             relativeFilePath = baseDir.relativeFilePath(absoluteFilePath.toString());
-            if (relativeFilePath.endsWith(QLatin1Char('/')))
+            if (relativeFilePath.endsWith('/'))
                 relativeFilePath.chop(1);
         }
 
         filesInPath[relativeFilePath].append(absoluteFileName);
     }
     return filesInPath;
-}
-
-void PythonProjectNode::refresh(QSet<QString> oldFileList)
-{
-    typedef QHash<QString, QStringList> FilesInPathHash;
-    typedef FilesInPathHash::ConstIterator FilesInPathHashConstIt;
-
-    // Do those separately
-    oldFileList.remove(m_project->projectFilePath().toString());
-
-    QSet<QString> newFileList = m_project->files().toSet();
-    newFileList.remove(m_project->projectFilePath().toString());
-
-    QSet<QString> removed = oldFileList;
-    removed.subtract(newFileList);
-    QSet<QString> added = newFileList;
-    added.subtract(oldFileList);
-
-    QString baseDir = path().toFileInfo().absolutePath();
-    FilesInPathHash filesInPaths = sortFilesIntoPaths(baseDir, added);
-
-    FilesInPathHashConstIt cend = filesInPaths.constEnd();
-    for (FilesInPathHashConstIt it = filesInPaths.constBegin(); it != cend; ++it) {
-        const QString &filePath = it.key();
-        QStringList components;
-        if (!filePath.isEmpty())
-            components = filePath.split(QLatin1Char('/'));
-        FolderNode *folder = findFolderByName(components, components.size());
-        if (!folder)
-            folder = createFolderByName(components, components.size());
-
-        QList<FileNode *> fileNodes;
-        foreach (const QString &file, it.value()) {
-            FileType fileType = SourceType; // ### FIXME
-            if (file.endsWith(QLatin1String(".qrc")))
-                fileType = ResourceType;
-            FileNode *fileNode = new FileNode(FileName::fromString(file),
-                                              fileType, /*generated = */ false);
-            fileNodes.append(fileNode);
-        }
-
-        folder->addFileNodes(fileNodes);
-    }
-
-    filesInPaths = sortFilesIntoPaths(baseDir, removed);
-    cend = filesInPaths.constEnd();
-    for (FilesInPathHashConstIt it = filesInPaths.constBegin(); it != cend; ++it) {
-        const QString &filePath = it.key();
-        QStringList components;
-        if (!filePath.isEmpty())
-            components = filePath.split(QLatin1Char('/'));
-        FolderNode *folder = findFolderByName(components, components.size());
-
-        QList<FileNode *> fileNodes;
-        foreach (const QString &file, it.value()) {
-            foreach (FileNode *fn, folder->fileNodes()) {
-                if (fn->path().toString() == file)
-                    fileNodes.append(fn);
-            }
-        }
-
-        folder->removeFileNodes(fileNodes);
-    }
-
-    foreach (FolderNode *fn, subFolderNodes())
-        removeEmptySubFolders(this, fn);
-
-}
-
-void PythonProjectNode::removeEmptySubFolders(FolderNode *gparent, FolderNode *parent)
-{
-    foreach (FolderNode *fn, parent->subFolderNodes())
-        removeEmptySubFolders(parent, fn);
-
-    if (parent->subFolderNodes().isEmpty() && parent->fileNodes().isEmpty())
-        gparent->removeFolderNodes(QList<FolderNode*>() << parent);
-}
-
-FolderNode *PythonProjectNode::createFolderByName(const QStringList &components, int end)
-{
-    if (end == 0)
-        return this;
-
-    QString folderName;
-    for (int i = 0; i < end; ++i) {
-        folderName.append(components.at(i));
-        folderName += QLatin1Char('/');
-    }
-
-    const QString component = components.at(end - 1);
-
-    const FileName folderPath = path().parentDir().appendPath(folderName);
-    FolderNode *folder = new FolderNode(folderPath);
-    folder->setDisplayName(component);
-
-    FolderNode *parent = findFolderByName(components, end - 1);
-    if (!parent)
-        parent = createFolderByName(components, end - 1);
-    parent->addFolderNodes(QList<FolderNode*>() << folder);
-
-    return folder;
-}
-
-FolderNode *PythonProjectNode::findFolderByName(const QStringList &components, int end)
-{
-    if (end == 0)
-        return this;
-
-    QString folderName;
-    for (int i = 0; i < end; ++i) {
-        folderName.append(components.at(i));
-        folderName += QLatin1Char('/');
-    }
-
-    FolderNode *parent = findFolderByName(components, end - 1);
-
-    if (!parent)
-        return 0;
-
-    const QString baseDir = path().toFileInfo().path();
-    foreach (FolderNode *fn, parent->subFolderNodes()) {
-        if (fn->path().toString() == baseDir + QLatin1Char('/') + folderName)
-            return fn;
-    }
-    return 0;
 }
 
 bool PythonProjectNode::showInSimpleTree() const
@@ -1072,6 +755,11 @@ QList<ProjectAction> PythonProjectNode::supportedActions(Node *node) const
     return {};
 }
 
+QString PythonProjectNode::addFileFilter() const
+{
+    return QLatin1String("*.py");
+}
+
 bool PythonProjectNode::renameFile(const QString &filePath, const QString &newFilePath)
 {
     return m_project->renameFile(filePath, newFilePath);
@@ -1082,8 +770,8 @@ bool PythonProjectNode::renameFile(const QString &filePath, const QString &newFi
 class PythonRunControlFactory : public IRunControlFactory
 {
 public:
-    bool canRun(RunConfiguration *runConfiguration, Core::Id mode) const;
-    RunControl *create(RunConfiguration *runConfiguration, Core::Id mode, QString *errorMessage);
+    bool canRun(RunConfiguration *runConfiguration, Core::Id mode) const override;
+    RunControl *create(RunConfiguration *runConfiguration, Core::Id mode, QString *errorMessage) override;
 };
 
 bool PythonRunControlFactory::canRun(RunConfiguration *runConfiguration, Core::Id mode) const
@@ -1104,17 +792,13 @@ RunControl *PythonRunControlFactory::create(RunConfiguration *runConfiguration, 
 PythonRunControl::PythonRunControl(PythonRunConfiguration *rc, Core::Id mode)
     : RunControl(rc, mode), m_running(false)
 {
-    setIcon(QLatin1String(ProjectExplorer::Constants::ICON_RUN_SMALL));
-    EnvironmentAspect *environment = rc->extraAspect<EnvironmentAspect>();
-    Utils::Environment env;
-    if (environment)
-        env = environment->environment();
-    m_applicationLauncher.setEnvironment(env);
+    setIcon(Utils::Icons::RUN_SMALL_TOOLBAR);
 
     m_interpreter = rc->interpreter();
     m_mainScript = rc->mainScript();
     m_runMode = rc->extraAspect<TerminalAspect>()->runMode();
     m_commandLineArguments = rc->extraAspect<ArgumentsAspect>()->arguments();
+    m_environment = rc->extraAspect<EnvironmentAspect>()->environment();
 
     connect(&m_applicationLauncher, &ApplicationLauncher::appendMessage,
             this, &PythonRunControl::slotAppendMessage);
@@ -1130,21 +814,24 @@ void PythonRunControl::start()
 {
     emit started();
     if (m_interpreter.isEmpty()) {
-        appendMessage(tr("No Python interpreter specified.") + QLatin1Char('\n'), Utils::ErrorMessageFormat);
+        appendMessage(tr("No Python interpreter specified.") + '\n', Utils::ErrorMessageFormat);
         emit finished();
     }  else if (!QFileInfo::exists(m_interpreter)) {
-        appendMessage(tr("Python interpreter %1 does not exist.").arg(QDir::toNativeSeparators(m_interpreter)) + QLatin1Char('\n'),
+        appendMessage(tr("Python interpreter %1 does not exist.").arg(QDir::toNativeSeparators(m_interpreter)) + '\n',
                       Utils::ErrorMessageFormat);
         emit finished();
     } else {
         m_running = true;
-        QString msg = tr("Starting %1...").arg(QDir::toNativeSeparators(m_interpreter)) + QLatin1Char('\n');
+        QString msg = tr("Starting %1...").arg(QDir::toNativeSeparators(m_interpreter)) + '\n';
         appendMessage(msg, Utils::NormalMessageFormat);
 
-        QString args;
-        QtcProcess::addArg(&args, m_mainScript);
-        QtcProcess::addArgs(&args, m_commandLineArguments);
-        m_applicationLauncher.start(m_runMode, m_interpreter, args);
+        StandardRunnable r;
+        QtcProcess::addArg(&r.commandLineArguments, m_mainScript);
+        QtcProcess::addArgs(&r.commandLineArguments, m_commandLineArguments);
+        r.executable = m_interpreter;
+        r.runMode = m_runMode;
+        r.environment = m_environment;
+        m_applicationLauncher.start(r);
 
         setApplicationProcessHandle(ProcessHandle(m_applicationLauncher.applicationPID()));
     }
@@ -1179,7 +866,7 @@ void PythonRunControl::processExited(int exitCode, QProcess::ExitStatus status)
         msg = tr("%1 exited with code %2")
                 .arg(QDir::toNativeSeparators(m_interpreter)).arg(exitCode);
     }
-    appendMessage(msg + QLatin1Char('\n'), Utils::NormalMessageFormat);
+    appendMessage(msg + '\n', Utils::NormalMessageFormat);
     emit finished();
 }
 
@@ -1196,20 +883,9 @@ void PythonRunConfigurationWidget::setInterpreter(const QString &interpreter)
 
 static PythonEditorPlugin *m_instance = 0;
 
-/// Copies identifiers from array to QSet
-static void copyIdentifiers(const char * const words[], size_t bytesCount, QSet<QString> &result)
-{
-    const size_t count = bytesCount / sizeof(const char * const);
-    for (size_t i = 0; i < count; ++i)
-        result.insert(QLatin1String(words[i]));
-}
-
 PythonEditorPlugin::PythonEditorPlugin()
 {
     m_instance = this;
-    copyIdentifiers(LIST_OF_PYTHON_KEYWORDS, sizeof(LIST_OF_PYTHON_KEYWORDS), m_keywords);
-    copyIdentifiers(LIST_OF_PYTHON_MAGICS, sizeof(LIST_OF_PYTHON_MAGICS), m_magics);
-    copyIdentifiers(LIST_OF_PYTHON_BUILTINS, sizeof(LIST_OF_PYTHON_BUILTINS), m_builtins);
 }
 
 PythonEditorPlugin::~PythonEditorPlugin()
@@ -1222,35 +898,23 @@ bool PythonEditorPlugin::initialize(const QStringList &arguments, QString *error
     Q_UNUSED(arguments)
     Q_UNUSED(errorMessage)
 
-    MimeDatabase::addMimeTypes(QLatin1String(":/pythoneditor/PythonEditor.mimetypes.xml"));
+    MimeDatabase::addMimeTypes(":/pythoneditor/PythonEditor.mimetypes.xml");
 
     addAutoReleasedObject(new PythonProjectManager);
     addAutoReleasedObject(new PythonEditorFactory);
     addAutoReleasedObject(new PythonRunConfigurationFactory);
     addAutoReleasedObject(new PythonRunControlFactory);
 
-    // Initialize editor actions handler
-    // Add MIME overlay icons (these icons displayed at Project dock panel)
-    const QIcon icon = QIcon::fromTheme(QLatin1String(C_PY_MIME_ICON));
-    if (!icon.isNull())
-        Core::FileIconProvider::registerIconOverlayForMimeType(icon, C_PY_MIMETYPE);
-
     return true;
 }
 
-QSet<QString> PythonEditorPlugin::keywords()
+void PythonEditorPlugin::extensionsInitialized()
 {
-    return m_instance->m_keywords;
-}
-
-QSet<QString> PythonEditorPlugin::magics()
-{
-    return m_instance->m_magics;
-}
-
-QSet<QString> PythonEditorPlugin::builtins()
-{
-    return m_instance->m_builtins;
+    // Initialize editor actions handler
+    // Add MIME overlay icons (these icons displayed at Project dock panel)
+    const QIcon icon = QIcon::fromTheme(C_PY_MIME_ICON);
+    if (!icon.isNull())
+        Core::FileIconProvider::registerIconOverlayForMimeType(icon, C_PY_MIMETYPE);
 }
 
 } // namespace Internal

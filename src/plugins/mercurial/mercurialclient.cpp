@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Brian McGillion
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Brian McGillion
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,9 +30,10 @@
 #include <vcsbase/vcsoutputwindow.h>
 #include <vcsbase/vcsbaseplugin.h>
 #include <vcsbase/vcsbaseeditor.h>
-#include <vcsbase/vcsbaseeditorparameterwidget.h>
+#include <vcsbase/vcsbaseeditorconfig.h>
 #include <utils/synchronousprocess.h>
 #include <utils/fileutils.h>
+#include <utils/hostosinfo.h>
 #include <utils/qtcassert.h>
 
 #include <QDateTime>
@@ -54,12 +50,12 @@ namespace Mercurial {
 namespace Internal  {
 
 // Parameter widget controlling whitespace diff mode, associated with a parameter
-class MercurialDiffParameterWidget : public VcsBaseEditorParameterWidget
+class MercurialDiffConfig : public VcsBaseEditorConfig
 {
     Q_OBJECT
 public:
-    MercurialDiffParameterWidget(VcsBaseClientSettings &settings, QWidget *parent = 0) :
-        VcsBaseEditorParameterWidget(parent)
+    MercurialDiffConfig(VcsBaseClientSettings &settings, QToolBar *toolBar) :
+        VcsBaseEditorConfig(toolBar)
     {
         mapSetting(addToggleButton(QLatin1String("-w"), tr("Ignore Whitespace")),
                    settings.boolPointer(MercurialSettings::diffIgnoreWhiteSpaceKey));
@@ -70,7 +66,9 @@ public:
 
 MercurialClient::MercurialClient() : VcsBaseClient(new MercurialSettings)
 {
-    setDiffParameterWidgetCreator([this] { return new MercurialDiffParameterWidget(settings()); });
+    setDiffConfigCreator([this](QToolBar *toolBar) {
+        return new MercurialDiffConfig(settings(), toolBar);
+    });
 }
 
 bool MercurialClient::manifestSync(const QString &repository, const QString &relativeFilename)
@@ -78,12 +76,12 @@ bool MercurialClient::manifestSync(const QString &repository, const QString &rel
     // This  only works when called from the repo and outputs paths relative to it.
     const QStringList args(QLatin1String("manifest"));
 
-    QByteArray output;
-    vcsFullySynchronousExec(repository, args, &output);
+    const SynchronousProcessResponse result = vcsFullySynchronousExec(repository, args);
+
     const QDir repositoryDir(repository);
     const QFileInfo needle = QFileInfo(repositoryDir, relativeFilename);
 
-    const QStringList files = QString::fromLocal8Bit(output).split(QLatin1Char('\n'));
+    const QStringList files = result.stdOut().split(QLatin1Char('\n'));
     foreach (const QString &fileName, files) {
         const QFileInfo managedFile(repositoryDir, fileName);
         if (needle == managedFile)
@@ -101,7 +99,6 @@ bool MercurialClient::synchronousClone(const QString &workingDir,
     Q_UNUSED(workingDir);
     Q_UNUSED(extraOptions);
     QDir workingDirectory(srcLocation);
-    QByteArray output;
     const unsigned flags = VcsCommand::SshPasswordPrompt |
             VcsCommand::ShowStdOut |
             VcsCommand::ShowSuccessMessage;
@@ -109,14 +106,16 @@ bool MercurialClient::synchronousClone(const QString &workingDir,
     if (workingDirectory.exists()) {
         // Let's make first init
         QStringList arguments(QLatin1String("init"));
-        if (!vcsFullySynchronousExec(workingDirectory.path(), arguments, &output))
+        const SynchronousProcessResponse resp = vcsFullySynchronousExec(
+                    workingDirectory.path(), arguments);
+        if (resp.result != SynchronousProcessResponse::Finished)
             return false;
 
         // Then pull remote repository
         arguments.clear();
         arguments << QLatin1String("pull") << dstLocation;
-        const SynchronousProcessResponse resp1 =
-                vcsSynchronousExec(workingDirectory.path(), arguments, flags);
+        const SynchronousProcessResponse resp1 = vcsSynchronousExec(
+                    workingDirectory.path(), arguments, flags);
         if (resp1.result != SynchronousProcessResponse::Finished)
             return false;
 
@@ -132,15 +131,15 @@ bool MercurialClient::synchronousClone(const QString &workingDir,
         // And last update repository
         arguments.clear();
         arguments << QLatin1String("update");
-        const SynchronousProcessResponse resp2 =
-                vcsSynchronousExec(workingDirectory.path(), arguments, flags);
+        const SynchronousProcessResponse resp2 = vcsSynchronousExec(
+                    workingDirectory.path(), arguments, flags);
         return resp2.result == SynchronousProcessResponse::Finished;
     } else {
         QStringList arguments(QLatin1String("clone"));
         arguments << dstLocation << workingDirectory.dirName();
         workingDirectory.cdUp();
-        const SynchronousProcessResponse resp =
-                vcsSynchronousExec(workingDirectory.path(), arguments, flags);
+        const SynchronousProcessResponse resp = vcsSynchronousExec(
+                    workingDirectory.path(), arguments, flags);
         return resp.result == SynchronousProcessResponse::Finished;
     }
 }
@@ -162,7 +161,7 @@ bool MercurialClient::synchronousPull(const QString &workingDir, const QString &
                 workingDir, vcsBinary(), args, vcsTimeoutS(), flags, 0, env);
     const bool ok = resp.result == SynchronousProcessResponse::Finished;
 
-    parsePullOutput(resp.stdOut.trimmed());
+    parsePullOutput(resp.stdOut().trimmed());
     return ok;
 }
 
@@ -199,24 +198,22 @@ QStringList MercurialClient::parentRevisionsSync(const QString &workingDirectory
     args << QLatin1String("parents") <<  QLatin1String("-r") <<revision;
     if (!file.isEmpty())
         args << file;
-    QByteArray outputData;
-    if (!vcsFullySynchronousExec(workingDirectory, args, &outputData))
+    const SynchronousProcessResponse resp = vcsFullySynchronousExec(workingDirectory, args);
+    if (resp.result != SynchronousProcessResponse::Finished)
         return QStringList();
-    const QString output = SynchronousProcess::normalizeNewlines(
-                QString::fromLocal8Bit(outputData));
     /* Looks like: \code
 changeset:   0:031a48610fba
 user: ...
 \endcode   */
     // Obtain first line and split by blank-delimited tokens
-    const QStringList lines = output.split(QLatin1Char('\n'));
+    const QStringList lines = resp.stdOut().split(QLatin1Char('\n'));
     if (lines.size() < 1) {
-        VcsOutputWindow::appendSilently(msgParentRevisionFailed(workingDirectory, revision, msgParseParentsOutputFailed(output)));
+        VcsOutputWindow::appendSilently(msgParentRevisionFailed(workingDirectory, revision, msgParseParentsOutputFailed(resp.stdOut())));
         return QStringList();
     }
     QStringList changeSets = lines.front().simplified().split(QLatin1Char(' '));
     if (changeSets.size() < 2) {
-        VcsOutputWindow::appendSilently(msgParentRevisionFailed(workingDirectory, revision, msgParseParentsOutputFailed(output)));
+        VcsOutputWindow::appendSilently(msgParentRevisionFailed(workingDirectory, revision, msgParseParentsOutputFailed(resp.stdOut())));
         return QStringList();
     }
     // Remove revision numbers
@@ -236,18 +233,15 @@ QString MercurialClient::shortDescriptionSync(const QString &workingDirectory,
                                            const QString &revision,
                                            const QString &format)
 {
-    QString description;
     QStringList args;
     args << QLatin1String("log") <<  QLatin1String("-r") <<revision;
     if (!format.isEmpty())
         args << QLatin1String("--template") << format;
-    QByteArray outputData;
-    if (!vcsFullySynchronousExec(workingDirectory, args, &outputData))
+
+    const SynchronousProcessResponse resp = vcsFullySynchronousExec(workingDirectory, args);
+    if (resp.result != SynchronousProcessResponse::Finished)
         return revision;
-    description = commandOutputFromLocal8Bit(outputData);
-    if (description.endsWith(QLatin1Char('\n')))
-        description.truncate(description.size() - 1);
-    return description;
+    return stripLastNewline(resp.stdOut());
 }
 
 // Default format: "SHA1 (author summmary)"
@@ -263,9 +257,7 @@ bool MercurialClient::managesFile(const QString &workingDirectory, const QString
 {
     QStringList args;
     args << QLatin1String("status") << QLatin1String("--unknown") << fileName;
-    QByteArray output;
-    vcsFullySynchronousExec(workingDirectory, args, &output);
-    return output.isEmpty();
+    return vcsFullySynchronousExec(workingDirectory, args).stdOut().isEmpty();
 }
 
 void MercurialClient::incoming(const QString &repositoryRoot, const QString &repository)
@@ -304,13 +296,13 @@ void MercurialClient::outgoing(const QString &repositoryRoot)
     enqueueJob(cmd, args);
 }
 
-void MercurialClient::annotate(const QString &workingDir, const QString &file,
-                               const QString &revision, int lineNumber,
-                               const QStringList &extraOptions)
+VcsBaseEditorWidget *MercurialClient::annotate(
+        const QString &workingDir, const QString &file, const QString &revision,
+        int lineNumber, const QStringList &extraOptions)
 {
     QStringList args(extraOptions);
     args << QLatin1String("-u") << QLatin1String("-c") << QLatin1String("-d");
-    VcsBaseClient::annotate(workingDir, file, revision, lineNumber, args);
+    return VcsBaseClient::annotate(workingDir, file, revision, lineNumber, args);
 }
 
 void MercurialClient::commit(const QString &repositoryRoot, const QStringList &files,
@@ -342,6 +334,12 @@ void MercurialClient::revertAll(const QString &workingDir, const QString &revisi
 {
     VcsBaseClient::revertAll(workingDir, revision,
                              QStringList(extraOptions) << QLatin1String("--all"));
+}
+
+bool MercurialClient::isVcsDirectory(const FileName &fileName) const
+{
+    return fileName.toFileInfo().isDir()
+            && !fileName.fileName().compare(Constants::MERCURIALREPO, HostOsInfo::fileNameCaseSensitivity());
 }
 
 void MercurialClient::view(const QString &source, const QString &id,

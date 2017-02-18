@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -28,9 +28,13 @@
 #include "stateseditorview.h"
 #include "stateseditorimageprovider.h"
 
+#include <designersettings.h>
+#include <theming.h>
+
 #include <invalidqmlsourceexception.h>
 
 #include <coreplugin/icore.h>
+
 #include <utils/qtcassert.h>
 #include <utils/stylehelper.h>
 
@@ -93,10 +97,12 @@ StatesEditorWidget::StatesEditorWidget(StatesEditorView *statesEditorView, State
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     rootContext()->setContextProperty(QStringLiteral("statesEditorModel"), statesEditorModel);
-    rootContext()->setContextProperty(QStringLiteral("highlightColor"), Utils::StyleHelper::notTooBrightHighlightColor());
-
 
     rootContext()->setContextProperty(QLatin1String("canAddNewStates"), true);
+
+    rootContext()->setContextProperty(QLatin1String("creatorTheme"), Theming::theme());
+
+    Theming::registerIconProvider(engine());
 
     setWindowTitle(tr("States", "Title of Editor widget"));
 
@@ -110,6 +116,12 @@ StatesEditorWidget::~StatesEditorWidget()
 
 QString StatesEditorWidget::qmlSourcesPath() {
     return Core::ICore::resourcePath() + QStringLiteral("/qmldesigner/statesEditorQmlSources");
+}
+
+void StatesEditorWidget::toggleStatesViewExpanded()
+{
+    bool expanded = rootObject()->property("expanded").toBool();
+    rootObject()->setProperty("expanded", !expanded);
 }
 
 void StatesEditorWidget::reloadQmlSource()
@@ -126,11 +138,20 @@ void StatesEditorWidget::reloadQmlSource()
     m_statesEditorView.data()->synchonizeCurrentStateFromWidget();
     setFixedHeight(initialSize().height());
 
-    connect(rootObject(), SIGNAL(expandedChanged()), this, SLOT(changeHeight()));
+    if (!DesignerSettings::getValue(DesignerSettingsKey::STATESEDITOR_EXPANDED).toBool()) {
+        toggleStatesViewExpanded();
+        setFixedHeight(rootObject()->height());
+    }
+
+    connect(rootObject(), SIGNAL(expandedChanged()), this, SLOT(handleExpandedChanged()));
 }
 
-void StatesEditorWidget::changeHeight()
+void StatesEditorWidget::handleExpandedChanged()
 {
+    bool expanded = rootObject()->property("expanded").toBool();
+
+    DesignerSettings::setValue(DesignerSettingsKey::STATESEDITOR_EXPANDED, expanded);
+
     setFixedHeight(rootObject()->height());
 }
 }

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -68,13 +63,13 @@ Utils::WizardPage *FieldPageFactory::create(JsonWizard *wizard, Core::Id typeId,
 {
     Q_UNUSED(wizard);
 
-    QTC_ASSERT(canCreate(typeId), return 0);
+    QTC_ASSERT(canCreate(typeId), return nullptr);
 
-    JsonFieldPage *page = new JsonFieldPage(wizard->expander());
+    auto page = new JsonFieldPage(wizard->expander());
 
     if (!page->setup(data)) {
         delete page;
-        return 0;
+        return nullptr;
     }
 
     return page;
@@ -115,10 +110,9 @@ Utils::WizardPage *FilePageFactory::create(JsonWizard *wizard, Core::Id typeId, 
 {
     Q_UNUSED(wizard);
     Q_UNUSED(data);
-    QTC_ASSERT(canCreate(typeId), return 0);
+    QTC_ASSERT(canCreate(typeId), return nullptr);
 
-    JsonFilePage *page = new JsonFilePage;
-    return page;
+    return new JsonFilePage;
 }
 
 bool FilePageFactory::validateData(Core::Id typeId, const QVariant &data, QString *errorMessage)
@@ -149,9 +143,9 @@ KitsPageFactory::KitsPageFactory()
 Utils::WizardPage *KitsPageFactory::create(JsonWizard *wizard, Core::Id typeId, const QVariant &data)
 {
     Q_UNUSED(wizard);
-    QTC_ASSERT(canCreate(typeId), return 0);
+    QTC_ASSERT(canCreate(typeId), return nullptr);
 
-    JsonKitsPage *page = new JsonKitsPage;
+    auto page = new JsonKitsPage;
     const QVariantMap dataMap = data.toMap();
     page->setUnexpandedProjectPath(dataMap.value(QLatin1String(KEY_PROJECT_FILE)).toString());
     page->setRequiredFeatures(dataMap.value(QLatin1String(KEY_REQUIRED_FEATURES)));
@@ -199,6 +193,8 @@ bool KitsPageFactory::validateData(Core::Id typeId, const QVariant &data, QStrin
 // ProjectPageFactory:
 // --------------------------------------------------------------------
 
+static const char KEY_PROJECT_NAME_VALIDATOR[] = "projectNameValidator";
+
 ProjectPageFactory::ProjectPageFactory()
 {
     setTypeIdsSuffix(QLatin1String("Project"));
@@ -208,14 +204,21 @@ Utils::WizardPage *ProjectPageFactory::create(JsonWizard *wizard, Core::Id typeI
 {
     Q_UNUSED(wizard);
     Q_UNUSED(data);
-    QTC_ASSERT(canCreate(typeId), return 0);
+    QTC_ASSERT(canCreate(typeId), return nullptr);
 
-    JsonProjectPage *page = new JsonProjectPage;
+    auto page = new JsonProjectPage;
 
     QVariantMap tmp = data.isNull() ? QVariantMap() : data.toMap();
     QString description
             = tmp.value(QLatin1String("trDescription"), QLatin1String("%{trDescription}")).toString();
     page->setDescription(wizard->expander()->expand(description));
+    QString projectNameValidator
+            = tmp.value(QLatin1String(KEY_PROJECT_NAME_VALIDATOR)).toString();
+    if (!projectNameValidator.isEmpty()) {
+        QRegularExpression regularExpression(projectNameValidator);
+        if (regularExpression.isValid())
+            page->setProjectNameRegularExpression(regularExpression);
+    }
 
     return page;
 }
@@ -230,6 +233,19 @@ bool ProjectPageFactory::validateData(Core::Id typeId, const QVariant &data, QSt
                                                     "\"data\" must be empty or a JSON object for \"Project\" pages.");
         return false;
     }
+    QVariantMap tmp = data.toMap();
+    QString projectNameValidator
+        = tmp.value(QLatin1String(KEY_PROJECT_NAME_VALIDATOR)).toString();
+    if (!projectNameValidator.isNull()) {
+        QRegularExpression regularExpression(projectNameValidator);
+        if (!regularExpression.isValid()) {
+            *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonWizard",
+                "Invalid regular expression \"%1\" in \"%2\". %3").arg(
+                projectNameValidator, QLatin1String(KEY_PROJECT_NAME_VALIDATOR), regularExpression.errorString());
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -248,9 +264,9 @@ Utils::WizardPage *SummaryPageFactory::create(JsonWizard *wizard, Core::Id typeI
 {
     Q_UNUSED(wizard);
     Q_UNUSED(data);
-    QTC_ASSERT(canCreate(typeId), return 0);
+    QTC_ASSERT(canCreate(typeId), return nullptr);
 
-    JsonSummaryPage *page = new JsonSummaryPage;
+    auto page = new JsonSummaryPage;
     QVariant hideProjectUi = data.toMap().value(QLatin1String(KEY_HIDE_PROJECT_UI));
     page->setHideProjectUiValue(hideProjectUi);
     return page;

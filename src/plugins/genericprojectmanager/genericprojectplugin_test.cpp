@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,6 +31,7 @@
 
 #include <cpptools/cppmodelmanager.h>
 #include <cpptools/cpptoolstestcase.h>
+#include <cpptools/projectinfo.h>
 
 #include <QFileInfo>
 #include <QTest>
@@ -78,7 +74,7 @@ void GenericProjectPlugin::test_simple()
     QCOMPARE(pPart->files.first().kind, ProjectFile::CXXSource);
 }
 
-static QStringList simplify(const QList<ProjectFile> &files, const QString &prefix)
+static QStringList simplify(const ProjectFiles &files, const QString &prefix)
 {
     QStringList result;
 
@@ -105,7 +101,7 @@ void GenericProjectPlugin::test_mixed1()
     QVERIFY(pInfo.isValid());
     QCOMPARE(pInfo.projectParts().size(), 3);
 
-    QList<ProjectPart::Ptr> parts = pInfo.projectParts();
+    QVector<ProjectPart::Ptr> parts = pInfo.projectParts();
     std::sort(parts.begin(), parts.end(), [](const ProjectPart::Ptr &p1,
                                              const ProjectPart::Ptr &p2) {
         return p1->displayName < p2->displayName;
@@ -116,29 +112,26 @@ void GenericProjectPlugin::test_mixed1()
     const QStringList part1files = simplify(parts[1]->files, dirPathWithSlash);
     const QStringList part2files = simplify(parts[2]->files, dirPathWithSlash);
 
-    QCOMPARE(parts[0]->displayName, _("mixedproject1 (C++11)"));
+    QCOMPARE(parts[0]->displayName, _("mixedproject1 (C++)"));
     QCOMPARE(parts[0]->files.size(), 4);
     QVERIFY(part0files.contains(_("main.cpp")));
     QVERIFY(part0files.contains(_("header.h")));
     QVERIFY(part0files.contains(_("MyViewController.h")));
     QVERIFY(part0files.contains(_("Glue.h")));
 
-    QCOMPARE(parts[1]->displayName, _("mixedproject1 (Obj-C++11)"));
+    QCOMPARE(parts[1]->displayName, _("mixedproject1 (Obj-C)"));
     QCOMPARE(parts[1]->files.size(), 4);
-    QVERIFY(part1files.contains(_("Glue.mm")));
+    QVERIFY(part1files.contains(_("MyViewController.m")));
     QVERIFY(part1files.contains(_("header.h")));
     QVERIFY(part1files.contains(_("MyViewController.h")));
     QVERIFY(part1files.contains(_("Glue.h")));
 
-    QCOMPARE(parts[2]->displayName, _("mixedproject1 (Obj-C11)"));
-    QCOMPARE(parts[2]->files.size(), 1);
-    QVERIFY(part2files.contains(_("MyViewController.m")));
-    // No .h files here, because the mime-type for .h files is.....
-    //
-    // wait for it...
-    //
-    // C++!
-    // (See 1c7da3d83c9bb35064ae6b9052cbf1c6bff1395e.)
+    QCOMPARE(parts[2]->displayName, _("mixedproject1 (Obj-C++)"));
+    QCOMPARE(parts[2]->files.size(), 4);
+    QVERIFY(part2files.contains(_("Glue.mm")));
+    QVERIFY(part2files.contains(_("header.h")));
+    QVERIFY(part2files.contains(_("MyViewController.h")));
+    QVERIFY(part2files.contains(_("Glue.h")));
 }
 
 void GenericProjectPlugin::test_mixed2()
@@ -154,7 +147,7 @@ void GenericProjectPlugin::test_mixed2()
     QVERIFY(pInfo.isValid());
     QCOMPARE(pInfo.projectParts().size(), 2);
 
-    QList<ProjectPart::Ptr> parts = pInfo.projectParts();
+    QVector<ProjectPart::Ptr> parts = pInfo.projectParts();
     std::sort(parts.begin(), parts.end(), [](const ProjectPart::Ptr &p1,
                                              const ProjectPart::Ptr &p2) {
         return p1->displayName < p2->displayName;
@@ -164,12 +157,12 @@ void GenericProjectPlugin::test_mixed2()
     const QStringList part0files = simplify(parts[0]->files, dirPathWithSlash);
     const QStringList part1files = simplify(parts[1]->files, dirPathWithSlash);
 
-    QCOMPARE(parts[0]->displayName, _("mixedproject2 (C++11)"));
-    QCOMPARE(parts[0]->files.size(), 2);
-    QVERIFY(part0files.contains(_("main.cpp")));
-    QVERIFY(part0files.contains(_("header.hpp")));
+    QCOMPARE(parts[0]->displayName, _("mixedproject2 (C)"));
+    QCOMPARE(parts[0]->files.size(), 1);
+    QVERIFY(part0files.contains(_("impl.c")));
 
-    QCOMPARE(parts[1]->displayName, _("mixedproject2 (C11)"));
-    QCOMPARE(parts[1]->files.size(), 1);
-    QVERIFY(part1files.contains(_("impl.c")));
+    QCOMPARE(parts[1]->displayName, _("mixedproject2 (C++)"));
+    QCOMPARE(parts[1]->files.size(), 2);
+    QVERIFY(part1files.contains(_("main.cpp")));
+    QVERIFY(part1files.contains(_("header.hpp")));
 }

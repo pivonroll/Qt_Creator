@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,34 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "iwelcomepage.h"
 
+#include "icore.h"
+
+#include <utils/icon.h>
+#include <utils/theme/theme.h>
+
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMetaEnum>
+#include <QPixmap>
 #include <QUrl>
+
+using namespace Utils;
 
 namespace Core {
 
@@ -42,4 +48,159 @@ IWelcomePage::~IWelcomePage()
 {
 }
 
-} // namespace Utils
+int IWelcomePage::screenDependHeightDistance()
+{
+    return std::min(50, std::max(16, ICore::mainWindow()->height() / 30));
+}
+
+static QPalette buttonPalette(bool isActive, bool isCursorInside, bool forText)
+{
+    QPalette pal;
+    Theme *theme = Utils::creatorTheme();
+    if (isActive) {
+        if (forText) {
+            pal.setColor(QPalette::Background, theme->color(Theme::Welcome_ForegroundPrimaryColor));
+            pal.setColor(QPalette::Foreground, theme->color(Theme::Welcome_ForegroundPrimaryColor));
+            pal.setColor(QPalette::WindowText, theme->color(Theme::Welcome_BackgroundColor));
+        } else {
+            pal.setColor(QPalette::Background, theme->color(Theme::Welcome_ForegroundPrimaryColor));
+            pal.setColor(QPalette::Foreground, theme->color(Theme::Welcome_ForegroundPrimaryColor));
+        }
+    } else {
+        if (isCursorInside) {
+            if (forText) {
+                pal.setColor(QPalette::Background, theme->color(Theme::Welcome_HoverColor));
+                pal.setColor(QPalette::Foreground, theme->color(Theme::Welcome_HoverColor));
+                pal.setColor(QPalette::WindowText, theme->color(Theme::Welcome_TextColor));
+            } else {
+                pal.setColor(QPalette::Background, theme->color(Theme::Welcome_HoverColor));
+                pal.setColor(QPalette::Foreground, theme->color(Theme::Welcome_ForegroundSecondaryColor));
+            }
+        } else {
+            if (forText) {
+                pal.setColor(QPalette::Background, theme->color(Theme::Welcome_ForegroundPrimaryColor));
+                pal.setColor(QPalette::Foreground, theme->color(Theme::Welcome_BackgroundColor));
+                pal.setColor(QPalette::WindowText, theme->color(Theme::Welcome_TextColor));
+            } else {
+                pal.setColor(QPalette::Background, theme->color(Theme::Welcome_BackgroundColor));
+                pal.setColor(QPalette::Foreground, theme->color(Theme::Welcome_ForegroundSecondaryColor));
+            }
+        }
+    }
+    return pal;
+}
+
+class WelcomePageButtonPrivate
+{
+public:
+    WelcomePageButtonPrivate(WelcomePageButton *parent) : q(parent) {}
+    bool isActive() const;
+    void doUpdate(bool cursorInside);
+
+    WelcomePageButton *q;
+    QHBoxLayout *m_layout = nullptr;
+    QLabel *m_label = nullptr;
+    QLabel *m_icon = nullptr;
+
+    std::function<void()> onClicked;
+    std::function<bool()> activeChecker;
+};
+
+WelcomePageButton::WelcomePageButton(QWidget *parent)
+    : QFrame(parent), d(new WelcomePageButtonPrivate(this))
+{
+    setAutoFillBackground(true);
+    setFrameShape(QFrame::Box);
+    setFrameShadow(QFrame::Plain);
+    setPalette(buttonPalette(false, false, false));
+
+    QFont f = font();
+    f.setPixelSize(15);
+    d->m_label = new QLabel(this);
+    d->m_label->setFont(f);
+    d->m_label->setPalette(buttonPalette(false, false, true));
+
+    d->m_layout = new QHBoxLayout;
+    d->m_layout->setContentsMargins(13, 5, 20, 5);
+    d->m_layout->setSpacing(0);
+    d->m_layout->addWidget(d->m_label);
+    setLayout(d->m_layout);
+}
+
+WelcomePageButton::~WelcomePageButton()
+{
+    delete d;
+}
+
+void WelcomePageButton::mousePressEvent(QMouseEvent *)
+{
+    if (d->onClicked)
+        d->onClicked();
+}
+
+void WelcomePageButton::enterEvent(QEvent *)
+{
+    d->doUpdate(true);
+}
+
+void WelcomePageButton::leaveEvent(QEvent *)
+{
+    d->doUpdate(false);
+}
+
+bool WelcomePageButtonPrivate::isActive() const
+{
+    return activeChecker && activeChecker();
+}
+
+void WelcomePageButtonPrivate::doUpdate(bool cursorInside)
+{
+    const bool active = isActive();
+    q->setPalette(buttonPalette(active, cursorInside, false));
+    const QPalette lpal = buttonPalette(active, cursorInside, true);
+    m_label->setPalette(lpal);
+    if (m_icon)
+        m_icon->setPalette(lpal);
+    q->update();
+}
+
+void WelcomePageButton::setText(const QString &text)
+{
+    d->m_label->setText(text);
+}
+
+void WelcomePageButton::setIcon(const QPixmap &pixmap)
+{
+    if (!d->m_icon) {
+        d->m_icon = new QLabel(this);
+        d->m_layout->insertWidget(0, d->m_icon);
+        d->m_layout->insertSpacing(1, 10);
+    }
+    d->m_icon->setPixmap(pixmap);
+}
+
+void WelcomePageButton::setActiveChecker(const std::function<bool ()> &value)
+{
+    d->activeChecker = value;
+}
+
+void WelcomePageButton::recheckActive()
+{
+    bool isActive = d->isActive();
+    d->doUpdate(isActive);
+}
+
+void WelcomePageButton::click()
+{
+    if (d->onClicked)
+        d->onClicked();
+}
+
+void WelcomePageButton::setOnClicked(const std::function<void ()> &value)
+{
+    d->onClicked = value;
+    if (d->isActive())
+        click();
+}
+
+} // namespace Core

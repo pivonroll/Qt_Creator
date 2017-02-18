@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,14 +27,106 @@
 #include "helpconstants.h"
 
 #include <coreplugin/helpmanager.h>
-
-#include <QCoreApplication>
+#include <utils/algorithm.h>
 
 #include <QFileDialog>
 #include <QKeyEvent>
 #include <QMessageBox>
 
+#include <QAbstractListModel>
+#include <QCoreApplication>
+#include <QDir>
+#include <QSortFilterProxyModel>
+#include <QVariant>
+#include <QVector>
+
+#include <algorithm>
+
 using namespace Core;
+
+namespace Help {
+namespace Internal {
+
+class DocEntry
+{
+public:
+    QString name;
+    QString fileName;
+    QString nameSpace;
+};
+
+static bool operator<(const DocEntry &d1, const DocEntry &d2)
+{ return d1.name < d2.name; }
+
+static DocEntry createEntry(const QString &nameSpace, const QString &fileName, bool userManaged)
+{
+    DocEntry result;
+    result.name = userManaged ? nameSpace : DocSettingsPage::tr("%1 (auto-detected)").arg(nameSpace);
+    result.fileName = fileName;
+    result.nameSpace = nameSpace;
+    return result;
+}
+
+class DocModel : public QAbstractListModel {
+public:
+    typedef QVector<DocEntry> DocEntries;
+
+    explicit DocModel(const DocEntries &e = DocEntries(), QObject *parent = nullptr)
+        : QAbstractListModel(parent), m_docEntries(e) {}
+
+    int rowCount(const QModelIndex & = QModelIndex()) const override { return m_docEntries.size(); }
+    QVariant data(const QModelIndex &index, int role) const override;
+
+    void insertEntry(const DocEntry &e);
+    void removeAt(int row);
+
+    const DocEntry &entryAt(int row) const { return m_docEntries.at(row); }
+
+private:
+    DocEntries m_docEntries;
+};
+
+QVariant DocModel::data(const QModelIndex &index, int role) const
+{
+    QVariant result;
+    const int row = index.row();
+    if (index.isValid() && row < m_docEntries.size()) {
+        switch (role) {
+        case Qt::DisplayRole:
+            result = QVariant(m_docEntries.at(row).name);
+            break;
+        case Qt::ToolTipRole:
+            result = QVariant(QDir::toNativeSeparators(m_docEntries.at(row).fileName));
+            break;
+        case Qt::UserRole:
+            result = QVariant(m_docEntries.at(row).nameSpace);
+            break;
+        default:
+            break;
+        }
+    }
+    return result;
+}
+
+void DocModel::insertEntry(const DocEntry &e)
+{
+    const auto it = std::lower_bound(m_docEntries.begin(), m_docEntries.end(), e);
+    const int index = int(it - m_docEntries.begin());
+    beginInsertRows(QModelIndex(), index, index);
+    m_docEntries.insert(it, e);
+    endInsertRows();
+}
+
+void DocModel::removeAt(int row)
+{
+    beginRemoveRows(QModelIndex(), row, row);
+    m_docEntries.removeAt(row);
+    endRemoveRows();
+}
+
+} // namespace Internal
+} // namespace Help
+
 using namespace Help::Internal;
 
 DocSettingsPage::DocSettingsPage()
@@ -48,31 +135,42 @@ DocSettingsPage::DocSettingsPage()
     setDisplayName(tr("Documentation"));
     setCategory(Help::Constants::HELP_CATEGORY);
     setDisplayCategory(QCoreApplication::translate("Help", Help::Constants::HELP_TR_CATEGORY));
-    setCategoryIcon(QLatin1String(Help::Constants::HELP_CATEGORY_ICON));
+    setCategoryIcon(Utils::Icon(Help::Constants::HELP_CATEGORY_ICON));
 }
 
 QWidget *DocSettingsPage::widget()
 {
     if (!m_widget) {
-        m_widget = new QWidget;
-        m_ui.setupUi(m_widget);
-
-        connect(m_ui.addButton, SIGNAL(clicked()), this, SLOT(addDocumentation()));
-        connect(m_ui.removeButton, SIGNAL(clicked()), this, SLOT(removeDocumentation()));
-
-        m_ui.docsListWidget->installEventFilter(this);
-
         const QStringList nameSpaces = HelpManager::registeredNamespaces();
         const QSet<QString> userDocumentationPaths = HelpManager::userDocumentationPaths();
+        DocModel::DocEntries entries;
+        entries.reserve(nameSpaces.size());
         foreach (const QString &nameSpace, nameSpaces) {
             const QString filePath = HelpManager::fileFromNamespace(nameSpace);
             bool user = userDocumentationPaths.contains(filePath);
-            addItem(nameSpace, filePath, user);
+            entries.append(createEntry(nameSpace, filePath, user));
             m_filesToRegister.insert(nameSpace, filePath);
             m_filesToRegisterUserManaged.insert(nameSpace, user);
         }
+        std::stable_sort(entries.begin(), entries.end());
 
         m_filesToUnregister.clear();
+
+        m_widget = new QWidget;
+        m_ui.setupUi(m_widget);
+        m_model = new DocModel(entries, m_ui.docsListView);
+        m_proxyModel = new QSortFilterProxyModel(m_ui.docsListView);
+        m_proxyModel->setSourceModel(m_model);
+        m_ui.docsListView->setModel(m_proxyModel);
+        m_ui.filterLineEdit->setFiltering(true);
+        connect(m_ui.filterLineEdit, &QLineEdit::textChanged,
+                m_proxyModel, &QSortFilterProxyModel::setFilterFixedString);
+
+        connect(m_ui.addButton, &QAbstractButton::clicked, this, &DocSettingsPage::addDocumentation);
+        connect(m_ui.removeButton, &QAbstractButton::clicked, this,
+                [this] () { removeDocumentation(currentSelection()); });
+
+        m_ui.docsListView->installEventFilter(this);
     }
     return m_widget;
 }
@@ -92,8 +190,7 @@ void DocSettingsPage::addDocumentation()
         const QString filePath = QDir::cleanPath(file);
         const QString &nameSpace = HelpManager::namespaceFromFile(filePath);
         if (nameSpace.isEmpty()) {
-            docsUnableToRegister.insertMulti(QLatin1String("UnknownNamespace"),
-                QDir::toNativeSeparators(filePath));
+            docsUnableToRegister.insertMulti("UnknownNamespace", QDir::toNativeSeparators(filePath));
             continue;
         }
 
@@ -102,7 +199,8 @@ void DocSettingsPage::addDocumentation()
             continue;
         }
 
-        addItem(nameSpace, file, true/*user managed*/);
+        m_model->insertEntry(createEntry(nameSpace, file, true /* user managed */));
+
         m_filesToRegister.insert(nameSpace, filePath);
         m_filesToRegisterUserManaged.insert(nameSpace, true/*user managed*/);
 
@@ -124,12 +222,12 @@ void DocSettingsPage::addDocumentation()
     }
 
     QString formatedFail;
-    if (docsUnableToRegister.contains(QLatin1String("UnknownNamespace"))) {
+    if (docsUnableToRegister.contains("UnknownNamespace")) {
         formatedFail += QString::fromLatin1("<ul><li><b>%1</b>").arg(tr("Invalid documentation file:"));
-        foreach (const QString &value, docsUnableToRegister.values(QLatin1String("UnknownNamespace")))
+        foreach (const QString &value, docsUnableToRegister.values("UnknownNamespace"))
             formatedFail += QString::fromLatin1("<ul><li>%2</li></ul>").arg(value);
-        formatedFail += QLatin1String("</li></ul>");
-        docsUnableToRegister.remove(QLatin1String("UnknownNamespace"));
+        formatedFail += "</li></ul>";
+        docsUnableToRegister.remove("UnknownNamespace");
     }
 
     if (!docsUnableToRegister.isEmpty()) {
@@ -138,18 +236,13 @@ void DocSettingsPage::addDocumentation()
         for (NameSpaceToPathHash::ConstIterator it = docsUnableToRegister.constBegin(); it != cend; ++it) {
             formatedFail += QString::fromLatin1("<ul><li>%1 - %2</li></ul>").arg(it.key(), it.value());
         }
-        formatedFail += QLatin1String("</li></ul>");
+        formatedFail += "</li></ul>";
     }
 
     if (!formatedFail.isEmpty()) {
         QMessageBox::information(m_ui.addButton->parentWidget(), tr("Registration failed"),
             tr("Unable to register documentation.") + formatedFail, QMessageBox::Ok);
     }
-}
-
-void DocSettingsPage::removeDocumentation()
-{
-    removeDocumentation(m_ui.docsListWidget->selectedItems());
 }
 
 void DocSettingsPage::apply()
@@ -174,14 +267,14 @@ void DocSettingsPage::finish()
 
 bool DocSettingsPage::eventFilter(QObject *object, QEvent *event)
 {
-    if (object != m_ui.docsListWidget)
+    if (object != m_ui.docsListView)
         return IOptionsPage::eventFilter(object, event);
 
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent *ke = static_cast<QKeyEvent*>(event);
         switch (ke->key()) {
             case Qt::Key_Delete:
-                removeDocumentation(m_ui.docsListWidget->selectedItems());
+                removeDocumentation(currentSelection());
             break;
             default: break;
         }
@@ -190,32 +283,36 @@ bool DocSettingsPage::eventFilter(QObject *object, QEvent *event)
     return IOptionsPage::eventFilter(object, event);
 }
 
-void DocSettingsPage::removeDocumentation(const QList<QListWidgetItem*> &items)
+void DocSettingsPage::removeDocumentation(const QList<QModelIndex> &items)
 {
     if (items.isEmpty())
         return;
 
-    int row = 0;
-    foreach (QListWidgetItem* item, items) {
-        const QString nameSpace = item->data(Qt::UserRole).toString();
+    QList<QModelIndex> itemsByDecreasingRow = items;
+    Utils::sort(itemsByDecreasingRow, [](const QModelIndex &i1, const QModelIndex &i2) {
+        return i1.row() > i2.row();
+    });
+    foreach (const QModelIndex &item, itemsByDecreasingRow) {
+        const int row = item.row();
+        const QString nameSpace = m_model->entryAt(row).nameSpace;
 
         m_filesToRegister.remove(nameSpace);
         m_filesToRegisterUserManaged.remove(nameSpace);
         m_filesToUnregister.insertMulti(nameSpace, QDir::cleanPath(HelpManager::fileFromNamespace(nameSpace)));
 
-        row = m_ui.docsListWidget->row(item);
-        delete m_ui.docsListWidget->takeItem(row);
+        m_model->removeAt(row);
     }
 
-    m_ui.docsListWidget->setCurrentRow(qMax(row - 1, 0),
-        QItemSelectionModel::ClearAndSelect);
+    const int newlySelectedRow = qMax(itemsByDecreasingRow.last().row() - 1, 0);
+    const QModelIndex index = m_proxyModel->mapFromSource(m_model->index(newlySelectedRow));
+    m_ui.docsListView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect);
 }
 
-void DocSettingsPage::addItem(const QString &nameSpace, const QString &fileName, bool userManaged)
+QList<QModelIndex> DocSettingsPage::currentSelection() const
 {
-    const QString name = userManaged ? nameSpace : tr("%1 (auto-detected)").arg(nameSpace);
-    QListWidgetItem* item = new QListWidgetItem(name);
-    item->setToolTip(fileName);
-    item->setData(Qt::UserRole, nameSpace);
-    m_ui.docsListWidget->addItem(item);
+    QModelIndexList result;
+    Q_ASSERT(!m_widget.isNull());
+    foreach (const QModelIndex &index, m_ui.docsListView->selectionModel()->selectedRows())
+        result.append(m_proxyModel->mapToSource(index));
+    return result;
 }

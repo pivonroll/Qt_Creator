@@ -1,7 +1,6 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BlackBerry Limited. All rights reserved.
-**
+** Copyright (C) 2016 BlackBerry Limited. All rights reserved.
 ** Contact: BlackBerry (qt@blackberry.com)
 **
 ** This file is part of Qt Creator.
@@ -10,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -54,7 +48,9 @@
 #include <debugger/debuggerkitinformation.h>
 
 #include <coreplugin/icore.h>
+#include <utils/algorithm.h>
 
+#include <QDir>
 #include <QMessageBox>
 #include <QFileInfo>
 
@@ -69,7 +65,7 @@ namespace Internal {
 const QLatin1String QNXEnvFileKey("EnvFile");
 const QLatin1String QNXVersionKey("QNXVersion");
 // For backward compatibility
-const QLatin1String NDKEnvFileKey("NDKEnvFile");
+const QLatin1String SdpEnvFileKey("NDKEnvFile");
 
 QnxConfiguration::QnxConfiguration()
 { }
@@ -84,7 +80,7 @@ QnxConfiguration::QnxConfiguration(const QVariantMap &data)
 {
     QString envFilePath = data.value(QNXEnvFileKey).toString();
     if (envFilePath.isEmpty())
-        envFilePath = data.value(NDKEnvFileKey).toString();
+        envFilePath = data.value(SdpEnvFileKey).toString();
 
     m_version = QnxVersionNumber(data.value(QNXVersionKey).toString());
 
@@ -112,16 +108,6 @@ FileName QnxConfiguration::qccCompilerPath() const
     return m_qccCompiler;
 }
 
-FileName QnxConfiguration::armDebuggerPath() const
-{
-    return m_armlev7Debugger;
-}
-
-FileName QnxConfiguration::x86DebuggerPath() const
-{
-    return m_x86Debugger;
-}
-
 QList<EnvironmentItem> QnxConfiguration::qnxEnv() const
 {
     return m_qnxEnv;
@@ -142,9 +128,7 @@ QVariantMap QnxConfiguration::toMap() const
 
 bool QnxConfiguration::isValid() const
 {
-    return !m_qccCompiler.isEmpty()
-            && !m_armlev7Debugger.isEmpty()
-            && !m_x86Debugger.isEmpty();
+    return !m_qccCompiler.isEmpty() && !m_targets.isEmpty();
 }
 
 QString QnxConfiguration::displayName() const
@@ -171,32 +155,8 @@ bool QnxConfiguration::activate()
         return false;
     }
 
-    // Create and register toolchain
-    QnxToolChain *armTc = createToolChain(ArmLeV7,
-                    QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                                "QCC for %1 (armv7)").arg(displayName()),
-                    sdpPath().toString());
-    QnxToolChain *x86Tc = createToolChain(X86,
-                    QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                                "QCC for %1 (x86)").arg(displayName()),
-                    sdpPath().toString());
-
-    // Create and register debuggers
-    QVariant armDebuggerId = createDebuggerItem(ArmLeV7,
-                       QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                                   "Debugger for %1 (armv7)").arg(displayName()));
-
-    QVariant x86DebuggerId = createDebuggerItem(X86,
-                       QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                                   "Debugger for %1 (x86)").arg(displayName()));
-
-    // Create and register kits
-    createKit(ArmLeV7, armTc, armDebuggerId,
-              QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                          "Kit for %1 (armv7)").arg(displayName()));
-    createKit(X86, x86Tc, x86DebuggerId,
-              QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                          "Kit for %1 (x86)").arg(displayName()));
+    foreach (const Target &target, m_targets)
+        createTools(target);
 
     return true;
 }
@@ -206,25 +166,20 @@ void QnxConfiguration::deactivate()
     if (!isActive())
         return;
 
-    QList<ToolChain *> toolChainsToRemove;
     QList<DebuggerItem> debuggersToRemove;
-    foreach (ToolChain *tc,
-             ToolChainManager::toolChains()) {
-        if (tc->compilerCommand() == qccCompilerPath())
-            toolChainsToRemove.append(tc);
-    }
+    const QList<ToolChain *> toolChainsToRemove
+            = ToolChainManager::toolChains(Utils::equal(&ToolChain::compilerCommand, qccCompilerPath()));
 
     foreach (DebuggerItem debuggerItem,
              DebuggerItemManager::debuggers()) {
-        if (debuggerItem.command() == armDebuggerPath() ||
-                debuggerItem.command() == x86DebuggerPath())
+        if (findTargetByDebuggerPath(debuggerItem.command()))
             debuggersToRemove.append(debuggerItem);
     }
 
     foreach (Kit *kit, KitManager::kits()) {
         if (kit->isAutoDetected()
                 && DeviceTypeKitInformation::deviceTypeId(kit) == Constants::QNX_QNX_OS_TYPE
-                && toolChainsToRemove.contains(ToolChainKitInformation::toolChain(kit)))
+                && toolChainsToRemove.contains(ToolChainKitInformation::toolChain(kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID)))
             KitManager::deregisterKit(kit);
     }
 
@@ -237,29 +192,22 @@ void QnxConfiguration::deactivate()
 
 bool QnxConfiguration::isActive() const
 {
-    bool hasToolChain = false;
-    bool hasDebugger = false;
-    foreach (ToolChain *tc, ToolChainManager::toolChains()) {
-        if (tc->compilerCommand() == qccCompilerPath()) {
-            hasToolChain = true;
-            break;
-        }
-    }
-
-    foreach (DebuggerItem debuggerItem, DebuggerItemManager::debuggers()) {
-        if (debuggerItem.command() == armDebuggerPath() ||
-                debuggerItem.command() == x86DebuggerPath()) {
-            hasDebugger = true;
-            break;
-        }
-    }
+    const bool hasToolChain = ToolChainManager::toolChain(Utils::equal(&ToolChain::compilerCommand,
+                                                                       qccCompilerPath()));
+    const bool hasDebugger = Utils::contains(DebuggerItemManager::debuggers(), [this](const DebuggerItem &di) {
+        return findTargetByDebuggerPath(di.command());
+    });
 
     return hasToolChain && hasDebugger;
 }
 
 bool QnxConfiguration::canCreateKits() const
 {
-    return isValid() && (qnxQtVersion(ArmLeV7) || qnxQtVersion(X86));
+    if (!isValid())
+        return false;
+
+    return Utils::anyOf(m_targets,
+                        [this](const Target &target) -> bool { return qnxQtVersion(target); });
 }
 
 FileName QnxConfiguration::sdpPath() const
@@ -267,54 +215,88 @@ FileName QnxConfiguration::sdpPath() const
     return envFile().parentDir();
 }
 
-QnxQtVersion* QnxConfiguration::qnxQtVersion(QnxArchitecture arch) const
+QnxQtVersion *QnxConfiguration::qnxQtVersion(const Target &target) const
 {
-    QnxQtVersion *qnxQt;
     foreach (BaseQtVersion *version,
-             QtVersionManager::instance()->versions()) {
-        if (version->type() == QLatin1String(Constants::QNX_QNX_QT)) {
-            qnxQt = dynamic_cast<QnxQtVersion*>(version);
-            if (qnxQt && qnxQt->architecture() == arch) {
-                return qnxQt;
+             QtVersionManager::instance()->versions(Utils::equal(&BaseQtVersion::type,
+                                                                         QString::fromLatin1(Constants::QNX_QNX_QT)))) {
+        QnxQtVersion *qnxQt = dynamic_cast<QnxQtVersion *>(version);
+        if (qnxQt && FileName::fromString(qnxQt->sdpPath()) == sdpPath()) {
+            foreach (const Abi &qtAbi, version->qtAbis()) {
+                if ((qtAbi == target.m_abi) && (qnxQt->cpuDir() == target.cpuDir()))
+                    return qnxQt;
             }
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
-QVariant QnxConfiguration::createDebuggerItem(QnxArchitecture arch, const QString &displayName)
+QList<ToolChain *> QnxConfiguration::autoDetect(const QList<ToolChain *> &alreadyKnown)
 {
-    FileName command = (arch == X86) ? x86DebuggerPath() : armDebuggerPath();
+    QList<ToolChain *> result;
+
+    foreach (const Target &target, m_targets)
+        result += findToolChain(alreadyKnown, target.m_abi);
+
+    return result;
+}
+
+void QnxConfiguration::createTools(const Target &target)
+{
+    QnxToolChain *tc = createToolChain(target);
+    QVariant debuggerId = createDebugger(target);
+    createKit(target, tc, debuggerId);
+}
+
+QVariant QnxConfiguration::createDebugger(const Target &target)
+{
     Debugger::DebuggerItem debugger;
-    debugger.setCommand(command);
-    debugger.setEngineType(Debugger::GdbEngineType);
-    debugger.setAbi(Abi(arch == Qnx::ArmLeV7 ? Abi::ArmArchitecture : Abi::X86Architecture,
-                        Abi::LinuxOS, Abi::GenericLinuxFlavor, Abi::ElfFormat, 32));
+    debugger.setCommand(target.m_debuggerPath);
+    debugger.reinitializeFromFile();
     debugger.setAutoDetected(true);
-    debugger.setUnexpandedDisplayName(displayName);
+    debugger.setUnexpandedDisplayName(
+                QCoreApplication::translate(
+                    "Qnx::Internal::QnxConfiguration",
+                    "Debugger for %1 (%2)")
+                .arg(displayName())
+                .arg(target.shortDescription()));
     return Debugger::DebuggerItemManager::registerDebugger(debugger);
 }
 
-QnxToolChain *QnxConfiguration::createToolChain(QnxArchitecture arch, const QString &displayName,
-                                                const QString &ndkPath)
+QnxToolChain *QnxConfiguration::createToolChain(const Target &target)
 {
     QnxToolChain *toolChain = new QnxToolChain(ToolChain::AutoDetection);
-    toolChain->resetToolChain(m_qccCompiler);
-    toolChain->setTargetAbi(Abi((arch == Qnx::ArmLeV7) ? Abi::ArmArchitecture : Abi::X86Architecture,
-                                Abi::LinuxOS, Abi::GenericLinuxFlavor, Abi::ElfFormat, 32));
-    toolChain->setDisplayName(displayName);
-    toolChain->setNdkPath(ndkPath);
+    toolChain->setLanguage(ProjectExplorer::Constants::CXX_LANGUAGE_ID);
+    toolChain->setTargetAbi(target.m_abi);
+    toolChain->setDisplayName(
+                QCoreApplication::translate(
+                    "Qnx::Internal::QnxConfiguration",
+                    "QCC for %1 (%2)")
+                .arg(displayName())
+                .arg(target.shortDescription()));
+    toolChain->setSdpPath(sdpPath().toString());
+    toolChain->resetToolChain(qccCompilerPath());
     ToolChainManager::registerToolChain(toolChain);
     return toolChain;
 }
 
-Kit *QnxConfiguration::createKit(QnxArchitecture arch,
-                                                  QnxToolChain *toolChain,
-                                                  const QVariant &debuggerItemId,
-                                                  const QString &displayName)
+QList<ToolChain *> QnxConfiguration::findToolChain(const QList<ToolChain *> &alreadyKnown,
+                                                   const Abi &abi)
 {
-    QnxQtVersion *qnxQt = qnxQtVersion(arch);
+    return Utils::filtered(alreadyKnown, [this, abi](ToolChain *tc) {
+                                             return tc->typeId() == Constants::QNX_TOOLCHAIN_ID
+                                                 && tc->targetAbi() == abi
+                                                 && tc->compilerCommand() == m_qccCompiler;
+                                         });
+}
+
+ProjectExplorer::Kit *QnxConfiguration::createKit(
+        const Target &target,
+        QnxToolChain *toolChain,
+        const QVariant &debugger)
+{
+    QnxQtVersion *qnxQt = qnxQtVersion(target);
     // Do not create incomplete kits if no qt qnx version found
     if (!qnxQt)
         return 0;
@@ -323,22 +305,20 @@ Kit *QnxConfiguration::createKit(QnxArchitecture arch,
 
     QtKitInformation::setQtVersion(kit, qnxQt);
     ToolChainKitInformation::setToolChain(kit, toolChain);
+    ToolChainKitInformation::clearToolChain(kit, ProjectExplorer::Constants::C_LANGUAGE_ID);
 
-    if (debuggerItemId.isValid())
-        DebuggerKitInformation::setDebugger(kit, debuggerItemId);
-
-    if (arch == X86) {
-        QmakeProjectManager::QmakeKitInformation::setMkspec(
-                    kit, FileName::fromLatin1("qnx-x86-qcc"));
-    } else {
-        QmakeProjectManager::QmakeKitInformation::setMkspec(
-                    kit, FileName::fromLatin1("qnx-armv7le-qcc"));
-    }
+    if (debugger.isValid())
+        DebuggerKitInformation::setDebugger(kit, debugger);
 
     DeviceTypeKitInformation::setDeviceTypeId(kit, Constants::QNX_QNX_OS_TYPE);
     // TODO: Add sysroot?
 
-    kit->setUnexpandedDisplayName(displayName);
+    kit->setUnexpandedDisplayName(
+                QCoreApplication::translate(
+                    "Qnx::Internal::QnxConfiguration",
+                    "Kit for %1 (%2)")
+                .arg(displayName())
+                .arg(target.shortDescription()));
     kit->setIconPath(FileName::fromString(QLatin1String(Constants::QNX_CATEGORY_ICON)));
 
     kit->setAutoDetected(true);
@@ -363,13 +343,9 @@ QStringList QnxConfiguration::validationErrors() const
         errorStrings << QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
                                                     "- No GCC compiler found.");
 
-    if (m_armlev7Debugger.isEmpty())
+    if (m_targets.isEmpty())
         errorStrings << QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                                    "- No GDB debugger found for armvle7.");
-
-    if (m_x86Debugger.isEmpty())
-        errorStrings << QCoreApplication::translate("Qnx::Internal::QnxConfiguration",
-                                                    "- No GDB debugger found for x86.");
+                                                    "- No targets found.");
 
     return errorStrings;
 }
@@ -381,16 +357,19 @@ void QnxConfiguration::setVersion(const QnxVersionNumber &version)
 
 void QnxConfiguration::readInformation()
 {
-    QString qConfigPath = sdpPath().toString() + QLatin1String("/.qnx/qconfig");
+    QString qConfigPath = FileName(m_qnxConfiguration).appendPath("qconfig").toString();
     QList <ConfigInstallInformation> installInfoList = QnxUtils::installedConfigs(qConfigPath);
     if (installInfoList.isEmpty())
         return;
 
-    // TODO: For now (6.6) it should be one installation file. The code need to handle cases
-    // where the SDP support many target/host installations (i.e many installation files).
-    const ConfigInstallInformation installInfo = installInfoList.first();
-    m_configName = installInfo.name;
-    setVersion(QnxVersionNumber(installInfo.version));
+    foreach (const ConfigInstallInformation &info, installInfoList) {
+        if (m_qnxHost == FileName::fromString(info.host)
+                && m_qnxTarget == FileName::fromString(info.target)) {
+            m_configName = info.name;
+            setVersion(QnxVersionNumber(info.version));
+            break;
+        }
+    }
 }
 
 void QnxConfiguration::setDefaultConfiguration(const Utils::FileName &envScript)
@@ -399,33 +378,88 @@ void QnxConfiguration::setDefaultConfiguration(const Utils::FileName &envScript)
     m_envFile = envScript;
     m_qnxEnv = QnxUtils::qnxEnvironmentFromEnvFile(m_envFile.toString());
     foreach (const EnvironmentItem &item, m_qnxEnv) {
-        if (item.name == QLatin1String("QNX_TARGET"))
+        if (item.name == QLatin1String("QNX_CONFIGURATION"))
+            m_qnxConfiguration = FileName::fromString(item.value);
+        else if (item.name == QLatin1String("QNX_TARGET"))
             m_qnxTarget = FileName::fromString(item.value);
-
         else if (item.name == QLatin1String("QNX_HOST"))
             m_qnxHost = FileName::fromString(item.value);
     }
 
     FileName qccPath = FileName::fromString(HostOsInfo::withExecutableSuffix(
                                                 m_qnxHost.toString() + QLatin1String("/usr/bin/qcc")));
-    FileName armlev7GdbPath = FileName::fromString(HostOsInfo::withExecutableSuffix(
-                                                       m_qnxHost.toString() + QLatin1String("/usr/bin/ntoarm-gdb")));
-    if (!armlev7GdbPath.exists()) {
-        armlev7GdbPath = FileName::fromString(HostOsInfo::withExecutableSuffix(
-                                                  m_qnxHost.toString() + QLatin1String("/usr/bin/ntoarmv7-gdb")));
-    }
-
-    FileName x86GdbPath = FileName::fromString(HostOsInfo::withExecutableSuffix(
-                                                   m_qnxHost.toString() + QLatin1String("/usr/bin/ntox86-gdb")));
 
     if (qccPath.exists())
         m_qccCompiler = qccPath;
 
-    if (armlev7GdbPath.exists())
-        m_armlev7Debugger = armlev7GdbPath;
+    updateTargets();
+    assignDebuggersToTargets();
 
-    if (x86GdbPath.exists())
-        m_x86Debugger = x86GdbPath;
+    // Remove debuggerless targets.
+    Utils::erase(m_targets, [](const Target &target) {
+        if (target.m_debuggerPath.isEmpty())
+            qWarning() << "No debugger found for" << target.m_path << "... discarded";
+        return target.m_debuggerPath.isEmpty();
+    });
+}
+
+const QnxConfiguration::Target *QnxConfiguration::findTargetByDebuggerPath(
+        const FileName &path) const
+{
+    auto it = std::find_if(m_targets.begin(), m_targets.end(),
+                           [path](const Target &target) { return target.m_debuggerPath == path; });
+    return it == m_targets.end() ? nullptr : &(*it);
+}
+
+void QnxConfiguration::updateTargets()
+{
+    m_targets.clear();
+    QList<QnxTarget> targets = QnxUtils::findTargets(m_qnxTarget);
+    for (const auto &target : targets)
+        m_targets.append(Target(target.m_abi, target.m_path));
+}
+
+void QnxConfiguration::assignDebuggersToTargets()
+{
+    QDir hostUsrBinDir(FileName(m_qnxHost).appendPath("usr/bin").toString());
+    QStringList debuggerNames = hostUsrBinDir.entryList(
+                QStringList(HostOsInfo::withExecutableSuffix(QLatin1String("nto*-gdb"))),
+                QDir::Files);
+    foreach (const QString &debuggerName, debuggerNames) {
+        FileName debuggerPath = FileName::fromString(hostUsrBinDir.path())
+                .appendPath(debuggerName);
+        DebuggerItem item;
+        item.setCommand(debuggerPath);
+        item.reinitializeFromFile();
+        bool found = false;
+        foreach (const Abi &abi, item.abis()) {
+            for (Target &target : m_targets) {
+                if (target.m_abi.isCompatibleWith(abi)) {
+                    found = true;
+
+                    if (target.m_debuggerPath.isEmpty()) {
+                        target.m_debuggerPath = debuggerPath;
+                    } else {
+                        qWarning() << debuggerPath << "has the same ABI as" << target.m_debuggerPath
+                                   << "... discarded";
+                        break;
+                    }
+                }
+            }
+        }
+        if (!found)
+            qWarning() << "No target found for" << debuggerName << "... discarded";
+    }
+}
+
+QString QnxConfiguration::Target::shortDescription() const
+{
+    return QnxUtils::cpuDirShortDescription(cpuDir());
+}
+
+QString QnxConfiguration::Target::cpuDir() const
+{
+    return m_path.fileName();
 }
 
 } // namespace Internal

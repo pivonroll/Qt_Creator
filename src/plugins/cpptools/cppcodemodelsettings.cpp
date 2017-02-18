@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,44 +9,98 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cppcodemodelsettings.h"
-#include "cppmodelmanagersupport.h"
+
+#include "clangdiagnosticconfigsmodel.h"
 #include "cpptoolsconstants.h"
+
+#include <utils/qtcassert.h>
+
+#include <QSettings>
 
 using namespace CppTools;
 
-static QLatin1String cppHeaderMimeType(Constants::CPP_HEADER_MIMETYPE);
-static QLatin1String cHeaderMimeType(Constants::C_HEADER_MIMETYPE);
+static Core::Id initialClangDiagnosticConfigId()
+{ return Core::Id(Constants::CPP_CLANG_BUILTIN_CONFIG_ID_EVERYTHING_WITH_EXCEPTIONS); }
+
+static CppCodeModelSettings::PCHUsage initialPchUsage()
+{ return CppCodeModelSettings::PchUse_None; }
+
+static QString clangDiagnosticConfigKey()
+{ return QStringLiteral("ClangDiagnosticConfig"); }
+
+static QString clangDiagnosticConfigsArrayKey()
+{ return QStringLiteral("ClangDiagnosticConfigs"); }
+
+static QString clangDiagnosticConfigsArrayIdKey()
+{ return QLatin1String("id"); }
+
+static QString clangDiagnosticConfigsArrayDisplayNameKey()
+{ return QLatin1String("displayName"); }
+
+static QString clangDiagnosticConfigsArrayOptionsKey()
+{ return QLatin1String("diagnosticOptions"); }
+
+static QString pchUsageKey()
+{ return QLatin1String(Constants::CPPTOOLS_MODEL_MANAGER_PCH_USAGE); }
+
+static QString interpretAmbiguousHeadersAsCHeadersKey()
+{ return QLatin1String(Constants::CPPTOOLS_INTERPRET_AMBIGIUOUS_HEADERS_AS_C_HEADERS); }
+
+static QString skipIndexingBigFilesKey()
+{ return QLatin1String(Constants::CPPTOOLS_SKIP_INDEXING_BIG_FILES); }
+
+static QString indexerFileSizeLimitKey()
+{ return QLatin1String(Constants::CPPTOOLS_INDEXER_FILE_SIZE_LIMIT); }
 
 void CppCodeModelSettings::fromSettings(QSettings *s)
 {
     s->beginGroup(QLatin1String(Constants::CPPTOOLS_SETTINGSGROUP));
-    QVariant supporters = s->value(QLatin1String(Constants::CPPTOOLS_MODEL_MANAGER_SUPPORTERS_KEY));
 
-    foreach (const QString &mimeType, supportedMimeTypes())
-        setIdForMimeType(supporters, mimeType);
+    const int size = s->beginReadArray(clangDiagnosticConfigsArrayKey());
+    for (int i = 0; i < size; ++i) {
+        s->setArrayIndex(i);
 
-    QVariant v = s->value(QLatin1String(Constants::CPPTOOLS_MODEL_MANAGER_PCH_USAGE), PchUse_None);
-    setPCHUsage(static_cast<PCHUsage>(v.toInt()));
+        ClangDiagnosticConfig config;
+        config.setId(Core::Id::fromSetting(s->value(clangDiagnosticConfigsArrayIdKey())));
+        config.setDisplayName(s->value(clangDiagnosticConfigsArrayDisplayNameKey()).toString());
+        config.setCommandLineOptions(s->value(clangDiagnosticConfigsArrayOptionsKey()).toStringList());
+        m_clangCustomDiagnosticConfigs.append(config);
+    }
+    s->endArray();
+
+    const Core::Id diagnosticConfigId = Core::Id::fromSetting(
+                                            s->value(clangDiagnosticConfigKey(),
+                                                     initialClangDiagnosticConfigId().toSetting()));
+    setClangDiagnosticConfigId(diagnosticConfigId);
+
+    const QVariant pchUsageVariant = s->value(pchUsageKey(), initialPchUsage());
+    setPCHUsage(static_cast<PCHUsage>(pchUsageVariant.toInt()));
+
+    const QVariant interpretAmbiguousHeadersAsCHeaders
+            = s->value(interpretAmbiguousHeadersAsCHeadersKey(), false);
+    setInterpretAmbigiousHeadersAsCHeaders(interpretAmbiguousHeadersAsCHeaders.toBool());
+
+    const QVariant skipIndexingBigFiles = s->value(skipIndexingBigFilesKey(), true);
+    setSkipIndexingBigFiles(skipIndexingBigFiles.toBool());
+
+    const QVariant indexerFileSizeLimit = s->value(indexerFileSizeLimitKey(), 5);
+    setIndexerFileSizeLimitInMb(indexerFileSizeLimit.toInt());
+
     s->endGroup();
 
     emit changed();
@@ -55,25 +109,65 @@ void CppCodeModelSettings::fromSettings(QSettings *s)
 void CppCodeModelSettings::toSettings(QSettings *s)
 {
     s->beginGroup(QLatin1String(Constants::CPPTOOLS_SETTINGSGROUP));
-    QHash<QString, QVariant> var;
-    foreach (const QString &mimeType, m_modelManagerSupportByMimeType.keys())
-        var[mimeType] = m_modelManagerSupportByMimeType[mimeType];
-    s->setValue(QLatin1String(Constants::CPPTOOLS_MODEL_MANAGER_SUPPORTERS_KEY), QVariant(var));
-    s->setValue(QLatin1String(Constants::CPPTOOLS_MODEL_MANAGER_PCH_USAGE), pchUsage());
+
+    s->beginWriteArray(clangDiagnosticConfigsArrayKey());
+    for (int i = 0, size = m_clangCustomDiagnosticConfigs.size(); i < size; ++i) {
+        const ClangDiagnosticConfig &config = m_clangCustomDiagnosticConfigs.at(i);
+
+        s->setArrayIndex(i);
+        s->setValue(clangDiagnosticConfigsArrayIdKey(), config.id().toSetting());
+        s->setValue(clangDiagnosticConfigsArrayDisplayNameKey(), config.displayName());
+        s->setValue(clangDiagnosticConfigsArrayOptionsKey(), config.commandLineOptions());
+    }
+    s->endArray();
+
+    s->setValue(clangDiagnosticConfigKey(), clangDiagnosticConfigId().toSetting());
+    s->setValue(pchUsageKey(), pchUsage());
+
+    s->setValue(interpretAmbiguousHeadersAsCHeadersKey(), interpretAmbigiousHeadersAsCHeaders());
+    s->setValue(skipIndexingBigFilesKey(), skipIndexingBigFiles());
+    s->setValue(indexerFileSizeLimitKey(), indexerFileSizeLimitInMb());
+
     s->endGroup();
 
     emit changed();
 }
 
-QStringList CppCodeModelSettings::supportedMimeTypes()
+Core::Id CppCodeModelSettings::clangDiagnosticConfigId() const
 {
-    return QStringList({
-        QLatin1String(Constants::C_SOURCE_MIMETYPE),
-        QLatin1String(Constants::CPP_SOURCE_MIMETYPE),
-        QLatin1String(Constants::OBJECTIVE_C_SOURCE_MIMETYPE),
-        QLatin1String(Constants::OBJECTIVE_CPP_SOURCE_MIMETYPE),
-        QLatin1String(Constants::CPP_HEADER_MIMETYPE)
-    });
+    return m_clangDiagnosticConfigId;
+}
+
+void CppCodeModelSettings::setClangDiagnosticConfigId(const Core::Id &configId)
+{
+    m_clangDiagnosticConfigId = configId;
+}
+
+const ClangDiagnosticConfig CppCodeModelSettings::clangDiagnosticConfig() const
+{
+    const ClangDiagnosticConfigsModel configsModel(m_clangCustomDiagnosticConfigs);
+
+    return configsModel.configWithId(clangDiagnosticConfigId());
+}
+
+ClangDiagnosticConfigs CppCodeModelSettings::clangCustomDiagnosticConfigs() const
+{
+    return m_clangCustomDiagnosticConfigs;
+}
+
+void CppCodeModelSettings::setClangCustomDiagnosticConfigs(const ClangDiagnosticConfigs &configs)
+{
+    m_clangCustomDiagnosticConfigs = configs;
+}
+
+CppCodeModelSettings::PCHUsage CppCodeModelSettings::pchUsage() const
+{
+    return m_pchUsage;
+}
+
+void CppCodeModelSettings::setPCHUsage(CppCodeModelSettings::PCHUsage pchUsage)
+{
+    m_pchUsage = pchUsage;
 }
 
 void CppCodeModelSettings::emitChanged()
@@ -81,43 +175,32 @@ void CppCodeModelSettings::emitChanged()
     emit changed();
 }
 
-void CppCodeModelSettings::setModelManagerSupportProviders(
-        const QList<ModelManagerSupportProvider *> &providers)
+bool CppCodeModelSettings::interpretAmbigiousHeadersAsCHeaders() const
 {
-    m_modelManagerSupportsByName.clear();
-    foreach (ModelManagerSupportProvider *provider, providers)
-        m_modelManagerSupportsByName[provider->displayName()] = provider->id();
+    return m_interpretAmbigiousHeadersAsCHeaders;
 }
 
-QString CppCodeModelSettings::modelManagerSupportIdForMimeType(const QString &mimeType) const
+void CppCodeModelSettings::setInterpretAmbigiousHeadersAsCHeaders(bool yesno)
 {
-    if (mimeType == cHeaderMimeType)
-        return m_modelManagerSupportByMimeType.value(cppHeaderMimeType);
-    else
-        return m_modelManagerSupportByMimeType.value(mimeType);
+    m_interpretAmbigiousHeadersAsCHeaders = yesno;
 }
 
-void CppCodeModelSettings::setModelManagerSupportIdForMimeType(const QString &mimeType,
-                                                               const QString &id)
+bool CppCodeModelSettings::skipIndexingBigFiles() const
 {
-    QString theMimeType = mimeType;
-    if (theMimeType == cHeaderMimeType)
-        theMimeType = cppHeaderMimeType;
-
-    m_modelManagerSupportByMimeType.insert(theMimeType, id);
+    return m_skipIndexingBigFiles;
 }
 
-bool CppCodeModelSettings::hasModelManagerSupportIdForMimeType(const QString &mimeType,
-                                                               const QString &id) const
+void CppCodeModelSettings::setSkipIndexingBigFiles(bool yesno)
 {
-    if (mimeType == cHeaderMimeType)
-        return m_modelManagerSupportByMimeType.value(cppHeaderMimeType) == id;
-    else
-        return m_modelManagerSupportByMimeType.value(mimeType) == id;
+    m_skipIndexingBigFiles = yesno;
 }
 
-void CppCodeModelSettings::setIdForMimeType(const QVariant &var, const QString &mimeType)
+int CppCodeModelSettings::indexerFileSizeLimitInMb() const
 {
-    QHash<QString, QVariant> mimeToId = var.toHash();
-    m_modelManagerSupportByMimeType[mimeType] = mimeToId.value(mimeType, defaultId()).toString();
+    return m_indexerFileSizeLimitInMB;
+}
+
+void CppCodeModelSettings::setIndexerFileSizeLimitInMb(int sizeInMB)
+{
+    m_indexerFileSizeLimitInMB = sizeInMB;
 }

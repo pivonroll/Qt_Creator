@@ -1,21 +1,38 @@
-dll {
-    DEFINES += QTCREATOR_UTILS_LIB
+shared {
+    DEFINES += UTILS_LIBRARY
 } else {
     DEFINES += QTCREATOR_UTILS_STATIC_LIB
 }
 
-QT += network
+!win32:{
+    isEmpty(IDE_LIBEXEC_PATH) | isEmpty(IDE_BIN_PATH): {
+        warning("using utils-lib.pri without IDE_LIBEXEC_PATH or IDE_BIN_PATH results in empty QTC_REL_TOOLS_PATH")
+        DEFINES += QTC_REL_TOOLS_PATH=$$shell_quote(\"\")
+    } else {
+        DEFINES += QTC_REL_TOOLS_PATH=$$shell_quote(\"$$relative_path($$IDE_LIBEXEC_PATH, $$IDE_BIN_PATH)\")
+    }
+}
+
+QT += widgets gui network qml
 
 CONFIG += exceptions # used by portlist.cpp, textfileformat.cpp, and ssh/*
 
+win32: LIBS += -luser32 -lshell32
+# PortsGatherer
+win32: LIBS += -liphlpapi -lws2_32
+
 SOURCES += $$PWD/environment.cpp \
     $$PWD/environmentmodel.cpp \
+    $$PWD/environmentdialog.cpp \
     $$PWD/qtcprocess.cpp \
     $$PWD/reloadpromptutils.cpp \
     $$PWD/shellcommand.cpp \
     $$PWD/shellcommandpage.cpp \
     $$PWD/settingsselector.cpp \
     $$PWD/stringutils.cpp \
+    $$PWD/templateengine.cpp \
+    $$PWD/temporarydirectory.cpp \
+    $$PWD/temporaryfile.cpp \
     $$PWD/textfieldcheckbox.cpp \
     $$PWD/textfieldcombobox.cpp \
     $$PWD/filesearch.cpp \
@@ -65,9 +82,8 @@ SOURCES += $$PWD/environment.cpp \
     $$PWD/completingtextedit.cpp \
     $$PWD/json.cpp \
     $$PWD/portlist.cpp \
-    $$PWD/tcpportsgatherer.cpp \
+    $$PWD/processhandle.cpp \
     $$PWD/appmainwindow.cpp \
-    $$PWD/sleep.cpp \
     $$PWD/basetreeview.cpp \
     $$PWD/qtcassert.cpp \
     $$PWD/elfreader.cpp \
@@ -92,7 +108,12 @@ SOURCES += $$PWD/environment.cpp \
     $$PWD/fadingindicator.cpp \
     $$PWD/overridecursor.cpp \
     $$PWD/categorysortfiltermodel.cpp \
-    $$PWD/dropsupport.cpp
+    $$PWD/dropsupport.cpp \
+    $$PWD/icon.cpp \
+    $$PWD/port.cpp \
+    $$PWD/runextensions.cpp \
+    $$PWD/utilsicons.cpp \
+    $$PWD/guard.cpp
 
 win32:SOURCES += $$PWD/consoleprocess_win.cpp
 else:SOURCES += $$PWD/consoleprocess_unix.cpp
@@ -100,6 +121,7 @@ else:SOURCES += $$PWD/consoleprocess_unix.cpp
 HEADERS += \
     $$PWD/environment.h \
     $$PWD/environmentmodel.h \
+    $$PWD/environmentdialog.h \
     $$PWD/qtcprocess.h \
     $$PWD/utils_global.h \
     $$PWD/reloadpromptutils.h \
@@ -107,6 +129,9 @@ HEADERS += \
     $$PWD/shellcommand.h \
     $$PWD/shellcommandpage.h \
     $$PWD/stringutils.h \
+    $$PWD/templateengine.h \
+    $$PWD/temporarydirectory.h \
+    $$PWD/temporaryfile.h \
     $$PWD/textfieldcheckbox.h \
     $$PWD/textfieldcombobox.h \
     $$PWD/filesearch.h \
@@ -159,12 +184,10 @@ HEADERS += \
     $$PWD/persistentsettings.h \
     $$PWD/completingtextedit.h \
     $$PWD/json.h \
-    $$PWD/multitask.h \
     $$PWD/runextensions.h \
     $$PWD/portlist.h \
-    $$PWD/tcpportsgatherer.h \
+    $$PWD/processhandle.h \
     $$PWD/appmainwindow.h \
-    $$PWD/sleep.h \
     $$PWD/basetreeview.h \
     $$PWD/elfreader.h \
     $$PWD/bracematcher.h \
@@ -196,7 +219,24 @@ HEADERS += \
     $$PWD/executeondestruction.h \
     $$PWD/overridecursor.h \
     $$PWD/categorysortfiltermodel.h \
-    $$PWD/dropsupport.h
+    $$PWD/dropsupport.h \
+    $$PWD/utilsicons.h \
+    $$PWD/icon.h \
+    $$PWD/port.h \
+    $$PWD/functiontraits.h \
+    $$PWD/mapreduce.h \
+    $$PWD/declarationmacros.h \
+    $$PWD/smallstring.h \
+    $$PWD/smallstringiterator.h \
+    $$PWD/smallstringliteral.h \
+    $$PWD/smallstringmemory.h \
+    $$PWD/smallstringvector.h \
+    $$PWD/smallstringlayout.h \
+    $$PWD/sizedarray.h \
+    $$PWD/smallstringio.h \
+    $$PWD/guard.h \
+    $$PWD/asconst.h \
+    $$PWD/smallstringfwd.h
 
 FORMS += $$PWD/filewizardpage.ui \
     $$PWD/projectintropage.ui \
@@ -206,7 +246,7 @@ FORMS += $$PWD/filewizardpage.ui \
 RESOURCES += $$PWD/utils.qrc
 
 osx {
-    HEADERS += $$PWD/autoreleasepool.h \
+    HEADERS += \
         $$PWD/fileutils_mac.h
     OBJECTIVE_SOURCES += \
         $$PWD/fileutils_mac.mm

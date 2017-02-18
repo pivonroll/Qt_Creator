@@ -1,7 +1,6 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BlackBerry Limited. All rights reserved.
-**
+** Copyright (C) 2016 BlackBerry Limited. All rights reserved.
 ** Contact: BlackBerry (qt@blackberry.com)
 **
 ** This file is part of Qt Creator.
@@ -10,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QNXCONFIGURATION_H
-#define QNXCONFIGURATION_H
+#pragma once
 
 #include "qnxconstants.h"
 #include "qnxutils.h"
@@ -45,7 +38,11 @@
 
 #include <QVariant>
 
-namespace ProjectExplorer { class Kit; }
+namespace ProjectExplorer
+{
+    class Kit;
+    class ToolChain;
+}
 
 namespace Qnx {
 namespace Internal {
@@ -64,8 +61,6 @@ public:
     Utils::FileName qnxTarget() const;
     Utils::FileName qnxHost() const;
     Utils::FileName qccCompilerPath() const;
-    Utils::FileName armDebuggerPath() const;
-    Utils::FileName x86DebuggerPath() const;
     QList<Utils::EnvironmentItem> qnxEnv() const;
     QnxVersionNumber version() const;
     QVariantMap toMap() const;
@@ -78,19 +73,14 @@ public:
     bool isActive() const;
     bool canCreateKits() const;
     Utils::FileName sdpPath() const;
-    QnxQtVersion* qnxQtVersion(QnxArchitecture arch) const;
+
+    QList<ProjectExplorer::ToolChain *> autoDetect(
+            const QList<ProjectExplorer::ToolChain *> &alreadyKnown);
 
 private:
-    QVariant createDebuggerItem(Qnx::QnxArchitecture arch,
-                                             const QString &displayName);
-    QnxToolChain* createToolChain(Qnx::QnxArchitecture arch,
-                                 const QString &displayName,
-                                 const QString &ndkPath);
-
-    ProjectExplorer::Kit *createKit(QnxArchitecture arch,
-                                    QnxToolChain *toolChain,
-                                    const QVariant &debuggerItemId,
-                                    const QString &displayName);
+    QList<ProjectExplorer::ToolChain *> findToolChain(
+            const QList<ProjectExplorer::ToolChain *> &alreadyKnown,
+            const ProjectExplorer::Abi &abi);
 
     QStringList validationErrors() const;
 
@@ -103,16 +93,45 @@ private:
     QString m_configName;
 
     Utils::FileName m_envFile;
+    Utils::FileName m_qnxConfiguration;
     Utils::FileName m_qnxTarget;
     Utils::FileName m_qnxHost;
     Utils::FileName m_qccCompiler;
-    Utils::FileName m_armlev7Debugger;
-    Utils::FileName m_x86Debugger;
     QList<Utils::EnvironmentItem> m_qnxEnv;
     QnxVersionNumber m_version;
+
+    class Target
+    {
+    public:
+        Target(const ProjectExplorer::Abi &abi, const Utils::FileName &path)
+            : m_abi(abi), m_path(path)
+        {
+        }
+
+        QString shortDescription() const;
+        QString cpuDir() const;
+
+        ProjectExplorer::Abi m_abi;
+        Utils::FileName m_path;
+        Utils::FileName m_debuggerPath;
+    };
+
+    QList<Target> m_targets;
+
+    QnxQtVersion *qnxQtVersion(const Target &target) const;
+
+    void createTools(const Target &target);
+    QVariant createDebugger(const Target &target);
+    QnxToolChain *createToolChain(const Target &target);
+    ProjectExplorer::Kit *createKit(const Target &target,
+                                    QnxToolChain *toolChain,
+                                    const QVariant &debugger);
+
+    const Target *findTargetByDebuggerPath(const Utils::FileName &path) const;
+
+    void updateTargets();
+    void assignDebuggersToTargets();
 };
 
 } // Internal
 } // Qnx
-
-#endif // QNXCONFIGURATION_H

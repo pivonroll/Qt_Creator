@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +34,7 @@
 #include <model.h>
 #include <modelnode.h>
 #include <metainfo.h>
+#include <rewriterview.h>
 
 #include "abstractproperty.h"
 #include "variantproperty.h"
@@ -103,7 +104,6 @@ NodeInstanceView::NodeInstanceView(QObject *parent, NodeInstanceServerInterface:
         : AbstractView(parent),
           m_baseStatePreviewImage(QSize(100, 100), QImage::Format_ARGB32),
           m_runModus(runModus),
-          m_currentKit(0),
           m_restartProcessTimerId(0)
 {
     m_baseStatePreviewImage.fill(0xFFFFFF);
@@ -124,7 +124,7 @@ NodeInstanceView::~NodeInstanceView()
 
 bool isSkippedRootNode(const ModelNode &node)
 {
-    static QStringList skipList =  QStringList() << "Qt.ListModel" << "QtQuick.ListModel" << "Qt.ListModel" << "QtQuick.ListModel";
+    static const PropertyNameList skipList({"Qt.ListModel", "QtQuick.ListModel", "Qt.ListModel", "QtQuick.ListModel"});
 
     if (skipList.contains(node.type()))
         return true;
@@ -135,7 +135,7 @@ bool isSkippedRootNode(const ModelNode &node)
 
 bool isSkippedNode(const ModelNode &node)
 {
-    static QStringList skipList =  QStringList() << "QtQuick.XmlRole" << "Qt.XmlRole" << "QtQuick.ListElement" << "Qt.ListElement";
+    static const PropertyNameList skipList({"QtQuick.XmlRole", "Qt.XmlRole", "QtQuick.ListElement", "Qt.ListElement"});
 
     if (skipList.contains(node.type()))
         return true;
@@ -151,9 +151,9 @@ bool isSkippedNode(const ModelNode &node)
 void NodeInstanceView::modelAttached(Model *model)
 {
     AbstractView::modelAttached(model);
-    m_nodeInstanceServer = new NodeInstanceServerProxy(this, m_runModus, m_currentKit);
+    m_nodeInstanceServer = new NodeInstanceServerProxy(this, m_runModus, m_currentKit, m_currentProject);
     m_lastCrashTime.start();
-    connect(m_nodeInstanceServer.data(), SIGNAL(processCrashed()), this, SLOT(handleChrash()));
+    connect(m_nodeInstanceServer.data(), SIGNAL(processCrashed()), this, SLOT(handleCrash()));
 
     if (!isSkippedRootNode(rootModelNode()))
         nodeInstanceServer()->createScene(createCreateSceneCommand());
@@ -169,8 +169,10 @@ void NodeInstanceView::modelAttached(Model *model)
 void NodeInstanceView::modelAboutToBeDetached(Model * model)
 {
     removeAllInstanceNodeRelationships();
-    nodeInstanceServer()->clearScene(createClearSceneCommand());
-    delete nodeInstanceServer();
+    if (nodeInstanceServer()) {
+        nodeInstanceServer()->clearScene(createClearSceneCommand());
+        delete nodeInstanceServer();
+    }
     m_statePreviewImage.clear();
     m_baseStatePreviewImage = QImage();
     removeAllInstanceNodeRelationships();
@@ -179,19 +181,20 @@ void NodeInstanceView::modelAboutToBeDetached(Model * model)
     AbstractView::modelAboutToBeDetached(model);
 }
 
-void NodeInstanceView::handleChrash()
+void NodeInstanceView::handleCrash()
 {
     int elaspsedTimeSinceLastCrash = m_lastCrashTime.restart();
-
-    if (elaspsedTimeSinceLastCrash > 2000)
+    int forceRestartTime = 2000;
+#ifdef QT_DEBUG
+    forceRestartTime = 4000;
+#endif
+    if (elaspsedTimeSinceLastCrash > forceRestartTime)
         restartProcess();
     else
-        emit qmlPuppetCrashed();
+        emitDocumentMessage(tr("Qt Quick emulation layer crashed."));
 
     emitCustomNotification(QStringLiteral("puppet crashed"));
 }
-
-
 
 void NodeInstanceView::restartProcess()
 {
@@ -201,8 +204,8 @@ void NodeInstanceView::restartProcess()
     if (model()) {
         delete nodeInstanceServer();
 
-        m_nodeInstanceServer = new NodeInstanceServerProxy(this, m_runModus, m_currentKit);
-        connect(m_nodeInstanceServer.data(), SIGNAL(processCrashed()), this, SLOT(handleChrash()));
+        m_nodeInstanceServer = new NodeInstanceServerProxy(this, m_runModus, m_currentKit, m_currentProject);
+        connect(m_nodeInstanceServer.data(), SIGNAL(processCrashed()), this, SLOT(handleCrash()));
 
         if (!isSkippedRootNode(rootModelNode()))
             nodeInstanceServer()->createScene(createCreateSceneCommand());
@@ -316,7 +319,7 @@ void NodeInstanceView::propertiesAboutToBeRemoved(const QList<AbstractProperty>&
     nodeInstanceServer()->removeProperties(createRemovePropertiesCommand(nonNodePropertyList));
 
     foreach (const AbstractProperty &property, propertyList) {
-        const QString &name = property.name();
+        const PropertyName &name = property.name();
         if (name == "anchors.fill") {
             resetHorizontalAnchors(property.parentModelNode());
             resetVerticalAnchors(property.parentModelNode());
@@ -356,6 +359,11 @@ void NodeInstanceView::removeInstanceAndSubInstances(const ModelNode &node)
 }
 
 void NodeInstanceView::rootNodeTypeChanged(const QString &/*type*/, int /*majorVersion*/, int /*minorVersion*/)
+{
+    restartProcess();
+}
+
+void NodeInstanceView::nodeTypeChanged(const ModelNode &, const TypeName &, int, int)
 {
     restartProcess();
 }
@@ -781,7 +789,7 @@ CreateSceneCommand NodeInstanceView::createCreateSceneCommand()
         InstanceContainer::NodeSourceType nodeSourceType = static_cast<InstanceContainer::NodeSourceType>(instance.modelNode().nodeSourceType());
 
         InstanceContainer::NodeMetaType nodeMetaType = InstanceContainer::ObjectMetaType;
-        if (instance.modelNode().metaInfo().isSubclassOf("QtQuick.Item", -1, -1))
+        if (instance.modelNode().metaInfo().isSubclassOf("QtQuick.Item"))
             nodeMetaType = InstanceContainer::ItemMetaType;
 
         InstanceContainer container(instance.instanceId(),
@@ -839,6 +847,44 @@ CreateSceneCommand NodeInstanceView::createCreateSceneCommand()
     foreach (const Import &import, model()->imports())
         importVector.append(AddImportContainer(import.url(), import.file(), import.version(), import.alias(), import.importPaths()));
 
+    QVector<MockupTypeContainer> mockupTypesVector;
+
+    for (const CppTypeData &cppTypeData : model()->rewriterView()->getCppTypes()) {
+        const QString versionString = cppTypeData.versionString;
+        int majorVersion = -1;
+        int minorVersion = -1;
+
+        if (versionString.contains(QStringLiteral("."))) {
+            const QStringList splittedString = versionString.split(QStringLiteral("."));
+            majorVersion = splittedString.first().toInt();
+            minorVersion = splittedString.last().toInt();
+        }
+
+        bool isItem = false;
+
+        if (!cppTypeData.isSingleton) { /* Singletons only appear on the right hand sides of bindings and create just warnings. */
+            const TypeName typeName = cppTypeData.typeName.toUtf8();
+            const QString uri = cppTypeData.importUrl;
+
+            NodeMetaInfo metaInfo = model()->metaInfo(uri.toUtf8() + "." + typeName);
+
+            if (metaInfo.isValid())
+                isItem = metaInfo.isGraphicalItem();
+
+            MockupTypeContainer mockupType(typeName, uri, majorVersion, minorVersion, isItem);
+
+            mockupTypesVector.append(mockupType);
+        } else { /* We need a type for the signleton import */
+            const TypeName typeName = cppTypeData.typeName.toUtf8() + "Mockup";
+            const QString uri = cppTypeData.importUrl;
+
+            MockupTypeContainer mockupType(typeName, uri, majorVersion, minorVersion, isItem);
+
+            mockupTypesVector.append(mockupType);
+        }
+    }
+
+
     return CreateSceneCommand(instanceContainerList,
                               reparentContainerList,
                               idContainerList,
@@ -846,6 +892,7 @@ CreateSceneCommand NodeInstanceView::createCreateSceneCommand()
                               bindingContainerList,
                               auxiliaryContainerVector,
                               importVector,
+                              mockupTypesVector,
                               model()->fileUrl());
 }
 
@@ -883,7 +930,7 @@ CreateInstancesCommand NodeInstanceView::createCreateInstancesCommand(const QLis
         InstanceContainer::NodeSourceType nodeSourceType = static_cast<InstanceContainer::NodeSourceType>(instance.modelNode().nodeSourceType());
 
         InstanceContainer::NodeMetaType nodeMetaType = InstanceContainer::ObjectMetaType;
-        if (instance.modelNode().metaInfo().isSubclassOf("QtQuick.Item", -1, -1))
+        if (instance.modelNode().metaInfo().isSubclassOf("QtQuick.Item"))
             nodeMetaType = InstanceContainer::ItemMetaType;
 
         InstanceContainer container(instance.instanceId(), instance.modelNode().type(), instance.modelNode().majorVersion(), instance.modelNode().minorVersion(),
@@ -1131,6 +1178,14 @@ void NodeInstanceView::setKit(ProjectExplorer::Kit *newKit)
     }
 }
 
+void NodeInstanceView::setProject(ProjectExplorer::Project *project)
+{
+    if (m_currentProject != project) {
+        m_currentProject = project;
+        restartProcess();
+    }
+}
+
 void NodeInstanceView::statePreviewImagesChanged(const StatePreviewImageChangedCommand &command)
 {
     if (!model())
@@ -1182,10 +1237,9 @@ void NodeInstanceView::childrenChanged(const ChildrenChangedCommand &command)
     foreach (qint32 instanceId, command.childrenInstances()) {
         if (hasInstanceForId(instanceId)) {
             NodeInstance instance = instanceForId(instanceId);
-            if (!instance.directUpdates()) {
+            if (instance.parentId() == -1 || !instance.directUpdates())
                 instance.setParentId(command.parentInstanceId());
-                childNodeVector.append(instance.modelNode());
-            }
+            childNodeVector.append(instance.modelNode());
         }
     }
 
@@ -1210,14 +1264,14 @@ void NodeInstanceView::token(const TokenCommand &command)
             nodeVector.append(modelNodeForInternalId(instanceId));
     }
 
-
     emitInstanceToken(command.tokenName(), command.tokenNumber(), nodeVector);
 }
 
 void NodeInstanceView::debugOutput(const DebugOutputCommand & command)
 {
+    DocumentMessage error(tr("Qt Quick emulation layer crashed."));
     if (command.instanceIds().isEmpty()) {
-        qmlPuppetError(command.text()); // TODO: connect that somewhere to show that to the user
+        emitDocumentMessage(command.text());
     } else {
         QVector<qint32> instanceIdsWithChangedErrors;
         foreach (qint32 instanceId, command.instanceIds()) {
@@ -1226,7 +1280,7 @@ void NodeInstanceView::debugOutput(const DebugOutputCommand & command)
                 if (instance.setError(command.text()))
                     instanceIdsWithChangedErrors.append(instanceId);
             } else {
-                qmlPuppetError(command.text()); // TODO: connect that somewhere to show that to the user
+                emitDocumentMessage(command.text());
             }
         }
         emitInstanceErrorChange(instanceIdsWithChangedErrors);

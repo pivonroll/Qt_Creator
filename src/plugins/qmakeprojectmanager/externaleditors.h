@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,30 +9,25 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef EXTERNALEDITORS_H
-#define EXTERNALEDITORS_H
+#pragma once
 
 #include <coreplugin/editormanager/iexternaleditor.h>
 #include <coreplugin/id.h>
+#include <functional>
 
 #include <QStringList>
 #include <QMap>
@@ -40,7 +35,6 @@
 QT_BEGIN_NAMESPACE
 class QProcess;
 class QTcpSocket;
-class QSignalMapper;
 QT_END_NAMESPACE
 
 namespace QtSupport { class BaseQtVersion; }
@@ -59,64 +53,46 @@ class ExternalQtEditor : public Core::IExternalEditor
     Q_OBJECT
 
 public:
-    virtual QStringList mimeTypes() const;
-    virtual Core::Id id() const;
-    virtual QString displayName() const;
-
-protected:
     // Member function pointer for a QtVersion function return a string (command)
-    typedef QString (QtSupport::BaseQtVersion::*QtVersionCommandAccessor)() const;
+    using CommandForQtVersion = std::function<QString(const QtSupport::BaseQtVersion *)>;
+
+    static ExternalQtEditor *createLinguistEditor();
+    static ExternalQtEditor *createDesignerEditor();
+
+    QStringList mimeTypes() const override;
+    Core::Id id() const override;
+    QString displayName() const override;
+
+    bool startEditor(const QString &fileName, QString *errorMessage) override;
 
     // Data required to launch the editor
-    struct EditorLaunchData {
+    struct LaunchData {
         QString binary;
         QStringList arguments;
         QString workingDirectory;
     };
 
-    explicit ExternalQtEditor(Core::Id id,
-                              const QString &displayName,
-                              const QString &mimetype,
-                              QObject *parent = 0);
+protected:
+    ExternalQtEditor(Core::Id id,
+                     const QString &displayName,
+                     const QString &mimetype,
+                     const CommandForQtVersion &commandForQtVersion);
 
     // Try to retrieve the binary of the editor from the Qt version,
     // prepare arguments accordingly (Mac "open" if desired)
     bool getEditorLaunchData(const QString &fileName,
-                             QtVersionCommandAccessor commandAccessor,
-                             const QString &fallbackBinary,
-                             const QStringList &additionalArguments,
-                             bool useMacOpenCommand,
-                             EditorLaunchData *data,
+                             LaunchData *data,
                              QString *errorMessage) const;
 
     // Create and start a detached GUI process executing in the background.
     // Set the project environment if there is one.
-    bool startEditorProcess(const EditorLaunchData &data, QString *errorMessage);
+    bool startEditorProcess(const LaunchData &data, QString *errorMessage);
 
 private:
     const QStringList m_mimeTypes;
     const Core::Id m_id;
     const QString m_displayName;
-};
-
-// Qt Linguist
-class LinguistExternalEditor : public ExternalQtEditor
-{
-    Q_OBJECT
-public:
-    explicit LinguistExternalEditor(QObject *parent = 0);
-    virtual bool startEditor(const QString &fileName, QString *errorMessage);
-};
-
-// Qt Designer on Mac: Make use of the Mac's 'open' mechanism to
-// ensure files are opened in the same (per version) instance.
-
-class MacDesignerExternalEditor : public ExternalQtEditor
-{
-    Q_OBJECT
-public:
-    explicit MacDesignerExternalEditor(QObject *parent = 0);
-    virtual bool startEditor(const QString &fileName, QString *errorMessage);
+    const CommandForQtVersion m_commandForQtVersion;
 };
 
 /* Qt Designer on the remaining platforms: Uses Designer's own
@@ -127,22 +103,18 @@ class DesignerExternalEditor : public ExternalQtEditor
 {
     Q_OBJECT
 public:
-    explicit DesignerExternalEditor(QObject *parent = 0);
+    DesignerExternalEditor();
 
-    virtual bool startEditor(const QString &fileName, QString *errorMessage);
-
-private slots:
-    void processTerminated(const QString &binary);
+    bool startEditor(const QString &fileName, QString *errorMessage) override;
 
 private:
+    void processTerminated(const QString &binary);
+
     // A per-binary entry containing the socket
     typedef QMap<QString, QTcpSocket*> ProcessCache;
 
     ProcessCache m_processCache;
-    QSignalMapper *m_terminationMapper = nullptr;
 };
 
 } // namespace Internal
 } // namespace QmakeProjectManager
-
-#endif // EXTERNALEDITORS_H

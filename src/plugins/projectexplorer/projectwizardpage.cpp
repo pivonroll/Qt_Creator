@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -82,26 +77,21 @@ public:
 private:
     QString m_displayName;
     QString m_toolTip;
-    FolderNode *m_node;
-    bool m_canAdd;
-    int m_priority;
+    FolderNode *m_node = nullptr;
+    bool m_canAdd = true;
+    int m_priority = -1;
 };
 
-AddNewTree::AddNewTree(const QString &displayName)
-    : m_displayName(displayName),
-      m_node(0),
-      m_canAdd(true),
-      m_priority(-1)
-{
-}
+AddNewTree::AddNewTree(const QString &displayName) :
+    m_displayName(displayName)
+{ }
 
 // FIXME: potentially merge the following two functions.
 // Note the different handling of 'node' and m_canAdd.
-AddNewTree::AddNewTree(FolderNode *node, QList<AddNewTree *> children, const QString &displayName)
-    : m_displayName(displayName),
-      m_node(0),
-      m_canAdd(false),
-      m_priority(-1)
+AddNewTree::AddNewTree(FolderNode *node, QList<AddNewTree *> children, const QString &displayName) :
+    m_displayName(displayName),
+    m_node(node),
+    m_canAdd(false)
 {
     if (node)
         m_toolTip = ProjectExplorerPlugin::directoryFor(node);
@@ -109,11 +99,11 @@ AddNewTree::AddNewTree(FolderNode *node, QList<AddNewTree *> children, const QSt
         appendChild(child);
 }
 
-AddNewTree::AddNewTree(FolderNode *node, QList<AddNewTree *> children, const FolderNode::AddNewInformation &info)
-    : m_displayName(info.displayName),
-      m_node(node),
-      m_canAdd(true),
-      m_priority(info.priority)
+AddNewTree::AddNewTree(FolderNode *node, QList<AddNewTree *> children,
+                       const FolderNode::AddNewInformation &info) :
+    m_displayName(info.displayName),
+    m_node(node),
+    m_priority(info.priority)
 {
     if (node)
         m_toolTip = ProjectExplorerPlugin::directoryFor(node);
@@ -124,11 +114,16 @@ AddNewTree::AddNewTree(FolderNode *node, QList<AddNewTree *> children, const Fol
 
 QVariant AddNewTree::data(int, int role) const
 {
-    if (role == Qt::DisplayRole)
+    switch (role) {
+    case Qt::DisplayRole:
         return m_displayName;
-    if (role == Qt::ToolTipRole)
+    case Qt::ToolTipRole:
         return m_toolTip;
-    return QVariant();
+    case Qt::UserRole:
+        return QVariant::fromValue(static_cast<void*>(node()));
+    default:
+        return QVariant();
+    }
 }
 
 Qt::ItemFlags AddNewTree::flags(int) const
@@ -150,24 +145,21 @@ public:
     AddNewTree *bestChoice() const;
     bool deploys();
     QString deployingProjects() const;
+
 private:
     QString m_commonDirectory;
     QStringList m_files;
-    bool m_deploys;
+    bool m_deploys = false;
     QString m_deployText;
-    AddNewTree *m_bestChoice;
-    int m_bestMatchLength;
-    int m_bestMatchPriority;
+    AddNewTree *m_bestChoice = nullptr;
+    int m_bestMatchLength = -1;
+    int m_bestMatchPriority = -1;
 };
 
-BestNodeSelector::BestNodeSelector(const QString &commonDirectory, const QStringList &files)
-    : m_commonDirectory(commonDirectory),
-      m_files(files),
-      m_deploys(false),
-      m_deployText(QCoreApplication::translate("ProjectWizard", "The files are implicitly added to the projects:") + QLatin1Char('\n')),
-      m_bestChoice(0),
-      m_bestMatchLength(-1),
-      m_bestMatchPriority(-1)
+BestNodeSelector::BestNodeSelector(const QString &commonDirectory, const QStringList &files) :
+    m_commonDirectory(commonDirectory),
+    m_files(files),
+    m_deployText(QCoreApplication::translate("ProjectWizard", "The files are implicitly added to the projects:") + QLatin1Char('\n'))
 { }
 
 // Find the project the new files should be added
@@ -178,7 +170,7 @@ BestNodeSelector::BestNodeSelector(const QString &commonDirectory, const QString
 void BestNodeSelector::inspect(AddNewTree *tree, bool isContextNode)
 {
     FolderNode *node = tree->node();
-    if (node->nodeType() == ProjectNodeType) {
+    if (node->nodeType() == NodeType::Project) {
         if (static_cast<ProjectNode *>(node)->deploysFolder(m_commonDirectory)) {
             m_deploys = true;
             m_deployText += tree->displayName() + QLatin1Char('\n');
@@ -186,17 +178,22 @@ void BestNodeSelector::inspect(AddNewTree *tree, bool isContextNode)
     }
     if (m_deploys)
         return;
+
     const QString projectDirectory = ProjectExplorerPlugin::directoryFor(node);
     const int projectDirectorySize = projectDirectory.size();
-    if (!m_commonDirectory.startsWith(projectDirectory) && !isContextNode)
+    if (m_commonDirectory != projectDirectory
+            && !m_commonDirectory.startsWith(projectDirectory + QLatin1Char('/'))
+            && !isContextNode)
         return;
-    bool betterMatch = tree->priority() > 0
-            && (projectDirectorySize > m_bestMatchLength
-                || (projectDirectorySize == m_bestMatchLength && tree->priority() > m_bestMatchPriority));
+
+    bool betterMatch = isContextNode
+            || (tree->priority() > 0
+                && (projectDirectorySize > m_bestMatchLength
+                    || (projectDirectorySize == m_bestMatchLength && tree->priority() > m_bestMatchPriority)));
 
     if (betterMatch) {
         m_bestMatchPriority = tree->priority();
-        m_bestMatchLength = projectDirectorySize;
+        m_bestMatchLength = isContextNode ? std::numeric_limits<int>::max() : projectDirectorySize;
         m_bestChoice = tree;
     }
 }
@@ -235,7 +232,7 @@ static inline AddNewTree *createNoneNode(BestNodeSelector *selector)
 static inline AddNewTree *buildAddProjectTree(ProjectNode *root, const QString &projectPath, Node *contextNode, BestNodeSelector *selector)
 {
     QList<AddNewTree *> children;
-    foreach (ProjectNode *pn, root->subProjectNodes()) {
+    foreach (ProjectNode *pn, root->projectNodes()) {
         AddNewTree *child = buildAddProjectTree(pn, projectPath, contextNode, selector);
         if (child)
             children.append(child);
@@ -245,14 +242,14 @@ static inline AddNewTree *buildAddProjectTree(ProjectNode *root, const QString &
     if (list.contains(AddSubProject) && !list.contains(InheritedFromParent)) {
         if (projectPath.isEmpty() || root->canAddSubProject(projectPath)) {
             FolderNode::AddNewInformation info = root->addNewInformation(QStringList() << projectPath, contextNode);
-            AddNewTree *item = new AddNewTree(root, children, info);
+            auto item = new AddNewTree(root, children, info);
             selector->inspect(item, root == contextNode);
             return item;
         }
     }
 
     if (children.isEmpty())
-        return 0;
+        return nullptr;
     return new AddNewTree(root, children, root->displayName());
 }
 
@@ -268,10 +265,11 @@ static inline AddNewTree *buildAddProjectTree(SessionNode *root, const QString &
     return new AddNewTree(root, children, root->displayName());
 }
 
-static inline AddNewTree *buildAddFilesTree(FolderNode *root, const QStringList &files, Node *contextNode, BestNodeSelector *selector)
+static inline AddNewTree *buildAddFilesTree(FolderNode *root, const QStringList &files,
+                                            Node *contextNode, BestNodeSelector *selector)
 {
     QList<AddNewTree *> children;
-    foreach (FolderNode *fn, root->subFolderNodes()) {
+    foreach (FolderNode *fn, root->folderNodes()) {
         AddNewTree *child = buildAddFilesTree(fn, files, contextNode, selector);
         if (child)
             children.append(child);
@@ -280,16 +278,17 @@ static inline AddNewTree *buildAddFilesTree(FolderNode *root, const QStringList 
     const QList<ProjectAction> &list = root->supportedActions(root);
     if (list.contains(AddNewFile) && !list.contains(InheritedFromParent)) {
         FolderNode::AddNewInformation info = root->addNewInformation(files, contextNode);
-        AddNewTree *item = new AddNewTree(root, children, info);
+        auto item = new AddNewTree(root, children, info);
         selector->inspect(item, root == contextNode);
         return item;
     }
     if (children.isEmpty())
-        return 0;
+        return nullptr;
     return new AddNewTree(root, children, root->displayName());
 }
 
-static inline AddNewTree *buildAddFilesTree(SessionNode *root, const QStringList &files, Node *contextNode, BestNodeSelector *selector)
+static inline AddNewTree *buildAddFilesTree(SessionNode *root, const QStringList &files,
+                                            Node *contextNode, BestNodeSelector *selector)
 {
     QList<AddNewTree *> children;
     foreach (ProjectNode *pn, root->projectNodes()) {
@@ -316,34 +315,31 @@ static inline AddNewTree *getChoices(const QStringList &generatedFiles,
 // ProjectWizardPage:
 // --------------------------------------------------------------------
 
-ProjectWizardPage::ProjectWizardPage(QWidget *parent) :
-    WizardPage(parent),
-    m_ui(new Ui::WizardPage),
-    m_model(0),
-    m_repositoryExists(false)
+ProjectWizardPage::ProjectWizardPage(QWidget *parent) : WizardPage(parent),
+    m_ui(new Ui::WizardPage)
 {
     m_ui->setupUi(this);
     m_ui->vcsManageButton->setText(ICore::msgShowOptionsDialog());
-    connect(m_ui->projectComboBox, SIGNAL(currentIndexChanged(int)),
-            this, SLOT(projectChanged(int)));
+    connect(m_ui->projectComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &ProjectWizardPage::projectChanged);
     connect(m_ui->addToVersionControlComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &ProjectWizardPage::versionControlChanged);
     connect(m_ui->vcsManageButton, &QAbstractButton::clicked, this, &ProjectWizardPage::manageVcs);
     setProperty(SHORT_TITLE_PROPERTY, tr("Summary"));
 
-    connect(VcsManager::instance(), SIGNAL(configurationChanged(const IVersionControl*)),
-            this, SLOT(initializeVersionControls()));
+    connect(VcsManager::instance(), &VcsManager::configurationChanged,
+            this, &ProjectExplorer::Internal::ProjectWizardPage::initializeVersionControls);
 }
 
 ProjectWizardPage::~ProjectWizardPage()
 {
-    disconnect(m_ui->projectComboBox, SIGNAL(currentIndexChanged(int)),
-               this, SLOT(projectChanged(int)));
+    disconnect(m_ui->projectComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+               this, &ProjectWizardPage::projectChanged);
     delete m_model;
     delete m_ui;
 }
 
-void ProjectWizardPage::setModel(TreeModel *model)
+void ProjectWizardPage::setModel(Utils::TreeModel<> *model)
 {
     delete m_model;
     m_model = model;
@@ -376,7 +372,7 @@ bool ProjectWizardPage::expandTree(const QModelIndex &root)
         m_ui->projectComboBox->view()->collapse(root);
 
     // if we are a high priority node, our *parent* needs to be expanded
-    AddNewTree *tree = static_cast<AddNewTree *>(root.internalPointer());
+    auto tree = static_cast<AddNewTree *>(root.internalPointer());
     if (tree && tree->priority() >= 100)
         expand = true;
 
@@ -396,9 +392,8 @@ void ProjectWizardPage::setBestNode(AddNewTree *tree)
 
 FolderNode *ProjectWizardPage::currentNode() const
 {
-    QModelIndex index = m_ui->projectComboBox->view()->currentIndex();
-    TreeItem *item = m_model->itemForIndex(index);
-    return item ? static_cast<AddNewTree *>(item)->node() : 0;
+    QVariant v = m_ui->projectComboBox->currentData(Qt::UserRole);
+    return v.isNull() ? nullptr : static_cast<FolderNode *>(v.value<void *>());
 }
 
 void ProjectWizardPage::setAddingSubProject(bool addingSubProject)
@@ -420,7 +415,7 @@ void ProjectWizardPage::initializeVersionControls()
     if (versionControls.isEmpty())
         hideVersionControlUiElements();
 
-    IVersionControl *currentSelection = 0;
+    IVersionControl *currentSelection = nullptr;
     int currentIdx = versionControlIndex() - 1;
     if (currentIdx >= 0 && currentIdx <= m_activeVersionControls.size() - 1)
         currentSelection = m_activeVersionControls.at(currentIdx);
@@ -497,8 +492,7 @@ void ProjectWizardPage::initializeProjectTree(Node *context, const QStringList &
 
     setAdditionalInfo(selector.deployingProjects());
 
-    TreeModel *model = new TreeModel(tree);
-    setModel(model);
+    setModel(new TreeModel<>(tree));
     setBestNode(selector.bestChoice());
     setAddingSubProject(action == AddSubProject);
 }
@@ -534,7 +528,7 @@ IVersionControl *ProjectWizardPage::currentVersionControl()
 {
     int index = m_ui->addToVersionControlComboBox->currentIndex() - 1; // Subtract "<None>"
     if (index < 0 || index > m_activeVersionControls.count())
-        return 0; // <None>
+        return nullptr; // <None>
     return m_activeVersionControls.at(index);
 }
 

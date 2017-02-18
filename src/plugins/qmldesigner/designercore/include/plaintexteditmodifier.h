@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef PLAINTEXTEDITMODIFIER_H
-#define PLAINTEXTEDITMODIFIER_H
+#pragma once
 
 #include "qmldesignercorelib_global.h"
 #include "textmodifier.h"
@@ -50,26 +49,32 @@ public:
     PlainTextEditModifier(QPlainTextEdit *textEdit);
     ~PlainTextEditModifier();
 
-    virtual void save(QIODevice *device);
+    QTextDocument *textDocument() const override;
+    QString text() const override;
+    QTextCursor textCursor() const override;
 
-    virtual QTextDocument *textDocument() const;
-    virtual QString text() const;
-    virtual QTextCursor textCursor() const;
+    void replace(int offset, int length, const QString &replacement) override;
+    void move(const MoveInfo &moveInfo) override;
+    void indent(int offset, int length) override = 0;
+    void indentLines(int startLine, int endLine) override = 0;
 
-    virtual void replace(int offset, int length, const QString &replacement);
-    virtual void move(const MoveInfo &moveInfo);
-    virtual void indent(int offset, int length) = 0;
+    int indentDepth() const override = 0;
 
-    virtual int indentDepth() const = 0;
+    void startGroup() override;
+    void flushGroup() override;
+    void commitGroup() override;
 
-    virtual void startGroup();
-    virtual void flushGroup();
-    virtual void commitGroup();
+    void deactivateChangeSignals() override;
+    void reactivateChangeSignals() override;
 
-    virtual void deactivateChangeSignals();
-    virtual void reactivateChangeSignals();
+    bool renameId(const QString & /* oldId */, const QString & /* newId */) override
+    { return false; }
 
-    virtual bool renameId(const QString & /* oldId */, const QString & /* newId */) { return false; }
+    QStringList autoComplete(QTextDocument * /*textDocument*/, int /*position*/,  bool /*explicitComplete*/) override
+    { return QStringList(); }
+
+    bool moveToComponent(int /* nodeOffset */) override
+    { return false; }
 
 protected:
     QPlainTextEdit *plainTextEdit() const
@@ -96,13 +101,13 @@ public:
         : PlainTextEditModifier(textEdit)
     {}
 
-    virtual void indent(int /*offset*/, int /*length*/)
+    void indent(int /*offset*/, int /*length*/) override
+    {}
+    void indentLines(int /*offset*/, int /*length*/) override
     {}
 
-    virtual int indentDepth() const
+    int indentDepth() const override
     { return 0; }
 };
 
 }
-
-#endif // PLAINTEXTEDITMODIFIER_H

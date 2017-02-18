@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,22 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "openeditorswindow.h"
 
-#include "documentmodel.h"
 #include "editormanager.h"
 #include "editormanager_p.h"
 #include "editorview.h"
@@ -38,6 +32,7 @@
 
 #include <utils/hostosinfo.h>
 #include <utils/qtcassert.h>
+#include <utils/utilsicons.h>
 
 #include <QFocusEvent>
 #include <QHeaderView>
@@ -50,9 +45,15 @@ Q_DECLARE_METATYPE(Core::IDocument*)
 using namespace Core;
 using namespace Core::Internal;
 
+enum class Role
+{
+    Entry = Qt::UserRole,
+    View = Qt::UserRole + 1
+};
+
 OpenEditorsWindow::OpenEditorsWindow(QWidget *parent) :
     QFrame(parent, Qt::Popup),
-    m_emptyIcon(QLatin1String(":/core/images/empty14.png")),
+    m_emptyIcon(Utils::Icons::EMPTY14.icon()),
     m_editorList(new OpenEditorsTreeWidget(this))
 {
     setMinimumSize(300, 200);
@@ -75,8 +76,8 @@ OpenEditorsWindow::OpenEditorsWindow(QWidget *parent) :
     layout->setMargin(0);
     layout->addWidget(m_editorList);
 
-    connect(m_editorList, SIGNAL(itemClicked(QTreeWidgetItem*,int)),
-            this, SLOT(editorClicked(QTreeWidgetItem*)));
+    connect(m_editorList, &QTreeWidget::itemClicked,
+            this, &OpenEditorsWindow::editorClicked);
 }
 
 void OpenEditorsWindow::selectAndHide()
@@ -178,14 +179,14 @@ void OpenEditorsWindow::setEditors(const QList<EditLocation> &globalHistory, Edi
 {
     m_editorList->clear();
 
-    QSet<IDocument*> documentsDone;
-    addHistoryItems(view->editorHistory(), view, documentsDone);
+    QSet<const DocumentModel::Entry *> entriesDone;
+    addHistoryItems(view->editorHistory(), view, entriesDone);
 
     // add missing editors from the global history
-    addHistoryItems(globalHistory, view, documentsDone);
+    addHistoryItems(globalHistory, view, entriesDone);
 
-    // add purely restored editors which are not initialised yet
-    addRestoredItems();
+    // add purely suspended editors which are not initialised yet
+    addRemainingItems(view, entriesDone);
 }
 
 
@@ -193,16 +194,11 @@ void OpenEditorsWindow::selectEditor(QTreeWidgetItem *item)
 {
     if (!item)
         return;
-    if (IDocument *document = item->data(0, Qt::UserRole).value<IDocument*>()) {
-        EditorView *view = item->data(0, Qt::UserRole+1).value<EditorView*>();
-        EditorManagerPrivate::activateEditorForDocument(view, document);
-    } else {
-        if (!EditorManager::openEditor(
-                    item->toolTip(0), item->data(0, Qt::UserRole+2).value<Id>())) {
-            DocumentModel::removeDocument(item->toolTip(0));
-            delete item;
-        }
-    }
+    auto entry = item->data(0, int(Role::Entry)).value<DocumentModel::Entry *>();
+    QTC_ASSERT(entry, return);
+    auto view = item->data(0, int(Role::View)).value<EditorView *>();
+    if (!EditorManagerPrivate::activateEditorForEntry(view, entry))
+        delete item;
 }
 
 void OpenEditorsWindow::editorClicked(QTreeWidgetItem *item)
@@ -217,48 +213,51 @@ void OpenEditorsWindow::ensureCurrentVisible()
     m_editorList->scrollTo(m_editorList->currentIndex(), QAbstractItemView::PositionAtCenter);
 }
 
+static DocumentModel::Entry *entryForEditLocation(const EditLocation &item)
+{
+    if (!item.document.isNull())
+        return DocumentModel::entryForDocument(item.document);
+    return DocumentModel::entryForFilePath(Utils::FileName::fromString(item.fileName));
+}
 
 void OpenEditorsWindow::addHistoryItems(const QList<EditLocation> &history, EditorView *view,
-                                        QSet<IDocument *> &documentsDone)
+                                        QSet<const DocumentModel::Entry *> &entriesDone)
 {
     foreach (const EditLocation &hi, history) {
-        if (hi.document.isNull() || documentsDone.contains(hi.document))
-            continue;
-        documentsDone.insert(hi.document.data());
-        DocumentModel::Entry *entry = DocumentModel::entryForDocument(hi.document);
-        QString title = entry ? entry->displayName() : hi.document->displayName();
-        QTC_ASSERT(!title.isEmpty(), continue);
-        QTreeWidgetItem *item = new QTreeWidgetItem();
-        if (hi.document->isModified())
-            title += tr("*");
-        item->setIcon(0, !hi.document->filePath().isEmpty() && hi.document->isFileReadOnly()
-                      ? DocumentModel::lockedIcon() : m_emptyIcon);
-        item->setText(0, title);
-        item->setToolTip(0, hi.document->filePath().toString());
-        item->setData(0, Qt::UserRole, QVariant::fromValue(hi.document.data()));
-        item->setData(0, Qt::UserRole+1, QVariant::fromValue(view));
-        item->setTextAlignment(0, Qt::AlignLeft);
-
-        m_editorList->addTopLevelItem(item);
-
-        if (m_editorList->topLevelItemCount() == 1)
-            m_editorList->setCurrentItem(item);
+        if (DocumentModel::Entry *entry = entryForEditLocation(hi))
+            addItem(entry, entriesDone, view);
     }
 }
 
-void OpenEditorsWindow::addRestoredItems()
+void OpenEditorsWindow::addRemainingItems(EditorView *view,
+                                          QSet<const DocumentModel::Entry *> &entriesDone)
 {
-    foreach (DocumentModel::Entry *entry, DocumentModel::entries()) {
-        if (!entry->isRestored)
-            continue;
-        QTreeWidgetItem *item = new QTreeWidgetItem();
-        QString title = entry->displayName();
-        item->setIcon(0, m_emptyIcon);
-        item->setText(0, title);
-        item->setToolTip(0, entry->fileName().toString());
-        item->setData(0, Qt::UserRole+2, QVariant::fromValue(entry->id()));
-        item->setTextAlignment(0, Qt::AlignLeft);
+    foreach (DocumentModel::Entry *entry, DocumentModel::entries())
+        addItem(entry, entriesDone, view);
+}
 
-        m_editorList->addTopLevelItem(item);
-    }
+void OpenEditorsWindow::addItem(DocumentModel::Entry *entry,
+                                QSet<const DocumentModel::Entry *> &entriesDone,
+                                EditorView *view)
+{
+    if (entriesDone.contains(entry))
+        return;
+    entriesDone.insert(entry);
+    QString title = entry->displayName();
+    QTC_ASSERT(!title.isEmpty(), return);
+    QTreeWidgetItem *item = new QTreeWidgetItem();
+    if (entry->document->isModified())
+        title += tr("*");
+    item->setIcon(0, !entry->fileName().isEmpty() && entry->document->isFileReadOnly()
+                  ? DocumentModel::lockedIcon() : m_emptyIcon);
+    item->setText(0, title);
+    item->setToolTip(0, entry->fileName().toString());
+    item->setData(0, int(Role::Entry), QVariant::fromValue(entry));
+    item->setData(0, int(Role::View), QVariant::fromValue(view));
+    item->setTextAlignment(0, Qt::AlignLeft);
+
+    m_editorList->addTopLevelItem(item);
+
+    if (m_editorList->topLevelItemCount() == 1)
+        m_editorList->setCurrentItem(item);
 }

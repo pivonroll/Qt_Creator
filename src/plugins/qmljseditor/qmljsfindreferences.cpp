@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -787,8 +782,8 @@ FindReferences::FindReferences(QObject *parent)
     : QObject(parent)
 {
     m_watcher.setPendingResultsLimit(1);
-    connect(&m_watcher, SIGNAL(resultsReadyAt(int,int)), this, SLOT(displayResults(int,int)));
-    connect(&m_watcher, SIGNAL(finished()), this, SLOT(searchFinished()));
+    connect(&m_watcher, &QFutureWatcherBase::resultsReadyAt, this, &FindReferences::displayResults);
+    connect(&m_watcher, &QFutureWatcherBase::finished, this, &FindReferences::searchFinished);
 }
 
 FindReferences::~FindReferences()
@@ -896,10 +891,8 @@ void FindReferences::findUsages(const QString &fileName, quint32 offset)
 {
     ModelManagerInterface *modelManager = ModelManagerInterface::instance();
 
-    QFuture<Usage> result = QtConcurrent::run(
-                &find_helper, modelManager->workingCopy(),
-                modelManager->snapshot(), fileName, offset,
-                QString());
+    QFuture<Usage> result = Utils::runAsync(&find_helper, modelManager->workingCopy(),
+                                            modelManager->snapshot(), fileName, offset, QString());
     m_watcher.setFuture(result);
 }
 
@@ -913,10 +906,8 @@ void FindReferences::renameUsages(const QString &fileName, quint32 offset,
     if (newName.isNull())
         newName = QLatin1String("");
 
-    QFuture<Usage> result = QtConcurrent::run(
-                &find_helper, modelManager->workingCopy(),
-                modelManager->snapshot(), fileName, offset,
-                newName);
+    QFuture<Usage> result = Utils::runAsync(&find_helper, modelManager->workingCopy(),
+                                            modelManager->snapshot(), fileName, offset, newName);
     m_watcher.setFuture(result);
 }
 
@@ -964,19 +955,19 @@ void FindReferences::displayResults(int first, int last)
                         label, QString(), symbolName, SearchResultWindow::SearchAndReplace,
                         SearchResultWindow::PreserveCaseDisabled);
             m_currentSearch->setTextToReplace(replacement);
-            connect(m_currentSearch, SIGNAL(replaceButtonClicked(QString,QList<Core::SearchResultItem>,bool)),
-                    SLOT(onReplaceButtonClicked(QString,QList<Core::SearchResultItem>,bool)));
+            connect(m_currentSearch.data(), &SearchResult::replaceButtonClicked,
+                    this, &FindReferences::onReplaceButtonClicked);
         }
-        connect(m_currentSearch, SIGNAL(activated(Core::SearchResultItem)),
-                this, SLOT(openEditor(Core::SearchResultItem)));
-        connect(m_currentSearch, SIGNAL(cancelled()), this, SLOT(cancel()));
-        connect(m_currentSearch, SIGNAL(paused(bool)), this, SLOT(setPaused(bool)));
+        connect(m_currentSearch.data(), &SearchResult::activated,
+                this, &FindReferences::openEditor);
+        connect(m_currentSearch.data(), &SearchResult::cancelled, this, &FindReferences::cancel);
+        connect(m_currentSearch.data(), &SearchResult::paused, this, &FindReferences::setPaused);
         SearchResultWindow::instance()->popup(IOutputPane::Flags(IOutputPane::ModeSwitch | IOutputPane::WithFocus));
 
         FutureProgress *progress = ProgressManager::addTask(
                     m_watcher.future(), tr("Searching for Usages"),
                     QmlJSEditor::Constants::TASK_SEARCH);
-        connect(progress, SIGNAL(clicked()), m_currentSearch, SLOT(popup()));
+        connect(progress, &FutureProgress::clicked, m_currentSearch.data(), &SearchResult::popup);
 
         ++first;
     }
@@ -1018,7 +1009,8 @@ void FindReferences::openEditor(const SearchResultItem &item)
 {
     if (item.path.size() > 0) {
         EditorManager::openEditorAt(QDir::fromNativeSeparators(item.path.first()),
-                                              item.lineNumber, item.textMarkPos);
+                                    item.mainRange.begin.line,
+                                    item.mainRange.begin.column);
     } else {
         EditorManager::openEditor(QDir::fromNativeSeparators(item.text));
     }

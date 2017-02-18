@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -69,9 +64,17 @@ static const char cxx11FlagsKeyC[] = "ProjectExplorer.CustomToolChain.Cxx11Flags
 static const char mkspecsKeyC[] = "ProjectExplorer.CustomToolChain.Mkspecs";
 static const char outputParserKeyC[] = "ProjectExplorer.CustomToolChain.OutputParser";
 static const char errorPatternKeyC[] = "ProjectExplorer.CustomToolChain.ErrorPattern";
-static const char lineNumberCapKeyC[] = "ProjectExplorer.CustomToolChain.LineNumberCap";
-static const char fileNameCapKeyC[] = "ProjectExplorer.CustomToolChain.FileNameCap";
-static const char messageCapKeyC[] = "ProjectExplorer.CustomToolChain.MessageCap";
+static const char errorLineNumberCapKeyC[] = "ProjectExplorer.CustomToolChain.ErrorLineNumberCap";
+static const char errorFileNameCapKeyC[] = "ProjectExplorer.CustomToolChain.ErrorFileNameCap";
+static const char errorMessageCapKeyC[] = "ProjectExplorer.CustomToolChain.ErrorMessageCap";
+static const char errorChannelKeyC[] = "ProjectExplorer.CustomToolChain.ErrorChannel";
+static const char errorExampleKeyC[] = "ProjectExplorer.CustomToolChain.ErrorExample";
+static const char warningPatternKeyC[] = "ProjectExplorer.CustomToolChain.WarningPattern";
+static const char warningLineNumberCapKeyC[] = "ProjectExplorer.CustomToolChain.WarningLineNumberCap";
+static const char warningFileNameCapKeyC[] = "ProjectExplorer.CustomToolChain.WarningFileNameCap";
+static const char warningMessageCapKeyC[] = "ProjectExplorer.CustomToolChain.WarningMessageCap";
+static const char warningChannelKeyC[] = "ProjectExplorer.CustomToolChain.WarningChannel";
+static const char warningExampleKeyC[] = "ProjectExplorer.CustomToolChain.WarningExample";
 
 // --------------------------------------------------------------------------
 // CustomToolChain
@@ -81,6 +84,12 @@ CustomToolChain::CustomToolChain(Detection d) :
     ToolChain(Constants::CUSTOM_TOOLCHAIN_TYPEID, d),
     m_outputParser(Gcc)
 { }
+
+CustomToolChain::CustomToolChain(Core::Id language, Detection d) : CustomToolChain(d)
+{
+    setLanguage(language);
+}
+
 
 QString CustomToolChain::typeDisplayName() const
 {
@@ -143,10 +152,10 @@ ToolChain::CompilerFlags CustomToolChain::compilerFlags(const QStringList &cxxfl
     return NoFlags;
 }
 
-ToolChain::WarningFlags CustomToolChain::warningFlags(const QStringList &cxxflags) const
+WarningFlags CustomToolChain::warningFlags(const QStringList &cxxflags) const
 {
     Q_UNUSED(cxxflags);
-    return WarningFlags(WarningsDefault);
+    return WarningFlags::Default;
 }
 
 const QStringList &CustomToolChain::rawPredefinedMacros() const
@@ -156,7 +165,10 @@ const QStringList &CustomToolChain::rawPredefinedMacros() const
 
 void CustomToolChain::setPredefinedMacros(const QStringList &list)
 {
+    if (m_predefinedMacros == list)
+        return;
     m_predefinedMacros = list;
+    toolChainUpdated();
 }
 
 QList<HeaderPath> CustomToolChain::systemHeaderPaths(const QStringList &cxxFlags, const FileName &) const
@@ -181,7 +193,7 @@ void CustomToolChain::addToEnvironment(Environment &env) const
     }
 }
 
-QList<FileName> CustomToolChain::suggestedMkspecList() const
+FileNameList CustomToolChain::suggestedMkspecList() const
 {
     return m_mkspecs;
 }
@@ -196,7 +208,7 @@ IOutputParser *CustomToolChain::outputParser() const
     case Msvc: return new MsvcParser;
 #endif
     case Custom: return new CustomParser(m_customParserSettings);
-    default: return 0;
+    default: return nullptr;
     }
 }
 
@@ -207,9 +219,14 @@ QStringList CustomToolChain::headerPathsList() const
 
 void CustomToolChain::setHeaderPaths(const QStringList &list)
 {
-    m_systemHeaderPaths = Utils::transform(list, [](const QString &headerPath) {
+    QList<HeaderPath> tmp = Utils::transform(list, [](const QString &headerPath) {
         return HeaderPath(headerPath.trimmed(), HeaderPath::GlobalHeaderPath);
     });
+
+    if (m_systemHeaderPaths == tmp)
+        return;
+    m_systemHeaderPaths = tmp;
+    toolChainUpdated();
 }
 
 void CustomToolChain::setCompilerCommand(const FileName &path)
@@ -253,8 +270,14 @@ const QStringList &CustomToolChain::cxx11Flags() const
 
 void CustomToolChain::setMkspecs(const QString &specs)
 {
-    m_mkspecs = Utils::transform(specs.split(QLatin1Char(',')),
-                                 [](QString fn) { return FileName::fromString(fn); });
+    Utils::FileNameList tmp
+            = Utils::transform(specs.split(QLatin1Char(',')),
+                               [](QString fn) { return FileName::fromString(fn); });
+
+    if (tmp == m_mkspecs)
+        return;
+    m_mkspecs = tmp;
+    toolChainUpdated();
 }
 
 QString CustomToolChain::mkspecs() const
@@ -282,10 +305,18 @@ QVariantMap CustomToolChain::toMap() const
     data.insert(QLatin1String(cxx11FlagsKeyC), m_cxx11Flags);
     data.insert(QLatin1String(mkspecsKeyC), mkspecs());
     data.insert(QLatin1String(outputParserKeyC), m_outputParser);
-    data.insert(QLatin1String(errorPatternKeyC), m_customParserSettings.errorPattern);
-    data.insert(QLatin1String(fileNameCapKeyC), m_customParserSettings.fileNameCap);
-    data.insert(QLatin1String(lineNumberCapKeyC), m_customParserSettings.lineNumberCap);
-    data.insert(QLatin1String(messageCapKeyC), m_customParserSettings.messageCap);
+    data.insert(QLatin1String(errorPatternKeyC), m_customParserSettings.error.pattern());
+    data.insert(QLatin1String(errorFileNameCapKeyC), m_customParserSettings.error.fileNameCap());
+    data.insert(QLatin1String(errorLineNumberCapKeyC), m_customParserSettings.error.lineNumberCap());
+    data.insert(QLatin1String(errorMessageCapKeyC), m_customParserSettings.error.messageCap());
+    data.insert(QLatin1String(errorChannelKeyC), m_customParserSettings.error.channel());
+    data.insert(QLatin1String(errorExampleKeyC), m_customParserSettings.error.example());
+    data.insert(QLatin1String(warningPatternKeyC), m_customParserSettings.warning.pattern());
+    data.insert(QLatin1String(warningFileNameCapKeyC), m_customParserSettings.warning.fileNameCap());
+    data.insert(QLatin1String(warningLineNumberCapKeyC), m_customParserSettings.warning.lineNumberCap());
+    data.insert(QLatin1String(warningMessageCapKeyC), m_customParserSettings.warning.messageCap());
+    data.insert(QLatin1String(warningChannelKeyC), m_customParserSettings.warning.channel());
+    data.insert(QLatin1String(warningExampleKeyC), m_customParserSettings.warning.example());
 
     return data;
 }
@@ -303,10 +334,21 @@ bool CustomToolChain::fromMap(const QVariantMap &data)
     m_cxx11Flags = data.value(QLatin1String(cxx11FlagsKeyC)).toStringList();
     setMkspecs(data.value(QLatin1String(mkspecsKeyC)).toString());
     m_outputParser = (OutputParser)data.value(QLatin1String(outputParserKeyC)).toInt();
-    m_customParserSettings.errorPattern = data.value(QLatin1String(errorPatternKeyC)).toString();
-    m_customParserSettings.fileNameCap = data.value(QLatin1String(fileNameCapKeyC)).toInt();
-    m_customParserSettings.lineNumberCap = data.value(QLatin1String(lineNumberCapKeyC)).toInt();
-    m_customParserSettings.messageCap = data.value(QLatin1String(messageCapKeyC)).toInt();
+    m_customParserSettings.error.setPattern(data.value(QLatin1String(errorPatternKeyC)).toString());
+    m_customParserSettings.error.setFileNameCap(data.value(QLatin1String(errorFileNameCapKeyC)).toInt());
+    m_customParserSettings.error.setLineNumberCap(data.value(QLatin1String(errorLineNumberCapKeyC)).toInt());
+    m_customParserSettings.error.setMessageCap(data.value(QLatin1String(errorMessageCapKeyC)).toInt());
+    m_customParserSettings.error.setChannel(
+                static_cast<CustomParserExpression::CustomParserChannel>(data.value(QLatin1String(errorChannelKeyC)).toInt()));
+    m_customParserSettings.error.setExample(data.value(QLatin1String(errorExampleKeyC)).toString());
+    m_customParserSettings.warning.setPattern(data.value(QLatin1String(warningPatternKeyC)).toString());
+    m_customParserSettings.warning.setFileNameCap(data.value(QLatin1String(warningFileNameCapKeyC)).toInt());
+    m_customParserSettings.warning.setLineNumberCap(data.value(QLatin1String(warningLineNumberCapKeyC)).toInt());
+    m_customParserSettings.warning.setMessageCap(data.value(QLatin1String(warningMessageCapKeyC)).toInt());
+    m_customParserSettings.warning.setChannel(
+                static_cast<CustomParserExpression::CustomParserChannel>(data.value(QLatin1String(warningChannelKeyC)).toInt()));
+    m_customParserSettings.warning.setExample(data.value(QLatin1String(warningExampleKeyC)).toString());
+
     QTC_ASSERT(m_outputParser >= Gcc && m_outputParser < OutputParserCount, return false);
 
     return true;
@@ -317,7 +359,7 @@ bool CustomToolChain::operator ==(const ToolChain &other) const
     if (!ToolChain::operator ==(other))
         return false;
 
-    const CustomToolChain *customTc = static_cast<const CustomToolChain *>(&other);
+    auto customTc = static_cast<const CustomToolChain *>(&other);
     return m_compilerCommand == customTc->m_compilerCommand
             && m_makeCommand == customTc->m_makeCommand
             && m_targetAbi == customTc->m_targetAbi
@@ -332,7 +374,10 @@ CustomToolChain::OutputParser CustomToolChain::outputParserType() const
 
 void CustomToolChain::setOutputParserType(CustomToolChain::OutputParser parser)
 {
+    if (m_outputParser == parser)
+        return;
     m_outputParser = parser;
+    toolChainUpdated();
 }
 
 CustomParserSettings CustomToolChain::customParserSettings() const
@@ -342,7 +387,10 @@ CustomParserSettings CustomToolChain::customParserSettings() const
 
 void CustomToolChain::setCustomParserSettings(const CustomParserSettings &settings)
 {
+    if (m_customParserSettings == settings)
+        return;
     m_customParserSettings = settings;
+    toolChainUpdated();
 }
 
 QString CustomToolChain::parserName(CustomToolChain::OutputParser parser)
@@ -375,14 +423,19 @@ CustomToolChainFactory::CustomToolChainFactory()
     setDisplayName(tr("Custom"));
 }
 
+QSet<Core::Id> CustomToolChainFactory::supportedLanguages() const
+{
+    return ToolChainManager::allLanguages();
+}
+
 bool CustomToolChainFactory::canCreate()
 {
     return true;
 }
 
-ToolChain *CustomToolChainFactory::create()
+ToolChain *CustomToolChainFactory::create(Core::Id language)
 {
-    return new CustomToolChain(ToolChain::ManualDetection);
+    return new CustomToolChain(language, ToolChain::ManualDetection);
 }
 
 // Used by the ToolChainManager to restore user-generated tool chains
@@ -393,12 +446,12 @@ bool CustomToolChainFactory::canRestore(const QVariantMap &data)
 
 ToolChain *CustomToolChainFactory::restore(const QVariantMap &data)
 {
-    CustomToolChain *tc = new CustomToolChain(ToolChain::ManualDetection);
+    auto tc = new CustomToolChain(ToolChain::ManualDetection);
     if (tc->fromMap(data))
         return tc;
 
     delete tc;
-    return 0;
+    return nullptr;
 }
 
 // --------------------------------------------------------------------------
@@ -464,8 +517,8 @@ CustomToolChainConfigWidget::CustomToolChainConfigWidget(CustomToolChain *tc) :
     for (int i = 0; i < CustomToolChain::OutputParserCount; ++i)
         m_errorParserComboBox->addItem(CustomToolChain::parserName((CustomToolChain::OutputParser)i));
 
-    QWidget *parserLayoutWidget = new QWidget;
-    QHBoxLayout *parserLayout = new QHBoxLayout(parserLayoutWidget);
+    auto parserLayoutWidget = new QWidget;
+    auto parserLayout = new QHBoxLayout(parserLayoutWidget);
     parserLayout->setContentsMargins(0, 0, 0, 0);
     m_predefinedMacros->setTabChangesFocus(true);
     m_predefinedMacros->setToolTip(tr("Each line defines a macro. Format is MACRO[=VALUE]."));
@@ -493,17 +546,19 @@ CustomToolChainConfigWidget::CustomToolChainConfigWidget(CustomToolChain *tc) :
     m_predefinedDetails->updateSummaryText();
     m_headerDetails->updateSummaryText();
 
-    connect(m_compilerCommand, SIGNAL(rawPathChanged(QString)), this, SIGNAL(dirty()));
-    connect(m_makeCommand, SIGNAL(rawPathChanged(QString)), this, SIGNAL(dirty()));
-    connect(m_abiWidget, SIGNAL(abiChanged()), this, SIGNAL(dirty()));
-    connect(m_predefinedMacros, SIGNAL(textChanged()), this, SLOT(updateSummaries()));
-    connect(m_headerPaths, SIGNAL(textChanged()), this, SLOT(updateSummaries()));
-    connect(m_cxx11Flags, SIGNAL(textChanged(QString)), this, SIGNAL(dirty()));
-    connect(m_mkspecs, SIGNAL(textChanged(QString)), this, SIGNAL(dirty()));
-    connect(m_errorParserComboBox, SIGNAL(currentIndexChanged(int)),
-            this, SLOT(errorParserChanged(int)));
-    connect(m_customParserSettingsButton, SIGNAL(clicked()),
-            this, SLOT(openCustomParserSettingsDialog()));
+    connect(m_compilerCommand, &PathChooser::rawPathChanged, this, &ToolChainConfigWidget::dirty);
+    connect(m_makeCommand, &PathChooser::rawPathChanged, this, &ToolChainConfigWidget::dirty);
+    connect(m_abiWidget, &AbiWidget::abiChanged, this, &ToolChainConfigWidget::dirty);
+    connect(m_predefinedMacros, &QPlainTextEdit::textChanged,
+            this, &CustomToolChainConfigWidget::updateSummaries);
+    connect(m_headerPaths, &QPlainTextEdit::textChanged,
+            this, &CustomToolChainConfigWidget::updateSummaries);
+    connect(m_cxx11Flags, &QLineEdit::textChanged, this, &ToolChainConfigWidget::dirty);
+    connect(m_mkspecs, &QLineEdit::textChanged, this, &ToolChainConfigWidget::dirty);
+    connect(m_errorParserComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &CustomToolChainConfigWidget::errorParserChanged);
+    connect(m_customParserSettingsButton, &QAbstractButton::clicked,
+            this, &CustomToolChainConfigWidget::openCustomParserSettingsDialog);
     errorParserChanged(m_errorParserComboBox->currentIndex());
 }
 
@@ -539,7 +594,7 @@ void CustomToolChainConfigWidget::applyImpl()
     if (toolChain()->isAutoDetected())
         return;
 
-    CustomToolChain *tc = static_cast<CustomToolChain *>(toolChain());
+    auto tc = static_cast<CustomToolChain *>(toolChain());
     Q_ASSERT(tc);
     QString displayName = tc->displayName();
     tc->setCompilerCommand(m_compilerCommand->fileName());
@@ -558,7 +613,7 @@ void CustomToolChainConfigWidget::setFromToolchain()
 {
     // subwidgets are not yet connected!
     bool blocked = blockSignals(true);
-    CustomToolChain *tc = static_cast<CustomToolChain *>(toolChain());
+    auto tc = static_cast<CustomToolChain *>(toolChain());
     m_compilerCommand->setFileName(tc->compilerCommand());
     m_makeCommand->setFileName(FileName::fromString(tc->makeCommand(Environment())));
     m_abiWidget->setAbis(QList<Abi>(), tc->targetAbi());
@@ -573,7 +628,7 @@ void CustomToolChainConfigWidget::setFromToolchain()
 
 bool CustomToolChainConfigWidget::isDirtyImpl() const
 {
-    CustomToolChain *tc = static_cast<CustomToolChain *>(toolChain());
+    auto tc = static_cast<CustomToolChain *>(toolChain());
     Q_ASSERT(tc);
     return m_compilerCommand->fileName() != tc->compilerCommand()
             || m_makeCommand->path() != tc->makeCommand(Environment())

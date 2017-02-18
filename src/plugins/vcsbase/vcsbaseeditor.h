@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef VCSBASEEDITOR_H
-#define VCSBASEEDITOR_H
+#pragma once
 
 #include "vcsbase_global.h"
 
@@ -48,11 +42,11 @@ namespace VcsBase {
 namespace Internal {
 class ChangeTextCursorHandler;
 class VcsBaseEditorWidgetPrivate;
-}
+} // namespace Internal
 
 class BaseAnnotationHighlighter;
 class VcsBaseEditorWidget;
-class VcsBaseEditorParameterWidget;
+class VcsBaseEditorConfig;
 class VcsCommand;
 
 // Documentation inside
@@ -88,11 +82,11 @@ class VCSBASE_EXPORT VcsBaseEditor : public TextEditor::BaseTextEditor
 {
     Q_OBJECT
 public:
-    explicit VcsBaseEditor();
+    VcsBaseEditor();
 
     // Utility to find a parameter set by type in an array.
-    static  const VcsBaseEditorParameters *
-        findType(const VcsBaseEditorParameters *array, int arraySize, EditorContentType et);
+    static const VcsBaseEditorParameters *
+    findType(const VcsBaseEditorParameters *array, int arraySize, EditorContentType et);
 
     // Utility to find the codec for a source (file or directory), querying
     // the editor manager and the project managers (defaults to system codec).
@@ -133,10 +127,6 @@ public:
     static QString editorTag(EditorContentType t, const QString &workingDirectory, const QStringList &files,
                              const QString &revision = QString());
     void finalizeInitialization() override;
-signals:
-    void describeRequested(const QString &source, const QString &change);
-    void annotateRevisionRequested(const QString &workingDirectory, const QString &file,
-                                   const QString &change, int line);
 };
 
 class VCSBASE_EXPORT VcsBaseEditorWidget : public TextEditor::TextEditorWidget
@@ -160,10 +150,15 @@ protected:
     virtual bool supportChangeLinks() const;
     virtual QString fileNameForLine(int line) const;
 
+    QString lineNumber(int blockNumber) const override;
+    int lineNumberDigits() const override;
+
 public:
+    typedef std::function<void(const QString &, const QString &)> DescribeFunc;
+
     void finalizeInitialization() override;
     // FIXME: Consolidate these into finalizeInitialization
-    void setDescribeSlot(QObject *describeReceiver, const char *describeSlot);
+    void setDescribeFunc(DescribeFunc describeFunc);
     // void
     virtual void init();
     //
@@ -205,12 +200,15 @@ public:
     QString workingDirectory() const;
     void setWorkingDirectory(const QString &wd);
 
+    int firstLineNumber() const;
+    void setFirstLineNumber(int firstLineNumber);
+
     bool isModified() const;
 
     EditorContentType contentType() const;
 
-    bool setConfigurationWidget(VcsBaseEditorParameterWidget *w);
-    VcsBaseEditorParameterWidget *configurationWidget() const;
+    void setConfigurationAdded();
+    bool configurationAdded() const;
 
     void setCommand(VcsCommand *command);
 
@@ -236,19 +234,6 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void keyPressEvent(QKeyEvent *) override;
 
-private slots:
-    void slotActivateAnnotation();
-    void slotPopulateDiffBrowser();
-    void slotPopulateLogBrowser();
-    void slotJumpToEntry(int);
-    void slotCursorPositionChanged() override;
-    void slotAnnotateRevision();
-    void slotApplyDiffChunk();
-    void slotPaste();
-    void showProgressIndicator();
-    void hideProgressIndicator();
-
-protected:
     /* A helper that can be used to locate a file in a diff in case it
      * is relative. Tries to derive the directory from base directory,
      * source and version control. */
@@ -280,6 +265,17 @@ protected:
     virtual QString revisionSubject(const QTextBlock &inBlock) const;
 
 private:
+    void slotActivateAnnotation();
+    void slotPopulateDiffBrowser();
+    void slotPopulateLogBrowser();
+    void slotJumpToEntry(int);
+    void slotCursorPositionChanged() override;
+    void slotAnnotateRevision();
+    void slotApplyDiffChunk();
+    void slotPaste();
+    void showProgressIndicator();
+    void hideProgressIndicator();
+
     bool canApplyDiffChunk(const DiffChunk &dc) const;
     // Revert a patch chunk. Default implementation uses patch.exe
     bool applyDiffChunk(const DiffChunk &dc, bool revert = false) const;
@@ -307,5 +303,3 @@ public:
 } // namespace VcsBase
 
 Q_DECLARE_METATYPE(VcsBase::DiffChunk)
-
-#endif // VCSBASEEDITOR_H

@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef SYMBOLVISITOR_H
-#define SYMBOLVISITOR_H
+#pragma once
 
 #include "Symbol.h"
 
@@ -51,7 +50,6 @@ public:
     virtual bool visit(Function *) { return true; }
     virtual bool visit(Namespace *) { return true; }
     virtual bool visit(Template *) { return true; }
-    virtual bool visit(ExplicitInstantiation *) { return true; }
     virtual bool visit(Class *) { return true; }
     virtual bool visit(Block *) { return true; }
     virtual bool visit(ForwardClassDeclaration *) { return true; }
@@ -72,6 +70,3 @@ public:
 };
 
 } // namespace CPlusPlus
-
-
-#endif // SYMBOLVISITOR_H

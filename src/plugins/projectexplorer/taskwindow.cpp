@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,6 +27,7 @@
 
 #include "itaskhandler.h"
 #include "projectexplorerconstants.h"
+#include "projectexplorericons.h"
 #include "session.h"
 #include "task.h"
 #include "taskhub.h"
@@ -39,13 +35,13 @@
 
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
-#include <coreplugin/coreconstants.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/icontext.h>
 #include <extensionsystem/pluginmanager.h>
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 #include <utils/itemviews.h>
+#include <utils/utilsicons.h>
 
 #include <QDir>
 #include <QPainter>
@@ -92,7 +88,6 @@ public:
     // TaskView uses this method if the size of the taskview changes
     void emitSizeHintChanged(const QModelIndex &index);
 
-public slots:
     void currentChanged(const QModelIndex &current, const QModelIndex &previous);
 
 private:
@@ -116,7 +111,7 @@ private:
     class Positions
     {
     public:
-        Positions(const QStyleOptionViewItemV4 &options, TaskModel *model) :
+        Positions(const QStyleOptionViewItem &options, TaskModel *model) :
             m_totalWidth(options.rect.width()),
             m_maxFileLength(model->sizeOfFile(options.font)),
             m_maxLineLength(model->sizeOfLineNumber(options.font)),
@@ -208,7 +203,7 @@ public:
     Internal::TaskView *m_listview;
     Internal::TaskWindowContext *m_taskWindowContext;
     QMenu *m_contextMenu;
-    ITaskHandler *m_defaultHandler;
+    ITaskHandler *m_defaultHandler = nullptr;
     QToolButton *m_filterWarningsButton;
     QToolButton *m_categoriesButton;
     QMenu *m_categoriesMenu;
@@ -216,34 +211,32 @@ public:
 };
 
 static QToolButton *createFilterButton(QIcon icon, const QString &toolTip,
-                                       QObject *receiver, const char *slot)
+                                       QObject *receiver, std::function<void(bool)> lambda)
 {
-    QToolButton *button = new QToolButton;
+    auto button = new QToolButton;
     button->setIcon(icon);
     button->setToolTip(toolTip);
     button->setCheckable(true);
     button->setChecked(true);
     button->setAutoRaise(true);
     button->setEnabled(true);
-    QObject::connect(button, SIGNAL(toggled(bool)), receiver, slot);
+    QObject::connect(button, &QToolButton::toggled, receiver, lambda);
     return button;
 }
 
 TaskWindow::TaskWindow() : d(new TaskWindowPrivate)
 {
-    d->m_defaultHandler = 0;
-
     d->m_model = new Internal::TaskModel(this);
     d->m_filter = new Internal::TaskFilterModel(d->m_model);
     d->m_listview = new Internal::TaskView;
 
     d->m_listview->setModel(d->m_filter);
     d->m_listview->setFrameStyle(QFrame::NoFrame);
-    d->m_listview->setWindowTitle(tr("Issues"));
+    d->m_listview->setWindowTitle(displayName());
     d->m_listview->setSelectionMode(QAbstractItemView::SingleSelection);
     Internal::TaskDelegate *tld = new Internal::TaskDelegate(this);
     d->m_listview->setItemDelegate(tld);
-    d->m_listview->setWindowIcon(QIcon(QLatin1String(Constants::ICON_WINDOW)));
+    d->m_listview->setWindowIcon(Icons::WINDOW.icon());
     d->m_listview->setContextMenuPolicy(Qt::ActionsContextMenu);
     d->m_listview->setAttribute(Qt::WA_MacShowFocusRect, false);
 
@@ -251,55 +244,45 @@ TaskWindow::TaskWindow() : d(new TaskWindowPrivate)
 
     Core::ICore::addContextObject(d->m_taskWindowContext);
 
-    connect(d->m_listview->selectionModel(), SIGNAL(currentChanged(QModelIndex,QModelIndex)),
-            tld, SLOT(currentChanged(QModelIndex,QModelIndex)));
+    connect(d->m_listview->selectionModel(), &QItemSelectionModel::currentChanged,
+            tld, &TaskDelegate::currentChanged);
 
-    connect(d->m_listview->selectionModel(), SIGNAL(currentChanged(QModelIndex,QModelIndex)),
-            this, SLOT(currentChanged(QModelIndex)));
-    connect(d->m_listview, SIGNAL(activated(QModelIndex)),
-            this, SLOT(triggerDefaultHandler(QModelIndex)));
+    connect(d->m_listview->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, &TaskWindow::currentChanged);
+    connect(d->m_listview, &QAbstractItemView::activated,
+            this, &TaskWindow::triggerDefaultHandler);
 
     d->m_contextMenu = new QMenu(d->m_listview);
 
     d->m_listview->setContextMenuPolicy(Qt::ActionsContextMenu);
 
     d->m_filterWarningsButton = createFilterButton(
-                QIcon(QLatin1String(Core::Constants::ICON_WARNING)),
-                tr("Show Warnings"), this, SLOT(setShowWarnings(bool)));
+                Utils::Icons::WARNING_TOOLBAR.icon(),
+                tr("Show Warnings"), this, [this](bool show) { setShowWarnings(show); });
 
     d->m_categoriesButton = new QToolButton;
-    d->m_categoriesButton->setIcon(QIcon(QLatin1String(Core::Constants::ICON_FILTER)));
+    d->m_categoriesButton->setIcon(Utils::Icons::FILTER.icon());
     d->m_categoriesButton->setToolTip(tr("Filter by categories"));
     d->m_categoriesButton->setProperty("noArrow", true);
     d->m_categoriesButton->setAutoRaise(true);
     d->m_categoriesButton->setPopupMode(QToolButton::InstantPopup);
 
     d->m_categoriesMenu = new QMenu(d->m_categoriesButton);
-    connect(d->m_categoriesMenu, SIGNAL(aboutToShow()), this, SLOT(updateCategoriesMenu()));
+    connect(d->m_categoriesMenu, &QMenu::aboutToShow, this, &TaskWindow::updateCategoriesMenu);
 
     d->m_categoriesButton->setMenu(d->m_categoriesMenu);
 
-    QObject *hub = TaskHub::instance();
-    connect(hub, SIGNAL(categoryAdded(Core::Id,QString,bool)),
-            this, SLOT(addCategory(Core::Id,QString,bool)));
-    connect(hub, SIGNAL(taskAdded(ProjectExplorer::Task)),
-            this, SLOT(addTask(ProjectExplorer::Task)));
-    connect(hub, SIGNAL(taskRemoved(ProjectExplorer::Task)),
-            this, SLOT(removeTask(ProjectExplorer::Task)));
-    connect(hub, SIGNAL(taskLineNumberUpdated(uint,int)),
-            this, SLOT(updatedTaskLineNumber(uint,int)));
-    connect(hub, SIGNAL(taskFileNameUpdated(uint,QString)),
-            this, SLOT(updatedTaskFileName(uint,QString)));
-    connect(hub, SIGNAL(tasksCleared(Core::Id)),
-            this, SLOT(clearTasks(Core::Id)));
-    connect(hub, SIGNAL(categoryVisibilityChanged(Core::Id,bool)),
-            this, SLOT(setCategoryVisibility(Core::Id,bool)));
-    connect(hub, SIGNAL(popupRequested(int)),
-            this, SLOT(popup(int)));
-    connect(hub, SIGNAL(showTask(uint)),
-            this, SLOT(showTask(uint)));
-    connect(hub, SIGNAL(openTask(uint)),
-            this, SLOT(openTask(uint)));
+    TaskHub *hub = TaskHub::instance();
+    connect(hub, &TaskHub::categoryAdded, this, &TaskWindow::addCategory);
+    connect(hub, &TaskHub::taskAdded, this, &TaskWindow::addTask);
+    connect(hub, &TaskHub::taskRemoved, this, &TaskWindow::removeTask);
+    connect(hub, &TaskHub::taskLineNumberUpdated, this, &TaskWindow::updatedTaskLineNumber);
+    connect(hub, &TaskHub::taskFileNameUpdated, this, &TaskWindow::updatedTaskFileName);
+    connect(hub, &TaskHub::tasksCleared, this, &TaskWindow::clearTasks);
+    connect(hub, &TaskHub::categoryVisibilityChanged, this, &TaskWindow::setCategoryVisibility);
+    connect(hub, &TaskHub::popupRequested, this, &TaskWindow::popup);
+    connect(hub, &TaskHub::showTask, this, &TaskWindow::showTask);
+    connect(hub, &TaskHub::openTask, this, &TaskWindow::openTask);
 
     connect(d->m_filter, &TaskFilterModel::rowsRemoved,
             [this]() { emit setBadgeNumber(d->m_filter->rowCount()); });
@@ -347,7 +330,7 @@ void TaskWindow::delayedInitialization()
         QAction *action = h->createAction(this);
         QTC_ASSERT(action, continue);
         action->setProperty("ITaskHandler", qVariantFromValue(qobject_cast<QObject*>(h)));
-        connect(action, SIGNAL(triggered()), this, SLOT(actionTriggered()));
+        connect(action, &QAction::triggered, this, &TaskWindow::actionTriggered);
         d->m_actions << action;
 
         Core::Id id = h->actionManagerId();
@@ -365,7 +348,7 @@ void TaskWindow::delayedInitialization()
 
 QList<QWidget*> TaskWindow::toolBarWidgets() const
 {
-    return QList<QWidget*>() << d->m_filterWarningsButton << d->m_categoriesButton;
+    return { d->m_filterWarningsButton, d->m_categoriesButton };
 }
 
 QWidget *TaskWindow::outputWidget(QWidget *)
@@ -514,7 +497,7 @@ void TaskWindow::triggerDefaultHandler(const QModelIndex &index)
 
 void TaskWindow::actionTriggered()
 {
-    QAction *action = qobject_cast<QAction *>(sender());
+    auto action = qobject_cast<QAction *>(sender());
     if (!action || !action->isEnabled())
         return;
     ITaskHandler *h = handler(action);
@@ -551,7 +534,7 @@ void TaskWindow::updateCategoriesMenu()
     for (NameToIdsConstIt it = nameToIds.constBegin(); it != cend; ++it) {
         const QString &displayName = it.key();
         const Core::Id categoryId = it.value();
-        QAction *action = new QAction(d->m_categoriesMenu);
+        auto action = new QAction(d->m_categoriesMenu);
         action->setCheckable(true);
         action->setText(displayName);
         action->setChecked(!filteredCategories.contains(categoryId));
@@ -684,10 +667,10 @@ TaskDelegate::~TaskDelegate()
 
 QSize TaskDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    QStyleOptionViewItemV4 opt = option;
+    QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
 
-    const QAbstractItemView * view = qobject_cast<const QAbstractItemView *>(opt.widget);
+    auto view = qobject_cast<const QAbstractItemView *>(opt.widget);
     const bool selected = (view->selectionModel()->currentIndex() == index);
     QSize s;
     s.setWidth(option.rect.width());
@@ -701,7 +684,7 @@ QSize TaskDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
     int fontHeight = fm.height();
     int fontLeading = fm.leading();
 
-    TaskModel *model = static_cast<TaskFilterModel *>(view->model())->taskModel();
+    auto model = static_cast<TaskFilterModel *>(view->model())->taskModel();
     Positions positions(option, model);
 
     if (selected) {
@@ -711,7 +694,7 @@ QSize TaskDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
         int height = 0;
         description.replace(QLatin1Char('\n'), QChar::LineSeparator);
         QTextLayout tl(description);
-        tl.setAdditionalFormats(index.data(TaskModel::Task_t).value<Task>().formats);
+        tl.setFormats(index.data(TaskModel::Task_t).value<Task>().formats);
         tl.beginLayout();
         while (true) {
             QTextLine line = tl.createLine();
@@ -752,7 +735,7 @@ void TaskDelegate::currentChanged(const QModelIndex &current, const QModelIndex 
 
 void TaskDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    QStyleOptionViewItemV4 opt = option;
+    QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
     painter->save();
 
@@ -760,7 +743,7 @@ void TaskDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, 
     QColor backgroundColor;
     QColor textColor;
 
-    const QAbstractItemView * view = qobject_cast<const QAbstractItemView *>(opt.widget);
+    auto view = qobject_cast<const QAbstractItemView *>(opt.widget);
     bool selected = view->selectionModel()->currentIndex() == index;
 
     if (selected) {
@@ -781,7 +764,7 @@ void TaskDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, 
 
     painter->setPen(textColor);
 
-    TaskModel *model = static_cast<TaskFilterModel *>(view->model())->taskModel();
+    auto model = static_cast<TaskFilterModel *>(view->model())->taskModel();
     Positions positions(opt, model);
 
     // Paint TaskIconArea:
@@ -811,7 +794,7 @@ void TaskDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, 
         int height = 0;
         description.replace(QLatin1Char('\n'), QChar::LineSeparator);
         QTextLayout tl(description);
-        tl.setAdditionalFormats(index.data(TaskModel::Task_t).value<Task>().formats);
+        tl.setFormats(index.data(TaskModel::Task_t).value<Task>().formats);
         tl.beginLayout();
         while (true) {
             QTextLine line = tl.createLine();
@@ -892,7 +875,8 @@ void TaskDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, 
 
     // Separator lines
     painter->setPen(QColor::fromRgb(150,150,150));
-    painter->drawLine(0, opt.rect.bottom(), opt.rect.right(), opt.rect.bottom());
+    const QRectF borderRect = QRectF(opt.rect).adjusted(0.5, 0.5, -0.5, -0.5);
+    painter->drawLine(borderRect.bottomLeft(), borderRect.bottomRight());
     painter->restore();
 }
 

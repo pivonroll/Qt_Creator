@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -47,8 +42,9 @@
 
 #include <qtsupport/qtkitinformation.h>
 
+#include <utils/temporaryfile.h>
+
 #include <QDir>
-#include <QTemporaryFile>
 #include <QFile>
 #include <QSettings>
 
@@ -76,18 +72,16 @@ IosDeployStep::IosDeployStep(BuildStepList *parent,
     ctor();
 }
 
-IosDeployStep::~IosDeployStep() { }
-
 void IosDeployStep::ctor()
 {
     m_toolHandler = 0;
     m_transferStatus = NoTransfer;
     cleanup();
     updateDisplayNames();
-    connect(DeviceManager::instance(), SIGNAL(updated()),
-            SLOT(updateDisplayNames()));
-    connect(target(), SIGNAL(kitChanged()),
-            SLOT(updateDisplayNames()));
+    connect(DeviceManager::instance(), &DeviceManager::updated,
+            this, &IosDeployStep::updateDisplayNames);
+    connect(target(), &Target::kitChanged,
+            this, &IosDeployStep::updateDisplayNames);
 }
 
 void IosDeployStep::updateDisplayNames()
@@ -99,17 +93,23 @@ void IosDeployStep::updateDisplayNames()
     setDisplayName(tr("Deploy to %1").arg(devName));
 }
 
-bool IosDeployStep::init()
+bool IosDeployStep::init(QList<const BuildStep *> &earlierSteps)
 {
+    Q_UNUSED(earlierSteps);
     QTC_ASSERT(m_transferStatus == NoTransfer, return false);
     m_device = DeviceKitInformation::device(target()->kit());
     IosRunConfiguration * runConfig = qobject_cast<IosRunConfiguration *>(
                 this->target()->activeRunConfiguration());
     QTC_ASSERT(runConfig, return false);
     m_bundlePath = runConfig->bundleDirectory().toString();
-    if (m_device.isNull()) {
+
+    if (iosdevice()) {
+        m_deviceType = IosDeviceType(IosDeviceType::IosDevice, deviceId());
+    } else if (iossimulator()) {
+        m_deviceType = runConfig->deviceType();
+    } else {
         emit addOutput(tr("Error: no device available, deploy failed."),
-                       BuildStep::ErrorMessageOutput);
+                       BuildStep::OutputFormat::ErrorMessage);
         return false;
     }
     return true;
@@ -119,31 +119,28 @@ void IosDeployStep::run(QFutureInterface<bool> &fi)
 {
     m_futureInterface = fi;
     QTC_CHECK(m_transferStatus == NoTransfer);
-    if (iosdevice().isNull()) {
-        if (iossimulator().isNull())
-            TaskHub::addTask(Task::Error, tr("Deployment failed. No iOS device found."),
-                             ProjectExplorer::Constants::TASK_CATEGORY_DEPLOYMENT);
-        m_futureInterface.reportResult(!iossimulator().isNull());
+    if (device().isNull()) {
+        TaskHub::addTask(Task::Error, tr("Deployment failed. No iOS device found."),
+                         ProjectExplorer::Constants::TASK_CATEGORY_DEPLOYMENT);
+        reportRunResult(m_futureInterface, !iossimulator().isNull());
         cleanup();
-        emit finished();
         return;
     }
+    m_toolHandler = new IosToolHandler(m_deviceType, this);
     m_transferStatus = TransferInProgress;
-    QTC_CHECK(m_toolHandler == 0);
-    m_toolHandler = new IosToolHandler(IosDeviceType(IosDeviceType::IosDevice), this);
     m_futureInterface.setProgressRange(0, 200);
     m_futureInterface.setProgressValueAndText(0, QLatin1String("Transferring application"));
     m_futureInterface.reportStarted();
-    connect(m_toolHandler, SIGNAL(isTransferringApp(Ios::IosToolHandler*,QString,QString,int,int,QString)),
-            SLOT(handleIsTransferringApp(Ios::IosToolHandler*,QString,QString,int,int,QString)));
-    connect(m_toolHandler, SIGNAL(didTransferApp(Ios::IosToolHandler*,QString,QString,Ios::IosToolHandler::OpStatus)),
-            SLOT(handleDidTransferApp(Ios::IosToolHandler*,QString,QString,Ios::IosToolHandler::OpStatus)));
-    connect(m_toolHandler, SIGNAL(finished(Ios::IosToolHandler*)),
-            SLOT(handleFinished(Ios::IosToolHandler*)));
-    connect(m_toolHandler, SIGNAL(errorMsg(Ios::IosToolHandler*,QString)),
-            SLOT(handleErrorMsg(Ios::IosToolHandler*,QString)));
+    connect(m_toolHandler, &IosToolHandler::isTransferringApp,
+            this, &IosDeployStep::handleIsTransferringApp);
+    connect(m_toolHandler, &IosToolHandler::didTransferApp,
+            this, &IosDeployStep::handleDidTransferApp);
+    connect(m_toolHandler, &IosToolHandler::finished,
+            this, &IosDeployStep::handleFinished);
+    connect(m_toolHandler, &IosToolHandler::errorMsg,
+            this, &IosDeployStep::handleErrorMsg);
     checkProvisioningProfile();
-    m_toolHandler->requestTransferApp(appBundle(), deviceId());
+    m_toolHandler->requestTransferApp(appBundle(), m_deviceType.identifier);
 }
 
 void IosDeployStep::cancel()
@@ -157,7 +154,7 @@ void IosDeployStep::cleanup()
     QTC_CHECK(m_transferStatus != TransferInProgress);
     m_transferStatus = NoTransfer;
     m_device.clear();
-    m_toolHandler = 0;
+    m_toolHandler = nullptr;
     m_expectFail = false;
 }
 
@@ -182,10 +179,10 @@ void IosDeployStep::handleDidTransferApp(IosToolHandler *handler, const QString 
         m_transferStatus = TransferFailed;
         if (!m_expectFail)
             TaskHub::addTask(Task::Error,
-                             tr("Deployment failed. The settings in the Organizer window of Xcode might be incorrect."),
+                             tr("Deployment failed. The settings in the Devices window of Xcode might be incorrect."),
                              ProjectExplorer::Constants::TASK_CATEGORY_DEPLOYMENT);
     }
-    m_futureInterface.reportResult(status == IosToolHandler::Success);
+    reportRunResult(m_futureInterface, status == IosToolHandler::Success);
 }
 
 void IosDeployStep::handleFinished(IosToolHandler *handler)
@@ -195,7 +192,7 @@ void IosDeployStep::handleFinished(IosToolHandler *handler)
         m_transferStatus = TransferFailed;
         TaskHub::addTask(Task::Error, tr("Deployment failed."),
                          ProjectExplorer::Constants::TASK_CATEGORY_DEPLOYMENT);
-        m_futureInterface.reportResult(false);
+        reportRunResult(m_futureInterface, false);
         break;
     case NoTransfer:
     case TransferOk:
@@ -205,7 +202,6 @@ void IosDeployStep::handleFinished(IosToolHandler *handler)
     cleanup();
     handler->deleteLater();
     // move it when result is reported? (would need care to avoid problems with concurrent runs)
-    emit finished();
 }
 
 void IosDeployStep::handleErrorMsg(IosToolHandler *handler, const QString &msg)
@@ -215,7 +211,7 @@ void IosDeployStep::handleErrorMsg(IosToolHandler *handler, const QString &msg)
         TaskHub::addTask(Task::Warning,
                          tr("The Info.plist might be incorrect."),
                          ProjectExplorer::Constants::TASK_CATEGORY_DEPLOYMENT);
-    emit addOutput(msg, BuildStep::ErrorMessageOutput);
+    emit addOutput(msg, BuildStep::OutputFormat::ErrorMessage);
 }
 
 BuildStepConfigWidget *IosDeployStep::createConfigWidget()
@@ -280,7 +276,7 @@ void IosDeployStep::checkProvisioningProfile()
         return;
     end += 8;
 
-    QTemporaryFile f;
+    Utils::TemporaryFile f("iosdeploy");
     if (!f.open())
         return;
     f.write(provisionData.mid(start, end - start));

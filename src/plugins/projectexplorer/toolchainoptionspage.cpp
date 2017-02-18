@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -71,7 +66,8 @@ public:
         if (widget) {
             if (tc->isAutoDetected())
                 widget->makeReadOnly();
-            QObject::connect(widget, &ToolChainConfigWidget::dirty, [this] {
+            QObject::connect(widget, &ToolChainConfigWidget::dirty,
+                             [this] {
                 changed = true;
                 update();
             });
@@ -117,15 +113,26 @@ public:
         m_factories = ExtensionSystem::PluginManager::getObjects<ToolChainFactory>(
                     [](ToolChainFactory *factory) { return factory->canCreate();});
 
-        m_model.setHeader(QStringList() << ToolChainOptionsPage::tr("Name") << ToolChainOptionsPage::tr("Type"));
-        m_autoRoot = new TreeItem(QStringList() << ToolChainOptionsPage::tr("Auto-detected") << QString());
-        m_manualRoot = new TreeItem(QStringList() << ToolChainOptionsPage::tr("Manual") << QString());
-        m_model.rootItem()->appendChild(m_autoRoot);
-        m_model.rootItem()->appendChild(m_manualRoot);
-        foreach (ToolChain *tc, ToolChainManager::toolChains()) {
-            TreeItem *parent = tc->isAutoDetected() ? m_autoRoot : m_manualRoot;
-            parent->appendChild(new ToolChainTreeItem(tc, false));
+        m_model.setHeader({ ToolChainOptionsPage::tr("Name"), ToolChainOptionsPage::tr("Type") });
+        auto autoRoot = new StaticTreeItem(ToolChainOptionsPage::tr("Auto-detected"));
+        auto manualRoot = new StaticTreeItem(ToolChainOptionsPage::tr("Manual"));
+
+        foreach (const Core::Id &l, ToolChainManager::allLanguages()) {
+            const QString dn = ToolChainManager::displayNameOfLanguageId(l);
+            auto autoNode = new StaticTreeItem(dn);
+            auto manualNode = new StaticTreeItem(dn);
+
+            autoRoot->appendChild(autoNode);
+            manualRoot->appendChild(manualNode);
+
+            m_languageMap.insert(l, qMakePair(autoNode, manualNode));
         }
+
+        m_model.rootItem()->appendChild(autoRoot);
+        m_model.rootItem()->appendChild(manualRoot);
+
+        foreach (ToolChain *tc, ToolChainManager::toolChains())
+            insertToolChain(tc);
 
         m_toolChainView = new QTreeView(this);
         m_toolChainView->setUniformRowHeights(true);
@@ -140,15 +147,25 @@ public:
         m_addButton = new QPushButton(ToolChainOptionsPage::tr("Add"), this);
         auto addMenu = new QMenu;
         foreach (ToolChainFactory *factory, m_factories) {
-            QAction *action = new QAction(addMenu);
-            action->setText(factory->displayName());
-            connect(action, &QAction::triggered, [this, factory] { createToolChain(factory); });
-            addMenu->addAction(action);
+            QList<Core::Id> languages = factory->supportedLanguages().toList();
+            if (languages.isEmpty())
+                continue;
+
+            if (languages.count() == 1) {
+                addMenu->addAction(createAction(factory->displayName(), factory, languages.at(0)));
+            } else {
+                Utils::sort(languages, [](const Core::Id &l1, const Core::Id &l2) {
+                                return ToolChainManager::displayNameOfLanguageId(l1) < ToolChainManager::displayNameOfLanguageId(l2);
+                            });
+                auto subMenu = addMenu->addMenu(factory->displayName());
+                foreach (const Core::Id &l, languages)
+                    subMenu->addAction(createAction(ToolChainManager::displayNameOfLanguageId(l), factory, l));
+            }
         }
         m_addButton->setMenu(addMenu);
 
         m_cloneButton = new QPushButton(ToolChainOptionsPage::tr("Clone"), this);
-        connect(m_cloneButton, &QAbstractButton::clicked, [this] { createToolChain(0); });
+        connect(m_cloneButton, &QAbstractButton::clicked, [this] { cloneToolChain(); });
 
         m_delButton = new QPushButton(ToolChainOptionsPage::tr("Remove"), this);
 
@@ -192,17 +209,27 @@ public:
 
     void toolChainSelectionChanged();
     void updateState();
-    void createToolChain(ToolChainFactory *factory);
+    void createToolChain(ToolChainFactory *factory, const Core::Id &language);
+    void cloneToolChain();
     ToolChainTreeItem *currentTreeItem();
 
     void markForRemoval(ToolChainTreeItem *item);
+    ToolChainTreeItem *insertToolChain(ProjectExplorer::ToolChain *tc, bool changed = false); // Insert directly into model
     void addToolChain(ProjectExplorer::ToolChain *);
     void removeToolChain(ProjectExplorer::ToolChain *);
+
+    StaticTreeItem *parentForToolChain(ToolChain *tc);
+    QAction *createAction(const QString &name, ToolChainFactory *factory, Core::Id language)
+    {
+        auto action = new QAction(name, nullptr);
+        connect(action, &QAction::triggered, [this, factory, language] { createToolChain(factory, language); });
+        return action;
+    }
 
     void apply();
 
  public:
-    TreeModel m_model;
+    TreeModel<TreeItem, ToolChainTreeItem> m_model;
     QList<ToolChainFactory *> m_factories;
     QTreeView *m_toolChainView;
     DetailsWidget *m_container;
@@ -210,8 +237,7 @@ public:
     QPushButton *m_cloneButton;
     QPushButton *m_delButton;
 
-    TreeItem *m_autoRoot;
-    TreeItem *m_manualRoot;
+    QHash<Core::Id, QPair<StaticTreeItem *, StaticTreeItem *>> m_languageMap;
 
     QList<ToolChainTreeItem *> m_toAddList;
     QList<ToolChainTreeItem *> m_toRemoveList;
@@ -222,12 +248,20 @@ void ToolChainOptionsWidget::markForRemoval(ToolChainTreeItem *item)
     m_model.takeItem(item);
     if (m_toAddList.contains(item)) {
         delete item->toolChain;
-        item->toolChain = 0;
+        item->toolChain = nullptr;
         m_toAddList.removeOne(item);
         delete item;
     } else {
         m_toRemoveList.append(item);
     }
+}
+
+ToolChainTreeItem *ToolChainOptionsWidget::insertToolChain(ToolChain *tc, bool changed)
+{
+    StaticTreeItem *parent = parentForToolChain(tc);
+    auto item = new ToolChainTreeItem(tc, changed);
+    parent->appendChild(item);
+    return item;
 }
 
 void ToolChainOptionsWidget::addToolChain(ToolChain *tc)
@@ -240,8 +274,7 @@ void ToolChainOptionsWidget::addToolChain(ToolChain *tc)
         }
     }
 
-    TreeItem *parent = m_model.rootItem()->child(tc->isAutoDetected() ? 0 : 1);
-    parent->appendChild(new ToolChainTreeItem(tc, false));
+    insertToolChain(tc);
 
     updateState();
 }
@@ -256,15 +289,19 @@ void ToolChainOptionsWidget::removeToolChain(ToolChain *tc)
         }
     }
 
-    TreeItem *parent = m_model.rootItem()->child(tc->isAutoDetected() ? 0 : 1);
-    foreach (ToolChainTreeItem *item, m_model.itemsAtLevel<ToolChainTreeItem *>(1, parent)) {
-        if (item->toolChain == tc) {
-            delete m_model.takeItem(item);
-            break;
-        }
-    }
+    StaticTreeItem *parent = parentForToolChain(tc);
+    auto item = parent->findChildAtLevel(1, [tc](TreeItem *item) {
+        return static_cast<ToolChainTreeItem *>(item)->toolChain == tc;
+    });
+    m_model.destroyItem(item);
 
     updateState();
+}
+
+StaticTreeItem *ToolChainOptionsWidget::parentForToolChain(ToolChain *tc)
+{
+    QPair<StaticTreeItem *, StaticTreeItem *> nodes = m_languageMap.value(tc->language());
+    return tc->isAutoDetected() ? nodes.first : nodes.second;
 }
 
 void ToolChainOptionsWidget::toolChainSelectionChanged()
@@ -274,10 +311,10 @@ void ToolChainOptionsWidget::toolChainSelectionChanged()
     if (oldWidget)
         oldWidget->setVisible(false);
 
-    QWidget *currentTcWidget = item ? item->widget : 0;
+    QWidget *currentTcWidget = item ? item->widget : nullptr;
 
     m_container->setWidget(currentTcWidget);
-    m_container->setVisible(currentTcWidget != 0);
+    m_container->setVisible(currentTcWidget);
     updateState();
 }
 
@@ -291,13 +328,15 @@ void ToolChainOptionsWidget::apply()
     Q_ASSERT(m_toRemoveList.isEmpty());
 
     // Update tool chains:
-    foreach (ToolChainTreeItem *item, m_model.itemsAtLevel<ToolChainTreeItem *>(1, m_manualRoot)) {
-        if (item->changed) {
-            Q_ASSERT(item->toolChain);
-            if (item->widget)
-                item->widget->apply();
-            item->changed = false;
-            item->update();
+    foreach (const Core::Id &l, m_languageMap.keys()) {
+        StaticTreeItem *parent = m_languageMap.value(l).second;
+        for (TreeItem *item : *parent) {
+            auto tcItem = static_cast<ToolChainTreeItem *>(item);
+            Q_ASSERT(tcItem->toolChain);
+            if (tcItem->widget)
+                tcItem->widget->apply();
+            tcItem->changed = false;
+            tcItem->update();
         }
     }
 
@@ -332,29 +371,34 @@ void ToolChainOptionsWidget::apply()
     }
 }
 
-void ToolChainOptionsWidget::createToolChain(ToolChainFactory *factory)
+void ToolChainOptionsWidget::createToolChain(ToolChainFactory *factory, const Core::Id &language)
 {
-    ToolChain *tc = 0;
+    QTC_ASSERT(factory, return);
+    QTC_ASSERT(factory->canCreate(), return);
+    QTC_ASSERT(language.isValid(), return);
 
-    if (factory) {
-        // Clone.
-        QTC_CHECK(factory->canCreate());
-        tc = factory->create();
-    } else {
-        // Copy.
-        ToolChainTreeItem *current = currentTreeItem();
-        if (!current)
-            return;
-        tc = current->toolChain->clone();
-    }
+    ToolChain *tc = factory->create(language);
+    if (!tc)
+        return;
+
+    auto item = insertToolChain(tc, true);
+    m_toAddList.append(item);
+
+    m_toolChainView->setCurrentIndex(m_model.indexForItem(item));
+}
+
+void ToolChainOptionsWidget::cloneToolChain()
+{
+    ToolChainTreeItem *current = currentTreeItem();
+    if (!current)
+        return;
+    ToolChain *tc = current->toolChain->clone();
 
     if (!tc)
         return;
 
-    ToolChainTreeItem *item = new ToolChainTreeItem(tc, true);
+    auto item = insertToolChain(tc, true);
     m_toAddList.append(item);
-
-    m_manualRoot->appendChild(item);
 
     m_toolChainView->setCurrentIndex(m_model.indexForItem(item));
 }
@@ -377,7 +421,7 @@ ToolChainTreeItem *ToolChainOptionsWidget::currentTreeItem()
 {
     QModelIndex index = m_toolChainView->currentIndex();
     TreeItem *item = m_model.itemForIndex(index);
-    return item && item->level() == 2 ? static_cast<ToolChainTreeItem *>(item) : 0;
+    return (item && item->level() == 3) ? static_cast<ToolChainTreeItem *>(item) : nullptr;
 }
 
 // --------------------------------------------------------------------------
@@ -391,7 +435,7 @@ ToolChainOptionsPage::ToolChainOptionsPage()
     setCategory(Constants::PROJECTEXPLORER_SETTINGS_CATEGORY);
     setDisplayCategory(QCoreApplication::translate("ProjectExplorer",
         Constants::PROJECTEXPLORER_SETTINGS_TR_CATEGORY));
-    setCategoryIcon(QLatin1String(Constants::PROJECTEXPLORER_SETTINGS_CATEGORY_ICON));
+    setCategoryIcon(Utils::Icon(Constants::PROJECTEXPLORER_SETTINGS_CATEGORY_ICON));
 }
 
 QWidget *ToolChainOptionsPage::widget()
@@ -410,7 +454,7 @@ void ToolChainOptionsPage::apply()
 void ToolChainOptionsPage::finish()
 {
     delete m_widget;
-    m_widget = 0;
+    m_widget = nullptr;
 }
 
 } // namespace Internal

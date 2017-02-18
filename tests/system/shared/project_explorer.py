@@ -1,32 +1,27 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
 import re;
 
@@ -87,38 +82,34 @@ def prepareBuildSettings(targetCount, currentTarget, setReleaseBuild=True, disab
 # param currentTarget specifies the target for which to switch into the specified settings (zero based index)
 # param targetCount specifies the number of targets currently defined (must be correct!)
 # param projectSettings specifies where to switch to (must be one of ProjectSettings.BUILD or ProjectSettings.RUN)
-def switchToBuildOrRunSettingsFor(targetCount, currentTarget, projectSettings, isQtQuickUI=False):
+def switchToBuildOrRunSettingsFor(targetCount, currentTarget, projectSettings):
+    clickToActivate = "<h3>Click to activate:</h3>"
     try:
-        targetSel = waitForObject("{type='ProjectExplorer::Internal::TargetSelector' unnamed='1' "
-                                  "visible='1' window=':Qt Creator_Core::Internal::MainWindow'}", 5000)
+        treeView = waitForObject(":Projects.ProjectNavigationTreeView")
     except LookupError:
-        if isQtQuickUI:
-            if projectSettings == ProjectSettings.RUN:
-                mouseClick(waitForObject(":*Qt Creator.DoubleTabWidget_ProjectExplorer::Internal::DoubleTabWidget"), 70, 44, 0, Qt.LeftButton)
-                return True
-            else:
-                test.fatal("Don't know what you're trying to switch to")
-                return False
-        # there's only one target defined so use the DoubleTabWidget instead
-        if projectSettings == ProjectSettings.RUN:
-            mouseClick(waitForObject(":*Qt Creator.DoubleTabWidget_ProjectExplorer::Internal::DoubleTabWidget"), 170, 44, 0, Qt.LeftButton)
-        elif projectSettings == ProjectSettings.BUILD:
-            mouseClick(waitForObject(":*Qt Creator.DoubleTabWidget_ProjectExplorer::Internal::DoubleTabWidget"), 70, 44, 0, Qt.LeftButton)
-        else:
-            test.fatal("Don't know what you're trying to switch to")
-            return False
-        return True
-    ADD_BUTTON_WIDTH = 27 # bad... (taken from source)
-    selectorWidth = (targetSel.width - 3 - 2 * (ADD_BUTTON_WIDTH + 1)) / targetCount - 1
-    yToClick = targetSel.height * 3 / 5 + 5
-    if projectSettings == ProjectSettings.RUN:
-        xToClick = ADD_BUTTON_WIDTH + (selectorWidth + 1) * currentTarget - 2 + selectorWidth / 2 + 15
-    elif projectSettings == ProjectSettings.BUILD:
-        xToClick = ADD_BUTTON_WIDTH + (selectorWidth + 1) * currentTarget - 2 + selectorWidth / 2 - 15
+        return False
+    bAndRIndex = getQModelIndexStr("text='Build & Run'", ":Projects.ProjectNavigationTreeView")
+
+    targetIndices = dumpIndices(treeView.model(), waitForObject(bAndRIndex))
+    targets = map(lambda t: str(t.data(0)),
+                  filter(lambda x: not str(x.toolTip).startswith(clickToActivate), targetIndices))
+    if not test.compare(targetCount, len(targets), "Check whether all chosen targets are listed."):
+        return False
+    # we assume the targets are still ordered the same way
+    currentTargetIndex = getQModelIndexStr("text='%s'" % targets[currentTarget], bAndRIndex)
+    if not test.verify(not str(findObject(currentTargetIndex).toolTip).startswith(clickToActivate),
+                       "Verifying target '%s' is enabled." % targets[currentTarget]):
+        return False
+    mouseClick(waitForObject(currentTargetIndex))
+
+    if projectSettings == ProjectSettings.BUILD:
+        settingsIndex = getQModelIndexStr("text='Build'", currentTargetIndex)
+    elif projectSettings == ProjectSettings.RUN:
+        settingsIndex = getQModelIndexStr("text='Run'", currentTargetIndex)
     else:
         test.fatal("Don't know what you're trying to switch to")
         return False
-    mouseClick(targetSel, xToClick, yToClick, 0, Qt.LeftButton)
+    mouseClick(waitForObject(settingsIndex))
     return True
 
 # this function switches "Run in terminal" on or off in a project's run settings
@@ -194,8 +185,8 @@ def getQtInformationForQmlProject():
     qtVersionStr = str(waitForObject(":Kits_QtVersion_QComboBox").currentText)
     test.log("Kit '%s' uses Qt Version '%s'" % (kit, qtVersionStr))
     clickOnTab(":Options.qt_tabwidget_tabbar_QTabBar", "Qt Versions")
-    treeWidget = waitForObject(":QtSupport__Internal__QtVersionManager.qtdirList_QTreeWidget")
-    if not __selectTreeItemOnBuildAndRun__(treeWidget, qtVersionStr):
+    treeView = waitForObject(":qtdirList_QTreeView")
+    if not __selectTreeItemOnBuildAndRun__(treeView, qtVersionStr):
         test.fatal("Found no matching Qt Version for kit - this shouldn't happen.")
         clickButton(waitForObject(":Options.Cancel_QPushButton"))
         return None, None, None, None
@@ -282,7 +273,7 @@ def getQtInformationByQMakeCall(qtDir, which):
     else:
         test.fatal("You're trying to fetch an unknown information (%s)" % which)
         return None
-    return getOutputFromCmdline("%s -query %s" % (qmake, query)).strip()
+    return getOutputFromCmdline([qmake, "-query", query]).strip()
 
 def invokeContextMenuOnProject(projectName, menuItem):
     try:
@@ -302,3 +293,34 @@ def invokeContextMenuOnProject(projectName, menuItem):
     else:
         activateItem(waitForObjectItem("{name='Project.Menu.Project' type='QMenu' visible='1'}", menuItem))
     return projItem
+
+def addAndActivateKit(kit):
+    clickToActivate = "<h3>Click to activate:</h3>"
+    bAndRIndex = getQModelIndexStr("text='Build & Run'", ":Projects.ProjectNavigationTreeView")
+    kitString = Targets.getStringForTarget(kit)
+    switchViewTo(ViewConstants.PROJECTS)
+    try:
+        treeView = waitForObject(":Projects.ProjectNavigationTreeView")
+        wanted = getQModelIndexStr("text='%s'" % kitString, bAndRIndex)
+        index = findObject(wanted)
+        if str(index.toolTip).startswith(clickToActivate):
+            mouseClick(index)
+            test.verify(waitFor("not str(index.toolTip).startswith(clickToActivate)", 1500),
+                        "Kit added for this project")
+            try:
+                findObject(":Projects.ProjectNavigationTreeView")
+            except:
+                test.warning("Squish issue - QC switches automatically to Edit view after enabling "
+                             "a new kit when running tst_opencreator_qbs - works as expected when "
+                             "running without Squish")
+                switchViewTo(ViewConstants.PROJECTS)
+        else:
+            test.warning("Kit is already added for this project.")
+        mouseClick(index)
+        test.verify(waitFor("index.font.bold == True", 1500),
+                    "Verifying whether kit is current active")
+    except:
+        return False
+    finally:
+        switchViewTo(ViewConstants.EDIT)
+    return True

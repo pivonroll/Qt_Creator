@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QMLJSMODELMANAGERINTERFACE_H
-#define QMLJSMODELMANAGERINTERFACE_H
+#pragma once
 
 #include "qmljs_global.h"
 #include "qmljsbundle.h"
@@ -41,7 +35,6 @@
 #include <utils/environment.h>
 
 #include <QFuture>
-#include <QFutureSynchronizer>
 #include <QHash>
 #include <QObject>
 #include <QPointer>
@@ -93,6 +86,7 @@ public:
         PathsAndLanguages importPaths;
         QStringList activeResourceFiles;
         QStringList allResourceFiles;
+        QHash<QString, QString> resourceFileContents;
 
         // whether trying to run qmldump makes sense
         bool tryQmlDump;
@@ -159,6 +153,9 @@ public:
                            bool emitDocumentOnDiskChanged);
     void fileChangedOnDisk(const QString &path);
     void removeFiles(const QStringList &files);
+    QStringList qrcPathsForFile(const QString &file, const QLocale *locale = 0,
+                                ProjectExplorer::Project *project = 0,
+                                QrcResourceSelector resources = AllQrcResources);
     QStringList filesAtQrcPath(const QString &path, const QLocale *locale = 0,
                                ProjectExplorer::Project *project = 0,
                                QrcResourceSelector resources = AllQrcResources);
@@ -209,9 +206,11 @@ public:
                     PathsAndLanguages paths,
                     ModelManagerInterface *modelManager,
                     bool emitDocChangedOnDisk, bool libOnly = true);
-public slots:
+
     virtual void resetCodeModel();
     void removeProjectInfo(ProjectExplorer::Project *project);
+    void maybeQueueCppQmlTypeUpdate(const CPlusPlus::Document::Ptr &doc);
+
 signals:
     void documentUpdated(QmlJS::Document::Ptr doc);
     void documentChangedOnDisk(QmlJS::Document::Ptr doc);
@@ -219,12 +218,11 @@ signals:
     void libraryInfoUpdated(const QString &path, const QmlJS::LibraryInfo &info);
     void projectInfoUpdated(const ProjectInfo &pinfo);
     void projectPathChanged(const QString &projectPath);
-protected slots:
-    void maybeQueueCppQmlTypeUpdate(const CPlusPlus::Document::Ptr &doc);
-    void queueCppQmlTypeUpdate(const CPlusPlus::Document::Ptr &doc, bool scan);
-    void asyncReset();
-    virtual void startCppQmlTypeUpdate();
+
 protected:
+    Q_INVOKABLE void queueCppQmlTypeUpdate(const CPlusPlus::Document::Ptr &doc, bool scan);
+    Q_INVOKABLE void asyncReset();
+    virtual void startCppQmlTypeUpdate();
     QMutex *mutex() const;
     virtual QHash<QString,Dialect> languageForSuffix() const;
     virtual void writeMessageInternal(const QString &msg) const;
@@ -255,6 +253,11 @@ protected:
     void setDefaultProject(const ProjectInfo &pInfo, ProjectExplorer::Project *p);
 
 private:
+    void cleanupFutures();
+    void iterateQrcFiles(ProjectExplorer::Project *project,
+                         QrcResourceSelector resources,
+                         std::function<void(QrcParser::ConstPtr)> callback);
+
     mutable QMutex m_mutex;
     QmlJS::Snapshot m_validSnapshot;
     QmlJS::Snapshot m_newestSnapshot;
@@ -271,8 +274,10 @@ private:
     QHash<QString, QPair<CPlusPlus::Document::Ptr, bool> > m_queuedCppDocuments;
     QFuture<void> m_cppQmlTypesUpdater;
     QrcCache m_qrcCache;
+    QHash<QString, QString> m_qrcContents;
 
     CppDataHash m_cppDataHash;
+    QHash<QString, QList<CPlusPlus::Document::Ptr> > m_cppDeclarationFiles;
     mutable QMutex m_cppDataMutex;
 
     // project integration
@@ -283,10 +288,8 @@ private:
 
     PluginDumper *m_pluginDumper;
 
-    QFutureSynchronizer<void> m_synchronizer;
+    QList<QFuture<void>> m_futures;
     bool m_indexerEnabled;
 };
 
 } // namespace QmlJS
-
-#endif // QMLJSMODELMANAGERINTERFACE_H

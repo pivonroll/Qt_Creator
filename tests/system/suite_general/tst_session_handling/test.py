@@ -1,32 +1,27 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
 source("../../shared/qtcreator.py")
 
@@ -42,30 +37,28 @@ def main():
     mainWindow = waitForObject(":Qt Creator_Core::Internal::MainWindow")
     test.verify(waitFor("sessionName in str(mainWindow.windowTitle)", 2000),
                 "Verifying window title contains created session name.")
-    if canTestEmbeddedQtQuick():
-        checkWelcomePage(sessionName, True)
+    checkWelcomePage(sessionName, True)
     for project in projects:
-        openQmakeProject(project, Targets.DESKTOP_480_DEFAULT)
+        openQmakeProject(project, Targets.DESKTOP_531_DEFAULT)
     progressBarWait(20000)
-    checkNavigator(68, "Verifying whether all projects have been opened.")
-    openDocument("propertyanimation.QML.qml.color-animation\\.qml")
-    openDocument("declarative-music-browser.Headers.utility\\.h")
+    checkNavigator(53, "Verifying whether all projects have been opened.")
+    openDocument("animation.Resources.animation\\.qrc./animation.basics.animators\\.qml")
+    openDocument("keyinteraction.Sources.main\\.cpp")
     checkOpenDocuments(2, "Verifying whether 2 files are open.")
     originalText = str(waitForObject(":Qt Creator_CppEditor::Internal::CPPEditorWidget").plainText)
     switchSession("default")
     test.verify(waitFor("'Qt Creator' == str(mainWindow.windowTitle)", 2000),
                 "Verifying window title is set to default.")
-    if canTestEmbeddedQtQuick():
-        checkWelcomePage(sessionName, False)
-        switchViewTo(ViewConstants.EDIT)
+    checkWelcomePage(sessionName, False)
+    switchViewTo(ViewConstants.EDIT)
     checkNavigator(1, "Verifying that no more project is opened.")
     checkOpenDocuments(0, "Verifying whether all files have been closed.")
     switchSession(sessionName)
     test.verify(waitFor("sessionName in str(mainWindow.windowTitle)", 2000),
                 "Verifying window title contains created session name.")
-    checkNavigator(68, "Verifying whether all projects have been re-opened.")
+    checkNavigator(53, "Verifying whether all projects have been re-opened.")
     checkOpenDocuments(2, "Verifying whether 2 files have been re-opened.")
-    if test.verify("utility.h" in str(mainWindow.windowTitle),
+    if test.verify("main.cpp" in str(mainWindow.windowTitle),
                    "Verifying whether utility.h has been opened."):
         current = str(waitForObject(":Qt Creator_CppEditor::Internal::CPPEditorWidget").plainText)
         test.verify(originalText == current, "Verifying that same file has been opened.")
@@ -73,10 +66,10 @@ def main():
     invokeMenuItem("File", "Exit")
 
 def prepareTestExamples():
-    examples = [os.path.join(sdkPath, "Examples", "4.7", "declarative", "animation", "basics",
-                             "property-animation", "propertyanimation.pro"),
-                os.path.join(sdkPath, "Examples", "QtMobility", "declarative-music-browser",
-                             "declarative-music-browser.pro")
+    examples = [os.path.join(Qt5Path.examplesPath(Targets.DESKTOP_561_DEFAULT),
+                             "quick", "animation", "animation.pro"),
+                os.path.join(Qt5Path.examplesPath(Targets.DESKTOP_561_DEFAULT),
+                             "quick", "keyinteraction", "keyinteraction.pro")
                 ]
     projects = []
     for sourceExample in examples:
@@ -91,7 +84,7 @@ def prepareTestExamples():
 def switchSession(toSession):
     test.log("Switching to session '%s'" % toSession)
     invokeMenuItem("File", "Session Manager...")
-    clickItem(waitForObject("{name='sessionList' type='QListWidget' visible='1' "
+    clickItem(waitForObject("{name='sessionView' type='ProjectExplorer::Internal::SessionView' visible='1' "
                             "window=':Session Manager_ProjectExplorer::Internal::SessionDialog'}"),
                             toSession, 5, 5, 0, Qt.LeftButton)
     clickButton(waitForObject("{name='btSwitch' text='Switch to' type='QPushButton' visible='1' "
@@ -111,10 +104,7 @@ def createAndSwitchToSession(toSession):
                               "window=%s}" % sessionInputDialog))
 
 def checkWelcomePage(sessionName, isCurrent=False):
-    if isQt54Build:
-        welcomePage = ":WelcomePageStyledBar.WelcomePage_QQuickView"
-    else:
-        welcomePage = ":Qt Creator.WelcomePage_QQuickWidget"
+    welcomePage = ":Qt Creator.WelcomePage_QQuickWidget"
     switchViewTo(ViewConstants.WELCOME)
     mouseClick(waitForObject("{container='%s' text='Projects' type='Button' "
                              "unnamed='1' visible='true'}" % welcomePage))
@@ -125,7 +115,7 @@ def checkWelcomePage(sessionName, isCurrent=False):
     else:
         sessions = ["default (current session)", sessionName]
     for sessionName in sessions:
-        test.verify(object.exists("{container='%s' enabled='true' type='LinkedText' unnamed='1' "
+        test.verify(object.exists("{container='%s' enabled='true' type='Text' unnamed='1' "
                                   "visible='true' text='%s'}" % (welcomePage, sessionName)),
                                   "Verifying session '%s' exists." % sessionName)
 

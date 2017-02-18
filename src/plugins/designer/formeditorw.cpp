@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -80,9 +75,10 @@
 
 #include <QDebug>
 #include <QSettings>
-#include <QSignalMapper>
 #include <QPluginLoader>
 #include <QTime>
+
+#include <algorithm>
 
 static const char settingsGroupC[] = "Designer";
 
@@ -160,7 +156,7 @@ public:
     void toolChanged(int);
     void print();
     void setPreviewMenuEnabled(bool e);
-    void updateShortcut(QObject *command);
+    void updateShortcut(Command *command);
 
     void fullInit();
 
@@ -212,7 +208,6 @@ public:
     QActionGroup *m_actionGroupPreviewInStyle;
     QMenu *m_previewInStyleMenu;
     QAction *m_actionAboutPlugins;
-    QSignalMapper m_shortcutMapper;
 
     DesignerContext *m_context;
     Context m_contexts;
@@ -256,8 +251,8 @@ FormEditorData::FormEditorData() :
     QTC_ASSERT(!d, return);
     d = this;
 
-    qFill(m_designerSubWindows, m_designerSubWindows + DesignerSubWindowCount,
-          static_cast<QWidget *>(0));
+    std::fill(m_designerSubWindows, m_designerSubWindows + DesignerSubWindowCount,
+              static_cast<QWidget *>(0));
 
     m_formeditor->setTopLevel(ICore::mainWindow());
     m_formeditor->setSettingsManager(new SettingsManager());
@@ -288,9 +283,6 @@ FormEditorData::FormEditorData() :
             m_fwm->setActiveFormWindow(fw->formWindow());
         }
     });
-
-    QObject::connect(&m_shortcutMapper, static_cast<void(QSignalMapper::*)(QObject *)>(&QSignalMapper::mapped),
-        [this](QObject *ob) { updateShortcut(ob); });
 
     m_xmlEditorFactory = new FormWindowEditorFactory;
 }
@@ -439,7 +431,7 @@ void FormEditorData::fullInit()
     // 'Run' in 'Design' mode emits output.
     MiniSplitter *splitter = new MiniSplitter(Qt::Vertical);
     splitter->addWidget(m_editorWidget);
-    QWidget *outputPane = new OutputPanePlaceHolder(m_designMode, splitter);
+    QWidget *outputPane = new OutputPanePlaceHolder(m_designMode->id(), splitter);
     outputPane->setObjectName(QLatin1String("DesignerOutputPanePlaceHolder"));
     splitter->addWidget(outputPane);
     layout->addWidget(splitter);
@@ -459,7 +451,7 @@ void FormEditorData::fullInit()
 
 void FormEditorData::initDesignerSubWindows()
 {
-    qFill(m_designerSubWindows, m_designerSubWindows + DesignerSubWindowCount, static_cast<QWidget*>(0));
+    std::fill(m_designerSubWindows, m_designerSubWindows + DesignerSubWindowCount, static_cast<QWidget*>(0));
 
     QDesignerWidgetBoxInterface *wb = QDesignerComponents::createWidgetBox(m_formeditor, 0);
     wb->setWindowTitle(tr("Widget Box"));
@@ -741,12 +733,9 @@ void FormEditorData::critical(const QString &errorMessage)
 // Apply the command shortcut to the action and connects to the command's keySequenceChanged signal
 void FormEditorData::bindShortcut(Command *command, QAction *action)
 {
-    typedef void (QSignalMapper::*SignalMapperVoidSlot)();
-
     m_commandToDesignerAction.insert(command, action);
     QObject::connect(command, &Command::keySequenceChanged,
-                     &m_shortcutMapper, static_cast<SignalMapperVoidSlot>(&QSignalMapper::map));
-    m_shortcutMapper.setMapping(command, command);
+                     command, [this, command] { updateShortcut(command); });
     updateShortcut(command);
 }
 
@@ -842,15 +831,12 @@ FormWindowEditor *FormEditorW::activeEditor()
     return 0;
 }
 
-void FormEditorData::updateShortcut(QObject *command)
+void FormEditorData::updateShortcut(Command *command)
 {
-    Command *c = qobject_cast<Command *>(command);
-    if (!c)
+    if (!command)
         return;
-    QAction *a = m_commandToDesignerAction.value(c);
-    if (!a)
-        return;
-    a->setShortcut(c->action()->shortcut());
+    if (QAction *a = m_commandToDesignerAction.value(command))
+        a->setShortcut(command->action()->shortcut());
 }
 
 void FormEditorData::activateEditMode(int id)

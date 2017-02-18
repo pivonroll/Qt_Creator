@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -51,13 +46,17 @@
 #endif
 
 #include <coreplugin/icore.h>
+
+#include <projectexplorer/devicesupport/devicemanager.h>
 #include <projectexplorer/kitmanager.h>
+
 #include <qtsupport/qtversionmanager.h>
+
 #include <utils/mimetypes/mimedatabase.h>
 
 #include <QtPlugin>
 
-#include <projectexplorer/devicesupport/devicemanager.h>
+using namespace ProjectExplorer;
 
 namespace Android {
 
@@ -80,27 +79,27 @@ bool AndroidPlugin::initialize(const QStringList &arguments, QString *errorMessa
     addAutoReleasedObject(new Internal::AndroidDeviceFactory);
     addAutoReleasedObject(new Internal::AndroidPotentialKit);
     addAutoReleasedObject(new Internal::JavaEditorFactory);
-    ProjectExplorer::KitManager::registerKitInformation(new Internal::AndroidGdbServerKitInformation);
+    KitManager::registerKitInformation(new Internal::AndroidGdbServerKitInformation);
 
     Utils::MimeDatabase::addMimeTypes(QLatin1String(":/android/Android.mimetypes.xml"));
 
     addAutoReleasedObject(new Internal::AndroidManifestEditorFactory);
 
-    connect(ProjectExplorer::KitManager::instance(), SIGNAL(kitsLoaded()),
-            this, SLOT(kitsRestored()));
+    connect(KitManager::instance(), &KitManager::kitsLoaded,
+            this, &AndroidPlugin::kitsRestored);
 
-    connect(ProjectExplorer::DeviceManager::instance(), SIGNAL(devicesLoaded()),
-            this, SLOT(updateDevice()));
+    connect(DeviceManager::instance(), &DeviceManager::devicesLoaded,
+            this, &AndroidPlugin::updateDevice);
     return true;
 }
 
 void AndroidPlugin::kitsRestored()
 {
     AndroidConfigurations::updateAutomaticKitList();
-    connect(QtSupport::QtVersionManager::instance(), SIGNAL(qtVersionsChanged(QList<int>,QList<int>,QList<int>)),
-            AndroidConfigurations::instance(), SLOT(updateAutomaticKitList()));
-    disconnect(ProjectExplorer::KitManager::instance(), SIGNAL(kitsChanged()),
-               this, SLOT(kitsRestored()));
+    connect(QtSupport::QtVersionManager::instance(), &QtSupport::QtVersionManager::qtVersionsChanged,
+            AndroidConfigurations::instance(), &AndroidConfigurations::updateAutomaticKitList);
+    disconnect(KitManager::instance(), &KitManager::kitsChanged,
+               this, &AndroidPlugin::kitsRestored);
 }
 
 void AndroidPlugin::updateDevice()

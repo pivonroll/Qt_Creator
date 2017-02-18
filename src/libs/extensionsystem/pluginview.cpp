@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,11 +27,12 @@
 #include "pluginmanager.h"
 #include "pluginspec.h"
 #include "pluginspec_p.h"
-#include "plugincollection.h"
 
 #include <utils/algorithm.h>
 #include <utils/categorysortfiltermodel.h>
+#include <utils/utilsicons.h>
 #include <utils/itemviews.h>
+#include <utils/qtcassert.h>
 #include <utils/treemodel.h>
 
 #include <QDebug>
@@ -74,7 +70,6 @@
 */
 
 Q_DECLARE_METATYPE(ExtensionSystem::PluginSpec*)
-Q_DECLARE_METATYPE(ExtensionSystem::PluginCollection*)
 
 using namespace Utils;
 
@@ -87,15 +82,26 @@ enum Columns { NameColumn, LoadedColumn, VersionColumn, VendorColumn, };
 enum IconIndex { OkIcon, ErrorIcon, NotLoadedIcon };
 
 static const int SortRole = Qt::UserRole + 1;
+static const int HiddenByDefaultRole = Qt::UserRole + 2;
 
-static const QIcon &icon(int num)
+static const QIcon &icon(IconIndex icon)
 {
-    static QIcon icons[] = {
-        QIcon(QLatin1String(":/extensionsystem/images/ok.png")),
-        QIcon(QLatin1String(":/extensionsystem/images/error.png")),
-        QIcon(QLatin1String(":/extensionsystem/images/notloaded.png")),
-    };
-    return icons[num];
+    using namespace Utils;
+    switch (icon) {
+    case OkIcon: {
+        static const QIcon ok = Utils::Icons::OK.icon();
+        return ok;
+    }
+    case ErrorIcon: {
+        static const QIcon error = Utils::Icons::BROKEN.icon();
+        return error;
+    }
+    default:
+    case NotLoadedIcon: {
+        static const QIcon notLoaded = Utils::Icons::NOTLOADED.icon();
+        return notLoaded;
+    }
+    }
 }
 
 class PluginItem : public TreeItem
@@ -109,9 +115,14 @@ public:
 
     QVariant data(int column, int role) const
     {
+        if (role == HiddenByDefaultRole)
+            return m_spec->isHiddenByDefault() || !m_spec->isAvailableForHostPlatform();
         switch (column) {
         case NameColumn:
-            if (role == Qt::DisplayRole || role == SortRole)
+            if (role == Qt::DisplayRole)
+                return m_spec->isExperimental() ? PluginView::tr("%1 (experimental)").arg(m_spec->name())
+                                                : m_spec->name();
+            if (role == SortRole)
                 return m_spec->name();
             if (role == Qt::ToolTipRole) {
                 QString toolTip;
@@ -215,6 +226,8 @@ public:
 
     QVariant data(int column, int role) const
     {
+        if (role == HiddenByDefaultRole)
+            return false;
         if (column == NameColumn) {
             if (role == Qt::DisplayRole || role == SortRole)
                 return m_name;
@@ -253,10 +266,9 @@ public:
     bool setData(int column, const QVariant &data, int role)
     {
         if (column == LoadedColumn && role == Qt::CheckStateRole) {
-            QSet<PluginSpec *> affectedPlugins;
-            foreach (TreeItem *item, children())
-                affectedPlugins.insert(static_cast<PluginItem *>(item)->m_spec);
-            if (m_view->setPluginsEnabled(affectedPlugins, data.toBool())) {
+            const QList<PluginSpec *> affectedPlugins =
+                    Utils::filtered(m_plugins, [](PluginSpec *spec) { return !spec->isRequired(); });
+            if (m_view->setPluginsEnabled(affectedPlugins.toSet(), data.toBool())) {
                 update();
                 return true;
             }
@@ -276,6 +288,40 @@ public:
     QString m_name;
     QList<PluginSpec *> m_plugins;
     PluginView *m_view; // Not owned.
+};
+
+class PluginFilterModel : public CategorySortFilterModel
+{
+public:
+    PluginFilterModel(QObject *parent = 0) : CategorySortFilterModel(parent) {}
+
+    void setShowHidden(bool show)
+    {
+        if (show == m_showHidden)
+            return;
+        m_showHidden = show;
+        invalidateFilter();
+    }
+
+    bool isShowingHidden() const
+    {
+        return m_showHidden;
+    }
+
+protected:
+    bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override
+    {
+        if (CategorySortFilterModel::filterAcceptsRow(source_row, source_parent)) {
+            if (m_showHidden)
+                return true;
+            const QModelIndex &index = sourceModel()->index(source_row, 0, source_parent);
+            return !sourceModel()->data(index, HiddenByDefaultRole).toBool();
+        }
+        return false;
+    }
+
+private:
+    bool m_showHidden = true;
 };
 
 } // Internal
@@ -302,10 +348,10 @@ PluginView::PluginView(QWidget *parent)
     m_categoryView->setSelectionMode(QAbstractItemView::SingleSelection);
     m_categoryView->setSelectionBehavior(QAbstractItemView::SelectRows);
 
-    m_model = new TreeModel(this);
-    m_model->setHeader(QStringList() << tr("Name") << tr("Load") << tr("Version") << tr("Vendor"));
+    m_model = new TreeModel<TreeItem, CollectionItem, PluginItem>(this);
+    m_model->setHeader({ tr("Name"), tr("Load"), tr("Version"), tr("Vendor") });
 
-    m_sortModel = new CategorySortFilterModel(this);
+    m_sortModel = new PluginFilterModel(this);
     m_sortModel->setSourceModel(m_model);
     m_sortModel->setSortRole(SortRole);
     m_sortModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
@@ -353,10 +399,21 @@ void PluginView::setFilter(const QString &filter)
     m_categoryView->expandAll();
 }
 
+void PluginView::setShowHidden(bool showHidden)
+{
+    m_sortModel->setShowHidden(showHidden);
+    m_categoryView->expandAll();
+}
+
+bool PluginView::isShowingHidden() const
+{
+    return m_sortModel->isShowingHidden();
+}
+
 PluginSpec *PluginView::pluginForIndex(const QModelIndex &index) const
 {
     const QModelIndex &sourceIndex = m_sortModel->mapToSource(index);
-    auto item = dynamic_cast<PluginItem *>(m_model->itemForIndex(sourceIndex));
+    PluginItem *item = m_model->itemForIndexAtLevel<2>(sourceIndex);
     return item ? item->m_spec: 0;
 }
 
@@ -365,28 +422,14 @@ void PluginView::updatePlugins()
     // Model.
     m_model->clear();
 
-    PluginCollection *defaultCollection = 0;
+
     QList<CollectionItem *> collections;
-    foreach (PluginCollection *collection, PluginManager::pluginCollections()) {
-        if (collection->name().isEmpty() || collection->plugins().isEmpty()) {
-            defaultCollection = collection;
-            continue;
-        }
-        collections.append(new CollectionItem(collection->name(), collection->plugins(), this));
+    auto end = PluginManager::pluginCollections().cend();
+    for (auto it = PluginManager::pluginCollections().cbegin(); it != end; ++it) {
+        const QString name = it.key().isEmpty() ? tr("Utilities") : it.key();
+        collections.append(new CollectionItem(name, it.value(), this));
     }
-
-    QList<PluginSpec *> plugins;
-    if (defaultCollection)
-        plugins = defaultCollection->plugins();
-
-    if (!plugins.isEmpty()) {
-        // add all non-categorized plugins into utilities. could also be added as root items
-        // but that makes the tree ugly.
-        collections.append(new CollectionItem(tr("Utilities"), plugins, this));
-    }
-
-    Utils::sort(collections, [](CollectionItem *a, CollectionItem *b) -> bool
-        { return a->m_name < b->m_name; });
+    Utils::sort(collections, &CollectionItem::m_name);
 
     foreach (CollectionItem *collection, collections)
         m_model->rootItem()->appendChild(collection);
@@ -443,7 +486,7 @@ bool PluginView::setPluginsEnabled(const QSet<PluginSpec *> &plugins, bool enabl
 
     QSet<PluginSpec *> affectedPlugins = plugins + additionalPlugins;
     foreach (PluginSpec *spec, affectedPlugins) {
-        PluginItem *item = m_model->findItemAtLevel<PluginItem *>(2, [spec](PluginItem *item) {
+        PluginItem *item = m_model->findItemAtLevel<2>([spec](PluginItem *item) {
                 return item->m_spec == spec;
         });
         QTC_ASSERT(item, continue);

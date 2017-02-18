@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,6 +33,7 @@
 #include <cplusplus/Bind.h>
 #include <cplusplus/Control.h>
 #include <cplusplus/CoreTypes.h>
+#include <cplusplus/DeprecatedGenTemplateInstance.h>
 #include <cplusplus/DiagnosticClient.h>
 #include <cplusplus/ExpressionUnderCursor.h>
 #include <cplusplus/Literals.h>
@@ -47,13 +43,15 @@
 #include <cplusplus/Parser.h>
 #include <cplusplus/Scope.h>
 #include <cplusplus/Symbols.h>
-#include <cplusplus/Templates.h>
 
 //TESTED_COMPONENT=src/libs/cplusplus
 
 #define NO_PARSER_OR_SEMANTIC_ERROR_MESSAGES
 
 using namespace CPlusPlus;
+
+// to use in tests directly w/o convertion to int
+Q_DECLARE_METATYPE(Function::RefQualifier)
 
 class tst_Semantic: public QObject
 {
@@ -144,6 +142,7 @@ public:
         features.qtMocRunEnabled = qtMocRun;
         features.qtKeywordsEnabled = qtMocRun;
         features.cxx11Enabled = enableCxx11;
+        features.cxxEnabled = true;
         diag.errorCount = 0; // reset the error count.
         TranslationUnit *unit = parse(source, TranslationUnit::ParseTranlationUnit, features);
         QSharedPointer<Document> doc(new Document(unit));
@@ -155,6 +154,8 @@ public:
 private slots:
     void function_declaration_1();
     void function_declaration_2();
+    void function_declaration_ref_qualifier_data();
+    void function_declaration_ref_qualifier();
     void function_definition_1();
     void nested_class_1();
     void alias_declaration_1();
@@ -166,7 +167,6 @@ private slots:
     void pointer_to_function_1();
 
     void template_instance_1();
-    void explicit_instantiation_1();
 
     void expression_under_cursor_1();
 
@@ -191,6 +191,7 @@ private slots:
     void enum_constantValue3();
     void enum_constantValue4();
     void enum_constantValue5();
+    void enum_constantValueNegative();
 };
 
 void tst_Semantic::function_declaration_1()
@@ -207,6 +208,7 @@ void tst_Semantic::function_declaration_1()
     QVERIFY(funTy);
     QVERIFY(funTy->returnType()->isVoidType());
     QCOMPARE(funTy->argumentCount(), 0U);
+    QCOMPARE(funTy->refQualifier(), Function::NoRefQualifier);
 
     QVERIFY(decl->name()->isNameId());
     const Identifier *funId = decl->name()->asNameId()->identifier();
@@ -230,6 +232,7 @@ void tst_Semantic::function_declaration_2()
     QVERIFY(funTy);
     QVERIFY(funTy->returnType()->isVoidType());
     QCOMPARE(funTy->argumentCount(), 1U);
+    QCOMPARE(funTy->refQualifier(), Function::NoRefQualifier);
 
     // check the formal argument.
     Argument *arg = funTy->argumentAt(0)->asArgument();
@@ -266,6 +269,103 @@ void tst_Semantic::function_declaration_2()
     QCOMPARE(foo, QByteArray("foo"));
 }
 
+void tst_Semantic::function_declaration_ref_qualifier_data()
+{
+    QTest::addColumn<QString>("code");
+    QTest::addColumn<bool>("success");
+    QTest::addColumn<Function::RefQualifier>("refQualifier");
+
+    QTest::newRow("no")
+            << "void f();" << true << Function::NoRefQualifier;
+
+    QTest::newRow("no_const")
+            << "void f() const;" << true << Function::NoRefQualifier;
+
+    QTest::newRow("no_const_noexcept")
+            << "void f() const noexcept;" << true << Function::NoRefQualifier;
+
+    QTest::newRow("lvalue")
+            << "void f() &;" << true << Function::LvalueRefQualifier;
+
+    QTest::newRow("lvalue_const")
+            << "void f() const &;" << true << Function::LvalueRefQualifier;
+
+    QTest::newRow("lvalue_const_noexcept")
+            << "void f() const & noexcept;" << true << Function::LvalueRefQualifier;
+
+    QTest::newRow("rvalue")
+            << "void f() &&;" << true << Function::RvalueRefQualifier;
+
+    QTest::newRow("rvalue_const")
+            << "void f() const &&;" << true << Function::RvalueRefQualifier;
+
+    QTest::newRow("rvalue_const_noexcept")
+            << "void f() const && noexcept;" << true << Function::RvalueRefQualifier;
+
+    QTest::newRow("lvalue_more_spaces")
+            << "void f()  const    &;" << true << Function::LvalueRefQualifier;
+
+    QTest::newRow("rvalue_more_spaces")
+            << "void f()       &&    noexcept;" << true << Function::RvalueRefQualifier;
+
+    QTest::newRow("lvalue_more_newline")
+            << "void f() const\n&;" << true << Function::LvalueRefQualifier;
+
+    QTest::newRow("rvalue_more_newline")
+            << "void f() const\n&&;" << true << Function::RvalueRefQualifier;
+
+    QTest::newRow("lvalue_no_space")
+            << "void f() const& noexcept;" << true << Function::LvalueRefQualifier;
+
+    QTest::newRow("rvalue_no_space")
+            << "void f() const&& noexcept;" << true << Function::RvalueRefQualifier;
+
+    QTest::newRow("lvalue_before_const")
+            << "void f() & const;" << false << Function::NoRefQualifier;
+
+    QTest::newRow("rvalue_before_const")
+            << "void f() && const;" << false << Function::NoRefQualifier;
+
+    QTest::newRow("lvalue_after_noexcept")
+            << "void f() const noexcept &;" << false << Function::NoRefQualifier;
+
+    QTest::newRow("rvalue_after_noexcept")
+            << "void f() const noexcept &&;" << false << Function::NoRefQualifier;
+
+    QTest::newRow("lvalue_double")
+            << "void f() const & & noexcept;" << false << Function::NoRefQualifier;
+
+    QTest::newRow("rvalue_double")
+            << "void f() const && && noexcept;" << false << Function::NoRefQualifier;
+}
+
+void tst_Semantic::function_declaration_ref_qualifier()
+{
+    QFETCH(QString, code);
+    QFETCH(bool, success);
+    QFETCH(Function::RefQualifier, refQualifier);
+
+    QSharedPointer<Document> doc = document(code.toUtf8(), false, false, true);
+    if (!success) {
+        QVERIFY(doc->errorCount > 0);
+        return;
+    }
+    QCOMPARE(doc->errorCount, 0U);
+    QCOMPARE(doc->globals->memberCount(), 1U);
+
+    Declaration *decl = doc->globals->memberAt(0)->asDeclaration();
+    QVERIFY(decl);
+
+    FullySpecifiedType declTy = decl->type();
+    Function *funTy = declTy->asFunctionType();
+    QVERIFY(funTy);
+    QVERIFY(funTy->returnType()->isVoidType());
+    QCOMPARE(funTy->argumentCount(), 0U);
+
+    // check the ref-qualifier
+    QCOMPARE(funTy->refQualifier(), refQualifier);
+}
+
 void tst_Semantic::function_definition_1()
 {
     QSharedPointer<Document> doc = document("void foo() {}");
@@ -276,6 +376,7 @@ void tst_Semantic::function_definition_1()
     QVERIFY(funTy);
     QVERIFY(funTy->returnType()->isVoidType());
     QCOMPARE(funTy->argumentCount(), 0U);
+    QCOMPARE(funTy->refQualifier(), Function::NoRefQualifier);
 
     QVERIFY(funTy->name()->isNameId());
     const Identifier *funId = funTy->name()->asNameId()->identifier();
@@ -512,35 +613,15 @@ void tst_Semantic::template_instance_1()
     QVERIFY(decl);
 
     FullySpecifiedType templArgs[] = { control->integerType(IntegerType::Int) };
-    Clone cloner(control.data());
-    Class *clone = cloner.instantiate(templ, templArgs, 1)->asClass();
-    QVERIFY(clone);
+    const Name *templId = control->templateNameId(control->identifier("QList"), false, templArgs, 1);
+
+    FullySpecifiedType genTy = DeprecatedGenTemplateInstance::instantiate(templId, decl, control);
 
     Overview oo;
     oo.showReturnTypes = true;
 
-    Declaration *clonedDecl = clone->memberAt(0)->asDeclaration();
-    const QString genDecl = oo.prettyType(clonedDecl->type());
+    const QString genDecl = oo.prettyType(genTy);
     QCOMPARE(genDecl, QString::fromLatin1("void (const int &)"));
-}
-
-void tst_Semantic::explicit_instantiation_1()
-{
-    QSharedPointer<Document> doc = document("template class basic_string<char>;");
-    QCOMPARE(doc->errorCount, 0U);
-    QCOMPARE(doc->globals->memberCount(), 1U);
-
-    ExplicitInstantiation *inst = doc->globals->memberAt(0)->asExplicitInstantiation();
-    QVERIFY(inst);
-
-    ForwardClassDeclaration *fwd = inst->memberAt(0)->asForwardClassDeclaration();
-    QVERIFY(fwd);
-
-    QVERIFY(inst->name()->match(fwd->name()));
-
-    Overview oo;
-    const QString name = oo.prettyName(inst->name());
-    QCOMPARE(name, QString::fromLatin1("basic_string<char>"));
 }
 
 void tst_Semantic::expression_under_cursor_1()
@@ -935,6 +1016,29 @@ void tst_Semantic::enum_constantValue5()
     testEnumaratorDeclarator(e, 2, "1");
     testEnumaratorDeclarator(e, 3, "1");
     testEnumaratorDeclarator(e, 4, "2");
+}
+
+void tst_Semantic::enum_constantValueNegative()
+{
+    QSharedPointer<Document> doc = document(
+                "enum {\n"
+                "  E1=-2,\n"
+                "  E2,\n"
+                "  E3,\n"
+                "  E4\n"
+                "};\n"
+    );
+
+    QCOMPARE(doc->errorCount, 0U);
+    QCOMPARE(doc->globals->memberCount(), 1U);
+    Enum *e = doc->globals->memberAt(0)->asEnum();
+    QVERIFY(e);
+    QCOMPARE(e->memberCount(), 4U);
+
+    testEnumaratorDeclarator(e, 0, "-2");
+    testEnumaratorDeclarator(e, 1, "-1");
+    testEnumaratorDeclarator(e, 2, "0");
+    testEnumaratorDeclarator(e, 3, "1");
 }
 
 QTEST_MAIN(tst_Semantic)

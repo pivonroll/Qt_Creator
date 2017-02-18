@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,6 +33,11 @@
 
 #include <algorithm>
 
+#ifdef WITH_PYTHON
+#include <Python.h>
+#include "pycdbextmodule.h"
+#endif
+
 // wdbgexts.h declares 'extern WINDBG_EXTENSION_APIS ExtensionApis;'
 // and it's inline functions rely on its existence.
 WINDBG_EXTENSION_APIS   ExtensionApis = {sizeof(WINDBG_EXTENSION_APIS), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -45,15 +45,11 @@ WINDBG_EXTENSION_APIS   ExtensionApis = {sizeof(WINDBG_EXTENSION_APIS), 0, 0, 0,
 const char *ExtensionContext::stopReasonKeyC = "reason";
 const char *ExtensionContext::breakPointStopReasonC = "breakpoint";
 
-/*!  \class Parameters
+/*!  \struct Parameters
 
     Externally configureable parameters.
     \ingroup qtcreatorcdbext
 */
-
-Parameters::Parameters() : maxStringLength(10000), maxArraySize(100) ,maxStackDepth(1000)
-{
-}
 
 /*!  \class StateNotificationBlocker
 
@@ -84,13 +80,6 @@ private:
     Caches a symbolgroup per frame and thread as long as the session is accessible.
     \ingroup qtcreatorcdbext
 */
-
-ExtensionContext::ExtensionContext() :
-    m_hookedClient(0),
-    m_oldEventCallback(0), m_oldOutputCallback(0),
-    m_creatorEventCallback(0), m_creatorOutputCallback(0), m_stateNotification(true)
-{
-}
 
 ExtensionContext::~ExtensionContext()
 {
@@ -171,6 +160,13 @@ HRESULT ExtensionContext::initialize(PULONG Version, PULONG Flags)
     *Version = DEBUG_EXTENSION_VERSION(1, 0);
     *Flags = 0;
 
+#ifdef WITH_PYTHON
+    initCdbextPythonModule();
+    Py_Initialize();
+    PyRun_SimpleString("import cdbext");
+    PyRun_SimpleString("import sys");
+#endif
+
     IInterfacePointer<CIDebugClient> client;
     if (!client.create())
         return client.hr();
@@ -206,14 +202,22 @@ static std::string findModule(CIDebugSymbols *syms,
 }
 
 // Try to find a JS execution context passed as parameter in a complete stack dump (kp)
-static ULONG64 jsExecutionContextFromStackTrace(const std::wstring &stack)
+static ULONG64 jsExecutionEngineFromStackTrace(const std::wstring &stack)
 {
-    // Search for "QV4::ExecutionContext * - varying variable names - 0x...[,)]"
-    const wchar_t needle[] = L"struct QV4::ExecutionContext * "; // .. varying variable names .. 0x...
-    const std::string::size_type varPos = stack.find(needle);
-    if (varPos == std::string::npos)
+    // Search for "QV4::ExecutionEngine * - varying variable names - 0x...[,)]"
+    const wchar_t needle[] = L"struct QV4::ExecutionEngine * "; // Qt 5.7 onwards
+    std::string::size_type varEnd = std::string::npos;
+    std::string::size_type varPos = stack.find(needle);
+    if (varPos != std::string::npos) {
+        varEnd = varPos + sizeof(needle) / sizeof(wchar_t) - 1;
+    } else {
+        const wchar_t needle56[] = L"struct QV4::ExecutionContext * "; // up to Qt 5.6
+        varPos = stack.find(needle56);
+        if (varPos != std::string::npos)
+            varEnd = varPos + sizeof(needle56) / sizeof(wchar_t) - 1;
+    }
+    if (varEnd == std::string::npos)
         return 0;
-    const std::string::size_type varEnd = varPos + sizeof(needle) / sizeof(wchar_t) - 1;
     std::string::size_type numPos = stack.find(L"0x", varEnd);
     if (numPos == std::string::npos || numPos > (varEnd + 20))
         return 0;
@@ -231,10 +235,10 @@ static ULONG64 jsExecutionContextFromStackTrace(const std::wstring &stack)
     return str.fail() ? 0 : result;
 }
 
-// Try to find address of jsExecutionContext by looking at the
+// Try to find address of jsExecutionEngine by looking at the
 // stack trace in case QML is loaded.
-ULONG64 ExtensionContext::jsExecutionContext(ExtensionCommandContext &exc,
-                                             std::string *errorMessage)
+ULONG64 ExtensionContext::jsExecutionEngine(ExtensionCommandContext &exc,
+                                            std::string *errorMessage)
 {
 
     const QtInfo &qtInfo = QtInfo::get(SymbolGroupValueContext(exc.dataSpaces(), exc.symbols()));
@@ -245,10 +249,10 @@ ULONG64 ExtensionContext::jsExecutionContext(ExtensionCommandContext &exc,
             *errorMessage = "QML not loaded";
         return 0;
     }
-    // Retrieve full stack (costly) and try to find a JS execution context passed as parameter
+    // Retrieve top frames of stack and try to find a JS execution engine passed as parameter
     startRecordingOutput();
     StateNotificationBlocker blocker(this);
-    const HRESULT hr = m_control->Execute(DEBUG_OUTCTL_ALL_CLIENTS, "kp", DEBUG_EXECUTE_ECHO);
+    const HRESULT hr = m_control->Execute(DEBUG_OUTCTL_ALL_CLIENTS, "kp 15", DEBUG_EXECUTE_ECHO);
     if (FAILED(hr)) {
         stopRecordingOutput();
         *errorMessage = msgDebugEngineComFailed("Execute", hr);
@@ -259,9 +263,9 @@ ULONG64 ExtensionContext::jsExecutionContext(ExtensionCommandContext &exc,
         *errorMessage = "Unable to obtain stack (output redirection in place?)";
         return 0;
     }
-    const ULONG64 result = jsExecutionContextFromStackTrace(fullStackTrace);
+    const ULONG64 result = jsExecutionEngineFromStackTrace(fullStackTrace);
     if (!result)
-        *errorMessage = "JS ExecutionContext address not found in stack";
+        *errorMessage = "JS ExecutionEngine address not found in stack";
     return result;
 }
 
@@ -519,6 +523,9 @@ HRESULT CALLBACK DebugExtensionInitialize(PULONG Version, PULONG Flags)
 
 void CALLBACK DebugExtensionUninitialize(void)
 {
+#ifdef WITH_PYTHON
+    Py_Finalize();
+#endif
 }
 
 void CALLBACK DebugExtensionNotify(ULONG Notify, ULONG64)

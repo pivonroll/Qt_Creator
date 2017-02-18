@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef SYMBOLGROUPNODE_H
-#define SYMBOLGROUPNODE_H
+#pragma once
 
 #include "common.h"
 
@@ -48,35 +42,18 @@ struct SymbolGroupValueContext;
 class SymbolGroupNode;
 class MemoryHandle;
 
-enum DumpEncoding // WatchData encoding of GDBMI values
-{
-    DumpEncodingAscii = 0,
-    DumpEncodingBase64_Utf16_WithQuotes = 2,
-    DumpEncodingHex_Ucs4_LittleEndian_WithQuotes = 3,
-    DumpEncodingBase64_Utf16 = 4,
-    DumpEncodingHex_Latin1_WithQuotes = 6,
-    DumpEncodingHex_Utf8_LittleEndian_WithQuotes = 9,
-    DumpEncodingJulianDate = 14,
-    DumpEncodingMillisecondsSinceMidnight = 15,
-    DumpEncodingJulianDateAndMillisecondsSinceMidnight = 16,
-    DumpEncodingIPv6AddressAndHexScopeId = 27,
-    DumpEncodingMillisecondsSinceEpoch = 29
-};
-
 // Helper struct used for check results when recoding CDB char pointer output.
 struct DumpParameterRecodeResult
 {
-    DumpParameterRecodeResult() : buffer(0), size(0), recommendedFormat(0),isWide(false) {}
-
-    unsigned char *buffer;
-    size_t size;
-    int recommendedFormat;
-    bool isWide;
+    unsigned char *buffer = 0;
+    size_t size = 0;
+    std::string recommendedFormat;
+    bool isWide = false;
 };
 
 struct DumpParameters
 {
-    typedef std::map<std::string, int> FormatMap; // type or iname to format
+    typedef std::map<std::string, std::string> FormatMap; // type or iname to format
     enum DumpFlags
     {
         DumpHumanReadable = 0x1,
@@ -84,7 +61,6 @@ struct DumpParameters
         DumpAlphabeticallySorted = 0x4
     };
 
-    DumpParameters();
     bool humanReadable() const {  return dumpFlags & DumpHumanReadable; }
     bool isAlphabeticallySorted() const {  return (dumpFlags & DumpAlphabeticallySorted) != 0; }
     // Helper to decode format option arguments.
@@ -100,10 +76,10 @@ struct DumpParameters
     bool recode(const std::string &type, const std::string &iname,
                 const SymbolGroupValueContext &ctx,
                 ULONG64 address,
-                std::wstring *value, int *encoding) const;
-    int format(const std::string &type, const std::string &iname) const;
+                std::wstring *value, std::string *encoding) const;
+    std::string format(const std::string &type, const std::string &iname) const;
 
-    unsigned dumpFlags;
+    unsigned dumpFlags = 0;
     FormatMap typeFormats;
     FormatMap individualFormats;
 };
@@ -176,8 +152,8 @@ protected:
 private:
     const std::string m_name;
     const std::string m_iname;
-    AbstractSymbolGroupNode *m_parent;
-    unsigned m_flags;
+    AbstractSymbolGroupNode *m_parent = nullptr;
+    unsigned m_flags = 0;
 };
 
 class BaseSymbolGroupNode : public AbstractSymbolGroupNode
@@ -267,7 +243,7 @@ public:
     std::wstring symbolGroupFixedValue() const;
 
     bool assign(const std::string &value, std::string *errorMessage = 0);
-    std::wstring simpleDumpValue(const SymbolGroupValueContext &ctx, int *encoding);
+    std::wstring simpleDumpValue(const SymbolGroupValueContext &ctx, std::string *encoding);
 
     // A quick check if symbol is valid by checking for inaccessible value
     bool isMemoryAccessible() const;
@@ -312,16 +288,16 @@ private:
     bool runSimpleDumpers(const SymbolGroupValueContext &ctx);
     ULONG nextSymbolIndex() const;
 
-    SymbolGroup *const m_symbolGroup;
+    SymbolGroup *const m_symbolGroup = nullptr;
     const std::string m_module;
-    ULONG m_index;
+    ULONG m_index = 0;
     DEBUG_SYMBOL_PARAMETERS m_parameters; // Careful when using ParentSymbol. It might not be correct.
     std::wstring m_dumperValue;
-    int m_dumperValueEncoding;
-    int m_dumperType;
-    int m_dumperContainerSize;
-    void *m_dumperSpecialInfo; // Opaque information passed from simple to complex dumpers
-    MemoryHandle *m_memory; // Memory shared between simple dumper and edit value.
+    std::string m_dumperValueEncoding;
+    int m_dumperType = -1;
+    int m_dumperContainerSize = -1;
+    void *m_dumperSpecialInfo = nullptr; // Opaque information passed from simple to complex dumpers
+    MemoryHandle *m_memory = nullptr; // Memory shared between simple dumper and edit value.
 };
 
 class ReferenceSymbolGroupNode : public AbstractSymbolGroupNode
@@ -379,9 +355,9 @@ class SymbolGroupNodeVisitor {
 
     friend class AbstractSymbolGroupNode;
 protected:
-    SymbolGroupNodeVisitor() {}
+    SymbolGroupNodeVisitor() = default;
 public:
-    virtual ~SymbolGroupNodeVisitor() {}
+    virtual ~SymbolGroupNodeVisitor() = default;
 
     // "local.vi" -> "local"
     static std::string parentIname(const std::string &iname);
@@ -450,7 +426,5 @@ private:
     std::ostream &m_os;
     const SymbolGroupValueContext &m_context;
     const DumpParameters &m_parameters;
-    unsigned m_lastDepth;
+    unsigned m_lastDepth = unsigned(-1);
 };
-
-#endif // SYMBOLGROUPNODE_H

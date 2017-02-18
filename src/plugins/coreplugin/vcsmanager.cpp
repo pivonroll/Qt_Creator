@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -209,12 +204,12 @@ void VcsManager::extensionsInitialized()
 {
     // Change signal connections
     foreach (IVersionControl *versionControl, versionControls()) {
-        connect(versionControl, SIGNAL(filesChanged(QStringList)),
-                DocumentManager::instance(), SIGNAL(filesChangedInternally(QStringList)));
-        connect(versionControl, SIGNAL(repositoryChanged(QString)),
-                m_instance, SIGNAL(repositoryChanged(QString)));
-        connect(versionControl, SIGNAL(configurationChanged()),
-                m_instance, SLOT(handleConfigurationChanges()));
+        connect(versionControl, &IVersionControl::filesChanged,
+                DocumentManager::instance(), &DocumentManager::filesChangedInternally);
+        connect(versionControl, &IVersionControl::repositoryChanged,
+                m_instance, &VcsManager::repositoryChanged);
+        connect(versionControl, &IVersionControl::configurationChanged,
+                m_instance, &VcsManager::handleConfigurationChanges);
     }
 }
 
@@ -228,13 +223,20 @@ IVersionControl *VcsManager::versionControl(Id id)
     return Utils::findOrDefault(versionControls(), Utils::equal(&Core::IVersionControl::id, id));
 }
 
+static QString absoluteWithNoTrailingSlash(const QString &directory)
+{
+    QString res = QDir(directory).absolutePath();
+    if (res.endsWith(QLatin1Char('/')))
+        res.chop(1);
+    return res;
+}
+
 void VcsManager::resetVersionControlForDirectory(const QString &inputDirectory)
 {
     if (inputDirectory.isEmpty())
         return;
 
-    const QString directory = QDir(inputDirectory).absolutePath();
-
+    const QString directory = absoluteWithNoTrailingSlash(inputDirectory);
     d->resetCache(directory);
     emit m_instance->repositoryChanged(directory);
 }
@@ -251,7 +253,7 @@ IVersionControl* VcsManager::findVersionControlForDirectory(const QString &input
     }
 
     // Make sure we an absolute path:
-    QString directory = QDir(inputDirectory).absolutePath();
+    QString directory = absoluteWithNoTrailingSlash(inputDirectory);
 #ifdef WITH_TESTS
     if (directory[0].isLetter() && directory.indexOf(QLatin1Char(':') + QLatin1String(TEST_PREFIX)) == 1)
         directory = directory.mid(2);
@@ -289,7 +291,7 @@ IVersionControl* VcsManager::findVersionControlForDirectory(const QString &input
     }
 
     // Register Vcs(s) with the cache
-    QString tmpDir = QFileInfo(directory).canonicalFilePath();
+    QString tmpDir = absoluteWithNoTrailingSlash(directory);
 #if defined WITH_TESTS
     // Force caching of test directories (even though they do not exist):
     if (directory.startsWith(QLatin1String(TEST_PREFIX)))
@@ -548,55 +550,46 @@ void CorePlugin::testVcsManager_data()
     QTest::addColumn<QStringList>("results");
 
     QTest::newRow("A and B next to each other")
-            << (QStringList()
-                << QLatin1String("a:a") << QLatin1String("a/1:a") << QLatin1String("a/2:a")
-                << QLatin1String("a/2/5:a") << QLatin1String("a/2/5/6:a"))
-            << (QStringList()
-                << QLatin1String("b:b") << QLatin1String("b/3:b") << QLatin1String("b/4:b"))
-            << (QStringList()
-                << QLatin1String(":::-") // empty directory to look up
-                << QLatin1String("c:::*") // Neither in A nor B
-                << QLatin1String("a:a:A:*") // in A
-                << QLatin1String("b:b:B:*") // in B
-                << QLatin1String("b/3:b:B:*") // in B
-                << QLatin1String("b/4:b:B:*") // in B
-                << QLatin1String("a/1:a:A:*") // in A
-                << QLatin1String("a/2:a:A:*") // in A
-                << QLatin1String(":::-") // empty directory to look up
-                << QLatin1String("a/2/5/6:a:A:*") // in A
-                << QLatin1String("a/2/5:a:A:-") // in A (cached from before!)
-                // repeat: These need to come from the cache now:
-                << QLatin1String("c:::-") // Neither in A nor B
-                << QLatin1String("a:a:A:-") // in A
-                << QLatin1String("b:b:B:-") // in B
-                << QLatin1String("b/3:b:B:-") // in B
-                << QLatin1String("b/4:b:B:-") // in B
-                << QLatin1String("a/1:a:A:-") // in A
-                << QLatin1String("a/2:a:A:-") // in A
-                << QLatin1String("a/2/5/6:a:A:-") // in A
-                << QLatin1String("a/2/5:a:A:-") // in A
-                );
+            << QStringList({ "a:a", "a/1:a", "a/2:a", "a/2/5:a", "a/2/5/6:a" })
+            << QStringList({ "b:b", "b/3:b", "b/4:b" })
+            << QStringList({ ":::-",          // empty directory to look up
+                             "c:::*",         // Neither in A nor B
+                             "a:a:A:*",       // in A
+                             "b:b:B:*",       // in B
+                             "b/3:b:B:*",     // in B
+                             "b/4:b:B:*",     // in B
+                             "a/1:a:A:*",     // in A
+                             "a/2:a:A:*",     // in A
+                             ":::-",          // empty directory to look up
+                             "a/2/5/6:a:A:*", // in A
+                             "a/2/5:a:A:-",   // in A (cached from before!)
+                             // repeat: These need to come from the cache now:
+                             "c:::-",         // Neither in A nor B
+                             "a:a:A:-",       // in A
+                             "b:b:B:-",       // in B
+                             "b/3:b:B:-",     // in B
+                             "b/4:b:B:-",     // in B
+                             "a/1:a:A:-",     // in A
+                             "a/2:a:A:-",     // in A
+                             "a/2/5/6:a:A:-", // in A
+                             "a/2/5:a:A:-"    // in A
+                });
     QTest::newRow("B in A")
-            << (QStringList()
-                << QLatin1String("a:a") << QLatin1String("a/1:a") << QLatin1String("a/2:a")
-                << QLatin1String("a/2/5:a") << QLatin1String("a/2/5/6:a"))
-            << (QStringList()
-                << QLatin1String("a/1/b:a/1/b") << QLatin1String("a/1/b/3:a/1/b")
-                << QLatin1String("a/1/b/4:a/1/b") << QLatin1String("a/1/b/3/5:a/1/b")
-                << QLatin1String("a/1/b/3/5/6:a/1/b"))
-            << (QStringList()
-                << QLatin1String("a:a:A:*") // in A
-                << QLatin1String("c:::*") // Neither in A nor B
-                << QLatin1String("a/3:::*") // Neither in A nor B
-                << QLatin1String("a/1/b/x:::*") // Neither in A nor B
-                << QLatin1String("a/1/b:a/1/b:B:*") // in B
-                << QLatin1String("a/1:a:A:*") // in A
-                << QLatin1String("a/1/b/../../2:a:A:*") // in A
-                );
+            << QStringList({ "a:a", "a/1:a", "a/2:a", "a/2/5:a", "a/2/5/6:a" })
+            << QStringList({ "a/1/b:a/1/b", "a/1/b/3:a/1/b", "a/1/b/4:a/1/b", "a/1/b/3/5:a/1/b",
+                             "a/1/b/3/5/6:a/1/b" })
+            << QStringList({ "a:a:A:*",            // in A
+                             "c:::*",              // Neither in A nor B
+                             "a/3:::*",            // Neither in A nor B
+                             "a/1/b/x:::*",        // Neither in A nor B
+                             "a/1/b:a/1/b:B:*",    // in B
+                             "a/1:a:A:*",          // in A
+                             "a/1/b/../../2:a:A:*" // in A
+                });
     QTest::newRow("A and B") // first one wins...
-            << (QStringList() << QLatin1String("a:a") << QLatin1String("a/1:a") << QLatin1String("a/2:a"))
-            << (QStringList() << QLatin1String("a:a") << QLatin1String("a/1:a") << QLatin1String("a/2:a"))
-            << (QStringList() << QLatin1String("a/2:a:A:*"));
+            << QStringList({ "a:a", "a/1:a", "a/2:a" })
+            << QStringList({ "a:a", "a/1:a", "a/2:a" })
+            << QStringList({ "a/2:a:A:*" });
 }
 
 void CorePlugin::testVcsManager()

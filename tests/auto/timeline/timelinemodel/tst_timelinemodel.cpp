@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,13 +30,6 @@
 static const int NumItems = 32;
 static const qint64 ItemDuration = 1 << 19;
 static const qint64 ItemSpacing = 1 << 20;
-
-class DummyModelPrivate : public Timeline::TimelineModel::TimelineModelPrivate {
-public:
-    DummyModelPrivate(int modelId) :
-        Timeline::TimelineModel::TimelineModelPrivate(modelId, QLatin1String("horst"))
-    {}
-};
 
 class DummyModel : public Timeline::TimelineModel
 {
@@ -92,13 +80,14 @@ private slots:
 };
 
 DummyModel::DummyModel(int modelId) :
-    Timeline::TimelineModel(*new DummyModelPrivate(modelId), 0)
+    Timeline::TimelineModel(modelId, 0)
 {
 }
 
 DummyModel::DummyModel(QString displayName, QObject *parent) :
-    TimelineModel(12, displayName, parent)
+    TimelineModel(12, parent)
 {
+    setDisplayName(displayName);
 }
 
 void DummyModel::loadData()
@@ -273,7 +262,7 @@ void tst_TimelineModel::count()
     QCOMPARE(dummy.count(), 0);
     dummy.loadData();
     QCOMPARE(dummy.count(), NumItems);
-    QSignalSpy emptySpy(&dummy, SIGNAL(emptyChanged()));
+    QSignalSpy emptySpy(&dummy, SIGNAL(contentChanged()));
     dummy.clear();
     QCOMPARE(emptySpy.count(), 1);
     QCOMPARE(dummy.count(), 0);
@@ -358,20 +347,28 @@ void tst_TimelineModel::displayName()
 {
     QLatin1String name("testest");
     DummyModel dummy(name);
+    QSignalSpy spy(&dummy, SIGNAL(displayNameChanged()));
     QCOMPARE(dummy.displayName(), name);
+    QCOMPARE(spy.count(), 0);
+    dummy.setDisplayName(name);
+    QCOMPARE(dummy.displayName(), name);
+    QCOMPARE(spy.count(), 0);
+    name = QLatin1String("testerei");
+    dummy.setDisplayName(name);
+    QCOMPARE(dummy.displayName(), name);
+    QCOMPARE(spy.count(), 1);
 }
 
 void tst_TimelineModel::defaultValues()
 {
-    Timeline::TimelineModel dummy(12, QLatin1String("dings"));
+    Timeline::TimelineModel dummy(12);
     QCOMPARE(dummy.location(0), QVariantMap());
     QCOMPARE(dummy.handlesTypeId(0), false);
-    QCOMPARE(dummy.selectionIdForLocation(QString(), 0, 0), -1);
     QCOMPARE(dummy.relativeHeight(0), 1.0);
     QCOMPARE(dummy.rowMinValue(0), 0);
     QCOMPARE(dummy.rowMaxValue(0), 0);
     QCOMPARE(dummy.typeId(0), -1);
-    QCOMPARE(dummy.color(0), QColor());
+    QCOMPARE(dummy.color(0), QRgb());
     QCOMPARE(dummy.labels(), QVariantList());
     QCOMPARE(dummy.details(0), QVariantMap());
     QCOMPARE(dummy.collapsedRow(0), 0);
@@ -390,21 +387,21 @@ void tst_TimelineModel::row()
 void tst_TimelineModel::colorByHue()
 {
     DummyModel dummy;
-    QCOMPARE(dummy.colorByHue(10), QColor::fromHsl(10, 150, 166));
-    QCOMPARE(dummy.colorByHue(500), QColor::fromHsl(140, 150, 166));
+    QCOMPARE(dummy.colorByHue(10), QColor::fromHsl(10, 150, 166).rgb());
+    QCOMPARE(dummy.colorByHue(500), QColor::fromHsl(140, 150, 166).rgb());
 }
 
 void tst_TimelineModel::colorBySelectionId()
 {
     DummyModel dummy;
     dummy.loadData();
-    QCOMPARE(dummy.colorBySelectionId(5), QColor::fromHsl(6 * 25, 150, 166));
+    QCOMPARE(dummy.colorBySelectionId(5), QColor::fromHsl(6 * 25, 150, 166).rgb());
 }
 
 void tst_TimelineModel::colorByFraction()
 {
     DummyModel dummy;
-    QCOMPARE(dummy.colorByFraction(0.5), QColor::fromHsl(0.5 * 96 + 10, 150, 166));
+    QCOMPARE(dummy.colorByFraction(0.5), QColor::fromHsl(0.5 * 96 + 10, 150, 166).rgb());
 }
 
 void tst_TimelineModel::supportedRenderPasses()

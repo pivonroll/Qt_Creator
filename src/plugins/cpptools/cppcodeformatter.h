@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef CPPCODEFORMATTER_H
-#define CPPCODEFORMATTER_H
+#pragma once
 
 #include "cpptools_global.h"
 #include "cppcodestylesettings.h"
@@ -189,21 +183,17 @@ public: // must be public to make Q_GADGET introspection work
 protected:
     class State {
     public:
-        State()
-            : savedIndentDepth(0)
-            , savedPaddingDepth(0)
-            , type(0)
-        {}
+        State() = default;
 
-        State(quint8 ty, quint16 savedIndentDepth, qint16 savedPaddingDepth)
+        State(quint8 ty, quint16 savedIndentDepth, quint16 savedPaddingDepth)
             : savedIndentDepth(savedIndentDepth)
             , savedPaddingDepth(savedPaddingDepth)
             , type(ty)
         {}
 
-        quint16 savedIndentDepth;
-        quint16 savedPaddingDepth;
-        quint8 type;
+        quint16 savedIndentDepth = 0;
+        quint16 savedPaddingDepth = 0;
+        quint8 type = 0;
 
         bool operator==(const State &other) const {
             return type == other.type
@@ -213,7 +203,6 @@ protected:
     };
 
     State state(int belowTop = 0) const;
-    const QVector<State> &newStatesThisLine() const;
     int tokenIndex() const;
     int tokenCount() const;
     const CPlusPlus::Token &currentToken() const;
@@ -293,5 +282,3 @@ private:
 };
 
 } // namespace CppTools
-
-#endif // CPPCODEFORMATTER_H

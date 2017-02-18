@@ -1,8 +1,8 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -10,22 +10,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,6 +38,7 @@
 
 #include <utils/fancylineedit.h>
 #include <utils/pathchooser.h>
+#include <utils/utilsicons.h>
 
 #include <QFileDialog>
 
@@ -89,8 +85,10 @@ AndroidBuildApkWidget::AndroidBuildApkWidget(AndroidBuildApkStep *step)
     m_ui->KeystoreLocationPathChooser->setInitialBrowsePathBackup(QDir::homePath());
     m_ui->KeystoreLocationPathChooser->setPromptDialogFilter(tr("Keystore files (*.keystore *.jks)"));
     m_ui->KeystoreLocationPathChooser->setPromptDialogTitle(tr("Select Keystore File"));
+    m_ui->signingDebugWarningIcon->setPixmap(Utils::Icons::WARNING.pixmap());
     m_ui->signingDebugWarningIcon->hide();
     m_ui->signingDebugWarningLabel->hide();
+    m_ui->signingDebugDeployErrorIcon->setPixmap(Utils::Icons::CRITICAL.pixmap());
     signPackageCheckBoxToggled(m_step->signPackage());
 
     m_ui->useGradleCheckBox->setChecked(m_step->useGradle());
@@ -98,37 +96,47 @@ AndroidBuildApkWidget::AndroidBuildApkWidget(AndroidBuildApkStep *step)
     m_ui->openPackageLocationCheckBox->setChecked(m_step->openPackageLocation());
 
     // target sdk
-    connect(m_ui->targetSDKComboBox, SIGNAL(activated(QString)), SLOT(setTargetSdk(QString)));
+    connect(m_ui->targetSDKComboBox,
+            static_cast<void (QComboBox::*)(const QString &)>(&QComboBox::activated),
+            this, &AndroidBuildApkWidget::setTargetSdk);
 
     // deployment options
-    connect(m_ui->ministroOption, SIGNAL(clicked()), SLOT(setMinistro()));
-    connect(m_ui->temporaryQtOption, SIGNAL(clicked()), SLOT(setDeployLocalQtLibs()));
-    connect(m_ui->bundleQtOption, SIGNAL(clicked()), SLOT(setBundleQtLibs()));
-    connect(m_ui->ministroOption, SIGNAL(clicked()), SLOT(updateDebugDeploySigningWarning()));
-    connect(m_ui->temporaryQtOption, SIGNAL(clicked()), SLOT(updateDebugDeploySigningWarning()));
-    connect(m_ui->bundleQtOption, SIGNAL(clicked()), SLOT(updateDebugDeploySigningWarning()));
+    connect(m_ui->ministroOption, &QAbstractButton::clicked,
+            this, &AndroidBuildApkWidget::setMinistro);
+    connect(m_ui->temporaryQtOption, &QAbstractButton::clicked,
+            this, &AndroidBuildApkWidget::setDeployLocalQtLibs);
+    connect(m_ui->bundleQtOption, &QAbstractButton::clicked,
+            this, &AndroidBuildApkWidget::setBundleQtLibs);
+    connect(m_ui->ministroOption, &QAbstractButton::clicked,
+            this, &AndroidBuildApkWidget::updateDebugDeploySigningWarning);
+    connect(m_ui->temporaryQtOption, &QAbstractButton::clicked,
+            this, &AndroidBuildApkWidget::updateDebugDeploySigningWarning);
+    connect(m_ui->bundleQtOption, &QAbstractButton::clicked,
+            this, &AndroidBuildApkWidget::updateDebugDeploySigningWarning);
 
-    connect(m_ui->useGradleCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(useGradleCheckBoxToggled(bool)));
-    connect(m_ui->openPackageLocationCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(openPackageLocationCheckBoxToggled(bool)));
-    connect(m_ui->verboseOutputCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(verboseOutputCheckBoxToggled(bool)));
+    connect(m_ui->useGradleCheckBox, &QAbstractButton::toggled,
+            this, &AndroidBuildApkWidget::useGradleCheckBoxToggled);
+    connect(m_ui->openPackageLocationCheckBox, &QAbstractButton::toggled,
+            this, &AndroidBuildApkWidget::openPackageLocationCheckBoxToggled);
+    connect(m_ui->verboseOutputCheckBox, &QAbstractButton::toggled,
+            this, &AndroidBuildApkWidget::verboseOutputCheckBoxToggled);
 
     //signing
-    connect(m_ui->signPackageCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(signPackageCheckBoxToggled(bool)));
-    connect(m_ui->KeystoreCreatePushButton, SIGNAL(clicked()),
-            this, SLOT(createKeyStore()));
-    connect(m_ui->KeystoreLocationPathChooser, SIGNAL(pathChanged(QString)),
-            SLOT(updateKeyStorePath(QString)));
-    connect(m_ui->certificatesAliasComboBox, SIGNAL(activated(QString)),
-            this, SLOT(certificatesAliasComboBoxActivated(QString)));
-    connect(m_ui->certificatesAliasComboBox, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(certificatesAliasComboBoxCurrentIndexChanged(QString)));
+    connect(m_ui->signPackageCheckBox, &QAbstractButton::toggled,
+            this, &AndroidBuildApkWidget::signPackageCheckBoxToggled);
+    connect(m_ui->KeystoreCreatePushButton, &QAbstractButton::clicked,
+            this, &AndroidBuildApkWidget::createKeyStore);
+    connect(m_ui->KeystoreLocationPathChooser, &Utils::PathChooser::pathChanged,
+            this, &AndroidBuildApkWidget::updateKeyStorePath);
+    connect(m_ui->certificatesAliasComboBox,
+            static_cast<void (QComboBox::*)(const QString &)>(&QComboBox::activated),
+            this, &AndroidBuildApkWidget::certificatesAliasComboBoxActivated);
+    connect(m_ui->certificatesAliasComboBox,
+            static_cast<void (QComboBox::*)(const QString &)>(&QComboBox::currentIndexChanged),
+            this, &AndroidBuildApkWidget::certificatesAliasComboBoxCurrentIndexChanged);
 
-    connect(m_step->buildConfiguration(), SIGNAL(buildTypeChanged()),
-            this, SLOT(updateSigningWarning()));
+    connect(m_step->buildConfiguration(), &ProjectExplorer::BuildConfiguration::buildTypeChanged,
+            this, &AndroidBuildApkWidget::updateSigningWarning);
 
     updateSigningWarning();
     updateDebugDeploySigningWarning();
@@ -200,8 +208,10 @@ void AndroidBuildApkWidget::createKeyStore()
 void AndroidBuildApkWidget::setCertificates()
 {
     QAbstractItemModel *certificates = m_step->keystoreCertificates();
-    m_ui->signPackageCheckBox->setChecked(certificates);
-    m_ui->certificatesAliasComboBox->setModel(certificates);
+    if (certificates) {
+        m_ui->signPackageCheckBox->setChecked(certificates);
+        m_ui->certificatesAliasComboBox->setModel(certificates);
+    }
 }
 
 void AndroidBuildApkWidget::updateKeyStorePath(const QString &path)
@@ -237,8 +247,9 @@ void AndroidBuildApkWidget::verboseOutputCheckBoxToggled(bool checked)
 
 void AndroidBuildApkWidget::updateSigningWarning()
 {
-    bool debug = m_step->buildConfiguration()->buildType() == ProjectExplorer::BuildConfiguration::Debug;
-    if (m_step->signPackage() && debug) {
+    bool nonRelease = m_step->buildConfiguration()->buildType()
+            != ProjectExplorer::BuildConfiguration::Release;
+    if (m_step->signPackage() && nonRelease) {
         m_ui->signingDebugWarningIcon->setVisible(true);
         m_ui->signingDebugWarningLabel->setVisible(true);
     } else {

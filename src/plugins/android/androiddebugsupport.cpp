@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -46,6 +41,8 @@
 #include <projectexplorer/toolchain.h>
 
 #include <qtsupport/qtkitinformation.h>
+
+#include <utils/hostosinfo.h>
 
 #include <QDirIterator>
 #include <QTcpServer>
@@ -72,13 +69,30 @@ static QStringList qtSoPaths(QtSupport::BaseQtVersion *qtVersion)
         QString path = qtVersion->qmakeProperty(qMakeVariables[i]);
         if (path.isNull())
             continue;
-        QDirIterator it(path, QStringList() << QLatin1String("*.so"), QDir::Files, QDirIterator::Subdirectories);
+        QDirIterator it(path, QStringList("*.so"), QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
             it.next();
             paths.insert(it.fileInfo().absolutePath());
         }
     }
     return paths.toList();
+}
+
+static QStringList uniquePaths(const QStringList &files)
+{
+    QSet<QString> paths;
+    foreach (const QString &file, files)
+        paths<<QFileInfo(file).absolutePath();
+    return paths.toList();
+}
+
+static QString toNdkArch(const QString &arch)
+{
+    if (arch == QLatin1String("armeabi-v7a") || arch == QLatin1String("armeabi"))
+        return QLatin1String("arch-arm");
+    if (arch == QLatin1String("arm64-v8a"))
+        return QLatin1String("arch-arm64");
+    return QLatin1String("arch-") + arch;
 }
 
 RunControl *AndroidDebugSupport::createDebugRunControl(AndroidRunConfiguration *runConfig, QString *errorMessage)
@@ -89,27 +103,35 @@ RunControl *AndroidDebugSupport::createDebugRunControl(AndroidRunConfiguration *
     params.startMode = AttachToRemoteServer;
     params.displayName = AndroidManager::packageName(target);
     params.remoteSetupNeeded = true;
+    params.useContinueInsteadOfRun = true;
+    if (!Utils::HostOsInfo::isWindowsHost()) // Workaround for NDK 11c(b?)
+        params.useTargetAsync = true;
 
     auto aspect = runConfig->extraAspect<DebuggerRunConfigurationAspect>();
     if (aspect->useCppDebugger()) {
         Kit *kit = target->kit();
-        params.executable = target->activeBuildConfiguration()->buildDirectory().toString() + QLatin1String("/app_process");
+        params.symbolFile = target->activeBuildConfiguration()->buildDirectory().toString()
+                                     + QLatin1String("/app_process");
         params.skipExecutableValidation = true;
         params.remoteChannel = runConfig->remoteChannel();
         params.solibSearchPath = AndroidManager::androidQtSupport(target)->soLibSearchPath(target);
         QtSupport::BaseQtVersion *version = QtSupport::QtKitInformation::qtVersion(kit);
         params.solibSearchPath.append(qtSoPaths(version));
+        params.solibSearchPath.append(uniquePaths(AndroidManager::androidQtSupport(target)->androidExtraLibs(target)));
+        params.sysRoot = AndroidConfigurations::currentConfig().ndkLocation().appendPath(QLatin1String("platforms"))
+                                                     .appendPath(QLatin1String("android-") + QString::number(AndroidManager::minimumSDK(target)))
+                                                     .appendPath(toNdkArch(AndroidManager::targetArch(target))).toString();
     }
     if (aspect->useQmlDebugger()) {
         QTcpServer server;
         QTC_ASSERT(server.listen(QHostAddress::LocalHost)
                    || server.listen(QHostAddress::LocalHostIPv6), return 0);
-        params.qmlServerAddress = server.serverAddress().toString();
+        params.qmlServer.host = server.serverAddress().toString();
         //TODO: Not sure if these are the right paths.
         Kit *kit = target->kit();
         QtSupport::BaseQtVersion *version = QtSupport::QtKitInformation::qtVersion(kit);
         if (version) {
-            const QString qmlQtDir = version->versionInfo().value(QLatin1String("QT_INSTALL_QML"));
+            const QString qmlQtDir = version->qmakeProperty("QT_INSTALL_QML");
             params.additionalSearchDirectories = QStringList(qmlQtDir);
         }
     }
@@ -127,20 +149,15 @@ AndroidDebugSupport::AndroidDebugSupport(AndroidRunConfiguration *runConfig,
 {
     QTC_ASSERT(runControl, return);
 
-    connect(m_runControl, SIGNAL(finished()),
-            m_runner, SLOT(stop()));
-
-    DebuggerRunConfigurationAspect *aspect
-            = runConfig->extraAspect<DebuggerRunConfigurationAspect>();
-    Q_ASSERT(aspect->useCppDebugger() || aspect->useQmlDebugger());
-    Q_UNUSED(aspect)
+    connect(m_runControl, &RunControl::finished,
+            m_runner, &AndroidRunner::stop);
 
     connect(m_runControl, &DebuggerRunControl::requestRemoteSetup,
             m_runner, &AndroidRunner::start);
 
     // FIXME: Move signal to base class and generalize handling.
     connect(m_runControl, &DebuggerRunControl::aboutToNotifyInferiorSetupOk,
-            m_runner, &AndroidRunner::handleRemoteDebuggerRunning);
+            m_runner, &AndroidRunner::remoteDebuggerRunning);
 
     connect(m_runner, &AndroidRunner::remoteServerRunning,
         [this](const QByteArray &serverChannel, int pid) {
@@ -171,7 +188,7 @@ AndroidDebugSupport::AndroidDebugSupport(AndroidRunConfiguration *runConfig,
         });
 }
 
-void AndroidDebugSupport::handleRemoteProcessStarted(int gdbServerPort, int qmlPort)
+void AndroidDebugSupport::handleRemoteProcessStarted(Utils::Port gdbServerPort, Utils::Port qmlPort)
 {
     disconnect(m_runner, &AndroidRunner::remoteProcessStarted,
                this, &AndroidDebugSupport::handleRemoteProcessStarted);

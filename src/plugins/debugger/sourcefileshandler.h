@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGER_SOURCEFILESHANDLER_H
-#define DEBUGGER_SOURCEFILESHANDLER_H
+#pragma once
 
 #include <QAbstractItemModel>
 #include <QStringList>
@@ -37,23 +31,26 @@
 namespace Debugger {
 namespace Internal {
 
+class DebuggerEngine;
+
 class SourceFilesHandler : public QAbstractItemModel
 {
     Q_OBJECT
 
 public:
-    SourceFilesHandler();
+    explicit SourceFilesHandler(DebuggerEngine *engine);
 
-    int columnCount(const QModelIndex &parent) const
+    int columnCount(const QModelIndex &parent) const override
         { return parent.isValid() ? 0 : 2; }
-    int rowCount(const QModelIndex &parent) const
+    int rowCount(const QModelIndex &parent) const override
         { return parent.isValid() ? 0 : m_shortNames.size(); }
-    QModelIndex parent(const QModelIndex &) const { return QModelIndex(); }
-    QModelIndex index(int row, int column, const QModelIndex &) const
+    QModelIndex parent(const QModelIndex &) const override { return QModelIndex(); }
+    QModelIndex index(int row, int column, const QModelIndex &) const override
         { return createIndex(row, column); }
-    QVariant headerData(int section, Qt::Orientation orientation, int role) const;
-    QVariant data(const QModelIndex &index, int role) const;
-    Qt::ItemFlags flags(const QModelIndex &index) const;
+    QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
+    QVariant data(const QModelIndex &index, int role) const override;
+    bool setData(const QModelIndex &idx, const QVariant &data, int role) override;
+    Qt::ItemFlags flags(const QModelIndex &index) const override;
 
     void clearModel();
 
@@ -63,6 +60,7 @@ public:
     QAbstractItemModel *model() { return m_proxyModel; }
 
 private:
+    DebuggerEngine *m_engine;
     QStringList m_shortNames;
     QStringList m_fullNames;
     QAbstractItemModel *m_proxyModel;
@@ -70,5 +68,3 @@ private:
 
 } // namespace Internal
 } // namespace Debugger
-
-#endif // DEBUGGER_SOURCEFILESHANDLER_H

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -50,7 +45,7 @@ RemoteProcessTest::RemoteProcessTest(const SshConnectionParameters &params)
       m_state(Inactive)
 {
     m_timeoutTimer->setInterval(5000);
-    connect(m_timeoutTimer, SIGNAL(timeout()), SLOT(handleTimeout()));
+    connect(m_timeoutTimer, &QTimer::timeout, this, &RemoteProcessTest::handleTimeout);
 }
 
 RemoteProcessTest::~RemoteProcessTest()
@@ -60,14 +55,16 @@ RemoteProcessTest::~RemoteProcessTest()
 
 void RemoteProcessTest::run()
 {
-    connect(m_remoteRunner, SIGNAL(connectionError()),
-        SLOT(handleConnectionError()));
-    connect(m_remoteRunner, SIGNAL(processStarted()),
-        SLOT(handleProcessStarted()));
-    connect(m_remoteRunner, SIGNAL(readyReadStandardOutput()), SLOT(handleProcessStdout()));
-    connect(m_remoteRunner, SIGNAL(readyReadStandardError()), SLOT(handleProcessStderr()));
-    connect(m_remoteRunner, SIGNAL(processClosed(int)),
-        SLOT(handleProcessClosed(int)));
+    connect(m_remoteRunner, &SshRemoteProcessRunner::connectionError,
+            this, &RemoteProcessTest::handleConnectionError);
+    connect(m_remoteRunner, &SshRemoteProcessRunner::processStarted,
+            this, &RemoteProcessTest::handleProcessStarted);
+    connect(m_remoteRunner, &SshRemoteProcessRunner::readyReadStandardOutput,
+            this, &RemoteProcessTest::handleProcessStdout);
+    connect(m_remoteRunner, &SshRemoteProcessRunner::readyReadStandardError,
+            this, &RemoteProcessTest::handleProcessStderr);
+    connect(m_remoteRunner, &SshRemoteProcessRunner::processClosed,
+            this, &RemoteProcessTest::handleProcessClosed);
 
     std::cout << "Testing successful remote process... " << std::flush;
     m_state = TestingSuccess;
@@ -96,7 +93,8 @@ void RemoteProcessTest::handleProcessStarted()
             SshRemoteProcessRunner * const killer = new SshRemoteProcessRunner(this);
             killer->run("pkill -9 sleep", m_sshParams);
         } else if (m_state == TestingIoDevice) {
-            connect(m_catProcess.data(), SIGNAL(readyRead()), SLOT(handleReadyRead()));
+            connect(m_catProcess.data(), &QIODevice::readyRead,
+                    this, &RemoteProcessTest::handleReadyRead);
             m_textStream = new QTextStream(m_catProcess.data());
             *m_textStream << testString();
             m_textStream->flush();
@@ -214,9 +212,10 @@ void RemoteProcessTest::handleProcessClosed(int exitStatus)
             std::cout << "Ok.\nTesting I/O device functionality... " << std::flush;
             m_state = TestingIoDevice;
             m_sshConnection = new SshConnection(m_sshParams);
-            connect(m_sshConnection, SIGNAL(connected()), SLOT(handleConnected()));
-            connect(m_sshConnection, SIGNAL(error(QSsh::SshError)),
-                SLOT(handleConnectionError()));
+            connect(m_sshConnection, &SshConnection::connected,
+                    this, &RemoteProcessTest::handleConnected);
+            connect(m_sshConnection, &SshConnection::error,
+                    this, &RemoteProcessTest::handleConnectionError);
             m_sshConnection->connectToHost();
             m_timeoutTimer->start();
             break;
@@ -285,8 +284,10 @@ void RemoteProcessTest::handleConnected()
     Q_ASSERT(m_state == TestingIoDevice);
 
     m_catProcess = m_sshConnection->createRemoteProcess(QString::fromLatin1("/bin/cat").toUtf8());
-    connect(m_catProcess.data(), SIGNAL(started()), SLOT(handleProcessStarted()));
-    connect(m_catProcess.data(), SIGNAL(closed(int)), SLOT(handleProcessClosed(int)));
+    connect(m_catProcess.data(), &SshRemoteProcess::started,
+            this, &RemoteProcessTest::handleProcessStarted);
+    connect(m_catProcess.data(), &SshRemoteProcess::closed,
+            this, &RemoteProcessTest::handleProcessClosed);
     m_started = false;
     m_timeoutTimer->start();
     m_catProcess->start();
@@ -352,11 +353,14 @@ void RemoteProcessTest::handleSuccessfulIoTest()
     m_remoteStderr.clear();
     m_echoProcess = m_sshConnection->createRemoteProcess("printf " + StderrOutput + " >&2");
     m_echoProcess->setReadChannel(QProcess::StandardError);
-    connect(m_echoProcess.data(), SIGNAL(started()), SLOT(handleProcessStarted()));
-    connect(m_echoProcess.data(), SIGNAL(closed(int)), SLOT(handleProcessClosed(int)));
-    connect(m_echoProcess.data(), SIGNAL(readyRead()), SLOT(handleReadyRead()));
-    connect(m_echoProcess.data(), SIGNAL(readyReadStandardError()),
-            SLOT(handleReadyReadStderr()));
+    connect(m_echoProcess.data(), &SshRemoteProcess::started,
+            this, &RemoteProcessTest::handleProcessStarted);
+    connect(m_echoProcess.data(), &SshRemoteProcess::closed,
+            this, &RemoteProcessTest::handleProcessClosed);
+    connect(m_echoProcess.data(), &QIODevice::readyRead,
+            this, &RemoteProcessTest::handleReadyRead);
+    connect(m_echoProcess.data(), &SshRemoteProcess::readyReadStandardError,
+            this, &RemoteProcessTest::handleReadyReadStderr);
     m_echoProcess->start();
     m_timeoutTimer->start();
 }

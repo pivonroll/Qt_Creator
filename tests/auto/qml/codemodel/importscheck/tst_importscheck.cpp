@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,25 +9,19 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-
 
 #include <QFileInfo>
 #include <QGraphicsObject>
@@ -124,69 +118,57 @@ void tst_ImportCheck::test_data()
     QTest::addColumn<QStringList>("paths");
     QTest::addColumn<QStringList>("expectedLibraries");
     QTest::addColumn<QStringList>("expectedFiles");
-    QTest::newRow("base") << QStringList(QLatin1String(TESTSRCDIR "/base"))
-                          << (QStringList() << QLatin1String("QML 1.0")
-                              << QLatin1String("QtQml 2.2")
-                              << QLatin1String("QtQml 2.1")
-                              << QLatin1String("QtQuick 2.0")
-                              << QLatin1String("QtQml 2.0")
-                              << QLatin1String("QtQuick 2.-1")
-                              << QLatin1String("QtQuick 2.1")
-                              << QLatin1String("QtQuick 2.2")
-                              << QLatin1String("<cpp>"))
+    QTest::newRow("base") << QStringList(QString(TESTSRCDIR "/base"))
+                          << QStringList({ "QML 1.0", "QtQml 2.2", "QtQml 2.1", "QtQuick 2.0",
+                                           "QtQml 2.0", "QtQuick 2.-1", "QtQuick 2.1",
+                                           "QtQuick 2.2", "<cpp>" })
                           << QStringList();
-    QTest::newRow("001_flatQmlOnly") << QStringList(QLatin1String(TESTSRCDIR "/001_flatQmlOnly"))
+    QTest::newRow("001_flatQmlOnly") << QStringList(QString(TESTSRCDIR "/001_flatQmlOnly"))
                           << QStringList()
                           << QStringList();
-    QTest::newRow("002_nestedQmlOnly") << QStringList(QLatin1String(TESTSRCDIR "/002_nestedQmlOnly"))
+    QTest::newRow("002_nestedQmlOnly") << QStringList(QString(TESTSRCDIR "/002_nestedQmlOnly"))
                           << QStringList()
                           << QStringList();
-    /*QTest::newRow("003_packageQmlOnly") << QStringList(QLatin1String(TESTSRCDIR "/003_packageQmlOnly"))
-                          << (QStringList() << QLatin1String("QtGraphicalEffects"))
-                          << (QStringList()
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ZoomBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/FastGlow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianInnerShadow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/SourceProxy.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/GammaAdjust.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/HueSaturation.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Colorize.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RadialBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ColorOverlay.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/MaskedBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RectangularGlow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Displace.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/FastMaskedBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Desaturate.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianDirectionalBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/GaussianBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/InnerShadow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/LinearGradient.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Blend.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Glow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RecursiveBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianMaskedBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/DropShadow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/DirectionalBlur.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/OpacityMask.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/BrightnessContrast.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianGlow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RadialGradient.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/FastInnerShadow.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ConicalGradient.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ThresholdMask.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/LevelAdjust.qml")
-                              << QLatin1String(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/FastBlur.qml"));
-    QTest::newRow("004_cppOnly copy") << QStringList(QLatin1String(TESTSRCDIR "004_cppOnly copy"))
-                          << (QStringList() << QLatin1String("QML 1.0")
-                              << QLatin1String("QtQml 2.2")
-                              << QLatin1String("QtQml 2.1")
-                              << QLatin1String("QtQuick 2.0")
-                              << QLatin1String("QtQml 2.0")
-                              << QLatin1String("QtQuick 2.-1")
-                              << QLatin1String("QtQuick 2.1")
-                              << QLatin1String("QtQuick 2.2")
-                              << QLatin1String("<cpp>"))
+    /*QTest::newRow("003_packageQmlOnly") << QStringList(QString(TESTSRCDIR "/003_packageQmlOnly"))
+                          << QStringList("QtGraphicalEffects")
+                          << QStringList()
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ZoomBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/FastGlow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianInnerShadow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/SourceProxy.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/GammaAdjust.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/HueSaturation.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Colorize.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RadialBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ColorOverlay.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/MaskedBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RectangularGlow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Displace.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/FastMaskedBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Desaturate.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianDirectionalBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/GaussianBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/InnerShadow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/LinearGradient.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Blend.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/Glow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RecursiveBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianMaskedBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/DropShadow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/DirectionalBlur.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/OpacityMask.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/BrightnessContrast.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/GaussianGlow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/RadialGradient.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/private/FastInnerShadow.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ConicalGradient.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/ThresholdMask.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/LevelAdjust.qml")
+                              << QString(TESTSRCDIR "/003_packageQmlOnly/QtGraphicalEffects/FastBlur.qml"));
+    QTest::newRow("004_cppOnly copy") << QStringList(QString(TESTSRCDIR "004_cppOnly copy"))
+                          << QStringList({ "QML 1.0", "QtQml 2.2", "QtQml 2.1", "QtQuick 2.0",
+                                           "QtQml 2.0", "QtQuick 2.-1", "QtQuick 2.1",
+                                           "QtQuick 2.2", "<cpp>" })
                           << QStringList();*/
 }
 

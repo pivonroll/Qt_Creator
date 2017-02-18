@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef PROPERTYEDITORCONTEXTOBJECT_H
-#define PROPERTYEDITORCONTEXTOBJECT_H
+#pragma once
+
+#include <model.h>
 
 #include <QObject>
 #include <QUrl>
@@ -50,6 +51,9 @@ class PropertyEditorContextObject : public QObject
     Q_PROPERTY(int majorVersion READ majorVersion WRITE setMajorVersion NOTIFY majorVersionChanged)
     Q_PROPERTY(int minorVersion READ minorVersion WRITE setMinorVersion NOTIFY minorVersionChanged)
     Q_PROPERTY(int majorQtQuickVersion READ majorQtQuickVersion WRITE setMajorQtQuickVersion NOTIFY majorQtQuickVersionChanged)
+    Q_PROPERTY(int minorQtQuickVersion READ minorQtQuickVersion WRITE setMinorQtQuickVersion NOTIFY minorQtQuickVersionChanged)
+
+    Q_PROPERTY(bool hasAliasExport READ hasAliasExport NOTIFY hasAliasExportChanged)
 
     Q_PROPERTY(QQmlPropertyMap* backendValues READ backendValues WRITE setBackendValues NOTIFY backendValuesChanged)
 
@@ -70,16 +74,27 @@ public:
 
     Q_INVOKABLE QString convertColorToString(const QColor &color);
     Q_INVOKABLE QColor colorFromString(const QString &colorString);
+    Q_INVOKABLE QString translateFunction();
+
+    Q_INVOKABLE QStringList autoComplete(const QString &text, int pos, bool explicitComplete, bool filter);
+
+    Q_INVOKABLE void toogleExportAlias();
+
+    Q_INVOKABLE void changeTypeName(const QString &typeName);
 
     int majorVersion() const;
     int majorQtQuickVersion() const;
+    int minorQtQuickVersion() const;
     void setMajorVersion(int majorVersion);
     void setMajorQtQuickVersion(int majorVersion);
+    void setMinorQtQuickVersion(int minorVersion);
     int minorVersion() const;
     void setMinorVersion(int minorVersion);
 
     void insertInQmlContext(QQmlContext *context);
     QQmlComponent *specificQmlComponent();
+
+    bool hasAliasExport() const { return m_aliasExport; }
 
 signals:
     void globalBaseUrlChanged();
@@ -92,7 +107,9 @@ signals:
     void majorVersionChanged();
     void minorVersionChanged();
     void majorQtQuickVersionChanged();
+    void minorQtQuickVersionChanged();
     void specificQmlComponentChanged();
+    void hasAliasExportChanged();
 
 public slots:
      void setGlobalBaseUrl(const QUrl &newBaseUrl);
@@ -109,7 +126,10 @@ public slots:
 
      void setBackendValues(QQmlPropertyMap* newBackendValues);
 
-    void triggerSelectionChanged();
+     void setModel(Model *model);
+
+     void triggerSelectionChanged();
+     void setHasAliasExport(bool hasAliasExport);
 
 private:
     QUrl m_globalBaseUrl;
@@ -123,13 +143,16 @@ private:
 
     QQmlPropertyMap* m_backendValues;
 
-    int m_majorVersion;
-    int m_minorVersion;
-    int m_majorQtQuickVersion;
+    int m_majorVersion = 1;
+    int m_minorVersion = 1;
+    int m_majorQtQuickVersion = 1;
+    int m_minorQtQuickVersion = -1;
     QQmlComponent *m_qmlComponent;
     QQmlContext *m_qmlContext;
+
+    Model *m_model = nullptr;
+
+    bool m_aliasExport = false;
 };
 
 } //QmlDesigner {
-
-#endif // PROPERTYEDITORCONTEXTOBJECT_H

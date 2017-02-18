@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef PROJECTEXPLORERCONSTANTS_H
-#define PROJECTEXPLORERCONSTANTS_H
+#pragma once
 
 #include <QtGlobal>
 
@@ -82,6 +76,7 @@ const char SEARCHONFILESYSTEM[]   = "ProjectExplorer.SearchOnFileSystem";
 const char SHOWINGRAPHICALSHELL[] = "ProjectExplorer.ShowInGraphicalShell";
 const char OPENTERMIANLHERE[]     = "ProjectExplorer.OpenTerminalHere";
 const char REMOVEFILE[]           = "ProjectExplorer.RemoveFile";
+const char DUPLICATEFILE[]        = "ProjectExplorer.DuplicateFile";
 const char DELETEFILE[]           = "ProjectExplorer.DeleteFile";
 const char RENAMEFILE[]           = "ProjectExplorer.RenameFile";
 const char SETSTARTUP[]           = "ProjectExplorer.SetStartup";
@@ -99,10 +94,6 @@ const char C_PROJECTEXPLORER[]    = "Project Explorer";
 const char C_PROJECT_TREE[]       = "ProjectExplorer.ProjectTreeContext";
 const char C_APP_OUTPUT[]         = "ProjectExplorer.ApplicationOutput";
 const char C_COMPILE_OUTPUT[]     = "ProjectExplorer.CompileOutput";
-
-// Languages
-const char LANG_CXX[]             = "CXX";
-const char LANG_QMLJS[]           = "QMLJS";
 
 // Menus
 const char M_RECENTPROJECTS[]     = "ProjectExplorer.Menu.Recent";
@@ -155,20 +146,6 @@ const char RUNMENUCONTEXTMENU[]   = "Project.RunMenu";
 // File factory
 const char FILE_FACTORY_ID[]      = "ProjectExplorer.FileFactoryId";
 
-// Icons
-const char ICON_BUILD[]           = ":/projectexplorer/images/build.png";
-const char ICON_BUILD_SMALL[]     = ":/projectexplorer/images/build_small.png";
-const char ICON_CLEAN[]           = ":/projectexplorer/images/clean.png";
-const char ICON_CLEAN_SMALL[]     = ":/projectexplorer/images/clean_small.png";
-const char ICON_REBUILD[]         = ":/projectexplorer/images/rebuild.png";
-const char ICON_REBUILD_SMALL[]   = ":/projectexplorer/images/rebuild_small.png";
-const char ICON_RUN[]             = ":/projectexplorer/images/run.png";
-const char ICON_RUN_SMALL[]       = ":/projectexplorer/images/run_small.png";
-const char ICON_DEBUG_SMALL[]     = ":/projectexplorer/images/debugger_start_small.png";
-const char ICON_STOP[]            = ":/projectexplorer/images/stop.png";
-const char ICON_STOP_SMALL[]      = ":/projectexplorer/images/stop_small.png";
-const char ICON_WINDOW[]          = ":/projectexplorer/images/window.png";
-
 // Mime types
 const char C_SOURCE_MIMETYPE[]    = "text/x-csrc";
 const char C_HEADER_MIMETYPE[]    = "text/x-chdr";
@@ -178,6 +155,7 @@ const char LINGUIST_MIMETYPE[]    = "text/vnd.trolltech.linguist";
 const char FORM_MIMETYPE[]        = "application/x-designer";
 const char QML_MIMETYPE[]         = "text/x-qml"; // separate def also in qmljstoolsconstants.h
 const char RESOURCE_MIMETYPE[]    = "application/vnd.qt.xml.resource";
+const char SCXML_MIMETYPE[]       = "application/scxml+xml";
 
 // Settings page
 const char PROJECTEXPLORER_SETTINGS_CATEGORY[]  = "K.ProjectExplorer";
@@ -190,6 +168,7 @@ const char KITS_SETTINGS_PAGE_ID[] = "D.ProjectExplorer.KitsOptions";
 
 // Device settings page
 const char DEVICE_SETTINGS_CATEGORY[] = "XW.Devices";
+const char DEVICE_SETTINGS_TR_CATEGORY[] = QT_TRANSLATE_NOOP("ProjectExplorer", "Devices");
 const char DEVICE_SETTINGS_PAGE_ID[] = "AA.Device Settings";
 
 // Task categories
@@ -226,12 +205,20 @@ const char BUILDSTEPS_DEPLOY[] = "ProjectExplorer.BuildSteps.Deploy";
 // Deploy Configuration id:
 const char DEFAULT_DEPLOYCONFIGURATION_ID[] = "ProjectExplorer.DefaultDeployConfiguration";
 
+// Language
+
+// Keep these short: These constants are exposed to the MacroExplorer!
+const char C_LANGUAGE_ID[] = "C";
+const char CXX_LANGUAGE_ID[] = "Cxx";
+const char QMLJS_LANGUAGE_ID[] = "QMLJS";
+
 // ToolChain TypeIds
 const char CLANG_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.Clang";
 const char GCC_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.Gcc";
 const char LINUXICC_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.LinuxIcc";
 const char MINGW_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.Mingw";
 const char MSVC_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.Msvc";
+const char CLANG_CL_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.ClangCl";
 const char WINCE_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.WinCE";
 const char CUSTOM_TOOLCHAIN_TYPEID[] = "ProjectExplorer.ToolChain.Custom";
 
@@ -254,6 +241,10 @@ const char VAR_CURRENTKIT_FILESYSTEMNAME[] = "CurrentKit:FileSystemName";
 const char VAR_CURRENTKIT_ID[] = "CurrentKit:Id";
 const char VAR_CURRENTBUILD_NAME[] = "CurrentBuild:Name";
 const char VAR_CURRENTBUILD_TYPE[] = "CurrentBuild:Type";
+const char VAR_CURRENTBUILD_ENV[] = "CurrentBuild:Env";
+const char VAR_CURRENTRUN_NAME[] = "CurrentRun:Name";
+const char VAR_CURRENTRUN_ENV[] = "CurrentRun:Env";
+const char VAR_CURRENTRUN_EXECUTABLE_PREFIX[] = "CurrentRun:Executable";
 const char VAR_CURRENTDEVICE_HOSTADDRESS[] = "CurrentDevice:HostAddress";
 const char VAR_CURRENTDEVICE_SSHPORT[] = "CurrentDevice:SshPort";
 const char VAR_CURRENTDEVICE_USERNAME[] = "CurrentDevice:UserName";
@@ -261,7 +252,7 @@ const char VAR_CURRENTDEVICE_PRIVATEKEYFILE[] = "CurrentDevice:PrivateKeyFile";
 
 const char HIDE_FILE_FILTER_SETTING[] = "GenericProject/FileFilter";
 const char HIDE_FILE_FILTER_DEFAULT[] = "Makefile*; *.o; *.lo; *.la; *.obj; *~; *.files;"
-    " *.config; *.creator; *.user; *.includes; *.autosave";
+    " *.config; *.creator; *.user*; *.includes; *.autosave";
 
 const char SHOW_FILE_FILTER_SETTING[] = "GenericProject/ShowFileFilter";
 const char SHOW_FILE_FILTER_DEFAULT[] = "*.c; *.cc; *.cpp; *.cp; *.cxx; *.c++; *.h; *.hh; *.hpp; *.hxx;";
@@ -274,13 +265,27 @@ const char GENERATOR_ID_PREFIX[] = "PE.Wizard.Generator.";
 const char NO_RUN_MODE[]="RunConfiguration.NoRunMode";
 const char NORMAL_RUN_MODE[]="RunConfiguration.NormalRunMode";
 const char QML_PROFILER_RUN_MODE[]="RunConfiguration.QmlProfilerRunMode";
+const char PERFPROFILER_RUN_MODE[]="PerfProfiler.RunMode";
 const char DEBUG_RUN_MODE[]="RunConfiguration.DebugRunMode";
 const char DEBUG_RUN_MODE_WITH_BREAK_ON_MAIN[]="RunConfiguration.DebugRunModeWithBreakOnMain";
 
 // Navigation Widget
 const char PROJECTTREE_ID[] = "Projects";
 
+// File icon overlays
+const char FILEOVERLAY_QT[]=":/projectexplorer/images/fileoverlay_qt.png";
+const char FILEOVERLAY_QML[]=":/projectexplorer/images/fileoverlay_qml.png";
+const char FILEOVERLAY_UI[]=":/projectexplorer/images/fileoverlay_ui.png";
+const char FILEOVERLAY_QRC[]=":/projectexplorer/images/fileoverlay_qrc.png";
+const char FILEOVERLAY_CPP[]=":/projectexplorer/images/fileoverlay_cpp.png";
+const char FILEOVERLAY_H[]=":/projectexplorer/images/fileoverlay_h.png";
+const char FILEOVERLAY_SCXML[]=":/projectexplorer/images/fileoverlay_scxml.png";
+const char FILEOVERLAY_UNKNOWN[]=":/projectexplorer/images/fileoverlay_unknown.png";
+
+// Kit Information
+const char KITINFORMATION_ID_V1[] = "PE.Profile.ToolChain";
+const char KITINFORMATION_ID_V2[] = "PE.Profile.ToolChains";
+const char KITINFORMATION_ID_V3[] = "PE.Profile.ToolChainsV3";
+
 } // namespace Constants
 } // namespace ProjectExplorer
-
-#endif // PROJECTEXPLORERCONSTANTS_H

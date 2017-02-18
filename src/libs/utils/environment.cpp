@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,25 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
+#include "algorithm.h"
 #include "environment.h"
 
 #include <QDir>
@@ -60,14 +56,9 @@ Q_GLOBAL_STATIC(SystemEnvironment, staticSystemEnvironment)
 
 namespace Utils {
 
-static bool sortEnvironmentItem(const EnvironmentItem &a, const EnvironmentItem &b)
-{
-    return a.name < b.name;
-}
-
 void EnvironmentItem::sort(QList<EnvironmentItem> *list)
 {
-    qSort(list->begin(), list->end(), &sortEnvironmentItem);
+    Utils::sort(*list, &EnvironmentItem::name);
 }
 
 QList<EnvironmentItem> EnvironmentItem::fromStringList(const QStringList &list)
@@ -217,6 +208,26 @@ Environment Environment::systemEnvironment()
     return *staticSystemEnvironment();
 }
 
+const char lcMessages[] = "LC_MESSAGES";
+const char englishLocale[] = "en_US.utf8";
+
+void Environment::setupEnglishOutput(Environment *environment)
+{
+    environment->set(QLatin1String(lcMessages), QLatin1String(englishLocale));
+}
+
+void Environment::setupEnglishOutput(QProcessEnvironment *environment)
+{
+    environment->insert(QLatin1String(lcMessages), QLatin1String(englishLocale));
+}
+
+void Environment::setupEnglishOutput(QStringList *environment)
+{
+    Environment env(*environment);
+    setupEnglishOutput(&env);
+    *environment = env.toStringList();
+}
+
 void Environment::clear()
 {
     m_values.clear();
@@ -258,7 +269,8 @@ QStringList Environment::appendExeExtensions(const QString &executable) const
 }
 
 FileName Environment::searchInPath(const QString &executable,
-                                   const QStringList &additionalDirs) const
+                                   const QStringList &additionalDirs,
+                                   bool (*func)(const QString &name)) const
 {
     if (executable.isEmpty())
         return FileName();
@@ -281,7 +293,7 @@ FileName Environment::searchInPath(const QString &executable,
             continue;
         alreadyChecked.insert(dir);
         FileName tmp = searchInDirectory(execs, dir);
-        if (!tmp.isEmpty())
+        if (!tmp.isEmpty() && (!func || func(tmp.toString())))
             return tmp;
     }
 
@@ -293,7 +305,7 @@ FileName Environment::searchInPath(const QString &executable,
             continue;
         alreadyChecked.insert(p);
         FileName tmp = searchInDirectory(execs, QDir::fromNativeSeparators(p));
-        if (!tmp.isEmpty())
+        if (!tmp.isEmpty() && (!func || func(tmp.toString())))
             return tmp;
     }
     return FileName();

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -30,10 +30,11 @@ Row {
     id: alignmentHorizontalButtons
 
     RoundedPanel {
-        width: 14
+        width: 16
         height: parent.height
         roundLeft: true
         ExtendedFunctionButton {
+            x: 2
             anchors.verticalCenter: parent.verticalCenter
             backendValue: alignmentHorizontalButtons.backendValue
         }
@@ -48,6 +49,8 @@ Row {
     property bool baseStateFlag: isBaseState;
 
     onValueChanged: {
+        buttonRow.initalChecked = 0
+        buttonRow.checkedIndex = 0
         if (value !== undefined) {
             if (value === "AlignLeft") {
                 buttonRow.initalChecked = 0
@@ -92,21 +95,21 @@ Row {
 
         ButtonRowButton {
             roundLeftButton: false
-            iconSource: blueHighlight ? "images/alignmentleft-h-icon.png" : "images/alignmentleft-icon.png"
+            iconSource: "image://icons/alignment-left" + (blueHighlight ? "-h" : "")
             onClicked: {
                 if (checked)
                     backendValue.setEnumeration("Text", "AlignLeft")
             }
         }
         ButtonRowButton {
-            iconSource:  blueHighlight ? "images/alignmentcenterh-h-icon.png" : "images/alignmentcenterh-icon.png"
+            iconSource: "image://icons/alignment-center" + (blueHighlight ? "-h" : "")
             onClicked: {
                 if (checked)
                     backendValue.setEnumeration("Text", "AlignHCenter")
             }
         }
         ButtonRowButton {
-            iconSource: blueHighlight ? "images/alignmentright-h-icon.png" : "images/alignmentright-icon.png"
+            iconSource: "image://icons/alignment-right" + (blueHighlight ? "-h" : "")
             onClicked: {
                 if (checked)
                     backendValue.setEnumeration("Text", "AlignRight")

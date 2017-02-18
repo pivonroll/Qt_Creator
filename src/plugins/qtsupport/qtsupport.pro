@@ -1,5 +1,5 @@
 DEFINES += QTSUPPORT_LIBRARY
-QT += network quick
+QT += network
 
 include(../../qtcreatorplugin.pri)
 
@@ -11,6 +11,7 @@ HEADERS += \
     codegensettings.h \
     codegensettingspage.h \
     gettingstartedwelcomepage.h \
+    qtprojectimporter.h \
     qtsupportplugin.h \
     qtsupport_global.h \
     qtkitconfigwidget.h \
@@ -18,13 +19,9 @@ HEADERS += \
     qtoutputformatter.h \
     qtversionmanager.h \
     qtversionfactory.h \
-    uicodemodelsupport.h \
     baseqtversion.h \
     qmldumptool.h \
     qtoptionspage.h \
-    customexecutablerunconfiguration.h \
-    customexecutableconfigurationwidget.h \
-    debugginghelperbuildtask.h \
     qtsupportconstants.h \
     profilereader.h \
     qtparser.h \
@@ -34,26 +31,25 @@ HEADERS += \
     desktopqtversionfactory.h \
     desktopqtversion.h \
     winceqtversionfactory.h \
-    winceqtversion.h
+    winceqtversion.h \
+    uicgenerator.h \
+    qscxmlcgenerator.h
 
 SOURCES += \
     codegenerator.cpp \
     codegensettings.cpp \
     codegensettingspage.cpp \
     gettingstartedwelcomepage.cpp \
+    qtprojectimporter.cpp \
     qtsupportplugin.cpp \
     qtkitconfigwidget.cpp \
     qtkitinformation.cpp \
     qtoutputformatter.cpp \
     qtversionmanager.cpp \
     qtversionfactory.cpp \
-    uicodemodelsupport.cpp \
     baseqtversion.cpp \
     qmldumptool.cpp \
     qtoptionspage.cpp \
-    customexecutablerunconfiguration.cpp \
-    customexecutableconfigurationwidget.cpp \
-    debugginghelperbuildtask.cpp \
     profilereader.cpp \
     qtparser.cpp \
     exampleslistmodel.cpp \
@@ -62,13 +58,14 @@ SOURCES += \
     desktopqtversionfactory.cpp \
     desktopqtversion.cpp \
     winceqtversionfactory.cpp \
-    winceqtversion.cpp
+    winceqtversion.cpp \
+    uicgenerator.cpp \
+    qscxmlcgenerator.cpp
 
 FORMS   +=  \
     codegensettingspagewidget.ui \
     showbuildlog.ui \
     qtversioninfo.ui \
-    debugginghelper.ui \
     qtversionmanager.ui \
 
 RESOURCES += \

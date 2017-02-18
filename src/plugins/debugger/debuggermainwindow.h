@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,88 +9,150 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGERMAINWINDOW_H
-#define DEBUGGERMAINWINDOW_H
+#pragma once
 
 #include "debugger_global.h"
-#include "debuggerconstants.h"
 
 #include <utils/fancymainwindow.h>
+#include <utils/statuslabel.h>
 
-namespace Core { class IMode; }
+#include <QPointer>
+#include <QSet>
 
-namespace Debugger {
-namespace Internal {
+#include <functional>
 
-class DebuggerMainWindowPrivate;
+QT_BEGIN_NAMESPACE
+class QComboBox;
+class QStackedWidget;
+QT_END_NAMESPACE
 
-// DebuggerMainWindow dock widget names
-const char DOCKWIDGET_BREAK[]         = "Debugger.Docks.Break";
-const char DOCKWIDGET_MODULES[]       = "Debugger.Docks.Modules";
-const char DOCKWIDGET_REGISTER[]      = "Debugger.Docks.Register";
-const char DOCKWIDGET_OUTPUT[]        = "Debugger.Docks.Output";
-const char DOCKWIDGET_SNAPSHOTS[]     = "Debugger.Docks.Snapshots";
-const char DOCKWIDGET_STACK[]         = "Debugger.Docks.Stack";
-const char DOCKWIDGET_SOURCE_FILES[]  = "Debugger.Docks.SourceFiles";
-const char DOCKWIDGET_THREADS[]       = "Debugger.Docks.Threads";
-const char DOCKWIDGET_WATCHERS[]      = "Debugger.Docks.LocalsAndWatchers";
-const char DOCKWIDGET_QML_INSPECTOR[] = "Debugger.Docks.QmlInspector";
-const char DOCKWIDGET_DEFAULT_AREA[]  = "Debugger.Docks.DefaultArea";
-} // namespace Internal
+namespace Core { class Id; }
 
-class DEBUGGER_EXPORT DebuggerMainWindow : public Utils::FancyMainWindow
+namespace Utils {
+
+class DEBUGGER_EXPORT Perspective
+{
+public:
+    enum OperationType { SplitVertical, SplitHorizontal, AddToTab, Raise };
+
+    class DEBUGGER_EXPORT Operation
+    {
+    public:
+        Operation() = default;
+        Operation(const QByteArray &dockId, QWidget *widget,
+                  const QByteArray &anchorDockId,
+                  OperationType operationType,
+                  bool visibleByDefault = true,
+                  Qt::DockWidgetArea area = Qt::BottomDockWidgetArea);
+
+        QByteArray dockId;
+        QPointer<QWidget> widget;
+        QByteArray anchorDockId;
+        OperationType operationType = Raise;
+        bool visibleByDefault = true;
+        Qt::DockWidgetArea area = Qt::BottomDockWidgetArea;
+    };
+
+    Perspective() = default;
+    // Takes ownership of \a centralWidget and all dock widgets in \a operations.
+    Perspective(const QString &name, const QVector<Operation> &operations,
+                QWidget *centralWidget = 0);
+    ~Perspective();
+
+    void addOperation(const Operation &operation);
+
+    QVector<Operation> operations() const { return m_operations; }
+    QVector<QByteArray> docks() const { return m_docks; }
+    QWidget *centralWidget() const { return m_centralWidget; }
+
+    QString name() const;
+    void setName(const QString &name);
+
+    using Callback = std::function<void()>;
+    void setAboutToActivateCallback(const Callback &cb);
+    void aboutToActivate() const;
+
+private:
+    Perspective(const Perspective &) = delete;
+    void operator=(const Perspective &) = delete;
+
+    QString m_name;
+    QVector<QByteArray> m_docks;
+    QVector<Operation> m_operations;
+    QPointer<QWidget> m_centralWidget;
+    Callback m_aboutToActivateCallback;
+};
+
+class DEBUGGER_EXPORT ToolbarDescription
+{
+public:
+    ToolbarDescription() = default;
+    ToolbarDescription(const QList<QWidget *> &widgets) : m_widgets(widgets) {}
+
+    QList<QWidget *> widgets() const;
+
+    void addAction(QAction *action, const QIcon &toolbarIcon = QIcon());
+    void addWidget(QWidget *widget);
+
+private:
+    QList<QWidget *> m_widgets;
+};
+
+class DEBUGGER_EXPORT DebuggerMainWindow : public FancyMainWindow
 {
     Q_OBJECT
 
 public:
     DebuggerMainWindow();
-    ~DebuggerMainWindow();
+    ~DebuggerMainWindow() override;
 
-    // Debugger toolbars are registered with this function.
-    void setToolBar(DebuggerLanguage language, QWidget *widget);
+    void registerPerspective(const QByteArray &perspectiveId, const Perspective *perspective);
+    void registerToolbar(const QByteArray &perspectiveId, QWidget *widget);
 
-    // Active languages to be debugged.
-    DebuggerLanguages activeDebugLanguages() const;
-    void setEngineDebugLanguages(DebuggerLanguages languages);
+    void saveCurrentPerspective();
+    void resetCurrentPerspective();
+    void restorePerspective(const QByteArray &perspectiveId);
 
-    // Called when all dependent plugins have loaded.
-    void initialize();
+    void finalizeSetup();
 
-    void onModeChanged(Core::IMode *mode);
+    void showStatusMessage(const QString &message, int timeoutMS);
+    QDockWidget *dockWidget(const QByteArray &dockId) const;
+    QByteArray currentPerspective() const { return m_currentPerspectiveId; }
+    QStackedWidget *centralWidgetStack() const { return m_centralWidgetStack; }
 
-    // Dockwidgets are registered to the main window.
-    QDockWidget *createDockWidget(const DebuggerLanguage &language, QWidget *widget);
-    void addStagedMenuEntries();
-
-    QWidget *createContents(Core::IMode *mode);
-
-    void readSettings();
-    void writeSettings() const;
+    void onModeChanged(Core::Id mode);
 
 private:
-    friend class Internal::DebuggerMainWindowPrivate;
-    Internal::DebuggerMainWindowPrivate *d;
+    QDockWidget *registerDockWidget(const QByteArray &dockId, QWidget *widget);
+    void loadPerspectiveHelper(const QByteArray &perspectiveId, bool fromStoredSettings = true);
+
+    QByteArray m_currentPerspectiveId;
+    QComboBox *m_perspectiveChooser;
+    QStackedWidget *m_controlsStackWidget;
+    QStackedWidget *m_centralWidgetStack;
+    QWidget *m_editorPlaceHolder;
+    Utils::StatusLabel *m_statusLabel;
+    QDockWidget *m_toolbarDock = nullptr;
+
+    QHash<QByteArray, QDockWidget *> m_dockForDockId;
+    QHash<QByteArray, QWidget *> m_toolbarForPerspectiveId;
+    QHash<QByteArray, const Perspective *> m_perspectiveForPerspectiveId;
 };
 
-} // namespace Debugger
+DEBUGGER_EXPORT QWidget *createModeWindow(const Core::Id &mode, DebuggerMainWindow *mainWindow);
 
-#endif // DEBUGGERMAINWINDOW_H
+} // Utils

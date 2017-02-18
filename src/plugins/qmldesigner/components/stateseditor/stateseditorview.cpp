@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,10 +33,12 @@
 
 #include <nodemetainfo.h>
 
+#include <bindingproperty.h>
 #include <variantproperty.h>
 #include <nodelistproperty.h>
 
 #include <qmlitemnode.h>
+#include <qmlstate.h>
 
 
 namespace QmlDesigner {
@@ -64,7 +66,7 @@ WidgetInfo StatesEditorView::widgetInfo()
     if (!m_statesEditorWidget)
         m_statesEditorWidget = new StatesEditorWidget(this, m_statesEditorModel.data());
 
-    return createWidgetInfo(m_statesEditorWidget.data(), 0, QLatin1String("StatesEditor"), WidgetInfo::TopPane, 0, tr("States Editor"));
+    return createWidgetInfo(m_statesEditorWidget.data(), 0, QLatin1String("StatesEditor"), WidgetInfo::BottomPane, 0, tr("States Editor"));
 }
 
 void StatesEditorView::rootNodeTypeChanged(const QString &/*type*/, int /*majorVersion*/, int /*minorVersion*/)
@@ -72,12 +74,18 @@ void StatesEditorView::rootNodeTypeChanged(const QString &/*type*/, int /*majorV
     checkForWindow();
 }
 
+void StatesEditorView::toggleStatesViewExpanded()
+{
+    if (m_statesEditorWidget)
+        m_statesEditorWidget->toggleStatesViewExpanded();
+}
+
 void StatesEditorView::removeState(int nodeId)
 {
     try {
         if (nodeId > 0 && hasModelNodeForInternalId(nodeId)) {
             ModelNode stateNode(modelNodeForInternalId(nodeId));
-            Q_ASSERT(stateNode.metaInfo().isSubclassOf("QtQuick.State", -1, -1));
+            Q_ASSERT(stateNode.metaInfo().isSubclassOf("QtQuick.State"));
             NodeListProperty parentProperty = stateNode.parentProperty().toNodeListProperty();
 
             if (parentProperty.count() <= 1) {
@@ -102,6 +110,10 @@ void StatesEditorView::synchonizeCurrentStateFromWidget()
 {
     if (!model())
         return;
+
+    if (m_block)
+        return;
+
     int internalId = m_statesEditorWidget->currentStateInternalId();
 
     if (internalId > 0 && hasModelNodeForInternalId(internalId)) {
@@ -188,7 +200,7 @@ void StatesEditorView::duplicateCurrentState()
 void StatesEditorView::checkForWindow()
 {
     if (m_statesEditorWidget)
-        m_statesEditorWidget->showAddNewStatesButton(!rootModelNode().metaInfo().isSubclassOf("QtQuick.Window.Window", -1, -1));
+        m_statesEditorWidget->showAddNewStatesButton(!rootModelNode().metaInfo().isSubclassOf("QtQuick.Window.Window"));
 }
 
 void StatesEditorView::setCurrentState(const QmlModelState &state)
@@ -245,6 +257,48 @@ void StatesEditorView::renameState(int internalNodeId, const QString &newName)
     }
 }
 
+void StatesEditorView::setWhenCondition(int internalNodeId, const QString &condition)
+{
+    if (m_block)
+        return;
+
+    m_block = true;
+
+    if (hasModelNodeForInternalId(internalNodeId)) {
+        QmlModelState state(modelNodeForInternalId(internalNodeId));
+        try {
+            if (state.isValid())
+                state.modelNode().bindingProperty("when").setExpression(condition);
+
+        } catch (const RewritingException &e) {
+            e.showException();
+        }
+    }
+
+    m_block = false;
+}
+
+void StatesEditorView::resetWhenCondition(int internalNodeId)
+{
+    if (m_block)
+        return;
+
+    m_block = true;
+
+    if (hasModelNodeForInternalId(internalNodeId)) {
+        QmlModelState state(modelNodeForInternalId(internalNodeId));
+        try {
+            if (state.isValid() && state.modelNode().hasProperty("when"))
+                state.modelNode().removeProperty("when");
+
+        } catch (const RewritingException &e) {
+            e.showException();
+        }
+    }
+
+    m_block = false;
+}
+
 void StatesEditorView::modelAttached(Model *model)
 {
     if (model == AbstractView::model())
@@ -271,6 +325,8 @@ void StatesEditorView::propertiesRemoved(const QList<AbstractProperty>& property
 {
     foreach (const AbstractProperty &property, propertyList) {
         if (property.name() == "states" && property.parentModelNode().isRootNode())
+            resetModel();
+        if (property.name() == "when" && QmlModelState::isValidQmlModelState(property.parentModelNode()))
             resetModel();
     }
 }
@@ -318,6 +374,16 @@ void StatesEditorView::nodeOrderChanged(const NodeListProperty &listProperty, co
 {
     if (listProperty.isValid() && listProperty.parentModelNode().isRootNode() && listProperty.name() == "states")
         resetModel();
+}
+
+void StatesEditorView::bindingPropertiesChanged(const QList<BindingProperty> &propertyList, AbstractView::PropertyChangeFlags propertyChange)
+{
+    Q_UNUSED(propertyChange)
+
+    foreach (const BindingProperty &property, propertyList) {
+        if (property.name() == "when" && QmlModelState::isValidQmlModelState(property.parentModelNode()))
+            resetModel();
+    }
 }
 
 void StatesEditorView::currentStateChanged(const ModelNode &node)

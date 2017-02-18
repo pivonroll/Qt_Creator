@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_FULLYSPECIFIEDTYPE_H
-#define CPLUSPLUS_FULLYSPECIFIEDTYPE_H
+#pragma once
 
 #include "CPlusPlusForwardDeclarations.h"
 
@@ -57,9 +56,6 @@ public:
 
     bool isAuto() const;
     void setAuto(bool isAuto);
-
-    bool isDecltype() const;
-    void setDecltype(bool isDecltype);
 
     bool isRegister() const;
     void setRegister(bool isRegister);
@@ -128,7 +124,6 @@ private:
         // storage class specifiers
         unsigned _isFriend: 1;
         unsigned _isAuto: 1;
-        unsigned _isDecltype: 1;
         unsigned _isRegister: 1;
         unsigned _isStatic: 1;
         unsigned _isExtern: 1;
@@ -153,5 +148,3 @@ private:
 };
 
 } // namespace CPlusPlus
-
-#endif // CPLUSPLUS_FULLYSPECIFIEDTYPE_H

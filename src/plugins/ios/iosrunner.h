@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,31 +9,27 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-#ifndef IOSRUNNER_H
-#define IOSRUNNER_H
+
+#pragma once
 
 #include "iosconfigurations.h"
 #include "iostoolhandler.h"
 #include "iossimulator.h"
 
+#include <debugger/debuggerconstants.h>
 #include <projectexplorer/devicesupport/idevice.h>
 #include <qmldebug/qmldebugcommandlinearguments.h>
 
@@ -65,14 +61,14 @@ public:
     IosToolHandler::RunKind runType();
     bool cppDebug() const;
     QmlDebug::QmlDebugServicesPreset qmlDebugServices() const;
-public slots:
+
     void start();
     void stop();
 
 signals:
     void didStartApp(Ios::IosToolHandler::OpStatus status);
-    void gotServerPorts(int gdbPort, int qmlPort);
-    void gotInferiorPid(qint64 pid, int);
+    void gotServerPorts(Utils::Port gdbPort, Utils::Port qmlPort);
+    void gotInferiorPid(qint64 pid, Utils::Port qmlPort);
     void appOutput(const QString &output);
     void errorMsg(const QString &msg);
     void finished(bool cleanExit);
@@ -81,7 +77,7 @@ private:
     void handleDidStartApp(Ios::IosToolHandler *handler, const QString &bundlePath,
                            const QString &deviceId, Ios::IosToolHandler::OpStatus status);
     void handleGotServerPorts(Ios::IosToolHandler *handler, const QString &bundlePath,
-                              const QString &deviceId, int gdbPort, int qmlPort);
+                              const QString &deviceId, Utils::Port gdbPort, Utils::Port qmlPort);
     void handleGotInferiorPid(Ios::IosToolHandler *handler, const QString &bundlePath,
                               const QString &deviceId, qint64 pid);
     void handleAppOutput(Ios::IosToolHandler *handler, const QString &output);
@@ -98,11 +94,9 @@ private:
     QmlDebug::QmlDebugServicesPreset m_qmlDebugServices;
 
     bool m_cleanExit;
-    quint16 m_qmlPort;
+    Utils::Port m_qmlPort;
     qint64 m_pid;
 };
 
 } // namespace Internal
 } // namespace Ios
-
-#endif // IOSRUNNER_H

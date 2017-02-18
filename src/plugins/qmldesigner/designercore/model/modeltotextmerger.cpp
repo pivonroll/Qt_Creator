@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -27,14 +27,14 @@
 #include "modelnodepositionrecalculator.h"
 #include "qmltextgenerator.h"
 #include "rewriteactioncompressor.h"
-#include "rewriterview.h"
 
-#include <nodelistproperty.h>
+#include <rewriterview.h>
+#include <abstractproperty.h>
 #include <nodeproperty.h>
+#include <nodeabstractproperty.h>
+
 #include <qmljs/parser/qmljsengine_p.h>
 #include <utils/algorithm.h>
-
-#include <QDebug>
 
 namespace {
     enum {
@@ -85,7 +85,7 @@ void ModelToTextMerger::propertiesChanged(const QList<AbstractProperty>& propert
 
         ModelNode containedModelNode;
         const int indentDepth = m_rewriterView->textModifier()->indentDepth();
-        const QString propertyTextValue = QmlTextGenerator(getPropertyOrder(),
+        const QString propertyTextValue = QmlTextGenerator(propertyOrder(),
                                                            indentDepth)(property);
 
         switch (propertyChange) {
@@ -162,14 +162,14 @@ void ModelToTextMerger::nodeReparented(const ModelNode &node, const NodeAbstract
         switch (propertyChange) {
         case AbstractView::PropertiesAdded:
             schedule(new AddPropertyRewriteAction(newPropertyParent,
-                                                  QmlTextGenerator(getPropertyOrder())(node),
+                                                  QmlTextGenerator(propertyOrder())(node),
                                                   propertyType(newPropertyParent),
                                                   node));
             break;
 
         case AbstractView::NoAdditionalChanges:
             schedule(new ChangePropertyRewriteAction(newPropertyParent,
-                                                     QmlTextGenerator(getPropertyOrder())(node),
+                                                     QmlTextGenerator(propertyOrder())(node),
                                                      propertyType(newPropertyParent),
                                                      node));
             break;
@@ -212,7 +212,7 @@ void ModelToTextMerger::applyChanges()
         return;
 
     dumpRewriteActions(QStringLiteral("Before compression"));
-    RewriteActionCompressor compress(getPropertyOrder());
+    RewriteActionCompressor compress(propertyOrder());
     compress(m_rewriteActions);
     dumpRewriteActions(QStringLiteral("After compression"));
 
@@ -241,7 +241,7 @@ void ModelToTextMerger::applyChanges()
         ModelNodePositionRecalculator positionRecalculator(m_rewriterView->positionStorage(), m_rewriterView->positionStorage()->modelNodes());
         positionRecalculator.connectTo(textModifier);
 
-        QmlRefactoring refactoring(tmpDocument, *textModifier, getPropertyOrder());
+        QmlRefactoring refactoring(tmpDocument, *textModifier, propertyOrder());
 
         textModifier->deactivateChangeSignals();
         textModifier->startGroup();
@@ -348,31 +348,27 @@ QmlRefactoring::PropertyType ModelToTextMerger::propertyType(const AbstractPrope
     return (QmlRefactoring::PropertyType) -1;
 }
 
-PropertyNameList ModelToTextMerger::m_propertyOrder;
-
-PropertyNameList ModelToTextMerger::getPropertyOrder()
+PropertyNameList ModelToTextMerger::propertyOrder()
 {
-    if (m_propertyOrder.isEmpty()) {
-        m_propertyOrder
-                << PropertyName("id")
-                << PropertyName("name")
-                << PropertyName("target")
-                << PropertyName("property")
-                << PropertyName("x")
-                << PropertyName("y")
-                << PropertyName("width")
-                << PropertyName("height")
-                << PropertyName("position")
-                << PropertyName("color")
-                << PropertyName("radius")
-                << PropertyName("text")
-                << PropertyName()
-                << PropertyName("states")
-                << PropertyName("transitions")
-                ;
-    }
+    static const PropertyNameList properties = {
+        PropertyName("id"),
+        PropertyName("name"),
+        PropertyName("target"),
+        PropertyName("property"),
+        PropertyName("x"),
+        PropertyName("y"),
+        PropertyName("width"),
+        PropertyName("height"),
+        PropertyName("position"),
+        PropertyName("color"),
+        PropertyName("radius"),
+        PropertyName("text"),
+        PropertyName(),
+        PropertyName("states"),
+        PropertyName("transitions")
+    };
 
-    return m_propertyOrder;
+    return properties;
 }
 
 bool ModelToTextMerger::isInHierarchy(const AbstractProperty &property) {

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -125,129 +120,76 @@ public:
     void updateCurrentEditor(Core::IEditor *editor);
 
 public:
-    TextEditorActionHandler *q;
-    QAction *m_undoAction;
-    QAction *m_redoAction;
-    QAction *m_copyAction;
-    QAction *m_cutAction;
-    QAction *m_pasteAction;
-    QAction *m_circularPasteAction;
-    QAction *m_switchUtf8bomAction;
-    QAction *m_selectAllAction;
-    QAction *m_gotoAction;
-    QAction *m_printAction;
-    QAction *m_formatAction;
-    QAction *m_rewrapParagraphAction;
-    QAction *m_visualizeWhitespaceAction;
-    QAction *m_cleanWhitespaceAction;
-    QAction *m_textWrappingAction;
-    QAction *m_unCommentSelectionAction;
-    QAction *m_unfoldAllAction;
-    QAction *m_foldAction;
-    QAction *m_unfoldAction;
-    QAction *m_cutLineAction;
-    QAction *m_copyLineAction;
-    QAction *m_deleteLineAction;
-    QAction *m_deleteEndOfWordAction;
-    QAction *m_deleteEndOfWordCamelCaseAction;
-    QAction *m_deleteStartOfWordAction;
-    QAction *m_deleteStartOfWordCamelCaseAction;
-    QAction *m_selectEncodingAction;
-    QAction *m_increaseFontSizeAction;
-    QAction *m_decreaseFontSizeAction;
-    QAction *m_resetFontSizeAction;
-    QAction *m_gotoBlockStartAction;
-    QAction *m_gotoBlockEndAction;
-    QAction *m_gotoBlockStartWithSelectionAction;
-    QAction *m_gotoBlockEndWithSelectionAction;
-    QAction *m_selectBlockUpAction;
-    QAction *m_selectBlockDownAction;
-    QAction *m_viewPageUpAction;
-    QAction *m_viewPageDownAction;
-    QAction *m_viewLineUpAction;
-    QAction *m_viewLineDownAction;
-    QAction *m_moveLineUpAction;
-    QAction *m_moveLineDownAction;
-    QAction *m_copyLineUpAction;
-    QAction *m_copyLineDownAction;
-    QAction *m_joinLinesAction;
-    QAction *m_insertLineAboveAction;
-    QAction *m_insertLineBelowAction;
-    QAction *m_upperCaseSelectionAction;
-    QAction *m_lowerCaseSelectionAction;
-    QAction *m_indentAction;
-    QAction *m_unindentAction;
-    QAction *m_followSymbolAction;
-    QAction *m_followSymbolInNextSplitAction;
-    QAction *m_jumpToFileAction;
-    QAction *m_jumpToFileInNextSplitAction;
+    TextEditorActionHandler *q = nullptr;
+    QAction *m_undoAction = nullptr;
+    QAction *m_redoAction = nullptr;
+    QAction *m_copyAction = nullptr;
+    QAction *m_cutAction = nullptr;
+    QAction *m_pasteAction = nullptr;
+    QAction *m_circularPasteAction = nullptr;
+    QAction *m_switchUtf8bomAction = nullptr;
+    QAction *m_selectAllAction = nullptr;
+    QAction *m_gotoAction = nullptr;
+    QAction *m_printAction = nullptr;
+    QAction *m_formatAction = nullptr;
+    QAction *m_rewrapParagraphAction = nullptr;
+    QAction *m_visualizeWhitespaceAction = nullptr;
+    QAction *m_cleanWhitespaceAction = nullptr;
+    QAction *m_textWrappingAction = nullptr;
+    QAction *m_unCommentSelectionAction = nullptr;
+    QAction *m_unfoldAllAction = nullptr;
+    QAction *m_foldAction = nullptr;
+    QAction *m_unfoldAction = nullptr;
+    QAction *m_cutLineAction = nullptr;
+    QAction *m_copyLineAction = nullptr;
+    QAction *m_duplicateSelectionAction = nullptr;
+    QAction *m_duplicateSelectionAndCommentAction = nullptr;
+    QAction *m_deleteLineAction = nullptr;
+    QAction *m_deleteEndOfWordAction = nullptr;
+    QAction *m_deleteEndOfWordCamelCaseAction = nullptr;
+    QAction *m_deleteStartOfWordAction = nullptr;
+    QAction *m_deleteStartOfWordCamelCaseAction = nullptr;
+    QAction *m_selectEncodingAction = nullptr;
+    QAction *m_increaseFontSizeAction = nullptr;
+    QAction *m_decreaseFontSizeAction = nullptr;
+    QAction *m_resetFontSizeAction = nullptr;
+    QAction *m_gotoBlockStartAction = nullptr;
+    QAction *m_gotoBlockEndAction = nullptr;
+    QAction *m_gotoBlockStartWithSelectionAction = nullptr;
+    QAction *m_gotoBlockEndWithSelectionAction = nullptr;
+    QAction *m_selectBlockUpAction = nullptr;
+    QAction *m_selectBlockDownAction = nullptr;
+    QAction *m_viewPageUpAction = nullptr;
+    QAction *m_viewPageDownAction = nullptr;
+    QAction *m_viewLineUpAction = nullptr;
+    QAction *m_viewLineDownAction = nullptr;
+    QAction *m_moveLineUpAction = nullptr;
+    QAction *m_moveLineDownAction = nullptr;
+    QAction *m_copyLineUpAction = nullptr;
+    QAction *m_copyLineDownAction = nullptr;
+    QAction *m_joinLinesAction = nullptr;
+    QAction *m_insertLineAboveAction = nullptr;
+    QAction *m_insertLineBelowAction = nullptr;
+    QAction *m_upperCaseSelectionAction = nullptr;
+    QAction *m_lowerCaseSelectionAction = nullptr;
+    QAction *m_indentAction = nullptr;
+    QAction *m_unindentAction = nullptr;
+    QAction *m_followSymbolAction = nullptr;
+    QAction *m_followSymbolInNextSplitAction = nullptr;
+    QAction *m_jumpToFileAction = nullptr;
+    QAction *m_jumpToFileInNextSplitAction = nullptr;
     QList<QAction *> m_modifyingActions;
 
-    uint m_optionalActions;
+    uint m_optionalActions = TextEditorActionHandler::None;
     QPointer<TextEditorWidget> m_currentEditorWidget;
     Core::Id m_contextId;
 };
 
 TextEditorActionHandlerPrivate::TextEditorActionHandlerPrivate
     (TextEditorActionHandler *parent, Core::Id contextId, uint optionalActions)
-  : q(parent),
-    m_undoAction(0),
-    m_redoAction(0),
-    m_copyAction(0),
-    m_cutAction(0),
-    m_pasteAction(0),
-    m_circularPasteAction(0),
-    m_switchUtf8bomAction(0),
-    m_selectAllAction(0),
-    m_gotoAction(0),
-    m_printAction(0),
-    m_formatAction(0),
-    m_visualizeWhitespaceAction(0),
-    m_cleanWhitespaceAction(0),
-    m_textWrappingAction(0),
-    m_unCommentSelectionAction(0),
-    m_unfoldAllAction(0),
-    m_foldAction(0),
-    m_unfoldAction(0),
-    m_cutLineAction(0),
-    m_copyLineAction(0),
-    m_deleteLineAction(0),
-    m_deleteEndOfWordAction(0),
-    m_deleteEndOfWordCamelCaseAction(0),
-    m_deleteStartOfWordAction(0),
-    m_deleteStartOfWordCamelCaseAction(0),
-    m_selectEncodingAction(0),
-    m_increaseFontSizeAction(0),
-    m_decreaseFontSizeAction(0),
-    m_resetFontSizeAction(0),
-    m_gotoBlockStartAction(0),
-    m_gotoBlockEndAction(0),
-    m_gotoBlockStartWithSelectionAction(0),
-    m_gotoBlockEndWithSelectionAction(0),
-    m_selectBlockUpAction(0),
-    m_selectBlockDownAction(0),
-    m_viewPageUpAction(0),
-    m_viewPageDownAction(0),
-    m_viewLineUpAction(0),
-    m_viewLineDownAction(0),
-    m_moveLineUpAction(0),
-    m_moveLineDownAction(0),
-    m_copyLineUpAction(0),
-    m_copyLineDownAction(0),
-    m_joinLinesAction(0),
-    m_insertLineAboveAction(0),
-    m_insertLineBelowAction(0),
-    m_upperCaseSelectionAction(0),
-    m_lowerCaseSelectionAction(0),
-    m_indentAction(0),
-    m_unindentAction(0),
-    m_followSymbolAction(0),
-    m_followSymbolInNextSplitAction(0),
-    m_jumpToFileAction(0),
-    m_jumpToFileInNextSplitAction(0),
-    m_optionalActions(optionalActions),
-    m_currentEditorWidget(0),
-    m_contextId(contextId)
+  : q(parent)
+  , m_optionalActions(optionalActions)
+  , m_contextId(contextId)
 {
     createActions();
     connect(Core::EditorManager::instance(), &Core::EditorManager::currentEditorChanged,
@@ -318,7 +260,7 @@ void TextEditorActionHandlerPrivate::createActions()
             [this] (TextEditorWidget *w) { w->insertLineBelow(); }, true, tr("Insert Line Below Current Line"),
             QKeySequence(tr("Ctrl+Return")));
     m_switchUtf8bomAction = registerAction(SWITCH_UTF8BOM,
-            [this] (TextEditorWidget *w) { w->switchUtf8bom(); }, true);
+            [this] (TextEditorWidget *w) { w->switchUtf8bom(); }, true, tr("Toggle UTF-8 BOM"));
     m_indentAction = registerAction(INDENT,
             [this] (TextEditorWidget *w) { w->indent(); }, true, tr("Indent"));
     m_unindentAction = registerAction(UNINDENT,
@@ -330,7 +272,7 @@ void TextEditorActionHandlerPrivate::createActions()
             [this] (TextEditorWidget *w) { w->openLinkUnderCursorInNextSplit(); }, true, tr("Follow Symbol Under Cursor in Next Split"),
             QKeySequence(Utils::HostOsInfo::isMacHost() ? tr("Meta+E, F2") : tr("Ctrl+E, F2")));
     m_jumpToFileAction = registerAction(JUMP_TO_FILE_UNDER_CURSOR,
-            [this] (TextEditorWidget *w) { w->openLinkUnderCursor(); }, true, tr("Jump To File Under Cursor"),
+            [this] (TextEditorWidget *w) { w->openLinkUnderCursor(); }, true, tr("Jump to File Under Cursor"),
             QKeySequence(Qt::Key_F2));
     m_jumpToFileInNextSplitAction = registerAction(JUMP_TO_FILE_UNDER_CURSOR_IN_NEXT_SPLIT,
             [this] (TextEditorWidget *w) { w->openLinkUnderCursorInNextSplit(); }, true, tr("Jump to File Under Cursor in Next Split"),
@@ -408,6 +350,14 @@ void TextEditorActionHandlerPrivate::createActions()
             [this] (TextEditorWidget *w) { w->copyLine(); }, false, tr("Copy &Line"),
             QKeySequence(tr("Ctrl+Ins")),
             G_EDIT_TEXT, advancedEditMenu);
+    m_duplicateSelectionAction = registerAction(DUPLICATE_SELECTION,
+            [this] (TextEditorWidget *w) { w->duplicateSelection(); }, false, tr("&Duplicate Selection"),
+            QKeySequence(),
+            G_EDIT_TEXT, advancedEditMenu);
+    m_duplicateSelectionAndCommentAction = registerAction(DUPLICATE_SELECTION_AND_COMMENT,
+            [this] (TextEditorWidget *w) { w->duplicateSelectionAndComment(); }, false, tr("&Duplicate Selection and Comment"),
+            QKeySequence(),
+            G_EDIT_TEXT, advancedEditMenu);
     m_upperCaseSelectionAction = registerAction(UPPERCASE_SELECTION,
             [this] (TextEditorWidget *w) { w->uppercaseSelection(); }, true, tr("Uppercase Selection"),
             QKeySequence(Core::UseMacShortcuts ? tr("Meta+Shift+U") : tr("Alt+Shift+U")),
@@ -429,11 +379,11 @@ void TextEditorActionHandlerPrivate::createActions()
             QKeySequence(),
             G_EDIT_COLLAPSING, advancedEditMenu);
     m_increaseFontSizeAction = registerAction(INCREASE_FONT_SIZE,
-            [this] (TextEditorWidget *w) { w->zoomIn(); }, false, tr("Increase Font Size"),
+            [this] (TextEditorWidget *w) { w->zoomF(1.f); }, false, tr("Increase Font Size"),
             QKeySequence(tr("Ctrl++")),
             G_EDIT_FONT, advancedEditMenu);
     m_decreaseFontSizeAction = registerAction(DECREASE_FONT_SIZE,
-            [this] (TextEditorWidget *w) { w->zoomOut(); }, false, tr("Decrease Font Size"),
+            [this] (TextEditorWidget *w) { w->zoomF(-1.f); }, false, tr("Decrease Font Size"),
             QKeySequence(tr("Ctrl+-")),
             G_EDIT_FONT, advancedEditMenu);
     m_resetFontSizeAction = registerAction(RESET_FONT_SIZE,
@@ -454,8 +404,11 @@ void TextEditorActionHandlerPrivate::createActions()
             G_EDIT_BLOCKS, advancedEditMenu);
     m_selectBlockDownAction = registerAction(SELECT_BLOCK_DOWN,
             [this] (TextEditorWidget *w) { w->selectBlockDown(); }, true, tr("Select Block Down"),
-            QKeySequence(),
+            QKeySequence(tr("Ctrl+Shift+Alt+U")),
             G_EDIT_BLOCKS, advancedEditMenu);
+    registerAction(SELECT_WORD_UNDER_CURSOR,
+            [this] (TextEditorWidget *w) { w->selectWordUnderCursor(); }, true,
+            tr("Select Word Under Cursor"));
 
     // register GOTO Actions
     registerAction(GOTO_LINE_START,

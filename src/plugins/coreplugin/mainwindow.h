@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include "icontext.h"
 #include "icore.h"
@@ -39,6 +33,8 @@
 
 #include <QMap>
 #include <QColor>
+
+#include <functional>
 
 QT_BEGIN_NAMESPACE
 class QSettings;
@@ -110,8 +106,12 @@ public:
 
     void setOverrideColor(const QColor &color);
 
-signals:
-    void newItemDialogRunningChanged();
+    QStringList additionalAboutInformation() const;
+    void appendAboutInformation(const QString &line);
+
+    void addPreCloseListener(const std::function<bool()> &listener);
+
+    void saveSettings();
 
 public slots:
     void openFileWith();
@@ -127,7 +127,7 @@ public slots:
 protected:
     virtual void closeEvent(QCloseEvent *event);
 
-private slots:
+private:
     void openFile();
     void aboutToShowRecentFiles();
     void setFocusToEditor();
@@ -139,9 +139,7 @@ private slots:
     void destroyVersionDialog();
     void openDroppedFiles(const QList<Utils::DropSupport::FileSpec> &files);
     void restoreWindowState();
-    void newItemDialogFinished();
 
-private:
     void updateContextObject(const QList<IContext *> &context);
     void updateContext();
 
@@ -149,57 +147,57 @@ private:
     void registerDefaultActions();
 
     void readSettings();
-    void writeSettings();
+    void saveWindowSettings();
 
-    ICore *m_coreImpl;
+    ICore *m_coreImpl = nullptr;
+    QStringList m_aboutInformation;
     Context m_highPrioAdditionalContexts;
     Context m_lowPrioAdditionalContexts;
-    SettingsDatabase *m_settingsDatabase;
-    mutable QPrinter *m_printer;
-    WindowSupport *m_windowSupport;
-    EditorManager *m_editorManager;
-    ExternalToolManager *m_externalToolManager;
-    MessageManager *m_messageManager;
-    ProgressManagerPrivate *m_progressManager;
-    JsExpander *m_jsExpander;
-    VcsManager *m_vcsManager;
-    StatusBarManager *m_statusBarManager;
-    ModeManager *m_modeManager;
-    HelpManager *m_helpManager;
-    FancyTabWidget *m_modeStack;
-    NavigationWidget *m_navigationWidget;
-    RightPaneWidget *m_rightPaneWidget;
-    StatusBarWidget *m_outputView;
-    VersionDialog *m_versionDialog;
+    SettingsDatabase *m_settingsDatabase = nullptr;
+    mutable QPrinter *m_printer = nullptr;
+    WindowSupport *m_windowSupport = nullptr;
+    EditorManager *m_editorManager = nullptr;
+    ExternalToolManager *m_externalToolManager = nullptr;
+    MessageManager *m_messageManager = nullptr;
+    ProgressManagerPrivate *m_progressManager = nullptr;
+    JsExpander *m_jsExpander = nullptr;
+    VcsManager *m_vcsManager = nullptr;
+    StatusBarManager *m_statusBarManager = nullptr;
+    ModeManager *m_modeManager = nullptr;
+    HelpManager *m_helpManager = nullptr;
+    FancyTabWidget *m_modeStack = nullptr;
+    NavigationWidget *m_navigationWidget = nullptr;
+    RightPaneWidget *m_rightPaneWidget = nullptr;
+    StatusBarWidget *m_outputView = nullptr;
+    VersionDialog *m_versionDialog = nullptr;
 
     QList<IContext *> m_activeContext;
 
     QMap<QWidget *, IContext *> m_contextWidgets;
 
-    GeneralSettings *m_generalSettings;
-    SystemSettings *m_systemSettings;
-    ShortcutSettings *m_shortcutSettings;
-    ToolSettings *m_toolSettings;
-    MimeTypeSettings *m_mimeTypeSettings;
-    SystemEditor *m_systemEditor;
+    GeneralSettings *m_generalSettings = nullptr;
+    SystemSettings *m_systemSettings = nullptr;
+    ShortcutSettings *m_shortcutSettings = nullptr;
+    ToolSettings *m_toolSettings = nullptr;
+    MimeTypeSettings *m_mimeTypeSettings = nullptr;
+    SystemEditor *m_systemEditor = nullptr;
 
     // actions
-    QAction *m_focusToEditor;
-    QAction *m_newAction;
-    QAction *m_openAction;
-    QAction *m_openWithAction;
-    QAction *m_saveAllAction;
-    QAction *m_exitAction;
-    QAction *m_optionsAction;
-    QAction *m_toggleSideBarAction;
-    QAction *m_toggleModeSelectorAction;
-    QAction *m_themeAction;
+    QAction *m_focusToEditor = nullptr;
+    QAction *m_newAction = nullptr;
+    QAction *m_openAction = nullptr;
+    QAction *m_openWithAction = nullptr;
+    QAction *m_saveAllAction = nullptr;
+    QAction *m_exitAction = nullptr;
+    QAction *m_optionsAction = nullptr;
+    QAction *m_toggleSideBarAction = nullptr;
+    QAction *m_toggleModeSelectorAction = nullptr;
+    QAction *m_themeAction = nullptr;
 
-    QToolButton *m_toggleSideBarButton;
+    QToolButton *m_toggleSideBarButton = nullptr;
     QColor m_overrideColor;
+    QList<std::function<bool()>> m_preCloseListeners;
 };
 
 } // namespace Internal
 } // namespace Core
-
-#endif // MAINWINDOW_H

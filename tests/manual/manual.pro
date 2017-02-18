@@ -1,11 +1,11 @@
 TEMPLATE=subdirs
 
 SUBDIRS= \
-fakevim \
-debugger \
-subdir_proparser \
-utils \
-shootout
+    fakevim \
+    debugger \
+    subdir_proparser \
+    shootout \
+    pluginview
 
 unix {
 #   Uses popen

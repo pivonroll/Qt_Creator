@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef APPOUTPUTPANE_H
-#define APPOUTPUTPANE_H
+#pragma once
+
+#include <QVector>
 
 #include <coreplugin/ioutputpane.h>
 
@@ -51,6 +47,7 @@ class Project;
 
 namespace Internal {
 
+class TabWidget;
 class AppOutputPane : public Core::IOutputPane
 {
     Q_OBJECT
@@ -67,23 +64,23 @@ public:
     };
 
     AppOutputPane();
-    virtual ~AppOutputPane();
+    ~AppOutputPane() override;
 
-    QWidget *outputWidget(QWidget *);
-    QList<QWidget *> toolBarWidgets() const;
-    QString displayName() const;
-    int priorityInStatusBar() const;
-    void clearContents();
-    void visibilityChanged(bool);
-    bool canFocus() const;
-    bool hasFocus() const;
-    void setFocus();
+    QWidget *outputWidget(QWidget *) override;
+    QList<QWidget *> toolBarWidgets() const override;
+    QString displayName() const override;
+    int priorityInStatusBar() const override;
+    void clearContents() override;
+    void visibilityChanged(bool) override;
+    bool canFocus() const override;
+    bool hasFocus() const override;
+    void setFocus() override;
 
-    bool canNext() const;
-    bool canPrevious() const;
-    void goToNext();
-    void goToPrev();
-    bool canNavigate() const;
+    bool canNext() const override;
+    bool canPrevious() const override;
+    void goToNext() override;
+    void goToPrev() override;
+    bool canNavigate() const override;
 
     void createNewOutputWindow(RunControl *rc);
     void showTabFor(RunControl *rc);
@@ -99,18 +96,17 @@ signals:
      void runControlStarted(ProjectExplorer::RunControl *rc);
      void runControlFinished(ProjectExplorer::RunControl *rc);
 
-public slots:
+public:
     // ApplicationOutput specifics
     void projectRemoved();
 
     void appendMessage(ProjectExplorer::RunControl *rc, const QString &out,
                        Utils::OutputFormat format);
 
-private slots:
+private:
     void reRunRunControl();
     void stopRunControl();
     void attachToRunControl();
-    bool closeTab(int index);
     void tabChanged(int);
     void contextMenuRequested(const QPoint &pos, int index);
     void slotRunControlStarted();
@@ -119,26 +115,26 @@ private slots:
 
     void aboutToUnloadSession();
     void updateFromSettings();
-    void enableButtons();
+    void enableDefaultButtons();
 
     void zoomIn();
     void zoomOut();
 
-private:
     void enableButtons(const RunControl *rc, bool isRunning);
 
-    struct RunControlTab {
-        explicit RunControlTab(RunControl *runControl = 0,
-                               Core::OutputWindow *window = 0);
-        RunControl* runControl;
+    class RunControlTab {
+    public:
+        explicit RunControlTab(RunControl *runControl = nullptr,
+                               Core::OutputWindow *window = nullptr);
+        RunControl *runControl;
         Core::OutputWindow *window;
         // Is the run control stopping asynchronously, close the tab once it finishes
-        bool asyncClosing;
-        BehaviorOnOutput behaviorOnOutput;
+        bool asyncClosing = false;
+        BehaviorOnOutput behaviorOnOutput = Flash;
     };
 
     bool isRunning() const;
-    bool closeTab(int index, CloseTabMode cm);
+    bool closeTab(int index, CloseTabMode cm = CloseTabWithPrompt);
     bool optionallyPromptToStop(RunControl *runControl);
 
     int indexOf(const RunControl *) const;
@@ -153,8 +149,8 @@ private:
     void updateBehaviorSettings();
 
     QWidget *m_mainWidget;
-    class TabWidget *m_tabWidget;
-    QList<RunControlTab> m_runControlTabs;
+    TabWidget *m_tabWidget;
+    QVector<RunControlTab> m_runControlTabs;
     QAction *m_stopAction;
     QAction *m_closeCurrentTabAction;
     QAction *m_closeAllTabsAction;
@@ -169,5 +165,3 @@ private:
 
 } // namespace Internal
 } // namespace ProjectExplorer
-
-#endif // APPOUTPUTPANE_H

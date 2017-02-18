@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -40,7 +47,9 @@
 
         \li Open tutorials and example projects
 
-        \li Read news from the online community and Qt labs
+        \li Read news from the online community and Qt blogs
+
+        \li Create or manage a Qt Account
 
     \endlist
 
@@ -86,14 +95,12 @@
             UI files.
 
         \li \uicontrol{\l{Debugging}{Debug}} mode for inspecting the state of your
-            application while debugging.
+            application while debugging and for using code analysis tools
+            to detect memory leaks and profile C++ or QML code.
 
         \li \uicontrol{\l{Specifying Build Settings}{Projects}} mode for configuring
             project building and execution. This mode is available when a
             project is open.
-
-        \li \uicontrol{\l{Analyzing Code}{Analyze}} mode for using code analysis tools
-            to detect memory leaks and profile C++ or QML code.
 
         \li \uicontrol{\l{Getting Help}{Help}} mode for viewing Qt documentation.
 
@@ -117,7 +124,7 @@
     \list
 
         \li \uicontrol Projects shows a list of projects open in the current
-            session.
+            session and the project files needed by the build system.
 
         \li \uicontrol{Open Documents} shows currently open files.
 
@@ -132,8 +139,7 @@
         \li \uicontrol Outline shows the symbol hierarchy of a C++ file and the type
             hierarchy of a QML file.
 
-        \li \uicontrol Tests lists autotests and Qt Quick tests in the project
-            (commercial only).
+        \li \uicontrol Tests lists autotests and Qt Quick tests in the project.
 
         \li \uicontrol {Type Hierarchy} shows the base classes of a class.
 
@@ -149,15 +155,14 @@
 
     \list
 
-        \li To toggle the sidebar, click \inlineimage qtcreator-togglebutton.png
+        \li To toggle the sidebar, click \inlineimage sidebaricon.png
             (\uicontrol {Hide Sidebar/Show Sidebar}) or press \key Alt+0
-            (\key Cmd+0 on OS X).
+            (\key Cmd+0 on \macos).
 
-        \li To split the sidebar, click \inlineimage qtcreator-splitbar.png
+        \li To split the sidebar, click \inlineimage splitbutton_horizontal.png
             (\uicontrol {Split}). Select new content to view in the split view.
 
-        \li To close a sidebar view, click
-            \inlineimage qtcreator-remove-split-button.png
+        \li To close a sidebar view, click \inlineimage splitbutton_closetop.png
             (\uicontrol {Close}).
 
     \endlist
@@ -171,8 +176,14 @@
     \section2 Viewing Project Files
 
     The sidebar displays projects in a project tree. The project tree contains
-    a list of all projects open in the current session. The files for each
-    project are grouped according to their file type.
+    a list of all projects open in the current session. For each project, the
+    tree visualizes the build system structure of the project and lists all
+    files that are part of the project.
+
+    Some build systems support adding and removing files to a project in \QC
+    (currently qmake and Qbs). The faithful display of the project structure
+    allows to specify exactly where a new file should be placed in the build
+    system.
 
     If the project is under version control, information from the version control system
     might be displayed in brackets after the project name. This is currently implemented for
@@ -193,15 +204,14 @@
             build, re-build, clean and run the project.
 
         \li To hide the categories and sort project files alphabetically, click
-            \inlineimage qtcreator-filter.png
+            \inlineimage filtericon.png
             (\uicontrol {Filter Tree}) and select \uicontrol{Simplify Tree}.
 
         \li To hide source files which are automatically generated by the build
             system, select \uicontrol {Filter Tree > Hide Generated Files}.
 
         \li To keep the position in the project tree synchronized with the file
-            currently opened in the editor, click
-            \inlineimage qtcreator-synchronizefocus.png
+            currently opened in the editor, click \inlineimage linkicon.png
             (\uicontrol {Synchronize with Editor}).
 
         \li To see the absolute path of a file, move the mouse pointer over the
@@ -261,6 +271,8 @@
 
         \li Search from the selected directory.
 
+        \li Display the contents of a particular directory in the view.
+
     \endlist
 
     \section2 Viewing the Class Hierarchy
@@ -290,7 +302,7 @@
     \section2 Viewing Tests
 
     The \uicontrol Tests view shows the autotests and Qt Quick tests in the
-    current project (commercial only). Select the test cases to run. If a Qt
+    current project. Select the test cases to run. If a Qt
     Quick test case does not have a name, it is marked \uicontrol Unnamed in the
     list. Unnamed test cases are always executed when the application that
     contains them is run, and therefore you cannot select or deselect them.
@@ -301,8 +313,7 @@
     to open its source code in the code editor.
 
     The test cases are listed in alphabetic order. To list them in the order in
-    which they are defined in the source code, select
-    \inlineimage qtcreator-autotests-sort-naturally.png
+    which they are defined in the source code, select \inlineimage leafsort.png
     (\uicontrol {Sort Naturally}).
 
     To run tests, select \uicontrol {Run All Tests} or
@@ -335,7 +346,7 @@
 
        \li \uicontrol{Compile Output}
 
-       \li \uicontrol {QML/JS Console}
+       \li \uicontrol {Debugger Console}
 
        \li \uicontrol {To-Do Entries}
 
@@ -343,7 +354,7 @@
 
        \li \uicontrol{General Messages}
 
-       \li \uicontrol{Test Results} (commercial only)
+       \li \uicontrol{Test Results}
 
     \endlist
 
@@ -354,7 +365,8 @@
     To search within the \uicontrol{Application Output} and \uicontrol{Compile Output}
     panes, press \key {Ctrl+F} when the pane is active. Enter search criteria in
     the \uicontrol Find field and click the left and right arrows to search down and
-    up in the pane.
+    up in the pane. In these panes, you can also use the zoom buttons to increase and
+    decrease the text size of the output.
 
     To open the \uicontrol{General Messages} and \l{Using Version Control Systems}
     {Version Control} panes, select
@@ -368,9 +380,6 @@
 
     \list
 
-        \li \uicontrol Analyzer - Errors encountered while running the
-            \l{Analyzing Code}{Valgrind code analysis tools}.
-
         \li \uicontrol {Build System} - Errors and warnings encountered during a
             build.
 
@@ -379,6 +388,9 @@
 
        \li \uicontrol{Debug Information} - Lists debug information packages that might
             be missing.
+
+        \li \uicontrol Debugger - Errors encountered while running the
+            \l{Analyzing Code}{Valgrind code analysis tools}.
 
        \li \uicontrol{Debugger Runtime} - Errors encountered when starting \QC. For
             example, information about missing DLLs.
@@ -446,6 +458,13 @@
     Select toolbar buttons to run applications, to attach the debugger to the
     running application, and to stop running or debugging.
 
+    To specify settings for displaying application output, select
+    \uicontrol Tools > \uicontrol Options > \uicontrol {Build & Run} >
+    \uicontrol General. You can select whether to open the
+    \uicontrol{Application Output} pane on output when running or debugging
+    applications, to clear old output on a new run, to word-wrap output, and to
+    limit output to the specified number of lines.
+
     \section2 Compile Output
 
     The \uicontrol{Compile Output} pane provides all output from the compiler.
@@ -459,20 +478,25 @@
 
     Select the \uicontrol {Cancel Build} button to cancel the build.
 
-    \section2 QML/JS Console
+    To specify whether to open the \uicontrol {Compile Output} pane on output
+    when building applications, select \uicontrol Tools > \uicontrol Options >
+    \uicontrol {Build & Run} > \uicontrol General, and then select the
+    \uicontrol {Open Compile Output pane when building} check box.
 
-    In the \uicontrol {QML/JS Console}, you can type JavaScript expressions and use them to get
+    \section2 Debugger Console
+
+    In the \uicontrol {Debugger Console}, you can type JavaScript expressions and use them to get
     information about the state of your application during debugging. You can change property
     values temporarily, without editing the source, and view the results in the running
     application.
 
-    \image qml-script-console.png "QML/JS Console"
+    \image qml-script-console.png "Debugger Console"
 
     You can change the property values permanently in the code editor.
 
-    \section2 To-Do List
+    \section2 To-Do Entries
 
-    The \uicontrol {To-Do List Entries} pane lists the BUG, FIXME, NOTE, TODO, and
+    The \uicontrol {To-Do Entries} pane lists the BUG, FIXME, NOTE, TODO, and
     WARNING keywords from the current file or from all project files. The
     keywords are organized into information, warning, and error categories.
 
@@ -486,7 +510,7 @@
     To determine whether the keywords in the whole project or in the current
     file are displayed by default, select \uicontrol {Scanning scope}.
 
-    To exclude files from scanning, select \uicontrol {To-Do Settings} in the
+    To exclude files from scanning, select \uicontrol {To-Do} in the
     \uicontrol Projects mode. Select \uicontrol Add and enter a regular
     expression that matches the path to files to exclude. Use a forward slash
     (/) as a separator in the path also on Windows.
@@ -518,6 +542,8 @@
 
     \list
 
+        \li Export SVG images to pixmaps
+
         \li Switch between background and outline modes
 
         \li Zoom in and out
@@ -529,6 +555,13 @@
         \li Play and pause animated GIF and MNG images
 
     \endlist
+
+    \section2 Exporting SVG Images
+
+    If you receive a freely scalable icon in the SVG format from an UI designer,
+    you can export it to several images of different sizes to create a set of
+    pixmaps. You can then use QIcon::addPixmap() to add the pixmaps to icons in
+    different modes and states.
 
     \section1 Navigating with Keyboard
 
@@ -549,7 +582,7 @@
     \e options or \e preferences. In this manual, the names and locations on
     Windows and Linux are usually used to keep the instructions short. Here are
     some places to check if you cannot find a function, dialog, or keyboard
-    shortcut on OS X when following the instructions:
+    shortcut on \macos when following the instructions:
 
     \table
         \header

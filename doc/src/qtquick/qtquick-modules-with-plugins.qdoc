@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -36,8 +43,7 @@
     information for code completion and the semantic checks to work correctly.
 
     When you write a QML module or use QML from a C++ application you typically
-    register new types with the \l{QQmlEngine} class \c qmlRegisterType()
-    function or expose some
+    register new types with the qmlRegisterType() function or expose some
     class instances with \l{QQmlContext::setContextProperty()}. The \QC C++
     code model now scans for these calls and
     tells the QML code model about them. This means that properties are
@@ -45,6 +51,23 @@
     complain about unknown types. However, this works only when the source code
     is available, and therefore, you must explicitly generate type information
     for QML modules with plugins before distributing them.
+
+    Classes registered with \c qmlRegisterType() can be used as backend objects
+    in the \QMLD. For more information, see \l {Adding Connections}.
+
+    By default, \QC will look in the QML import path of Qt for QML modules.
+    If your applications adds additional import paths that \QC should use,
+    then you can specify those using \c{QML_IMPORT_PATH} in the \c{.pro} file of your
+    application.
+
+    If you use CMake, add the following command to the CMakeLists.txt file to
+    set the QML import path:
+
+    \code
+    {set(QML_IMPORT_PATH ${CMAKE_SOURCE_DIR}/qml ${CMAKE_BINARY_DIR}/imports CACHE string "" FORCE)}
+    \endcode
+
+    The import path affects all the targets built by the CMake project.
 
     Ideally, QML modules have a \c{plugins.qmltypes} file in the same directory
     as the \c qmldir file. The \c qmltypes file contains a description of the
@@ -107,5 +130,10 @@
     in the \uicontrol Design mode. You can use the value of the QML_PUPPET_MODE
     environment variable to check whether the plugin is currently being run
     by an application or edited in the \uicontrol Design mode.
+
+    If you want to use a different module in \QMLD than in your actual
+    application for example to mockup C++ items, then you can use \c{QML_DESIGNER_IMPORT_PATH}
+    in the \c{.pro} file.
+    Modules in the import paths defined in \c{QML_DESIGNER_IMPORT_PATH} will be used only in \QMLD.
 
 */

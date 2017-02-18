@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,21 +29,42 @@
 #include "qmlprofilertool.h"
 #include "qmlprofilertimelinemodel.h"
 
-#include <analyzerbase/analyzermanager.h>
+#ifdef WITH_TESTS
+
+#include "tests/debugmessagesmodel_test.h"
+#include "tests/flamegraphmodel_test.h"
+#include "tests/flamegraphview_test.h"
+#include "tests/inputeventsmodel_test.h"
+#include "tests/localqmlprofilerrunner_test.h"
+#include "tests/memoryusagemodel_test.h"
+#include "tests/pixmapcachemodel_test.h"
+#include "tests/qmlevent_test.h"
+#include "tests/qmleventlocation_test.h"
+#include "tests/qmleventtype_test.h"
+#include "tests/qmlnote_test.h"
+#include "tests/qmlprofileranimationsmodel_test.h"
+#include "tests/qmlprofilerattachdialog_test.h"
+#include "tests/qmlprofilerbindingloopsrenderpass_test.h"
+#include "tests/qmlprofilerclientmanager_test.h"
+#include "tests/qmlprofilerconfigwidget_test.h"
+
+// Force QML Debugging to be enabled, so that we can selftest the profiler
+#define QT_QML_DEBUG_NO_WARNING
+#include <QQmlDebuggingEnabler>
+#include <QQmlEngine>
+#undef QT_QML_DEBUG_NO_WARNING
+
+#endif // WITH_TESTS
+
 #include <extensionsystem/pluginmanager.h>
 #include <utils/hostosinfo.h>
 
 #include <QtPlugin>
 
-using namespace Analyzer;
-
 namespace QmlProfiler {
 namespace Internal {
 
 Q_GLOBAL_STATIC(QmlProfilerSettings, qmlProfilerGlobalSettings)
-
-bool QmlProfilerPlugin::debugOutput = false;
-QmlProfilerPlugin *QmlProfilerPlugin::instance = 0;
 
 bool QmlProfilerPlugin::initialize(const QStringList &arguments, QString *errorString)
 {
@@ -57,54 +73,15 @@ bool QmlProfilerPlugin::initialize(const QStringList &arguments, QString *errorS
     if (!Utils::HostOsInfo::canCreateOpenGLContext(errorString))
         return false;
 
-    auto tool = new QmlProfilerTool(this);
-    auto widgetCreator = [tool] { return tool->createWidgets(); };
-    auto runControlCreator = [tool](const AnalyzerStartParameters &sp,
-        ProjectExplorer::RunConfiguration *runConfiguration) {
-        return tool->createRunControl(sp, runConfiguration);
-    };
-
-    AnalyzerAction *action = 0;
-
-    QString description = QmlProfilerTool::tr(
-        "The QML Profiler can be used to find performance bottlenecks in "
-        "applications using QML.");
-
-    action = new AnalyzerAction(this);
-    action->setActionId(QmlProfilerLocalActionId);
-    action->setToolId(QmlProfilerToolId);
-    action->setWidgetCreator(widgetCreator);
-    action->setRunControlCreator(runControlCreator);
-    action->setToolPreparer([tool] { return tool->prepareTool(); });
-    action->setRunMode(ProjectExplorer::Constants::QML_PROFILER_RUN_MODE);
-    action->setText(tr("QML Profiler"));
-    action->setToolTip(description);
-    action->setMenuGroup(Constants::G_ANALYZER_TOOLS);
-    AnalyzerManager::addAction(action);
-
-    action = new AnalyzerAction(this);
-    action->setActionId(QmlProfilerRemoteActionId);
-    action->setToolId(QmlProfilerToolId);
-    action->setWidgetCreator(widgetCreator);
-    action->setRunControlCreator(runControlCreator);
-    action->setCustomToolStarter([tool] { tool->startRemoteTool(); });
-    action->setToolPreparer([tool] { return tool->prepareTool(); });
-    action->setRunMode(ProjectExplorer::Constants::QML_PROFILER_RUN_MODE);
-    action->setText(tr("QML Profiler (External)"));
-    action->setToolTip(description);
-    action->setMenuGroup(Constants::G_ANALYZER_REMOTE_TOOLS);
-    AnalyzerManager::addAction(action);
-
-    addAutoReleasedObject(new QmlProfilerRunControlFactory());
-    addAutoReleasedObject(new Internal::QmlProfilerOptionsPage());
-    QmlProfilerPlugin::instance = this;
-
     return true;
 }
 
 void QmlProfilerPlugin::extensionsInitialized()
 {
-    factory = ExtensionSystem::PluginManager::getObject<QmlProfilerTimelineModelFactory>();
+    (void) new QmlProfilerTool(this);
+
+    addAutoReleasedObject(new QmlProfilerRunControlFactory());
+    addAutoReleasedObject(new Internal::QmlProfilerOptionsPage());
 }
 
 ExtensionSystem::IPlugin::ShutdownFlag QmlProfilerPlugin::aboutToShutdown()
@@ -115,17 +92,35 @@ ExtensionSystem::IPlugin::ShutdownFlag QmlProfilerPlugin::aboutToShutdown()
     return SynchronousShutdown;
 }
 
-QList<QmlProfilerTimelineModel *> QmlProfilerPlugin::getModels(QmlProfilerModelManager *manager) const
-{
-    if (factory)
-        return factory->create(manager);
-    else
-        return QList<QmlProfilerTimelineModel *>();
-}
-
 QmlProfilerSettings *QmlProfilerPlugin::globalSettings()
 {
     return qmlProfilerGlobalSettings();
+}
+
+QList<QObject *> QmlProfiler::Internal::QmlProfilerPlugin::createTestObjects() const
+{
+    QList<QObject *> tests;
+#ifdef WITH_TESTS
+    tests << new DebugMessagesModelTest;
+    tests << new FlameGraphModelTest;
+    tests << new FlameGraphViewTest;
+    tests << new InputEventsModelTest;
+    tests << new LocalQmlProfilerRunnerTest;
+    tests << new MemoryUsageModelTest;
+    tests << new PixmapCacheModelTest;
+    tests << new QmlEventTest;
+    tests << new QmlEventLocationTest;
+    tests << new QmlEventTypeTest;
+    tests << new QmlNoteTest;
+    tests << new QmlProfilerAnimationsModelTest;
+    tests << new QmlProfilerAttachDialogTest;
+    tests << new QmlProfilerBindingLoopsRenderPassTest;
+    tests << new QmlProfilerClientManagerTest;
+    tests << new QmlProfilerConfigWidgetTest;
+
+    tests << new QQmlEngine; // Trigger debug connector to be started
+#endif
+    return tests;
 }
 
 } // namespace Internal

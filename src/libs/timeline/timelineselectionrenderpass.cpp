@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -41,10 +36,11 @@ QSGGeometryNode *createSelectionNode(QSGMaterial *material)
     selectionNode->setMaterial(material);
     selectionNode->setFlag(QSGNode::OwnsMaterial, false);
     QSGGeometry *geometry = new QSGGeometry(OpaqueColoredPoint2DWithSize::attributes(), 4);
+    Q_ASSERT(geometry->vertexData());
     geometry->setDrawingMode(GL_TRIANGLE_STRIP);
     OpaqueColoredPoint2DWithSize *v = OpaqueColoredPoint2DWithSize::fromVertexData(geometry);
     for (int i = 0; i < 4; ++i)
-        v[i].set(0, 0, 0, 0, 0, 0, 0, 0);
+        v[i].set(0, 0, 0, 0, 0, 0, 0, 0, 0);
     selectionNode->setGeometry(geometry);
     selectionNode->setFlag(QSGNode::OwnsGeometry, true);
     selectionNode->setFlag(QSGNode::OwnedByParent, false);
@@ -102,9 +98,12 @@ TimelineRenderPass::State *TimelineSelectionRenderPass::update(
             top = TimelineModel::defaultRowHeight() * (row + 1) - height;
         }
 
-        qint64 startTime = model->startTime(selectedItem);
-        qint64 left = qMax(startTime - parentState->start(), (qint64)0);
-        qint64 width = qMin(parentState->end() - startTime, model->duration(selectedItem));
+        qint64 startTime = qBound(parentState->start(), model->startTime(selectedItem),
+                                  parentState->end());
+        qint64 endTime = qBound(parentState->start(), model->endTime(selectedItem),
+                                parentState->end());
+        qint64 left = startTime - parentState->start();
+        qint64 width = endTime - startTime;
 
         // Construct from upper left and lower right for better precision. When constructing from
         // left and width the error on the left border is inherited by the right border. Like this
@@ -121,13 +120,13 @@ TimelineRenderPass::State *TimelineSelectionRenderPass::update(
         OpaqueColoredPoint2DWithSize *v = OpaqueColoredPoint2DWithSize::fromVertexData(
                     node->geometry());
         v[0].set(position.left(), position.bottom(), -position.width(), -position.height(),
-                 selectionId, red, green, blue);
+                 selectionId, red, green, blue, 255);
         v[1].set(position.right(), position.bottom(), position.width(), -position.height(),
-                 selectionId, red, green, blue);
+                 selectionId, red, green, blue, 255);
         v[2].set(position.left(), position.top(), -position.width(), position.height(),
-                 selectionId, red, green, blue);
+                 selectionId, red, green, blue, 255);
         v[3].set(position.right(), position.top(), position.width(), position.height(),
-                 selectionId, red, green, blue);
+                 selectionId, red, green, blue, 255);
         state->material()->setSelectionColor(renderer->selectionLocked() ? QColor(96,0,255) :
                                                                            Qt::blue);
         state->material()->setSelectedItem(selectionId);
@@ -137,7 +136,7 @@ TimelineRenderPass::State *TimelineSelectionRenderPass::update(
         OpaqueColoredPoint2DWithSize *v = OpaqueColoredPoint2DWithSize::fromVertexData(
                     node->geometry());
         for (int i = 0; i < 4; ++i)
-            v[i].set(0, 0, 0, 0, 0, 0, 0, 0);
+            v[i].set(0, 0, 0, 0, 0, 0, 0, 0, 0);
         node->markDirty(QSGNode::DirtyGeometry);
     }
     return state;

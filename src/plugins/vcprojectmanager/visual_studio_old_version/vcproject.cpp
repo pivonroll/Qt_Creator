@@ -88,6 +88,7 @@ VcProject::VcProject(VcProjectManager *projectManager, const QString &projectFil
         setProjectContext(Core::Context(Constants::VC_PROJECT_2005_ID));
     else
         setProjectContext(Core::Context(Constants::VC_PROJECT_ID));
+
     m_rootNode = m_projectFile->createProjectNode();
 
     if (m_projectFile->visualStudioProject()->documentVersion() != DV_MSVC_2005)

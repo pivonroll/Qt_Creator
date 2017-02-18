@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,26 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "qmlprofilerstatewidget.h"
+
+#include <utils/qtcassert.h>
+#include <utils/theme/theme.h>
 
 #include <QPainter>
 #include <QVBoxLayout>
@@ -36,6 +34,7 @@
 #include <QProgressBar>
 #include <QTime>
 #include <QDebug>
+#include <QTimer>
 
 namespace QmlProfiler {
 namespace Internal {
@@ -46,49 +45,43 @@ class QmlProfilerStateWidget::QmlProfilerStateWidgetPrivate
     QmlProfilerStateWidgetPrivate(QmlProfilerStateWidget *qq) { Q_UNUSED(qq); }
 
     QLabel *text;
-    QProgressBar *progressBar;
-    QPixmap shadowPic;
 
     QmlProfilerStateManager *m_profilerState;
     QmlProfilerModelManager *m_modelManager;
+    QTimer timer;
 };
 
 QmlProfilerStateWidget::QmlProfilerStateWidget(QmlProfilerStateManager *stateManager,
                                 QmlProfilerModelManager *modelManager, QWidget *parent)
-    : QWidget(parent), d(new QmlProfilerStateWidgetPrivate(this))
+    : QFrame(parent), d(new QmlProfilerStateWidgetPrivate(this))
 {
     setObjectName(QLatin1String("QML Profiler State Display"));
+    setFrameStyle(QFrame::StyledPanel);
 
     // UI elements
     QVBoxLayout *layout = new QVBoxLayout(this);
     resize(200,70);
 
-    d->shadowPic.load(QLatin1String(":/timeline/dialog_shadow.png"));
-
     d->text = new QLabel(this);
     d->text->setAlignment(Qt::AlignCenter);
+    setAutoFillBackground(true);
     layout->addWidget(d->text);
-
-    d->progressBar = new QProgressBar(this);
-    layout->addWidget(d->progressBar);
-    d->progressBar->setMaximum(1000);
-    d->progressBar->setVisible(false);
 
     setLayout(layout);
 
     // profiler state
     d->m_modelManager = modelManager;
     connect(d->m_modelManager, &QmlProfilerModelManager::stateChanged,
-            this, &QmlProfilerStateWidget::updateDisplay);
-    connect(d->m_modelManager, &QmlProfilerModelManager::progressChanged,
-            this, &QmlProfilerStateWidget::updateDisplay);
+            this, &QmlProfilerStateWidget::update);
     d->m_profilerState = stateManager;
     connect(d->m_profilerState, &QmlProfilerStateManager::stateChanged,
-            this, &QmlProfilerStateWidget::updateDisplay);
+            this, &QmlProfilerStateWidget::update);
     connect(d->m_profilerState, &QmlProfilerStateManager::serverRecordingChanged,
-            this, &QmlProfilerStateWidget::updateDisplay);
+            this, &QmlProfilerStateWidget::update);
+    connect(&d->timer, &QTimer::timeout, this, &QmlProfilerStateWidget::updateDisplay);
 
-    updateDisplay();
+    d->timer.setInterval(1000);
+    update();
 }
 
 QmlProfilerStateWidget::~QmlProfilerStateWidget()
@@ -103,83 +96,9 @@ void QmlProfilerStateWidget::reposition()
     move(parentWidget->width()/2 - width()/2, parentWidget->height()/3 - height()/2);
 }
 
-void QmlProfilerStateWidget::paintEvent(QPaintEvent *event)
-{
-    QWidget::paintEvent(event);
-
-    QPainter painter(this);
-    painter.save();
-
-    // Shadow
-    // there is no actual qpainter borderimage, hacking it here
-    int borderWidth = 4;
-
-    // topleft
-    painter.drawPixmap(QRect(0, 0, borderWidth, borderWidth),
-                      d->shadowPic,
-                      QRect(0, 0, borderWidth, borderWidth));
-    // topright
-    painter.drawPixmap(QRect(width()-borderWidth, 0, borderWidth, borderWidth),
-                      d->shadowPic,
-                      QRect(d->shadowPic.width()-borderWidth, 0, borderWidth, borderWidth));
-    // bottomleft
-    painter.drawPixmap(QRect(0, height()-borderWidth, borderWidth, borderWidth),
-                      d->shadowPic,
-                      QRect(0, d->shadowPic.height()-borderWidth, borderWidth, borderWidth));
-    // bottomright
-    painter.drawPixmap(QRect(width()-borderWidth, height()-borderWidth, borderWidth, borderWidth),
-                      d->shadowPic,
-                      QRect(d->shadowPic.width()-borderWidth,
-                            d->shadowPic.height()-borderWidth,
-                            borderWidth,
-                            borderWidth));
-    // top
-    painter.drawPixmap(QRect(borderWidth, 0, width()-2*borderWidth, borderWidth),
-                      d->shadowPic,
-                      QRect(borderWidth, 0, d->shadowPic.width()-2*borderWidth, borderWidth));
-    // bottom
-    painter.drawPixmap(QRect(borderWidth, height()-borderWidth, width()-2*borderWidth, borderWidth),
-                      d->shadowPic,
-                      QRect(borderWidth,
-                            d->shadowPic.height()-borderWidth,
-                            d->shadowPic.width()-2*borderWidth,
-                            borderWidth));
-    // left
-    painter.drawPixmap(QRect(0, borderWidth, borderWidth, height()-2*borderWidth),
-                      d->shadowPic,
-                      QRect(0, borderWidth, borderWidth, d->shadowPic.height()-2*borderWidth));
-    // right
-    painter.drawPixmap(QRect(width()-borderWidth, borderWidth, borderWidth, height()-2*borderWidth),
-                      d->shadowPic,
-                      QRect(d->shadowPic.width()-borderWidth,
-                            borderWidth,
-                            borderWidth,
-                            d->shadowPic.height()-2*borderWidth));
-    // center
-    painter.drawPixmap(QRect(borderWidth, borderWidth, width()-2*borderWidth, height()-2*borderWidth),
-                      d->shadowPic,
-                      QRect(borderWidth,
-                            borderWidth,
-                            d->shadowPic.width()-2*borderWidth,
-                            d->shadowPic.height()-2*borderWidth));
-
-
-    // Background
-    painter.setBrush(QColor("#E0E0E0"));
-    painter.setPen(QColor("#666666"));
-    painter.drawRoundedRect(QRect(borderWidth, 0, width()-2*borderWidth, height()-borderWidth), 6, 6);
-
-    // restore painter
-    painter.restore();
-
-}
-
-void QmlProfilerStateWidget::showText(const QString &text, bool showProgress)
+void QmlProfilerStateWidget::showText(const QString &text)
 {
     setVisible(true);
-    if (showProgress)
-        d->progressBar->setValue(d->m_modelManager->progress() * 1000);
-    d->progressBar->setVisible(showProgress);
     d->text->setText(text);
     resize(300, 70);
     reposition();
@@ -189,24 +108,42 @@ void QmlProfilerStateWidget::updateDisplay()
 {
     // When application is being profiled
     if (d->m_profilerState->serverRecording()) {
-        showText(tr("Profiling application"));
+        // Heuristic to not show the number if the application will only send the events when it
+        // stops. The number is still > 0 then because we get some StartTrace etc.
+        uint numEvents = d->m_modelManager->numLoadedEvents();
+        showText(numEvents > 256 ? tr("Profiling application: %n events", 0, numEvents) :
+                                   tr("Profiling application"));
         return;
     }
 
     QmlProfilerModelManager::State state = d->m_modelManager->state();
     if (state == QmlProfilerModelManager::Done || state == QmlProfilerModelManager::Empty) {
         // After profiling, there is an empty trace
-        if (d->m_modelManager->traceTime()->duration() > 0 &&
-                (d->m_modelManager->isEmpty() || d->m_modelManager->progress() == 0)) {
+        if (d->m_modelManager->traceTime()->duration() > 0 && d->m_modelManager->isEmpty()) {
             showText(tr("No QML events recorded"));
             return;
         }
-    } else if (d->m_modelManager->progress() != 0 && !d->m_modelManager->isEmpty()) {
-        // When datamodel is acquiring data
-        if (d->m_profilerState->currentState() != QmlProfilerStateManager::Idle)
-            showText(tr("Loading data"), true);
-        else // Application died before all data could be read
-            showText(tr("Application stopped before loading all data"), true);
+    } else if (!d->m_modelManager->isEmpty()) {
+        // When datamodel is acquiring or processing data
+        if (state == QmlProfilerModelManager::ProcessingData) {
+            showText(tr("Processing data: %1 / %2").arg(d->m_modelManager->numFinishedFinalizers())
+                                                   .arg(d->m_modelManager->numRegisteredFinalizers()));
+        } else if (d->m_profilerState->currentState() != QmlProfilerStateManager::Idle) {
+            if (state == QmlProfilerModelManager::AcquiringData) {
+                // we don't know how much more, so progress numbers are strange here
+                showText(tr("Loading buffered data: %n events", 0,
+                            d->m_modelManager->numLoadedEvents()));
+            } else if (state == QmlProfilerModelManager::ClearingData) {
+                // when starting a second recording from the same process without aggregation
+                showText(tr("Clearing old trace"));
+            }
+        } else if (state == QmlProfilerModelManager::AcquiringData) {
+            // Application died before all data could be read
+            showText(tr("Loading offline data: %n events", 0,
+                        d->m_modelManager->numLoadedEvents()));
+        } else if (state == QmlProfilerModelManager::ClearingData) {
+            showText(tr("Clearing old trace"));
+        }
         return;
     } else if (state == QmlProfilerModelManager::AcquiringData) {
         showText(tr("Waiting for data"));
@@ -214,9 +151,20 @@ void QmlProfilerStateWidget::updateDisplay()
     }
 
     // There is a trace on view, hide this dialog
-    d->progressBar->setVisible(false);
     setVisible(false);
 }
 
+void QmlProfilerStateWidget::update()
+{
+    QmlProfilerModelManager::State state = d->m_modelManager->state();
+    if (state == QmlProfilerModelManager::AcquiringData
+            || state == QmlProfilerModelManager::ProcessingData) {
+        d->timer.start();
+    } else {
+        d->timer.stop();
+    }
+    updateDisplay();
 }
-}
+
+} // namespace Internal
+} // namespace QmlProfiler

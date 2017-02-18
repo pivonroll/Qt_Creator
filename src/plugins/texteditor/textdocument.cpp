@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -44,6 +39,7 @@
 #include <texteditor/generichighlighter/highlighter.h>
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/editormanager/documentmodel.h>
+#include <utils/guard.h>
 #include <utils/mimetypes/mimedatabase.h>
 
 #include <QApplication>
@@ -53,6 +49,7 @@
 #include <QScrollBar>
 #include <QStringList>
 #include <QTextCodec>
+#include <QTimer>
 
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/icore.h>
@@ -110,6 +107,7 @@ public:
     int m_autoSaveRevision;
 
     TextMarks m_marksCache; // Marks not owned
+    Utils::Guard m_modificationChangedGuard;
 };
 
 QTextCursor TextDocumentPrivate::indentOrUnindent(const QTextCursor &textCursor, bool doIndent,
@@ -130,8 +128,9 @@ QTextCursor TextDocumentPrivate::indentOrUnindent(const QTextCursor &textCursor,
     bool modified = true;
 
     QTextBlock startBlock = m_document.findBlock(start);
-    QTextBlock endBlock = m_document.findBlock(end).next();
-
+    QTextBlock endBlock = m_document.findBlock(blockSelection ? end : end - 1).next();
+    const bool cursorAtBlockStart = (textCursor.position() == startBlock.position());
+    const bool anchorAtBlockStart = (textCursor.anchor() == startBlock.position());
     const bool oneLinePartial = (startBlock.next() == endBlock)
                               && (start > startBlock.position() || end < endBlock.position() - 1);
 
@@ -147,10 +146,21 @@ QTextCursor TextDocumentPrivate::indentOrUnindent(const QTextCursor &textCursor,
                 indentPosition = ts.firstNonSpace(text);
             int targetColumn = ts.indentedColumn(ts.columnAt(text, indentPosition), doIndent);
             cursor.setPosition(block.position() + indentPosition);
-            cursor.insertText(ts.indentationString(0, targetColumn, block));
+            cursor.insertText(ts.indentationString(0, targetColumn, 0, block));
             cursor.setPosition(block.position());
             cursor.setPosition(block.position() + indentPosition, QTextCursor::KeepAnchor);
             cursor.removeSelectedText();
+        }
+        // make sure that selection that begins in first column stays at first column
+        // even if we insert text at first column
+        if (cursorAtBlockStart) {
+            cursor = textCursor;
+            cursor.setPosition(startBlock.position(), QTextCursor::KeepAnchor);
+        } else if (anchorAtBlockStart) {
+            cursor = textCursor;
+            cursor.setPosition(startBlock.position(), QTextCursor::MoveAnchor);
+            cursor.setPosition(textCursor.position(), QTextCursor::KeepAnchor);
+        } else {
             modified = false;
         }
     } else if (cursor.hasSelection() && !blockSelection && oneLinePartial) {
@@ -164,7 +174,7 @@ QTextCursor TextDocumentPrivate::indentOrUnindent(const QTextCursor &textCursor,
             int blockColumn = ts.columnAt(text, text.size());
             if (blockColumn < column) {
                 cursor.setPosition(block.position() + text.size());
-                cursor.insertText(ts.indentationString(blockColumn, column, block));
+                cursor.insertText(ts.indentationString(blockColumn, column, 0, block));
                 text = block.text();
             }
 
@@ -175,7 +185,7 @@ QTextCursor TextDocumentPrivate::indentOrUnindent(const QTextCursor &textCursor,
             cursor.setPosition(block.position() + indentPosition);
             cursor.setPosition(block.position() + indentPosition - spaces, QTextCursor::KeepAnchor);
             cursor.removeSelectedText();
-            cursor.insertText(ts.indentationString(startColumn, targetColumn, block));
+            cursor.insertText(ts.indentationString(startColumn, targetColumn, 0, block));
         }
         // Preserve initial anchor of block selection
         if (blockSelection) {
@@ -228,16 +238,10 @@ void TextDocumentPrivate::updateRevisions()
 TextDocument::TextDocument(Id id)
     : d(new TextDocumentPrivate)
 {
-    QObject::connect(&d->m_document, &QTextDocument::modificationChanged, [this](bool modified) {
-        // we only want to update the block revisions when going back to the saved version,
-        // e.g. with undo
-        if (!modified)
-            d->updateRevisions();
-        emit changed();
-    });
-
+    connect(&d->m_document, &QTextDocument::modificationChanged,
+            this, &TextDocument::modificationChanged);
     connect(&d->m_document, &QTextDocument::contentsChanged,
-            this, &TextDocument::contentsChanged);
+            this, &Core::IDocument::contentsChanged);
     connect(&d->m_document, &QTextDocument::contentsChange,
             this, &TextDocument::contentsChangedWithPosition);
 
@@ -252,6 +256,8 @@ TextDocument::TextDocument(Id id)
 
     if (id.isValid())
         setId(id);
+
+    setSuspendAllowed(true);
 }
 
 TextDocument::~TextDocument()
@@ -362,6 +368,11 @@ CompletionAssistProvider *TextDocument::completionAssistProvider() const
     return d->m_completionAssistProvider;
 }
 
+QuickFixAssistProvider *TextDocument::quickFixAssistProvider() const
+{
+    return 0;
+}
+
 void TextDocument::applyFontSettings()
 {
     d->m_fontSettingsNeedsApply = false;
@@ -429,22 +440,22 @@ bool TextDocument::isSaveAsAllowed() const
     return true;
 }
 
-QString TextDocument::defaultPath() const
+QString TextDocument::fallbackSaveAsPath() const
 {
     return d->m_defaultPath;
 }
 
-QString TextDocument::suggestedFileName() const
+QString TextDocument::fallbackSaveAsFileName() const
 {
     return d->m_suggestedFileName;
 }
 
-void TextDocument::setDefaultPath(const QString &defaultPath)
+void TextDocument::setFallbackSaveAsPath(const QString &defaultPath)
 {
     d->m_defaultPath = defaultPath;
 }
 
-void TextDocument::setSuggestedFileName(const QString &suggestedFileName)
+void TextDocument::setFallbackSaveAsFileName(const QString &suggestedFileName)
 {
     d->m_suggestedFileName = suggestedFileName;
 }
@@ -551,6 +562,11 @@ bool TextDocument::save(QString *errorString, const QString &saveFileName, bool 
     return true;
 }
 
+QByteArray TextDocument::contents() const
+{
+    return plainText().toUtf8();
+}
+
 bool TextDocument::setContents(const QByteArray &contents)
 {
     return setPlainText(QString::fromUtf8(contents));
@@ -618,7 +634,11 @@ Core::IDocument::OpenResult TextDocument::openImpl(QString *errorString, const Q
         readResult = read(realFileName, &content, errorString);
         const int chunks = content.size();
 
-        d->m_document.setUndoRedoEnabled(reload);
+        // Don't call setUndoRedoEnabled(true) when reload is true and filenames are different,
+        // since it will reset the undo's clear index
+        if (!reload || fileName == realFileName)
+            d->m_document.setUndoRedoEnabled(reload);
+
         QTextCursor c(&d->m_document);
         c.beginEditBlock();
         if (reload) {
@@ -647,7 +667,11 @@ Core::IDocument::OpenResult TextDocument::openImpl(QString *errorString, const Q
         }
 
         c.endEditBlock();
-        d->m_document.setUndoRedoEnabled(true);
+
+        // Don't call setUndoRedoEnabled(true) when reload is true and filenames are different,
+        // since it will reset the undo's clear index
+        if (!reload || fileName == realFileName)
+            d->m_document.setUndoRedoEnabled(true);
 
         TextDocumentLayout *documentLayout =
             qobject_cast<TextDocumentLayout*>(d->m_document.documentLayout());
@@ -671,6 +695,11 @@ bool TextDocument::reload(QString *errorString, QTextCodec *codec)
 
 bool TextDocument::reload(QString *errorString)
 {
+    return reload(errorString, filePath().toString());
+}
+
+bool TextDocument::reload(QString *errorString, const QString &realFileName)
+{
     emit aboutToReload();
     TextDocumentLayout *documentLayout =
         qobject_cast<TextDocumentLayout*>(d->m_document.documentLayout());
@@ -679,7 +708,7 @@ bool TextDocument::reload(QString *errorString)
         marks = documentLayout->documentClosing(); // removes text marks non-permanently
 
     const QString &file = filePath().toString();
-    bool success = openImpl(errorString, file, file, /*reload =*/ true) == OpenResult::Success;
+    bool success = openImpl(errorString, file, realFileName, /*reload =*/ true) == OpenResult::Success;
 
     if (documentLayout)
         documentLayout->documentReloaded(marks, this); // re-adds text marks
@@ -703,8 +732,21 @@ bool TextDocument::setPlainText(const QString &text)
 
 bool TextDocument::reload(QString *errorString, ReloadFlag flag, ChangeType type)
 {
-    if (flag == FlagIgnore)
+    if (flag == FlagIgnore) {
+        if (type != TypeContents)
+            return true;
+
+        const bool wasModified = document()->isModified();
+        {
+            Utils::GuardLocker locker(d->m_modificationChangedGuard);
+            // hack to ensure we clean the clear state in QTextDocument
+            document()->setModified(false);
+            document()->setModified(true);
+        }
+        if (!wasModified)
+            modificationChanged(true);
         return true;
+    }
     if (type == TypePermissions) {
         checkPermissions();
         return true;
@@ -744,28 +786,35 @@ void TextDocument::cleanWhitespace(QTextCursor &cursor, bool cleanIndentation, b
     if (cursor.hasSelection())
         end = d->m_document.findBlock(cursor.selectionEnd()-1).next();
 
+    QVector<QTextBlock> blocks;
     while (block.isValid() && block != end) {
+        if (inEntireDocument || block.revision() != documentLayout->lastSaveRevision)
+            blocks.append(block);
+        block = block.next();
+    }
+    if (blocks.isEmpty())
+        return;
 
-        if (inEntireDocument || block.revision() != documentLayout->lastSaveRevision) {
+    const IndentationForBlock &indentations =
+            d->m_indenter->indentationForBlocks(blocks, d->m_tabSettings);
 
-            QString blockText = block.text();
-            d->m_tabSettings.removeTrailingWhitespace(cursor, block);
-            if (cleanIndentation && !d->m_tabSettings.isIndentationClean(block)) {
-                cursor.setPosition(block.position());
-                int firstNonSpace = d->m_tabSettings.firstNonSpace(blockText);
-                if (firstNonSpace == blockText.length()) {
-                    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-                    cursor.removeSelectedText();
-                } else {
-                    int column = d->m_tabSettings.columnAt(blockText, firstNonSpace);
-                    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, firstNonSpace);
-                    QString indentationString = d->m_tabSettings.indentationString(0, column, block);
-                    cursor.insertText(indentationString);
-                }
+    foreach (block, blocks) {
+        QString blockText = block.text();
+        d->m_tabSettings.removeTrailingWhitespace(cursor, block);
+        const int indent = indentations[block.blockNumber()];
+        if (cleanIndentation && !d->m_tabSettings.isIndentationClean(block, indent)) {
+            cursor.setPosition(block.position());
+            int firstNonSpace = d->m_tabSettings.firstNonSpace(blockText);
+            if (firstNonSpace == blockText.length()) {
+                cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+                cursor.removeSelectedText();
+            } else {
+                int column = d->m_tabSettings.columnAt(blockText, firstNonSpace);
+                cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, firstNonSpace);
+                QString indentationString = d->m_tabSettings.indentationString(0, column, column - indent, block);
+                cursor.insertText(indentationString);
             }
         }
-
-        block = block.next();
     }
 }
 
@@ -779,6 +828,17 @@ void TextDocument::ensureFinalNewLine(QTextCursor& cursor)
         cursor.movePosition(QTextCursor::End, QTextCursor::MoveAnchor);
         cursor.insertText(QLatin1String("\n"));
     }
+}
+
+void TextDocument::modificationChanged(bool modified)
+{
+    if (d->m_modificationChangedGuard.isLocked())
+        return;
+    // we only want to update the block revisions when going back to the saved version,
+    // e.g. with undo
+    if (!modified)
+        d->updateRevisions();
+    emit changed();
 }
 
 TextMarks TextDocument::marks() const
@@ -839,10 +899,16 @@ void TextDocument::removeMarkFromMarksCache(TextMark *mark)
     QTC_ASSERT(documentLayout, return);
     d->m_marksCache.removeAll(mark);
 
+    auto scheduleLayoutUpdate = [documentLayout](){
+        // make sure all destructors that may directly or indirectly call this function are
+        // completed before updating.
+        QTimer::singleShot(0, documentLayout, &QPlainTextDocumentLayout::requestUpdate);
+    };
+
     if (d->m_marksCache.isEmpty()) {
         documentLayout->hasMarks = false;
         documentLayout->maxMarkWidthFactor = 1.0;
-        documentLayout->requestUpdate();
+        scheduleLayoutUpdate();
         return;
     }
 
@@ -866,7 +932,7 @@ void TextDocument::removeMarkFromMarksCache(TextMark *mark)
 
         if (maxWidthFactor != documentLayout->maxMarkWidthFactor) {
             documentLayout->maxMarkWidthFactor = maxWidthFactor;
-            documentLayout->requestUpdate();
+            scheduleLayoutUpdate();
         } else {
             documentLayout->requestExtraAreaUpdate();
         }

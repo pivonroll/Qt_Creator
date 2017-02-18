@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,44 +9,38 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "clangutils.h"
 
-#include <clang-c/Index.h>
+#include "clangeditordocumentprocessor.h"
+#include "clangmodelmanagersupport.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/idocument.h>
-
 #include <cpptools/baseeditordocumentparser.h>
-#include <cpptools/cppprojects.h>
-#include <cpptools/cppworkingcopy.h>
-
+#include <cpptools/clangcompileroptionsbuilder.h>
+#include <cpptools/cppmodelmanager.h>
+#include <cpptools/editordocumenthandle.h>
+#include <cpptools/projectpart.h>
+#include <projectexplorer/projectexplorerconstants.h>
 #include <utils/qtcassert.h>
 
 #include <QDir>
 #include <QFile>
-#include <QLoggingCategory>
-#include <QRegularExpression>
-#include <QSet>
-#include <QString>
+#include <QStringList>
 
 using namespace ClangCodeModel;
 using namespace ClangCodeModel::Internal;
@@ -55,23 +49,6 @@ using namespace CppTools;
 
 namespace ClangCodeModel {
 namespace Utils {
-
-Q_LOGGING_CATEGORY(verboseRunLog, "qtc.clangcodemodel.verboserun")
-
-UnsavedFiles createUnsavedFiles(const WorkingCopy &workingCopy,
-                                const ::Utils::FileNameList &modifiedFiles)
-{
-    UnsavedFiles result;
-    QHashIterator< ::Utils::FileName, QPair<QByteArray, unsigned> > wcIter = workingCopy.iterator();
-    while (wcIter.hasNext()) {
-        wcIter.next();
-        const ::Utils::FileName &fileName = wcIter.key();
-        if (modifiedFiles.contains(fileName) && QFile(fileName.toString()).exists())
-            result.insert(fileName.toString(), wcIter.value().first);
-    }
-
-    return result;
-}
 
 /**
  * @brief Creates list of message-line arguments required for correct parsing
@@ -93,26 +70,7 @@ QStringList createClangOptions(const ProjectPart::Ptr &pPart, const QString &fil
     return createClangOptions(pPart, fileKind);
 }
 
-static QString getResourceDir()
-{
-    QDir dir(ICore::instance()->resourcePath() + QLatin1String("/cplusplus/clang/") +
-             QLatin1String(CLANG_VERSION) + QLatin1String("/include"));
-    if (!dir.exists() || !QFileInfo(dir, QLatin1String("stdint.h")).exists())
-        dir = QDir(QLatin1String(CLANG_RESOURCE_DIR));
-    return dir.canonicalPath();
-}
-
-static bool maybeIncludeBorlandExtensions()
-{
-    return
-#if defined(CINDEX_VERSION) // clang 3.2 or higher
-        true;
-#else
-        false;
-#endif
-}
-
-class LibClangOptionsBuilder : public CompilerOptionsBuilder
+class LibClangOptionsBuilder : public ClangCompilerOptionsBuilder
 {
 public:
     static QStringList build(const ProjectPart::Ptr &projectPart, ProjectFile::Kind fileKind)
@@ -120,22 +78,26 @@ public:
         if (projectPart.isNull())
             return QStringList();
 
-        LibClangOptionsBuilder optionsBuilder(projectPart);
+        LibClangOptionsBuilder optionsBuilder(*projectPart.data());
 
-        if (verboseRunLog().isDebugEnabled())
-            optionsBuilder.add(QLatin1String("-v"));
-
+        optionsBuilder.addWordWidth();
+        optionsBuilder.addTargetTriple();
         optionsBuilder.addLanguageOption(fileKind);
-        optionsBuilder.addOptionsForLanguage(maybeIncludeBorlandExtensions());
+        optionsBuilder.addOptionsForLanguage(/*checkForBorlandExtensions*/ true);
+        optionsBuilder.enableExceptions();
 
+        optionsBuilder.addDefineToAvoidIncludingGccOrMinGwIntrinsics();
+        optionsBuilder.addDefineFloat128ForMingw();
         optionsBuilder.addToolchainAndProjectDefines();
+        optionsBuilder.undefineCppLanguageFeatureMacrosForMsvc2015();
 
-        optionsBuilder.addResourceDirOptions();
+        optionsBuilder.addPredefinedMacrosAndHeaderPathsOptions();
         optionsBuilder.addWrappedQtHeadersIncludePath();
         optionsBuilder.addHeaderPathOptions();
+        optionsBuilder.addDummyUiHeaderOnDiskIncludePath();
         optionsBuilder.addProjectConfigFileInclude();
 
-        optionsBuilder.addDiagnosticOptions();
+        optionsBuilder.addMsvcCompatibilityVersion();
 
         optionsBuilder.addExtraOptions();
 
@@ -143,86 +105,16 @@ public:
     }
 
 private:
-    LibClangOptionsBuilder(const CppTools::ProjectPart::Ptr &projectPart)
-        : CompilerOptionsBuilder(projectPart)
+    LibClangOptionsBuilder(const CppTools::ProjectPart &projectPart)
+        : ClangCompilerOptionsBuilder(projectPart, CLANG_VERSION, CLANG_RESOURCE_DIR)
     {
     }
 
-    bool excludeHeaderPath(const QString &path) const override
+    void addDummyUiHeaderOnDiskIncludePath()
     {
-        if (path.contains(QLatin1String("lib/gcc/i686-apple-darwin")))
-            return true;
-
-        // We already provide a custom clang include path matching the used libclang version,
-        // so better ignore the clang include paths from the system as this might lead to an
-        // unfavorable order with regard to include_next.
-        static QRegularExpression clangIncludeDir(
-                    QLatin1String("\\A.*/lib/clang/\\d+\\.\\d+(\\.\\d+)?/include\\z"));
-        if (clangIncludeDir.match(path).hasMatch())
-            return true;
-
-        return false;
-    }
-
-    void addResourceDirOptions()
-    {
-        static const QString resourceDir = getResourceDir();
-        if (!resourceDir.isEmpty()) {
-            add(QLatin1String("-nostdlibinc"));
-            add(QLatin1String("-I") + resourceDir);
-            add(QLatin1String("-undef"));
-        }
-    }
-
-    void addWrappedQtHeadersIncludePath()
-    {
-        static const QString wrappedQtHeaders = ICore::instance()->resourcePath()
-                + QLatin1String("/cplusplus/wrappedQtHeaders");
-
-        if (m_projectPart->qtVersion != ProjectPart::NoQt) {
-            add(QLatin1String("-I") + wrappedQtHeaders);
-            add(QLatin1String("-I") + wrappedQtHeaders + QLatin1String("/QtCore"));
-        }
-    }
-
-    void addProjectConfigFileInclude()
-    {
-        if (!m_projectPart->projectConfigFile.isEmpty()) {
-            add(QLatin1String("-include"));
-            add(m_projectPart->projectConfigFile);
-        }
-    }
-
-    void addExtraOptions()
-    {
-        add(QLatin1String("-fmessage-length=0"));
-        add(QLatin1String("-fdiagnostics-show-note-include-stack"));
-        add(QLatin1String("-fmacro-backtrace-limit=0"));
-        add(QLatin1String("-fretain-comments-from-system-headers"));
-        // TODO: -Xclang -ferror-limit -Xclang 0 ?
-    }
-
-    void addDiagnosticOptions()
-    {
-        add(QStringLiteral("-fmessage-length=0"));
-        add(QStringLiteral("-fdiagnostics-show-note-include-stack"));
-        add(QStringLiteral("-fmacro-backtrace-limit=0"));
-        add(QStringLiteral("-fretain-comments-from-system-headers"));
-        add(QStringLiteral("-ferror-limit=1000"));
-
-        add(QStringLiteral("-Weverything"));
-        add(QStringLiteral("-Wno-c++98-compat"));
-        add(QStringLiteral("-Wno-c++98-compat-pedantic"));
-        add(QStringLiteral("-Wno-unused-macros"));
-        add(QStringLiteral("-Wno-newline-eof"));
-        add(QStringLiteral("-Wno-exit-time-destructors"));
-        add(QStringLiteral("-Wno-global-constructors"));
-        add(QStringLiteral("-Wno-gnu-zero-variadic-macro-arguments"));
-        add(QStringLiteral("-Wno-documentation"));
-        add(QStringLiteral("-Wno-shadow"));
-
-        if (m_projectPart->languageVersion >= ProjectPart::CXX98)
-            add(QStringLiteral("-Wno-missing-prototypes"));
+        const QString path = ModelManagerSupportClang::instance()->dummyUiHeaderOnDiskDirPath();
+        if (!path.isEmpty())
+            add(includeDirOption() + QDir::toNativeSeparators(path));
     }
 };
 
@@ -236,35 +128,21 @@ QStringList createClangOptions(const ProjectPart::Ptr &pPart, ProjectFile::Kind 
     return LibClangOptionsBuilder::build(pPart, fileKind);
 }
 
-/// @return Option to speed up parsing with precompiled header
-QStringList createPCHInclusionOptions(const QStringList &pchFiles)
-{
-    QStringList opts;
-
-    foreach (const QString &pchFile, pchFiles) {
-        if (QFile(pchFile).exists()) {
-            opts += QLatin1String("-include-pch");
-            opts += pchFile;
-        }
-    }
-
-    return opts;
-}
-
-/// @return Option to speed up parsing with precompiled header
-QStringList createPCHInclusionOptions(const QString &pchFile)
-{
-    return createPCHInclusionOptions(QStringList() << pchFile);
-}
-
 ProjectPart::Ptr projectPartForFile(const QString &filePath)
 {
     if (const auto parser = CppTools::BaseEditorDocumentParser::get(filePath))
-        return parser->projectPart();
+        return parser->projectPartInfo().projectPart;
     return ProjectPart::Ptr();
 }
 
-bool isProjectPartValid(const ProjectPart::Ptr projectPart)
+ProjectPart::Ptr projectPartForFileBasedOnProcessor(const QString &filePath)
+{
+    if (const auto processor = ClangEditorDocumentProcessor::get(filePath))
+        return processor->projectPart();
+    return ProjectPart::Ptr();
+}
+
+bool isProjectPartLoaded(const ProjectPart::Ptr projectPart)
 {
     if (projectPart)
         return CppModelManager::instance()->projectPartForId(projectPart->id());
@@ -275,9 +153,20 @@ QString projectPartIdForFile(const QString &filePath)
 {
     const ProjectPart::Ptr projectPart = projectPartForFile(filePath);
 
-    if (isProjectPartValid(projectPart))
+    if (isProjectPartLoaded(projectPart))
         return projectPart->id(); // OK, Project Part is still loaded
     return QString();
+}
+
+CppEditorDocumentHandle *cppDocument(const QString &filePath)
+{
+    return CppTools::CppModelManager::instance()->cppEditorDocument(filePath);
+}
+
+void setLastSentDocumentRevision(const QString &filePath, uint revision)
+{
+    if (CppEditorDocumentHandle *document = cppDocument(filePath))
+        document->sendTracker().setLastSentRevision(int(revision));
 }
 
 } // namespace Utils

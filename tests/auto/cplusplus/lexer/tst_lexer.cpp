@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,6 +38,7 @@ typedef QByteArray _;
 
 Q_DECLARE_METATYPE(TokenKindList)
 Q_DECLARE_METATYPE(CPlusPlus::Tokens)
+Q_DECLARE_METATYPE(CPlusPlus::Kind)
 
 //TESTED_COMPONENT=src/libs/cplusplus
 using namespace CPlusPlus;
@@ -75,6 +71,12 @@ private slots:
     void literals_data();
     void preprocessor();
     void preprocessor_data();
+    void ppOpOrPunc();
+    void ppOpOrPunc_data();
+    void digraph();
+    void digraph_data();
+    void trigraph();
+    void trigraph_data();
 
     void bytes_and_utf16chars();
     void bytes_and_utf16chars_data();
@@ -268,12 +270,6 @@ void tst_SimpleLexer::basic_data()
         << T_INT << T_IDENTIFIER << T_SEMICOLON << T_CPP_DOXY_COMMENT
         << T_INT << T_IDENTIFIER << T_SEMICOLON << T_CPP_DOXY_COMMENT << T_CPP_DOXY_COMMENT;
     QTest::newRow(source) << source << expectedTokenKindList;
-
-    source = "?" "?(?" "?)?" "?<?" "?>a?b:c";
-    expectedTokenKindList = TokenKindList()
-        << T_LBRACKET << T_RBRACKET << T_LBRACE << T_RBRACE
-        << T_IDENTIFIER << T_QUESTION << T_IDENTIFIER << T_COLON << T_IDENTIFIER;
-    QTest::newRow(source) << source << expectedTokenKindList;
 }
 
 void tst_SimpleLexer::literals()
@@ -337,6 +333,30 @@ void tst_SimpleLexer::literals_data()
     QTest::newRow("integer-literals") << source << expectedTokenKindList;
 
     source =
+            "42ui64\n"
+            "43UI64\n"
+            "44Ui64\n"
+            "45uI64\n"
+            "46i64\n"
+            "47I64\n"
+            "0xffffui64\n"
+            "0xfffeUi64\n"
+            "0xfffdi64\n"
+            "56ui\n"   // incomplete
+            "56ui6\n"
+            "57ui67\n" // wrong
+            "58i67\n"
+            ;
+    expectedTokenKindList =
+            TokenKindList() << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL
+                            << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL
+                            << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL
+                            << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL
+                            << T_ERROR << T_ERROR
+                               ;
+    QTest::newRow("microsoft-suffix") << source << expectedTokenKindList;
+
+    source =
             "R\"(raw text)\"\n"
             "R\"delimiter(raw text)delimiter\"\n"
             "R\"delimiter(\nraw text line1\nraw text line2\n)delimiter\"\n"
@@ -376,6 +396,84 @@ void tst_SimpleLexer::preprocessor_data()
             TokenKindList() << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL
                             << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL << T_NUMERIC_LITERAL;
     QTest::newRow("pp-number") << source << expectedTokenKindList;
+}
+
+void tst_SimpleLexer::ppOpOrPunc()
+{
+    QFETCH(Kind, expectedTokenKind);
+
+    const QByteArray source = QTest::currentDataTag();
+    LanguageFeatures languageFeatures;
+    languageFeatures.cxxEnabled = true;
+    run(source, toTokens({unsigned(expectedTokenKind)}), false, CompareKind, true, languageFeatures);
+}
+
+void tst_SimpleLexer::ppOpOrPunc_data()
+{
+    QTest::addColumn<Kind>("expectedTokenKind");
+
+    // N4296 - [2.12]
+    QTest::newRow("{") << T_LBRACE;
+    QTest::newRow("}") << T_RBRACE;
+    QTest::newRow("[") << T_LBRACKET;
+    QTest::newRow("]") << T_RBRACKET;
+    QTest::newRow("#") << T_POUND;
+    QTest::newRow("##") << T_POUND_POUND;
+    QTest::newRow("(") << T_LPAREN;
+    QTest::newRow(")") << T_RPAREN;
+    QTest::newRow("<:") << T_LBRACKET;
+    QTest::newRow(":>") << T_RBRACKET;
+    QTest::newRow("<%") << T_LBRACE;
+    QTest::newRow("%>") << T_RBRACE;
+    QTest::newRow("%:") << T_POUND;
+    QTest::newRow("%:%:") << T_POUND_POUND;
+    QTest::newRow(";") << T_SEMICOLON;
+    QTest::newRow(":") << T_COLON;
+    QTest::newRow("...") << T_DOT_DOT_DOT;
+    QTest::newRow("new") << T_NEW;
+    QTest::newRow("delete") << T_DELETE;
+    QTest::newRow("?") << T_QUESTION;
+    QTest::newRow("::") << T_COLON_COLON;
+    QTest::newRow(".") << T_DOT;
+    QTest::newRow(".*") << T_DOT_STAR;
+    QTest::newRow("+") << T_PLUS;
+    QTest::newRow("-") << T_MINUS;
+    QTest::newRow("*") << T_STAR;
+    QTest::newRow("/") << T_SLASH;
+    QTest::newRow("%") << T_PERCENT;
+    QTest::newRow("^") << T_CARET;
+    QTest::newRow("&") << T_AMPER;
+    QTest::newRow("|") << T_PIPE;
+    QTest::newRow("~") << T_TILDE;
+    QTest::newRow("^=") << T_CARET_EQUAL;
+    QTest::newRow("&=") << T_AMPER_EQUAL;
+    QTest::newRow("|=") << T_PIPE_EQUAL;
+    QTest::newRow("<<") << T_LESS_LESS;
+    QTest::newRow(">>") << T_GREATER_GREATER;
+    QTest::newRow(">>=") << T_GREATER_GREATER_EQUAL;
+    QTest::newRow("<<=") << T_LESS_LESS_EQUAL;
+    QTest::newRow("==") << T_EQUAL_EQUAL;
+    QTest::newRow("!=") << T_EXCLAIM_EQUAL;
+    QTest::newRow("<=") << T_LESS_EQUAL;
+    QTest::newRow(">=") << T_GREATER_EQUAL;
+    QTest::newRow("&&") << T_AMPER_AMPER;
+    QTest::newRow("||") << T_PIPE_PIPE;
+    QTest::newRow("++") << T_PLUS_PLUS;
+    QTest::newRow("--") << T_MINUS_MINUS;
+    QTest::newRow(",") << T_COMMA;
+    QTest::newRow("->*") << T_ARROW_STAR;
+    QTest::newRow("->") << T_ARROW;
+    QTest::newRow("and") << T_AND;
+    QTest::newRow("and_eq") << T_AND_EQ;
+    QTest::newRow("bitand") << T_BITAND;
+    QTest::newRow("bitor") << T_BITOR;
+    QTest::newRow("compl") << T_COMPL;
+    QTest::newRow("not") << T_NOT;
+    QTest::newRow("not_eq") << T_NOT_EQ;
+    QTest::newRow("or") << T_OR;
+    QTest::newRow("or_eq") << T_OR_EQ;
+    QTest::newRow("xor") << T_XOR;
+    QTest::newRow("xor_eq") << T_XOR_EQ;
 }
 
 void tst_SimpleLexer::bytes_and_utf16chars()
@@ -478,6 +576,7 @@ void tst_SimpleLexer::user_defined_literals()
     const TokenCompareFlags compareFlags = CompareKind | CompareBytes | CompareUtf16Chars | CompareUserDefinedLiteral;
     LanguageFeatures languageFeatures;
     languageFeatures.cxx11Enabled = true;
+    languageFeatures.cxxEnabled = true;
     run(source, expectedTokens, false, compareFlags, false, languageFeatures);
 }
 
@@ -530,7 +629,10 @@ void tst_SimpleLexer::offsets()
             | CompareUtf16CharsBegin
             | CompareUtf16CharsEnd
             ;
-    run(source, expectedTokens, false, compareFlags);
+
+    LanguageFeatures languageFeatures;
+    languageFeatures.cxxEnabled = true;
+    run(source, expectedTokens, false, compareFlags, false, languageFeatures);
 }
 
 void tst_SimpleLexer::offsets_data()
@@ -723,6 +825,82 @@ void tst_SimpleLexer::incremental_data()
     QTest::newRow("escaped_cpp_comment_with_space_and_newline_2")
             << _("bar")
             << (TokenKindList() << T_IDENTIFIER);
+}
+
+void tst_SimpleLexer::digraph()
+{
+    QFETCH(QByteArray, source);
+    QFETCH(TokenKindList, expectedTokenKindList);
+
+    run(source, toTokens(expectedTokenKindList), false, CompareKind);
+}
+
+void tst_SimpleLexer::digraph_data()
+{
+    QTest::addColumn<QByteArray>("source");
+    QTest::addColumn<TokenKindList>("expectedTokenKindList");
+
+    QTest::newRow("lbracket_digraph") << _("<:") << (TokenKindList() << T_LBRACKET);
+
+    QTest::newRow("rbracket_digraph") << _(":>") << (TokenKindList() << T_RBRACKET);
+
+    QTest::newRow("lbrace_digraph") << _("<%") << (TokenKindList() << T_LBRACE);
+
+    QTest::newRow("rbrace_digraph") << _("%>") << (TokenKindList() << T_RBRACE);
+
+    QTest::newRow("pound_digraph") << _("%:") << (TokenKindList() << T_POUND);
+
+    QTest::newRow("pound_pound_digraph") << _("%:%:") << (TokenKindList() << T_POUND_POUND);
+
+    QTest::newRow("pound_pound_mixed_digraph_1") << _("#%:") << (TokenKindList() << T_POUND << T_POUND);
+
+    QTest::newRow("pound_pound_mixed_digraph_2") << _("%:#") << (TokenKindList() << T_POUND << T_POUND);
+
+    QTest::newRow("lbracket_digraph_exception1") << _("<::") << (TokenKindList() << T_LESS << T_COLON_COLON);
+
+    QTest::newRow("lbracket_digraph_exception2") << _("<::x") << (TokenKindList() << T_LESS << T_COLON_COLON << T_IDENTIFIER);
+
+    QTest::newRow("lbracket_digraph_exception3") << _("<:::") << (TokenKindList() << T_LBRACKET << T_COLON_COLON);
+
+    QTest::newRow("lbracket_digraph_exception4") << _("<::>") << (TokenKindList() << T_LBRACKET << T_RBRACKET);
+}
+
+void tst_SimpleLexer::trigraph()
+{
+    QFETCH(QByteArray, source);
+    QFETCH(TokenKindList, expectedTokenKindList);
+
+    run(source, toTokens(expectedTokenKindList), false, CompareKind, true);
+}
+
+void tst_SimpleLexer::trigraph_data()
+{
+    QTest::addColumn<QByteArray>("source");
+    QTest::addColumn<TokenKindList>("expectedTokenKindList");
+
+    QTest::newRow("pound_trigraph") << _("?" "?=") << (TokenKindList() << T_POUND);
+
+    QTest::newRow("caret_trigraph") << _("?" "?'") << (TokenKindList() << T_CARET);
+
+    QTest::newRow("left_bracket_trigraph") << _("?" "?(") << (TokenKindList() << T_LBRACKET);
+
+    QTest::newRow("right_bracket_trigraph") << _("?" "?)") << (TokenKindList() << T_RBRACKET);
+
+    QTest::newRow("pipe_trigraph") << _("?" "?!") << (TokenKindList() << T_PIPE);
+
+    QTest::newRow("left_brace_trigraph") << _("?" "?<") << (TokenKindList() << T_LBRACE);
+
+    QTest::newRow("right_brace_trigraph") << _("?" "?>") << (TokenKindList() << T_RBRACE);
+
+    QTest::newRow("tilde_trigraph") << _("?" "?-") << (TokenKindList() << T_TILDE);
+
+    QTest::newRow("pound_pound_trigraph") << _("?" "?=" "?" "?=") << (TokenKindList() << T_POUND_POUND);
+
+    QTest::newRow("caret_equal_trigraph") << _("?" "?'=") << (TokenKindList() << T_CARET_EQUAL);
+
+    QTest::newRow("pipe_equal_trigraph") << _("?" "?!=") << (TokenKindList() << T_PIPE_EQUAL);
+
+    QTest::newRow("tilde_equal_trigraph") << _("?" "?-=") << (TokenKindList() << T_TILDE_EQUAL);
 }
 
 QTEST_APPLESS_MAIN(tst_SimpleLexer)

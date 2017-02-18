@@ -1,7 +1,7 @@
 ############################################################################
 #
-# Copyright (C) 2015 The Qt Company Ltd.
-# Contact: http://www.qt.io/licensing
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
 #
 # This file is part of Qt Creator.
 #
@@ -9,135 +9,134 @@
 # Licensees holding valid commercial Qt licenses may use this file in
 # accordance with the commercial license agreement provided with the
 # Software or, alternatively, in accordance with the terms contained in
-# a written agreement between you and The Qt Company.  For licensing terms and
-# conditions see http://www.qt.io/terms-conditions.  For further information
-# use the contact form at http://www.qt.io/contact-us.
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
 #
-# GNU Lesser General Public License Usage
-# Alternatively, this file may be used under the terms of the GNU Lesser
-# General Public License version 2.1 or version 3 as published by the Free
-# Software Foundation and appearing in the file LICENSE.LGPLv21 and
-# LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-# following information to ensure the GNU Lesser General Public License
-# requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-# http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
 #
-# In addition, as a special exception, The Qt Company gives you certain additional
-# rights.  These rights are described in The Qt Company LGPL Exception
-# version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-#
-#############################################################################
+############################################################################
 
 from dumper import *
 
 def qdump__boost__bimaps__bimap(d, value):
-    #leftType = d.templateArgument(value.type, 0)
-    #rightType = d.templateArgument(value.type, 1)
-    size = int(value["core"]["node_count"])
+    #leftType = value.type[0]
+    #rightType = value.type[1]
+    size = value["core"]["node_count"].integer()
     d.putItemCount(size)
     if d.isExpanded():
         d.putPlainChildren(value)
 
 
 def qdump__boost__optional(d, value):
-    if int(value["m_initialized"]) == 0:
-        d.putSpecialValue(SpecialUninitializedValue)
-        d.putNumChild(0)
-    else:
-        type = d.templateArgument(value.type, 0)
-        storage = value["m_storage"]
-        if d.isReferenceType(type):
-            d.putItem(storage.cast(type.target().pointer()).dereference())
-        else:
-            d.putItem(storage.cast(type))
+    innerType = value.type[0]
+    (initialized, pad, payload) = d.split('b@{%s}' % innerType.name, value)
+    if initialized:
+        d.putItem(payload)
         d.putBetterType(value.type)
+    else:
+        d.putSpecialValue("uninitialized")
+        d.putNumChild(0)
 
 
 def qdump__boost__shared_ptr(d, value):
     # s                  boost::shared_ptr<int>
+    #    px      0x0     int *
     #    pn              boost::detail::shared_count
     #        pi_ 0x0     boost::detail::sp_counted_base *
-    #    px      0x0     int *
-    if d.isNull(value["pn"]["pi_"]):
+    (px, pi) = value.split("pp")
+    if pi == 0:
         d.putValue("(null)")
         d.putNumChild(0)
         return
 
-    if d.isNull(value["px"]):
+    if px == 0:
         d.putValue("(null)")
         d.putNumChild(0)
         return
 
-    countedbase = value["pn"]["pi_"].dereference()
-    weakcount = int(countedbase["weak_count_"])
-    usecount = int(countedbase["use_count_"])
+    (vptr, usecount, weakcount) = d.split('pii', pi)
     d.check(weakcount >= 0)
+    d.check(weakcount <= usecount)
     d.check(usecount <= 10*1000*1000)
-
-    val = value["px"].dereference()
-    type = val.type
-    # handle boost::shared_ptr<int>::element_type as int
-    if str(type).endswith(">::element_type"):
-        type = type.strip_typedefs()
-
-    if d.isSimpleType(type):
-        d.putNumChild(3)
-        d.putItem(val)
-        d.putBetterType(value.type)
-    else:
-        d.putEmptyValue()
-
-    d.putNumChild(3)
-    if d.isExpanded():
-        with Children(d, 3):
-            d.putSubItem("data", val)
-            d.putIntItem("weakcount", weakcount)
-            d.putIntItem("usecount", usecount)
+    d.putItem(d.createValue(px, value.type[0]))
+    d.putBetterType(value.type)
 
 
 def qdump__boost__container__list(d, value):
     r = value["members_"]["m_icont"]["data_"]["root_plus_size_"]
-    n = toInteger(r["size_"])
+    n = r["size_"].integer()
     d.putItemCount(n)
     if d.isExpanded():
-        innerType = d.templateArgument(value.type, 0)
+        innerType = value.type[0]
         offset = 2 * d.ptrSize()
         with Children(d, n):
-            p = r["root_"]["next_"]
-            for i in xrange(n):
-                d.putSubItem("%s" % i, d.createValue(d.pointerValue(p) + offset, innerType))
-                p = p["next_"]
+            try:
+                root = r["root_"]
+            except:
+                root = r["m_header"]
+            p = root["next_"].extractPointer()
+            for i in d.childRange():
+                d.putSubItem(i, d.createValue(p + offset, innerType))
+                p = d.extractPointer(p)
 
 
 def qdump__boost__gregorian__date(d, value):
-    d.putValue(int(value["days_"]), JulianDate)
+    d.putValue(value.integer(), "juliandate")
     d.putNumChild(0)
 
 
 def qdump__boost__posix_time__ptime(d, value):
-    ms = int(int(value["time_"]["time_count_"]["value_"]) / 1000)
-    d.putValue("%s/%s" % divmod(ms, 86400000), JulianDateAndMillisecondsSinceMidnight)
+    ms = int(value.integer() / 1000)
+    d.putValue("%s/%s" % divmod(ms, 86400000), "juliandateandmillisecondssincemidnight")
     d.putNumChild(0)
 
 
 def qdump__boost__posix_time__time_duration(d, value):
-    d.putValue(int(int(value["ticks_"]["value_"]) / 1000), MillisecondsSinceMidnight)
+    d.putValue(int(value.integer() / 1000), "millisecondssincemidnight")
     d.putNumChild(0)
 
 
 def qdump__boost__unordered__unordered_set(d, value):
-    base = d.addressOf(value)
-    ptrSize = d.ptrSize()
-    size = d.extractInt(base + 2 * ptrSize)
-    d.putItemCount(size)
-    if d.isExpanded():
-        innerType = d.templateArgument(value.type, 0)
-        bucketCount = d.extractInt(base + ptrSize)
-        offset = int((innerType.sizeof + ptrSize - 1) / ptrSize) * ptrSize
-        with Children(d, size, maxNumChild=10000):
-            afterBuckets = d.extractPointer(base + 5 * ptrSize)
-            afterBuckets += bucketCount * ptrSize
-            item = d.extractPointer(afterBuckets)
-            for j in d.childRange():
-                d.putSubItem(j, d.createValue(item - offset, innerType))
-                item = d.extractPointer(item)
+    innerType = value.type[0]
+    if value.type.size() == 6 * d.ptrSize(): # 48 for boost 1.55+, 40 for 1.48
+        # boost 1.58 or 1.55
+        # bases are 3? bytes, and mlf is actually a float, but since
+        # its followed by size_t maxload, it's # effectively padded to a size_t
+        bases, bucketCount, size, mlf, maxload, buckets = value.split('tttttp')
+        # Distinguish 1.58 and 1.55. 1.58 used one template argument, 1.55 two.
+        try:
+            ittype = d.lookupType(value.type.name + '::iterator').target()
+            forward = len(ittype.templateArguments()) == 1
+        except:
+            forward = True
+    else:
+        # boost 1.48
+        # Values are stored before the next pointers. Determine the offset.
+        buckets, bucketCount, size, mlf, maxload = value.split('ptttt')
+        forward = False
+
+    if forward:
+        # boost 1.58
+        code = 'pp{%s}' % innerType.name
+        def children(p):
+            while True:
+                p, dummy, val = d.split(code, p)
+                yield val
+    else:
+        # boost 1.48 or 1.55
+        code = '{%s}@p' % innerType.name
+        (pp, ssize, fields) = d.describeStruct(code)
+        offset = fields[2].offset()
+        def children(p):
+            while True:
+                val, pad, p = d.split(code, p - offset)
+                yield val
+    p = d.extractPointer(buckets + bucketCount * d.ptrSize())
+    d.putItems(size, children(p), maxNumChild = 10000)

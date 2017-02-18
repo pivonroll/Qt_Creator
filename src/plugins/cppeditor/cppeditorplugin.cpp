@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,6 +38,7 @@
 #include "cppquickfixes.h"
 #include "cppsnippetprovider.h"
 #include "cpptypehierarchy.h"
+#include "resourcepreviewhoverhandler.h"
 
 #include <coreplugin/editormanager/editormanager.h>
 
@@ -61,6 +57,7 @@
 #include <cpptools/cpptoolsconstants.h>
 #include <texteditor/texteditoractionhandler.h>
 #include <texteditor/texteditorconstants.h>
+#include <texteditor/colorpreviewhoverhandler.h>
 
 #include <utils/hostosinfo.h>
 #include <utils/mimetypes/mimedatabase.h>
@@ -87,10 +84,12 @@ public:
     {
         setId(Constants::CPPEDITOR_ID);
         setDisplayName(qApp->translate("OpenWith::Editors", Constants::CPPEDITOR_DISPLAY_NAME));
-        addMimeType(Constants::C_SOURCE_MIMETYPE);
-        addMimeType(Constants::C_HEADER_MIMETYPE);
-        addMimeType(Constants::CPP_SOURCE_MIMETYPE);
-        addMimeType(Constants::CPP_HEADER_MIMETYPE);
+        addMimeType(CppTools::Constants::C_SOURCE_MIMETYPE);
+        addMimeType(CppTools::Constants::C_HEADER_MIMETYPE);
+        addMimeType(CppTools::Constants::CPP_SOURCE_MIMETYPE);
+        addMimeType(CppTools::Constants::CPP_HEADER_MIMETYPE);
+        addMimeType(CppTools::Constants::QDOC_MIMETYPE);
+        addMimeType(CppTools::Constants::MOC_MIMETYPE);
 
         setDocumentCreator([]() { return new CppEditorDocument; });
         setEditorWidgetCreator([]() { return new CppEditorWidget; });
@@ -107,6 +106,8 @@ public:
                               | TextEditorActionHandler::FollowSymbolUnderCursor);
 
         addHoverHandler(new CppHoverHandler);
+        addHoverHandler(new ColorPreviewHoverHandler);
+        addHoverHandler(new ResourcePreviewHoverHandler);
     }
 };
 
@@ -143,7 +144,6 @@ CppQuickFixAssistProvider *CppEditorPlugin::quickFixProvider() const
 bool CppEditorPlugin::initialize(const QStringList & /*arguments*/, QString *errorMessage)
 {
     Q_UNUSED(errorMessage)
-    Utils::MimeDatabase::addMimeTypes(QLatin1String(":/cppeditor/CppEditor.mimetypes.xml"));
 
     addAutoReleasedObject(new CppEditorFactory);
     addAutoReleasedObject(new CppOutlineWidgetFactory);
@@ -151,8 +151,7 @@ bool CppEditorPlugin::initialize(const QStringList & /*arguments*/, QString *err
     addAutoReleasedObject(new CppIncludeHierarchyFactory);
     addAutoReleasedObject(new CppSnippetProvider);
 
-    m_quickFixProvider = new CppQuickFixAssistProvider;
-    addAutoReleasedObject(m_quickFixProvider);
+    m_quickFixProvider = new CppQuickFixAssistProvider(this);
     registerQuickFixes(this);
 
     Context context(Constants::CPPEDITOR_ID);
@@ -173,15 +172,15 @@ bool CppEditorPlugin::initialize(const QStringList & /*arguments*/, QString *err
     cmd = ActionManager::registerAction(openPreprocessorDialog,
                                         Constants::OPEN_PREPROCESSOR_DIALOG, context);
     cmd->setDefaultKeySequence(QKeySequence());
-    connect(openPreprocessorDialog, SIGNAL(triggered()), this, SLOT(showPreProcessorDialog()));
+    connect(openPreprocessorDialog, &QAction::triggered, this, &CppEditorPlugin::showPreProcessorDialog);
     cppToolsMenu->addAction(cmd);
 
     QAction *switchDeclarationDefinition = new QAction(tr("Switch Between Function Declaration/Definition"), this);
     cmd = ActionManager::registerAction(switchDeclarationDefinition,
         Constants::SWITCH_DECLARATION_DEFINITION, context, true);
     cmd->setDefaultKeySequence(QKeySequence(tr("Shift+F2")));
-    connect(switchDeclarationDefinition, SIGNAL(triggered()),
-            this, SLOT(switchDeclarationDefinition()));
+    connect(switchDeclarationDefinition, &QAction::triggered,
+            this, &CppEditorPlugin::switchDeclarationDefinition);
     contextMenu->addAction(cmd);
     cppToolsMenu->addAction(cmd);
 
@@ -195,28 +194,28 @@ bool CppEditorPlugin::initialize(const QStringList & /*arguments*/, QString *err
     cmd->setDefaultKeySequence(QKeySequence(HostOsInfo::isMacHost()
                                             ? tr("Meta+E, Shift+F2")
                                             : tr("Ctrl+E, Shift+F2")));
-    connect(openDeclarationDefinitionInNextSplit, SIGNAL(triggered()),
-            this, SLOT(openDeclarationDefinitionInNextSplit()));
+    connect(openDeclarationDefinitionInNextSplit, &QAction::triggered,
+            this, &CppEditorPlugin::openDeclarationDefinitionInNextSplit);
     cppToolsMenu->addAction(cmd);
 
     m_findUsagesAction = new QAction(tr("Find Usages"), this);
     cmd = ActionManager::registerAction(m_findUsagesAction, Constants::FIND_USAGES, context);
     cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+Shift+U")));
-    connect(m_findUsagesAction, SIGNAL(triggered()), this, SLOT(findUsages()));
+    connect(m_findUsagesAction, &QAction::triggered, this, &CppEditorPlugin::findUsages);
     contextMenu->addAction(cmd);
     cppToolsMenu->addAction(cmd);
 
     m_openTypeHierarchyAction = new QAction(tr("Open Type Hierarchy"), this);
     cmd = ActionManager::registerAction(m_openTypeHierarchyAction, Constants::OPEN_TYPE_HIERARCHY, context);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+Shift+T") : tr("Ctrl+Shift+T")));
-    connect(m_openTypeHierarchyAction, SIGNAL(triggered()), this, SLOT(openTypeHierarchy()));
+    connect(m_openTypeHierarchyAction, &QAction::triggered, this, &CppEditorPlugin::openTypeHierarchy);
     contextMenu->addAction(cmd);
     cppToolsMenu->addAction(cmd);
 
     m_openIncludeHierarchyAction = new QAction(tr("Open Include Hierarchy"), this);
     cmd = ActionManager::registerAction(m_openIncludeHierarchyAction, Constants::OPEN_INCLUDE_HIERARCHY, context);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+Shift+I") : tr("Ctrl+Shift+I")));
-    connect(m_openIncludeHierarchyAction, SIGNAL(triggered()), this, SLOT(openIncludeHierarchy()));
+    connect(m_openIncludeHierarchyAction, &QAction::triggered, this, &CppEditorPlugin::openIncludeHierarchy);
     contextMenu->addAction(cmd);
     cppToolsMenu->addAction(cmd);
 
@@ -231,8 +230,8 @@ bool CppEditorPlugin::initialize(const QStringList & /*arguments*/, QString *err
                              Constants::RENAME_SYMBOL_UNDER_CURSOR,
                              context);
     cmd->setDefaultKeySequence(QKeySequence(tr("CTRL+SHIFT+R")));
-    connect(m_renameSymbolUnderCursorAction, SIGNAL(triggered()),
-            this, SLOT(renameSymbolUnderCursor()));
+    connect(m_renameSymbolUnderCursorAction, &QAction::triggered,
+            this, &CppEditorPlugin::renameSymbolUnderCursor);
     cppToolsMenu->addAction(cmd);
 
     // Update context in global context
@@ -240,14 +239,14 @@ bool CppEditorPlugin::initialize(const QStringList & /*arguments*/, QString *err
     m_reparseExternallyChangedFiles = new QAction(tr("Reparse Externally Changed Files"), this);
     cmd = ActionManager::registerAction(m_reparseExternallyChangedFiles, Constants::UPDATE_CODEMODEL);
     CppTools::CppModelManager *cppModelManager = CppTools::CppModelManager::instance();
-    connect(m_reparseExternallyChangedFiles, SIGNAL(triggered()), cppModelManager, SLOT(updateModifiedSourceFiles()));
+    connect(m_reparseExternallyChangedFiles, &QAction::triggered, cppModelManager, &CppTools::CppModelManager::updateModifiedSourceFiles);
     cppToolsMenu->addAction(cmd);
 
     cppToolsMenu->addSeparator();
     QAction *inspectCppCodeModel = new QAction(tr("Inspect C++ Code Model..."), this);
     cmd = ActionManager::registerAction(inspectCppCodeModel, Constants::INSPECT_CPP_CODEMODEL);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+Shift+F12") : tr("Ctrl+Shift+F12")));
-    connect(inspectCppCodeModel, SIGNAL(triggered()), this, SLOT(inspectCppCodeModel()));
+    connect(inspectCppCodeModel, &QAction::triggered, this, &CppEditorPlugin::inspectCppCodeModel);
     cppToolsMenu->addAction(cmd);
 
     contextMenu->addSeparator(context);
@@ -258,10 +257,10 @@ bool CppEditorPlugin::initialize(const QStringList & /*arguments*/, QString *err
     cmd = ActionManager::command(TextEditor::Constants::UN_COMMENT_SELECTION);
     contextMenu->addAction(cmd);
 
-    connect(ProgressManager::instance(), SIGNAL(taskStarted(Core::Id)),
-            this, SLOT(onTaskStarted(Core::Id)));
-    connect(ProgressManager::instance(), SIGNAL(allTasksFinished(Core::Id)),
-            this, SLOT(onAllTasksFinished(Core::Id)));
+    connect(ProgressManager::instance(), &ProgressManager::taskStarted,
+            this, &CppEditorPlugin::onTaskStarted);
+    connect(ProgressManager::instance(), &ProgressManager::allTasksFinished,
+            this, &CppEditorPlugin::onAllTasksFinished);
 
     return true;
 }
@@ -271,13 +270,13 @@ void CppEditorPlugin::extensionsInitialized()
     if (!HostOsInfo::isMacHost() && !HostOsInfo::isWindowsHost()) {
         FileIconProvider::registerIconOverlayForMimeType(
                     QIcon(creatorTheme()->imageFile(Theme::IconOverlayCppSource, QLatin1String(":/cppeditor/images/qt_cpp.png"))),
-                    Constants::CPP_SOURCE_MIMETYPE);
+                    CppTools::Constants::CPP_SOURCE_MIMETYPE);
         FileIconProvider::registerIconOverlayForMimeType(
                     QIcon(creatorTheme()->imageFile(Theme::IconOverlayCSource, QLatin1String(":/cppeditor/images/qt_c.png"))),
-                    Constants::C_SOURCE_MIMETYPE);
+                    CppTools::Constants::C_SOURCE_MIMETYPE);
         FileIconProvider::registerIconOverlayForMimeType(
                     QIcon(creatorTheme()->imageFile(Theme::IconOverlayCppHeader, QLatin1String(":/cppeditor/images/qt_h.png"))),
-                    Constants::CPP_HEADER_MIMETYPE);
+                    CppTools::Constants::CPP_HEADER_MIMETYPE);
     }
 }
 

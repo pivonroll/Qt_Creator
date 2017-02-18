@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -158,6 +153,7 @@ QList<IWizardFactory::FactoryCreator> s_factoryCreators;
 QAction *s_inspectWizardAction = 0;
 bool s_areFactoriesLoaded = false;
 bool s_isWizardRunning = false;
+QWidget *s_currentWizard = nullptr;
 
 // NewItemDialog reopening data:
 class NewItemDialogData
@@ -203,19 +199,6 @@ private:
 NewItemDialogData s_reopenData;
 }
 
-/* A utility to find all wizards supporting a view mode and matching a predicate */
-QList<IWizardFactory*> findWizardFactories(const std::function<bool(IWizardFactory*)> &predicate)
-{
-    const QList<IWizardFactory *> allFactories = IWizardFactory::allWizardFactories();
-    QList<IWizardFactory *> rc;
-    auto cend = allFactories.constEnd();
-    for (auto it = allFactories.constBegin(); it != cend; ++it) {
-        if (predicate(*it))
-            rc.push_back(*it);
-    }
-    return rc;
-}
-
 static Id actionId(const IWizardFactory *factory)
 {
     return factory->id().withPrefix("Wizard.Impl.");
@@ -250,7 +233,7 @@ QList<IWizardFactory*> IWizardFactory::allWizardFactories()
                 connect(newFactory->m_action, &QAction::triggered, newFactory, [newFactory]() {
                     if (!ICore::isNewItemDialogRunning()) {
                         QString path = newFactory->runPath(QString());
-                        newFactory->runWizard(path, ICore::dialogParent(), QString(), QVariantMap());
+                        newFactory->runWizard(path, ICore::dialogParent(), Id(), QVariantMap());
                     }
                 });
 
@@ -261,12 +244,6 @@ QList<IWizardFactory*> IWizardFactory::allWizardFactories()
     }
 
     return s_allFactories;
-}
-
-// Utility to find all registered wizards of a certain kind
-QList<IWizardFactory*> IWizardFactory::wizardFactoriesOfKind(WizardKind kind)
-{
-    return findWizardFactories([kind](IWizardFactory *f) { return f->kind() == kind; });
 }
 
 QString IWizardFactory::runPath(const QString &defaultPath)
@@ -290,16 +267,17 @@ QString IWizardFactory::runPath(const QString &defaultPath)
     return path;
 }
 
-Utils::Wizard *IWizardFactory::runWizard(const QString &path, QWidget *parent, const QString &platform, const QVariantMap &variables)
+Utils::Wizard *IWizardFactory::runWizard(const QString &path, QWidget *parent, Id platform, const QVariantMap &variables)
 {
     QTC_ASSERT(!s_isWizardRunning, return 0);
 
     s_isWizardRunning = true;
-    ICore::validateNewItemDialogIsRunning();
+    ICore::updateNewItemDialogState();
 
     Utils::Wizard *wizard = runWizardImpl(path, parent, platform, variables);
 
     if (wizard) {
+        s_currentWizard = wizard;
         // Connect while wizard exists:
         connect(m_action, &QAction::triggered, wizard, [wizard]() { ICore::raiseWindow(wizard); });
         connect(s_inspectWizardAction, &QAction::triggered,
@@ -311,8 +289,9 @@ Utils::Wizard *IWizardFactory::runWizard(const QString &path, QWidget *parent, c
         });
         connect(wizard, &QObject::destroyed, this, [wizard]() {
             s_isWizardRunning = false;
+            s_currentWizard = nullptr;
             s_inspectWizardAction->setEnabled(false);
-            ICore::validateNewItemDialogIsRunning();
+            ICore::updateNewItemDialogState();
             s_reopenData.reopen();
         });
         s_inspectWizardAction->setEnabled(true);
@@ -320,30 +299,30 @@ Utils::Wizard *IWizardFactory::runWizard(const QString &path, QWidget *parent, c
         Core::ICore::registerWindow(wizard, Core::Context("Core.NewWizard"));
     } else {
         s_isWizardRunning = false;
-        ICore::validateNewItemDialogIsRunning();
+        ICore::updateNewItemDialogState();
         s_reopenData.reopen();
     }
     return wizard;
 }
 
-bool IWizardFactory::isAvailable(const QString &platformName) const
+bool IWizardFactory::isAvailable(Id platformId) const
 {
-    if (platformName.isEmpty())
+    if (!platformId.isValid())
         return true;
 
-    return availableFeatures(platformName).contains(requiredFeatures());
+    return availableFeatures(platformId).contains(requiredFeatures());
 }
 
-QStringList IWizardFactory::supportedPlatforms() const
+QSet<Id> IWizardFactory::supportedPlatforms() const
 {
-    QStringList stringList;
+    QSet<Id> platformIds;
 
-    foreach (const QString &platform, allAvailablePlatforms()) {
+    foreach (Id platform, allAvailablePlatforms()) {
         if (isAvailable(platform))
-            stringList.append(platform);
+            platformIds.insert(platform);
     }
 
-    return stringList;
+    return platformIds;
 }
 
 void IWizardFactory::registerFactoryCreator(const IWizardFactory::FactoryCreator &creator)
@@ -351,20 +330,19 @@ void IWizardFactory::registerFactoryCreator(const IWizardFactory::FactoryCreator
     s_factoryCreators << creator;
 }
 
-QStringList IWizardFactory::allAvailablePlatforms()
+QSet<Id> IWizardFactory::allAvailablePlatforms()
 {
-    QStringList platforms;
-
+    QSet<Id> platforms;
     foreach (const IFeatureProvider *featureManager, s_providerList)
-        platforms.append(featureManager->availablePlatforms());
+        platforms.unite(featureManager->availablePlatforms());
 
     return platforms;
 }
 
-QString IWizardFactory::displayNameForPlatform(const QString &string)
+QString IWizardFactory::displayNameForPlatform(Id i)
 {
     foreach (const IFeatureProvider *featureManager, s_providerList) {
-        QString displayName = featureManager->displayNameForPlatform(string);
+        const QString displayName = featureManager->displayNameForPlatform(i);
         if (!displayName.isEmpty())
             return displayName;
     }
@@ -380,6 +358,11 @@ void IWizardFactory::registerFeatureProvider(IFeatureProvider *provider)
 bool IWizardFactory::isWizardRunning()
 {
     return s_isWizardRunning;
+}
+
+QWidget *IWizardFactory::currentWizard()
+{
+    return s_currentWizard;
 }
 
 void IWizardFactory::requestNewItemDialog(const QString &title,
@@ -407,27 +390,25 @@ void IWizardFactory::clearWizardFactories()
     s_areFactoriesLoaded = false;
 }
 
-FeatureSet IWizardFactory::pluginFeatures() const
+QSet<Id> IWizardFactory::pluginFeatures() const
 {
-    static FeatureSet plugins;
+    static QSet<Id> plugins;
     if (plugins.isEmpty()) {
-        QStringList list;
         // Implicitly create a feature for each plugin loaded:
         foreach (ExtensionSystem::PluginSpec *s, ExtensionSystem::PluginManager::plugins()) {
             if (s->state() == ExtensionSystem::PluginSpec::Running)
-                list.append(s->name());
+                plugins.insert(Id::fromString(s->name()));
         }
-        plugins = FeatureSet::fromStringList(list);
     }
     return plugins;
 }
 
-FeatureSet IWizardFactory::availableFeatures(const QString &platformName) const
+QSet<Id> IWizardFactory::availableFeatures(Id platformId) const
 {
-    FeatureSet availableFeatures;
+    QSet<Id> availableFeatures;
 
     foreach (const IFeatureProvider *featureManager, s_providerList)
-        availableFeatures |= featureManager->availableFeatures(platformName);
+        availableFeatures.unite(featureManager->availableFeatures(platformId));
 
     return availableFeatures;
 }
@@ -440,7 +421,7 @@ void IWizardFactory::initialize()
     ActionManager::registerAction(resetAction, "Wizard.Factory.Reset");
 
     connect(resetAction, &QAction::triggered, &IWizardFactory::clearWizardFactories);
-    connect(ICore::instance(), &ICore::newItemDialogRunningChanged, resetAction,
+    connect(ICore::instance(), &ICore::newItemDialogStateChanged, resetAction,
             [resetAction]() { resetAction->setEnabled(!ICore::isNewItemDialogRunning()); });
 
     s_inspectWizardAction = new QAction(tr("Inspect Wizard State"), ActionManager::instance());

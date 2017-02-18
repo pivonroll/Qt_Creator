@@ -1,5 +1,4 @@
-#ifndef EXAMPLE_H
-#define EXAMPLE_H
+#pragma once
 
 #include "example_global.h"
 
@@ -28,13 +27,10 @@ public:
 //! [plugin functions]
 
 //! [slot]
-private slots:
+private:
     void triggerAction();
 //! [slot]
 };
 
 } // namespace Internal
 } // namespace Example
-
-#endif // EXAMPLE_H
-

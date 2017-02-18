@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -59,6 +66,9 @@
     specify other command line arguments for the tools, select \uicontrol {Tools >
     External > Configure}.
 
+    To open TS files in Qt Linguist, right-click a TS file in the
+    \uicontrol Projects view and select \uicontrol {Open With} >
+    \uicontrol {Qt Linguist} in the context menu.
     For more information about Qt Linguist, see \l{Qt Linguist Manual}.
 
     \section1 Previewing QML Files
@@ -74,7 +84,7 @@
     \section1 Using External Text Editors
 
     You can open files for editing in the default text editor for your system:
-    Notepad on Windows and vi on Linux and OS X.
+    Notepad on Windows and vi on Linux and \macos.
     To open the file you are currently viewing in an external editor, select
     \uicontrol Tools > \uicontrol External > \uicontrol Text >
     \uicontrol {Edit with Notepad} or \uicontrol {Edit with vi}, depending on
@@ -150,7 +160,7 @@
     The tool configurations that you add and modify are stored in XML format in
     the user configuration folder. For example,
     \c {~/config/QtProject/qtcreator/externaltools}
-    on Linux and OS X and
+    on Linux and \macos and
     \c {C:\Users\username\AppData\Roaming\QtProject\qtcreator\externaltools}
     in Windows. To share a configuration with other users, copy an XML
     configuration file to the folder.

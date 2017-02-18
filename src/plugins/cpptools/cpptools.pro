@@ -1,5 +1,5 @@
 DEFINES += CPPTOOLS_LIBRARY
-win32-msvc*:DEFINES += _SCL_SECURE_NO_WARNINGS
+msvc: DEFINES += _SCL_SECURE_NO_WARNINGS
 include(../../qtcreatorplugin.pri)
 
 HEADERS += \
@@ -9,8 +9,9 @@ HEADERS += \
     builtineditordocumentparser.h \
     builtineditordocumentprocessor.h \
     builtinindexingsupport.h \
-    commentssettings.h \
-    completionsettingspage.h \
+    clangdiagnosticconfig.h \
+    clangdiagnosticconfigsmodel.h \
+    clangdiagnosticconfigswidget.h \
     cppchecksymbols.h \
     cppclassesfilter.h \
     cppcodeformatter.h \
@@ -27,6 +28,7 @@ HEADERS += \
     cppcurrentdocumentfilter.h \
     cppeditoroutline.h \
     cppdoxygen.h \
+    cppfileiterationorder.h \
     cppfilesettingspage.h \
     cppfindreferences.h \
     cppfunctionsfilter.h \
@@ -40,13 +42,14 @@ HEADERS += \
     cppmodelmanagersupportinternal.h \
     cpppointerdeclarationformatter.h \
     cppprojectfile.h \
-    cppprojects.h \
     cppqtstyleindenter.h \
     cpprefactoringchanges.h \
+    cppselectionchanger.h \
     cppsemanticinfo.h \
     cppsemanticinfoupdater.h \
     cppsourceprocessor.h \
     cpptools_global.h \
+    cpptools_utils.h \
     cpptoolsconstants.h \
     cpptoolsjsextension.h \
     cpptoolsplugin.h \
@@ -56,6 +59,7 @@ HEADERS += \
     doxygengenerator.h \
     editordocumenthandle.h \
     functionutils.h \
+    generatedcodemodelsupport.h \
     includeutils.h \
     indexitem.h \
     insertionpointlocator.h \
@@ -65,7 +69,21 @@ HEADERS += \
     symbolfinder.h \
     symbolsfindfilter.h \
     typehierarchybuilder.h \
-    senddocumenttracker.h
+    senddocumenttracker.h \
+    cpptoolsbridge.h \
+    cpptoolsbridgeinterface.h \
+    cpptoolsbridgeqtcreatorimplementation.h \
+    projectpart.h \
+    projectpartheaderpath.h \
+    projectinfo.h \
+    projectpartbuilder.h \
+    compileroptionsbuilder.h \
+    refactoringengineinterface.h \
+    cppprojectfilecategorizer.h \
+    clangcompileroptionsbuilder.h \
+    cppprojectinterface.h \
+    cppbaseprojectpartbuilder.h \
+    cppprojectpartchooser.h \
 
 SOURCES += \
     abstracteditorsupport.cpp \
@@ -74,8 +92,9 @@ SOURCES += \
     builtineditordocumentparser.cpp \
     builtineditordocumentprocessor.cpp \
     builtinindexingsupport.cpp \
-    commentssettings.cpp \
-    completionsettingspage.cpp \
+    clangdiagnosticconfig.cpp \
+    clangdiagnosticconfigsmodel.cpp \
+    clangdiagnosticconfigswidget.cpp \
     cppchecksymbols.cpp \
     cppclassesfilter.cpp \
     cppcodeformatter.cpp \
@@ -92,6 +111,7 @@ SOURCES += \
     cppcurrentdocumentfilter.cpp \
     cppeditoroutline.cpp \
     cppdoxygen.cpp \
+    cppfileiterationorder.cpp \
     cppfilesettingspage.cpp \
     cppfindreferences.cpp \
     cppfunctionsfilter.cpp \
@@ -105,9 +125,9 @@ SOURCES += \
     cppmodelmanagersupportinternal.cpp \
     cpppointerdeclarationformatter.cpp \
     cppprojectfile.cpp \
-    cppprojects.cpp \
     cppqtstyleindenter.cpp \
     cpprefactoringchanges.cpp \
+    cppselectionchanger.cpp \
     cppsemanticinfo.cpp \
     cppsemanticinfoupdater.cpp \
     cppsourceprocessor.cpp \
@@ -119,6 +139,7 @@ SOURCES += \
     doxygengenerator.cpp \
     editordocumenthandle.cpp \
     functionutils.cpp \
+    generatedcodemodelsupport.cpp \
     includeutils.cpp \
     indexitem.cpp \
     insertionpointlocator.cpp \
@@ -128,10 +149,20 @@ SOURCES += \
     symbolfinder.cpp \
     symbolsfindfilter.cpp \
     typehierarchybuilder.cpp \
-    senddocumenttracker.cpp
+    senddocumenttracker.cpp \
+    cpptoolsbridge.cpp \
+    cpptoolsbridgeqtcreatorimplementation.cpp \
+    projectpart.cpp \
+    projectinfo.cpp \
+    projectpartbuilder.cpp \
+    compileroptionsbuilder.cpp \
+    cppprojectfilecategorizer.cpp \
+    cppbaseprojectpartbuilder.cpp \
+    clangcompileroptionsbuilder.cpp \
+    cppprojectpartchooser.cpp \
 
 FORMS += \
-    completionsettingspage.ui \
+    clangdiagnosticconfigswidget.ui \
     cppcodemodelsettingspage.ui \
     cppcodestylesettingspage.ui \
     cppfilesettingspage.ui

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -50,7 +50,7 @@ static inline QString componentIdForModelNode(const ModelNode &modelNode)
         if (modelNode.hasParentProperty()
                 && modelNode.parentProperty().name() != "data"
                 && modelNode.parentProperty().name() != "children") {
-            return modelNode.parentProperty().name();
+            return QString::fromUtf8(modelNode.parentProperty().name());
         } else {
             return modelNode.simplifiedTypeName();
         }
@@ -63,23 +63,14 @@ static CrumbleBarInfo createCrumbleBarInfoFromModelNode(const ModelNode &modelNo
 {
     CrumbleBarInfo crumbleBarInfo;
     crumbleBarInfo.displayName = componentIdForModelNode(modelNode);
-    crumbleBarInfo.fileName = currentDesignDocument()->textEditor()->document()->filePath().toString();
+    crumbleBarInfo.fileName = currentDesignDocument()->textEditor()->document()->filePath();
     crumbleBarInfo.modelNode = modelNode;
 
     return crumbleBarInfo;
 }
 
-CrumbleBar::CrumbleBar(QObject *parent) :
-    QObject(parent),
-    m_isInternalCalled(false),
-    m_crumblePath(new Utils::CrumblePath)
+CrumbleBar::CrumbleBar(QObject *parent) : QObject(parent)
 {
-    connect(m_crumblePath,
-            SIGNAL(elementClicked(QVariant)),
-            this,
-            SLOT(onCrumblePathElementClicked(QVariant)));
-
-    updateVisibility();
 }
 
 CrumbleBar::~CrumbleBar()
@@ -87,7 +78,7 @@ CrumbleBar::~CrumbleBar()
     delete m_crumblePath;
 }
 
-void CrumbleBar::pushFile(const QString &fileName)
+void CrumbleBar::pushFile(const Utils::FileName &fileName)
 {
     if (m_isInternalCalled == false) {
         crumblePath()->clear();
@@ -102,7 +93,7 @@ void CrumbleBar::pushFile(const QString &fileName)
     CrumbleBarInfo crumbleBarInfo;
     crumbleBarInfo.fileName = fileName;
 
-    crumblePath()->pushElement(fileName.split(QLatin1String("/")).last(), QVariant::fromValue(crumbleBarInfo));
+    crumblePath()->pushElement(fileName.fileName(), QVariant::fromValue(crumbleBarInfo));
 
     m_isInternalCalled = false;
 
@@ -132,14 +123,19 @@ void CrumbleBar::nextFileIsCalledInternally()
 
 Utils::CrumblePath *CrumbleBar::crumblePath()
 {
+    if (m_crumblePath == nullptr) {
+        m_crumblePath = new Utils::CrumblePath;
+        updateVisibility();
+        connect(m_crumblePath, &Utils::CrumblePath::elementClicked,
+            this, &CrumbleBar::onCrumblePathElementClicked);
+    }
+
     return m_crumblePath;
 }
 
 void CrumbleBar::showSaveDialog()
 {
-    DesignerSettings settings = QmlDesignerPlugin::instance()->settings();
-
-    if (settings.alwaysSaveInCrumbleBar) {
+    if (DesignerSettings::getValue(DesignerSettingsKey::ALWAYS_SAFE_IN_CRUMBLEBAR).toBool()) {
         Core::DocumentManager::saveModifiedDocumentSilently(currentDesignDocument()->editor()->document());
     } else {
         bool alwaysSave;
@@ -151,8 +147,7 @@ void CrumbleBar::showSaveDialog()
                                                     tr("Always save when leaving subcomponent"),
                                                     &alwaysSave);
 
-        settings.alwaysSaveInCrumbleBar = alwaysSave;
-        QmlDesignerPlugin::instance()->setSettings(settings);
+        DesignerSettings::setValue(DesignerSettingsKey::ALWAYS_SAFE_IN_CRUMBLEBAR, alwaysSave);
     }
 }
 
@@ -171,7 +166,7 @@ void CrumbleBar::onCrumblePathElementClicked(const QVariant &data)
 
     m_isInternalCalled = true;
     if (!clickedCrumbleBarInfo.modelNode.isValid()
-            && Utils::FileName::fromString(clickedCrumbleBarInfo.fileName) == currentDesignDocument()->fileName()) {
+            && clickedCrumbleBarInfo.fileName == currentDesignDocument()->fileName()) {
         nextFileIsCalledInternally();
         currentDesignDocument()->changeToDocumentModel();
         QmlDesignerPlugin::instance()->viewManager().setComponentViewToMaster();
@@ -179,8 +174,8 @@ void CrumbleBar::onCrumblePathElementClicked(const QVariant &data)
         showSaveDialog();
         crumblePath()->popElement();
         nextFileIsCalledInternally();
-        Core::EditorManager::openEditor(clickedCrumbleBarInfo.fileName, Core::Id(),
-                                        Core::EditorManager::DoNotMakeVisible);
+        Core::EditorManager::openEditor(clickedCrumbleBarInfo.fileName.toString(),
+            Core::Id(), Core::EditorManager::DoNotMakeVisible);
         if (clickedCrumbleBarInfo.modelNode.isValid()) {
             currentDesignDocument()->changeToSubComponent(clickedCrumbleBarInfo.modelNode);
             QmlDesignerPlugin::instance()->viewManager().setComponentNode(clickedCrumbleBarInfo.modelNode);

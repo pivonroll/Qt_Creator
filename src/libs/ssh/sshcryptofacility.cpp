@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,6 +30,7 @@
 #include "sshexception_p.h"
 #include "sshkeyexchange_p.h"
 #include "sshkeypasswordretriever_p.h"
+#include "sshlogging_p.h"
 #include "sshpacket_p.h"
 
 #include <botan/botan.h>
@@ -86,11 +82,11 @@ void SshAbstractCryptoFacility::recreateKeys(const SshKeyExchange &kex)
     BlockCipher * const cipher
             = af.prototype_block_cipher(botanCryptAlgoName(rfcCryptAlgoName))->clone();
 
-    m_cipherBlockSize = cipher->block_size();
+    m_cipherBlockSize = static_cast<quint32>(cipher->block_size());
     const QByteArray ivData = generateHash(kex, ivChar(), m_cipherBlockSize);
     const InitializationVector iv(convertByteArray(ivData), m_cipherBlockSize);
 
-    const quint32 keySize = cipher->key_spec().maximum_keylength();
+    const quint32 keySize = static_cast<quint32>(cipher->key_spec().maximum_keylength());
     const QByteArray cryptKeyData = generateHash(kex, keyChar(), keySize);
     SymmetricKey cryptKey(convertByteArray(cryptKeyData), keySize);
     Keyed_Filter * const cipherMode
@@ -122,8 +118,9 @@ void SshAbstractCryptoFacility::convert(QByteArray &data, quint32 offset,
     }
     m_pipe->process_msg(reinterpret_cast<const byte *>(data.constData()) + offset,
         dataSize);
-    quint32 bytesRead = m_pipe->read(reinterpret_cast<byte *>(data.data()) + offset,
-        dataSize, m_pipe->message_count() - 1); // Can't use Pipe::LAST_MESSAGE because of a VC bug.
+     // Can't use Pipe::LAST_MESSAGE because of a VC bug.
+    quint32 bytesRead = static_cast<quint32>(m_pipe->read(
+          reinterpret_cast<byte *>(data.data()) + offset, dataSize, m_pipe->message_count() - 1));
     if (bytesRead != dataSize) {
         throw SshClientException(SshInternalError,
                 QLatin1String("Internal error: Botan::Pipe::read() returned unexpected value"));
@@ -213,9 +210,7 @@ void SshEncryptionFacility::createAuthenticationKey(const QByteArray &privKeyFil
         return;
 
     m_authKeyAlgoName.clear();
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("%s: Key not cached, reading", Q_FUNC_INFO);
-#endif
+    qCDebug(sshLog, "%s: Key not cached, reading", Q_FUNC_INFO);
     QList<BigInt> pubKeyParams;
     QList<BigInt> allKeyParams;
     QString error1;
@@ -223,9 +218,7 @@ void SshEncryptionFacility::createAuthenticationKey(const QByteArray &privKeyFil
     if (!createAuthenticationKeyFromPKCS8(privKeyFileContents, pubKeyParams, allKeyParams, error1)
             && !createAuthenticationKeyFromOpenSSL(privKeyFileContents, pubKeyParams, allKeyParams,
                 error2)) {
-#ifdef CREATOR_SSH_DEBUG
-        qDebug("%s: %s\n\t%s\n", Q_FUNC_INFO, qPrintable(error1), qPrintable(error2));
-#endif
+        qCDebug(sshLog, "%s: %s\n\t%s\n", Q_FUNC_INFO, qPrintable(error1), qPrintable(error2));
         throw SshClientException(SshKeyFileError, SSH_TR("Decoding of private key file failed: "
             "Format not understood."));
     }
@@ -269,12 +262,14 @@ bool SshEncryptionFacility::createAuthenticationKeyFromPKCS8(const QByteArray &p
                          << rsaKey->get_d();
         } else if (auto * const ecdsaKey = dynamic_cast<ECDSA_PrivateKey *>(m_authKey.data())) {
             const BigInt value = ecdsaKey->private_value();
-            m_authKeyAlgoName = SshCapabilities::ecdsaPubKeyAlgoForKeyWidth(value.bytes());
+            m_authKeyAlgoName = SshCapabilities::ecdsaPubKeyAlgoForKeyWidth(
+                        static_cast<int>(value.bytes()));
             pubKeyParams << ecdsaKey->public_point().get_affine_x()
                          << ecdsaKey->public_point().get_affine_y();
             allKeyParams << pubKeyParams << value;
         } else {
-            qWarning("%s: Unexpected code flow, expected success or exception.", Q_FUNC_INFO);
+            qCWarning(sshLog, "%s: Unexpected code flow, expected success or exception.",
+                      Q_FUNC_INFO);
             return false;
         }
     } catch (const Exception &ex) {
@@ -353,7 +348,8 @@ bool SshEncryptionFacility::createAuthenticationKeyFromOpenSSL(const QByteArray 
         } else {
             BigInt privKey;
             sequence.decode_octet_string_bigint(privKey);
-            m_authKeyAlgoName = SshCapabilities::ecdsaPubKeyAlgoForKeyWidth(privKey.bytes());
+            m_authKeyAlgoName = SshCapabilities::ecdsaPubKeyAlgoForKeyWidth(
+                        static_cast<int>(privKey.bytes()));
             const EC_Group group(SshCapabilities::oid(m_authKeyAlgoName));
             auto * const key = new ECDSA_PrivateKey(m_rng, group, privKey);
             m_authKey.reset(key);
@@ -438,13 +434,11 @@ void SshDecryptionFacility::decrypt(QByteArray &data, quint32 offset,
     quint32 dataSize) const
 {
     convert(data, offset, dataSize);
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("Decrypted data:");
+    qCDebug(sshLog, "Decrypted data:");
     const char * const start = data.constData() + offset;
     const char * const end = start + dataSize;
     for (const char *c = start; c < end; ++c)
-        qDebug() << "'" << *c << "' (0x" << (static_cast<int>(*c) & 0xff) << ")";
-#endif
+        qCDebug(sshLog, ) << "'" << *c << "' (0x" << (static_cast<int>(*c) & 0xff) << ")";
 }
 
 } // namespace Internal

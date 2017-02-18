@@ -13,9 +13,8 @@
 #include <QMainWindow>
 #include <QMenu>
 
-#include <QtPlugin>
-
-using namespace %PluginName%::Internal;
+namespace %PluginName% {
+namespace Internal {
 
 %PluginName%Plugin::%PluginName%Plugin()
 {
@@ -40,11 +39,11 @@ bool %PluginName%Plugin::initialize(const QStringList &arguments, QString *error
     Q_UNUSED(arguments)
     Q_UNUSED(errorString)
 
-    QAction *action = new QAction(tr("%PluginName% action"), this);
+    auto action = new QAction(tr("%PluginName% Action"), this);
     Core::Command *cmd = Core::ActionManager::registerAction(action, Constants::ACTION_ID,
                          Core::Context(Core::Constants::C_GLOBAL));
     cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+Alt+Meta+A")));
-    connect(action, SIGNAL(triggered()), this, SLOT(triggerAction()));
+    connect(action, &QAction::triggered, this, &%PluginName%Plugin::triggerAction);
 
     Core::ActionContainer *menu = Core::ActionManager::createMenu(Constants::MENU_ID);
     menu->menu()->setTitle(tr("%PluginName%"));
@@ -72,6 +71,9 @@ ExtensionSystem::IPlugin::ShutdownFlag %PluginName%Plugin::aboutToShutdown()
 void %PluginName%Plugin::triggerAction()
 {
     QMessageBox::information(Core::ICore::mainWindow(),
-                             tr("Action triggered"),
+                             tr("Action Triggered"),
                              tr("This is an action from %PluginName%."));
 }
+
+} // namespace Internal
+} // namespace %PluginName%

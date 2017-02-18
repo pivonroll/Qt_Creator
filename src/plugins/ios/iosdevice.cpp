@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -93,8 +88,8 @@ IosDevice::IosDevice()
     setDisplayName(IosDevice::name());
     setDeviceState(DeviceDisconnected);
     Utils::PortList ports;
-    ports.addRange(Constants::IOS_DEVICE_PORT_START,
-                   Constants::IOS_DEVICE_PORT_END);
+    ports.addRange(Utils::Port(Constants::IOS_DEVICE_PORT_START),
+                   Utils::Port(Constants::IOS_DEVICE_PORT_END));
     setFreePorts(ports);
 }
 
@@ -205,12 +200,12 @@ QString IosDevice::osVersion() const
     return m_extraInfo.value(QLatin1String("osVersion"));
 }
 
-quint16 IosDevice::nextPort() const
+Utils::Port IosDevice::nextPort() const
 {
     // use qrand instead?
     if (++m_lastPort >= Constants::IOS_DEVICE_PORT_END)
         m_lastPort = Constants::IOS_DEVICE_PORT_START;
-    return m_lastPort;
+    return Utils::Port(m_lastPort);
 }
 
 bool IosDevice::canAutoDetectPorts() const
@@ -293,10 +288,10 @@ void IosDeviceManager::deviceDisconnected(const QString &uid)
 void IosDeviceManager::updateInfo(const QString &devId)
 {
     IosToolHandler *requester = new IosToolHandler(IosDeviceType(IosDeviceType::IosDevice), this);
-    connect(requester, SIGNAL(deviceInfo(Ios::IosToolHandler*,QString,Ios::IosToolHandler::Dict)),
-            SLOT(deviceInfo(Ios::IosToolHandler*,QString,Ios::IosToolHandler::Dict)), Qt::QueuedConnection);
-    connect(requester, SIGNAL(finished(Ios::IosToolHandler*)),
-            SLOT(infoGathererFinished(Ios::IosToolHandler*)));
+    connect(requester, &IosToolHandler::deviceInfo,
+            this, &IosDeviceManager::deviceInfo, Qt::QueuedConnection);
+    connect(requester, &IosToolHandler::finished,
+            this, &IosDeviceManager::infoGathererFinished);
     requester->requestDeviceInfo(devId);
 }
 
@@ -523,8 +518,8 @@ IosDeviceManager::IosDeviceManager(QObject *parent) :
 {
     m_userModeDevicesTimer.setSingleShot(true);
     m_userModeDevicesTimer.setInterval(8000);
-    connect(&m_userModeDevicesTimer, SIGNAL(timeout()),
-            SLOT(updateUserModeDevices()));
+    connect(&m_userModeDevicesTimer, &QTimer::timeout,
+            this, &IosDeviceManager::updateUserModeDevices);
 }
 
 void IosDeviceManager::updateUserModeDevices()

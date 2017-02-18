@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,6 +27,7 @@
 
 #include "operation.h"
 
+#include "addcmakeoperation.h"
 #include "adddebuggeroperation.h"
 #include "adddeviceoperation.h"
 #include "addkeysoperation.h"
@@ -41,6 +37,7 @@
 #include "findkeyoperation.h"
 #include "findvalueoperation.h"
 #include "getoperation.h"
+#include "rmcmakeoperation.h"
 #include "rmdebuggeroperation.h"
 #include "rmdeviceoperation.h"
 #include "rmkeysoperation.h"
@@ -63,6 +60,12 @@ void printHelp(const Operation *op)
     std::cout << std::endl;
 }
 
+const QString tabular(const Operation *o)
+{
+    const QString name = o->name();
+    return name + QString(16 - name.length(), QChar::Space) + o->helpText();
+}
+
 void printHelp(const QList<Operation *> &operations)
 {
     std::cout << "Qt Creator SDK setup tool." << std::endl;
@@ -75,7 +78,7 @@ void printHelp(const QList<Operation *> &operations)
     std::cout << "OPERATION:" << std::endl;
     std::cout << "    One of:" << std::endl;
     foreach (const Operation *o, operations)
-        std::cout << "        " << qPrintable(o->name()) << "\t\t" << qPrintable(o->helpText()) << std::endl;
+        std::cout << "        " << qPrintable(tabular(o)) << std::endl;
     std::cout << std::endl;
     std::cout << "OPERATION_ARGS:" << std::endl;
     std::cout << "   use \"--help <OPERATION>\" to get help on the arguments required for an operation." << std::endl;
@@ -174,6 +177,7 @@ int main(int argc, char *argv[])
     QList<Operation *> operations;
     operations << new AddKeysOperation
 
+               << new AddCMakeOperation
                << new AddDebuggerOperation
                << new AddDeviceOperation
                << new AddQtOperation
@@ -182,6 +186,8 @@ int main(int argc, char *argv[])
                << new AddKitOperation
 
                << new GetOperation
+
+               << new RmCMakeOperation
                << new RmKitOperation
                << new RmDebuggerOperation
                << new RmDeviceOperation

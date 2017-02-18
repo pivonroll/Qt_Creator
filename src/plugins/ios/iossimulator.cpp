@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,6 +28,7 @@
 #include "iostoolhandler.h"
 
 #include <projectexplorer/kitinformation.h>
+#include <utils/port.h>
 
 #include <QCoreApplication>
 #include <QMapIterator>
@@ -47,9 +43,6 @@ namespace Internal {
 static const QLatin1String iosDeviceTypeDisplayNameKey = QLatin1String("displayName");
 static const QLatin1String iosDeviceTypeTypeKey = QLatin1String("type");
 static const QLatin1String iosDeviceTypeIdentifierKey = QLatin1String("identifier");
-
-QMutex IosSimulator::_mutex;
-QList<IosDeviceType> IosSimulator::_availableDevices;
 
 IosSimulator::IosSimulator(Core::Id id)
     : IDevice(Core::Id(Constants::IOS_SIMULATOR_TYPE),
@@ -123,48 +116,6 @@ IDevice::Ptr IosSimulator::clone() const
     return IDevice::Ptr(new IosSimulator(*this));
 }
 
-QList<IosDeviceType> IosSimulator::availableDevices()
-{
-    QMutexLocker l(&_mutex);
-    return _availableDevices;
-}
-
-void IosSimulator::setAvailableDevices(QList<IosDeviceType> value)
-{
-    QMutexLocker l(&_mutex);
-    _availableDevices = value;
-}
-
-namespace {
-void handleDeviceInfo(Ios::IosToolHandler *handler, const QString &deviceId,
-                      const Ios::IosToolHandler::Dict &info)
-{
-    Q_UNUSED(deviceId);
-    QList<IosDeviceType> res;
-    QMapIterator<QString, QString> i(info);
-    while (i.hasNext()) {
-        i.next();
-        IosDeviceType simulatorType(IosDeviceType::SimulatedDevice);
-        simulatorType.displayName = i.value();
-        simulatorType.identifier = i.key();
-        QStringList ids = i.key().split(QLatin1Char(','));
-        if (ids.length() > 1)
-            simulatorType.displayName += QLatin1String(", iOS ") + ids.last().trimmed();
-        res.append(simulatorType);
-    }
-    handler->deleteLater();
-    std::stable_sort(res.begin(), res.end());
-    IosSimulator::setAvailableDevices(res);
-}
-}
-
-void IosSimulator::updateAvailableDevices()
-{
-    IosToolHandler *toolHandler = new IosToolHandler(IosDeviceType(IosDeviceType::SimulatedDevice));
-    QObject::connect(toolHandler, &IosToolHandler::deviceInfo, &handleDeviceInfo);
-    toolHandler->requestDeviceInfo(QString());
-}
-
 void IosSimulator::fromMap(const QVariantMap &map)
 {
     IDevice::fromMap(map);
@@ -176,7 +127,7 @@ QVariantMap IosSimulator::toMap() const
     return res;
 }
 
-quint16 IosSimulator::nextPort() const
+Utils::Port IosSimulator::nextPort() const
 {
     for (int i = 0; i < 100; ++i) {
         // use qrand instead?
@@ -185,19 +136,17 @@ quint16 IosSimulator::nextPort() const
         QProcess portVerifier;
         // this is a bit too broad (it does not check just listening sockets, but also connections
         // to that port from this computer)
-        portVerifier.start(QLatin1String("lsof"), QStringList() << QLatin1String("-n")
-                         << QLatin1String("-P") << QLatin1String("-i")
-                         << QString::fromLatin1(":%1").arg(m_lastPort));
+        portVerifier.start(QLatin1String("lsof"), {"-n", "-P", "-i", QString(":%1").arg(m_lastPort) });
         if (!portVerifier.waitForStarted())
             break;
         portVerifier.closeWriteChannel();
-        if (!portVerifier.waitForFinished())
+        if (!portVerifier.waitForFinished() && portVerifier.state() == QProcess::Running)
             break;
         if (portVerifier.exitStatus() != QProcess::NormalExit
                 || portVerifier.exitCode() != 0)
             break;
     }
-    return m_lastPort;
+    return Utils::Port(m_lastPort);
 }
 
 bool IosSimulator::canAutoDetectPorts() const

@@ -1,5 +1,4 @@
-#ifndef %PluginName:u%_%CppHeaderSuffix:u%
-#define %PluginName:u%_%CppHeaderSuffix:u%
+#pragma once
 
 #include "%PluginName:l%_global.%CppHeaderSuffix%"
 
@@ -21,11 +20,9 @@ public:
     void extensionsInitialized();
     ShutdownFlag aboutToShutdown();
 
-private slots:
+private:
     void triggerAction();
 };
 
 } // namespace Internal
 } // namespace %PluginName%
-
-#endif // %PluginName:u%_%CppHeaderSuffix:u%

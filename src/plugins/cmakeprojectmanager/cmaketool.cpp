@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,268 +9,207 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cmaketool.h"
 #include "cmaketoolmanager.h"
 
+#include <utils/algorithm.h>
+#include <utils/environment.h>
 #include <utils/qtcassert.h>
 
-#include <QProcess>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QSet>
 #include <QTextDocument>
 #include <QUuid>
+#include <QVariantMap>
 
-using namespace CMakeProjectManager;
+namespace CMakeProjectManager {
 
 const char CMAKE_INFORMATION_ID[] = "Id";
 const char CMAKE_INFORMATION_COMMAND[] = "Binary";
 const char CMAKE_INFORMATION_DISPLAYNAME[] = "DisplayName";
+const char CMAKE_INFORMATION_AUTORUN[] = "AutoRun";
 const char CMAKE_INFORMATION_AUTODETECTED[] = "AutoDetected";
+
+
+bool CMakeTool::Generator::matches(const QString &n, const QString &ex) const
+{
+    return n == name && (ex.isEmpty() || extraGenerators.contains(ex));
+}
 
 ///////////////////////////
 // CMakeTool
 ///////////////////////////
-CMakeTool::CMakeTool(Detection d, const Core::Id &id)
-    : m_state(Invalid), m_process(0),
-      m_isAutoDetected(d == AutoDetection),
-      m_hasCodeBlocksMsvcGenerator(false),
-      m_hasCodeBlocksNinjaGenerator(false),
-      m_id(id)
+CMakeTool::CMakeTool(Detection d, const Core::Id &id) :
+    m_id(id), m_isAutoDetected(d == AutoDetection)
 {
-    //make sure every CMakeTool has a valid ID
-    if (!m_id.isValid())
-        createId();
+    QTC_ASSERT(m_id.isValid(), m_id = Core::Id::fromString(QUuid::createUuid().toString()));
 }
 
-CMakeTool::CMakeTool(const QVariantMap &map, bool fromSdk)
-    : m_state(Invalid), m_process(0),
-      m_isAutoDetected(fromSdk),
-      m_hasCodeBlocksMsvcGenerator(false),
-      m_hasCodeBlocksNinjaGenerator(false)
+CMakeTool::CMakeTool(const QVariantMap &map, bool fromSdk) : m_isAutoDetected(fromSdk)
 {
-    m_id = Core::Id::fromSetting(map.value(QLatin1String(CMAKE_INFORMATION_ID)));
-    m_displayName = map.value(QLatin1String(CMAKE_INFORMATION_DISPLAYNAME)).toString();
+    m_id = Core::Id::fromSetting(map.value(CMAKE_INFORMATION_ID));
+    m_displayName = map.value(CMAKE_INFORMATION_DISPLAYNAME).toString();
+    m_isAutoRun = map.value(CMAKE_INFORMATION_AUTORUN, true).toBool();
 
     //loading a CMakeTool from SDK is always autodetection
     if (!fromSdk)
-        m_isAutoDetected = map.value(QLatin1String(CMAKE_INFORMATION_AUTODETECTED), false).toBool();
+        m_isAutoDetected = map.value(CMAKE_INFORMATION_AUTODETECTED, false).toBool();
 
-    setCMakeExecutable(Utils::FileName::fromUserInput(map.value(QLatin1String(CMAKE_INFORMATION_COMMAND)).toString()));
+    setCMakeExecutable(Utils::FileName::fromString(map.value(CMAKE_INFORMATION_COMMAND).toString()));
 }
 
-CMakeTool::~CMakeTool()
+Core::Id CMakeTool::createId()
 {
-    cancel();
-}
-
-void CMakeTool::cancel()
-{
-    if (m_process) {
-        disconnect(m_process, SIGNAL(finished(int)));
-
-        if (m_process->state() != QProcess::NotRunning)
-            m_process->kill();
-
-        m_process->waitForFinished();
-        delete m_process;
-        m_process = 0;
-    }
+    return Core::Id::fromString(QUuid::createUuid().toString());
 }
 
 void CMakeTool::setCMakeExecutable(const Utils::FileName &executable)
 {
-    cancel();
-    m_process = new QProcess();
-    connect(m_process, static_cast<void (QProcess::*)(int)>(&QProcess::finished), this, &CMakeTool::finished);
+    if (m_executable == executable)
+        return;
+
+    m_didRun = false;
+    m_didAttemptToRun = false;
 
     m_executable = executable;
-    QFileInfo fi = m_executable.toFileInfo();
-    if (fi.exists() && fi.isExecutable()) {
-        // Run it to find out more
-        m_state = CMakeTool::RunningBasic;
-        if (!startProcess(QStringList(QLatin1String("--help"))))
-            m_state = CMakeTool::Invalid;
-    } else {
-        m_state = CMakeTool::Invalid;
-    }
-
     CMakeToolManager::notifyAboutUpdate(this);
 }
 
-void CMakeTool::finished(int exitCode)
+void CMakeTool::setAutorun(bool autoRun)
 {
-    if (exitCode) {
-        m_state = CMakeTool::Invalid;
+    if (m_isAutoRun == autoRun)
         return;
-    }
-    if (m_state == CMakeTool::RunningBasic) {
-        QByteArray response = m_process->readAll();
 
-        m_hasCodeBlocksMsvcGenerator = response.contains("CodeBlocks - NMake Makefiles");
-        m_hasCodeBlocksNinjaGenerator = response.contains("CodeBlocks - Ninja");
-
-        if (response.isEmpty()) {
-            m_state = CMakeTool::Invalid;
-        } else {
-            m_state = CMakeTool::RunningFunctionList;
-            if (!startProcess(QStringList(QLatin1String("--help-command-list"))))
-                finished(0); // should never happen, just continue
-        }
-    } else if (m_state == CMakeTool::RunningFunctionList) {
-        parseFunctionOutput(m_process->readAll());
-        m_state = CMakeTool::RunningFunctionDetails;
-        if (!startProcess(QStringList(QLatin1String("--help-commands"))))
-            finished(0); // should never happen, just continue
-    } else if (m_state == CMakeTool::RunningFunctionDetails) {
-        parseFunctionDetailsOutput(m_process->readAll());
-        m_state = CMakeTool::RunningPropertyList;
-        if (!startProcess(QStringList(QLatin1String("--help-property-list"))))
-            finished(0); // should never happen, just continue
-    } else if (m_state == CMakeTool::RunningPropertyList) {
-        parseVariableOutput(m_process->readAll());
-        m_state = CMakeTool::RunningVariableList;
-        if (!startProcess(QStringList(QLatin1String("--help-variable-list"))))
-            finished(0); // should never happen, just continue
-    } else if (m_state == CMakeTool::RunningVariableList) {
-        parseVariableOutput(m_process->readAll());
-        parseDone();
-        m_state = CMakeTool::RunningDone;
-    }
+    m_isAutoRun = autoRun;
+    CMakeToolManager::notifyAboutUpdate(this);
 }
 
 bool CMakeTool::isValid() const
 {
-    if (m_state == CMakeTool::Invalid || !m_id.isValid())
+    if (!m_id.isValid())
         return false;
-    if (m_state == CMakeTool::RunningBasic) {
-        if (!m_process->waitForFinished(10000)) {
-            return false;
-        }
-    }
-    return (m_state != CMakeTool::Invalid);
+
+    if (!m_didAttemptToRun)
+        supportedGenerators();
+
+    return m_didRun;
 }
 
-void CMakeTool::createId()
+Utils::SynchronousProcessResponse CMakeTool::run(const QStringList &args, bool mayFail) const
 {
-    QTC_ASSERT(!m_id.isValid(), return);
-    m_id = Core::Id::fromString(QUuid::createUuid().toString());
+    if (m_didAttemptToRun && !m_didRun) {
+        Utils::SynchronousProcessResponse response;
+        response.result = Utils::SynchronousProcessResponse::StartFailed;
+        return response;
+    }
+
+    Utils::SynchronousProcess cmake;
+    cmake.setTimeoutS(1);
+    cmake.setFlags(Utils::SynchronousProcess::UnixTerminalDisabled);
+    Utils::Environment env = Utils::Environment::systemEnvironment();
+    Utils::Environment::setupEnglishOutput(&env);
+    cmake.setProcessEnvironment(env.toProcessEnvironment());
+    cmake.setTimeOutMessageBoxEnabled(false);
+
+    Utils::SynchronousProcessResponse response = cmake.runBlocking(m_executable.toString(), args);
+    m_didAttemptToRun = true;
+    m_didRun = mayFail ? true : (response.result == Utils::SynchronousProcessResponse::Finished);
+    return response;
 }
 
 QVariantMap CMakeTool::toMap() const
 {
     QVariantMap data;
-    data.insert(QLatin1String(CMAKE_INFORMATION_DISPLAYNAME), m_displayName);
-    data.insert(QLatin1String(CMAKE_INFORMATION_ID), m_id.toSetting());
-    data.insert(QLatin1String(CMAKE_INFORMATION_COMMAND), m_executable.toString());
-    data.insert(QLatin1String(CMAKE_INFORMATION_AUTODETECTED), m_isAutoDetected);
+    data.insert(CMAKE_INFORMATION_DISPLAYNAME, m_displayName);
+    data.insert(CMAKE_INFORMATION_ID, m_id.toSetting());
+    data.insert(CMAKE_INFORMATION_COMMAND, m_executable.toString());
+    data.insert(CMAKE_INFORMATION_AUTORUN, m_isAutoRun);
+    data.insert(CMAKE_INFORMATION_AUTODETECTED, m_isAutoDetected);
     return data;
-}
-
-bool CMakeTool::startProcess(const QStringList &args)
-{
-    m_process->start(m_executable.toString(), args);
-    return m_process->waitForStarted(2000);
 }
 
 Utils::FileName CMakeTool::cmakeExecutable() const
 {
+    if (Utils::HostOsInfo::isMacHost() && m_executable.endsWith(".app")) {
+        Utils::FileName toTest = m_executable;
+        toTest = toTest.appendPath("Contents/bin/cmake");
+        if (toTest.exists())
+            return toTest;
+    }
     return m_executable;
 }
 
-bool CMakeTool::hasCodeBlocksMsvcGenerator() const
+bool CMakeTool::isAutoRun() const
 {
-    if (!isValid())
-        return false;
-    return m_hasCodeBlocksMsvcGenerator;
+    return m_isAutoRun;
 }
 
-bool CMakeTool::hasCodeBlocksNinjaGenerator() const
+QList<CMakeTool::Generator> CMakeTool::supportedGenerators() const
 {
-    if (!isValid())
-        return false;
-    return m_hasCodeBlocksNinjaGenerator;
+    readInformation(QueryType::GENERATORS);
+    return m_generators;
 }
 
 TextEditor::Keywords CMakeTool::keywords()
 {
-    while (m_state != RunningDone && m_state != CMakeTool::Invalid) {
-        m_process->waitForFinished();
+    if (m_functions.isEmpty()) {
+        Utils::SynchronousProcessResponse response;
+        response = run({ "--help-command-list" });
+        if (response.result == Utils::SynchronousProcessResponse::Finished)
+            m_functions = response.stdOut().split('\n');
+
+        response = run({ "--help-commands" });
+        if (response.result == Utils::SynchronousProcessResponse::Finished)
+            parseFunctionDetailsOutput(response.stdOut());
+
+        response = run({ "--help-property-list" });
+        if (response.result == Utils::SynchronousProcessResponse::Finished)
+            m_variables = parseVariableOutput(response.stdOut());
+
+        response = run({ "--help-variable-list" });
+        if (response.result == Utils::SynchronousProcessResponse::Finished) {
+            m_variables.append(parseVariableOutput(response.stdOut()));
+            m_variables = Utils::filteredUnique(m_variables);
+            Utils::sort(m_variables);
+        }
     }
 
-    if (m_state == CMakeTool::Invalid)
-        return TextEditor::Keywords(QStringList(), QStringList(), QMap<QString, QStringList>());
-
     return TextEditor::Keywords(m_variables, m_functions, m_functionArgs);
+}
+
+bool CMakeTool::hasServerMode() const
+{
+    readInformation(QueryType::SERVER_MODE);
+    return m_hasServerMode;
+}
+
+CMakeTool::Version CMakeTool::version() const
+{
+    readInformation(QueryType::VERSION);
+    return m_version;
 }
 
 bool CMakeTool::isAutoDetected() const
 {
     return m_isAutoDetected;
-}
-
-static void extractKeywords(const QByteArray &input, QStringList *destination)
-{
-    if (!destination)
-        return;
-
-    QString keyword;
-    int ignoreZone = 0;
-    for (int i = 0; i < input.count(); ++i) {
-        const QChar chr = QLatin1Char(input.at(i));
-        if (chr == QLatin1Char('{'))
-            ++ignoreZone;
-        if (chr == QLatin1Char('}'))
-            --ignoreZone;
-        if (ignoreZone == 0) {
-            if ((chr.isLetterOrNumber() && chr.isUpper())
-                || chr == QLatin1Char('_')) {
-                keyword += chr;
-            } else {
-                if (!keyword.isEmpty()) {
-                    if (keyword.size() > 1)
-                        *destination << keyword;
-                    keyword.clear();
-                }
-            }
-        }
-    }
-    if (keyword.size() > 1)
-        *destination << keyword;
-}
-
-void CMakeTool::parseFunctionOutput(const QByteArray &output)
-{
-    QList<QByteArray> cmakeFunctionsList = output.split('\n');
-    m_functions.clear();
-    if (!cmakeFunctionsList.isEmpty()) {
-        cmakeFunctionsList.removeFirst(); //remove version string
-        foreach (const QByteArray &function, cmakeFunctionsList)
-            m_functions << QString::fromLocal8Bit(function.trimmed());
-    }
-}
-
-QString CMakeTool::formatFunctionDetails(const QString &command, const QString &args)
-{
-    return QString::fromLatin1("<table><tr><td><b>%1</b></td><td>%2</td></tr>")
-            .arg(command.toHtmlEscaped(), args.toHtmlEscaped());
 }
 
 QString CMakeTool::displayName() const
@@ -289,85 +228,229 @@ void CMakeTool::setPathMapper(const CMakeTool::PathMapper &pathMapper)
     m_pathMapper = pathMapper;
 }
 
-QString CMakeTool::mapAllPaths(ProjectExplorer::Kit *kit, const QString &in) const
+CMakeTool::PathMapper CMakeTool::pathMapper() const
 {
     if (m_pathMapper)
-        return m_pathMapper(kit, in);
-    return in;
+        return m_pathMapper;
+    return [](const Utils::FileName &fn) { return fn; };
 }
 
-void CMakeTool::parseFunctionDetailsOutput(const QByteArray &output)
+void CMakeTool::readInformation(CMakeTool::QueryType type) const
 {
-    QStringList cmakeFunctionsList = m_functions;
-    QList<QByteArray> cmakeCommandsHelp = output.split('\n');
-    for (int i = 0; i < cmakeCommandsHelp.count(); ++i) {
-        QByteArray lineTrimmed = cmakeCommandsHelp.at(i).trimmed();
-        if (cmakeFunctionsList.isEmpty())
-            break;
-        if (cmakeFunctionsList.first().toLatin1() == lineTrimmed) {
-            QStringList commandSyntaxes;
-            QString currentCommandSyntax;
-            QString currentCommand = cmakeFunctionsList.takeFirst();
-            ++i;
-            for (; i < cmakeCommandsHelp.count(); ++i) {
-                lineTrimmed = cmakeCommandsHelp.at(i).trimmed();
+    if ((type == QueryType::GENERATORS && !m_generators.isEmpty())
+         || (type == QueryType::SERVER_MODE && m_queriedServerMode)
+         || (type == QueryType::VERSION && !m_version.fullVersion.isEmpty()))
+        return;
 
-                if (!cmakeFunctionsList.isEmpty() && cmakeFunctionsList.first().toLatin1() == lineTrimmed) {
-                    //start of next function in output
-                    if (!currentCommandSyntax.isEmpty())
-                        commandSyntaxes << currentCommandSyntax.append(QLatin1String("</table>"));
-                    --i;
-                    break;
-                }
-                if (lineTrimmed.startsWith(currentCommand.toLatin1() + "(")) {
-                    if (!currentCommandSyntax.isEmpty())
-                        commandSyntaxes << currentCommandSyntax.append(QLatin1String("</table>"));
+    if (!m_triedCapabilities) {
+        fetchFromCapabilities();
+        m_triedCapabilities = true;
+        m_queriedServerMode = true; // Got added after "-E capabilities" support!
+        if (type == QueryType::GENERATORS && !m_generators.isEmpty())
+            return;
+    }
 
-                    QByteArray argLine = lineTrimmed.mid(currentCommand.length());
-                    extractKeywords(argLine, &m_variables);
-                    currentCommandSyntax = formatFunctionDetails(currentCommand, QString::fromUtf8(argLine));
-                } else {
-                    if (!currentCommandSyntax.isEmpty()) {
-                        if (lineTrimmed.isEmpty()) {
-                            commandSyntaxes << currentCommandSyntax.append(QLatin1String("</table>"));
-                            currentCommandSyntax.clear();
-                        } else {
-                            extractKeywords(lineTrimmed, &m_variables);
-                            currentCommandSyntax += QString::fromLatin1("<tr><td>&nbsp;</td><td>%1</td></tr>")
-                                    .arg(QString::fromLocal8Bit(lineTrimmed).toHtmlEscaped());
-                        }
+    if (type == QueryType::GENERATORS) {
+        fetchGeneratorsFromHelp();
+    } else if (type == QueryType::SERVER_MODE) {
+        // Nothing to do...
+    } else if (type == QueryType::VERSION) {
+        fetchVersionFromVersionOutput();
+    } else {
+        QTC_ASSERT(false, return);
+    }
+}
+
+static QStringList parseDefinition(const QString &definition)
+{
+    QStringList result;
+    QString word;
+    bool ignoreWord = false;
+    QVector<QChar> braceStack;
+
+    foreach (const QChar &c, definition) {
+        if (c == '[' || c == '<' || c == '(') {
+            braceStack.append(c);
+            ignoreWord = false;
+        } else if (c == ']' || c == '>' || c == ')') {
+            if (braceStack.isEmpty() || braceStack.takeLast() == '<')
+                ignoreWord = true;
+        }
+
+        if (c == ' ' || c == '[' || c == '<' || c == '('
+                || c == ']' || c == '>' || c == ')') {
+            if (!ignoreWord && !word.isEmpty()) {
+                if (result.isEmpty() || Utils::allOf(word, [](const QChar &c) { return c.isUpper() || c == '_'; }))
+                    result.append(word);
+            }
+            word.clear();
+            ignoreWord = false;
+        } else {
+            word.append(c);
+        }
+    }
+    return result;
+}
+
+void CMakeTool::parseFunctionDetailsOutput(const QString &output)
+{
+    QSet<QString> functionSet;
+    functionSet.fromList(m_functions);
+
+    bool expectDefinition = false;
+    QString currentDefinition;
+
+    const QStringList lines = output.split('\n');
+    for (int i = 0; i < lines.count(); ++i) {
+        const QString line = lines.at(i);
+
+        if (line == "::") {
+            expectDefinition = true;
+            continue;
+        }
+
+        if (expectDefinition) {
+            if (!line.startsWith(' ') && !line.isEmpty()) {
+                expectDefinition = false;
+                QStringList words = parseDefinition(currentDefinition);
+                if (!words.isEmpty()) {
+                    const QString command = words.takeFirst();
+                    if (functionSet.contains(command)) {
+                        QStringList tmp = words + m_functionArgs[command];
+                        Utils::sort(tmp);
+                        m_functionArgs[command] = Utils::filteredUnique(tmp);
                     }
                 }
-            }
-            m_functionArgs[currentCommand] = commandSyntaxes;
-        }
-    }
-    m_functions = m_functionArgs.keys();
-}
-
-void CMakeTool::parseVariableOutput(const QByteArray &output)
-{
-    QList<QByteArray> variableList = output.split('\n');
-    if (!variableList.isEmpty()) {
-        variableList.removeFirst(); //remove version string
-        foreach (const QByteArray &variable, variableList) {
-            if (variable.contains("_<CONFIG>")) {
-                m_variables << QString::fromLocal8Bit(variable).replace(QLatin1String("_<CONFIG>"), QLatin1String("_DEBUG"));
-                m_variables << QString::fromLocal8Bit(variable).replace(QLatin1String("_<CONFIG>"), QLatin1String("_RELEASE"));
-                m_variables << QString::fromLocal8Bit(variable).replace(QLatin1String("_<CONFIG>"), QLatin1String("_MINSIZEREL"));
-                m_variables << QString::fromLocal8Bit(variable).replace(QLatin1String("_<CONFIG>"), QLatin1String("_RELWITHDEBINFO"));
-            } else if (variable.contains("_<LANG>")) {
-                m_variables << QString::fromLocal8Bit(variable).replace(QLatin1String("_<LANG>"), QLatin1String("_C"));
-                m_variables << QString::fromLocal8Bit(variable).replace(QLatin1String("_<LANG>"), QLatin1String("_CXX"));
-            } else if (!variable.contains("_<") && !variable.contains('[')) {
-                m_variables << QString::fromLocal8Bit(variable);
+                if (!words.isEmpty() && functionSet.contains(words.at(0)))
+                    m_functionArgs[words.at(0)];
+                currentDefinition.clear();
+            } else {
+                currentDefinition.append(line.trimmed() + ' ');
             }
         }
     }
 }
 
-void CMakeTool::parseDone()
+QStringList CMakeTool::parseVariableOutput(const QString &output)
 {
-    m_variables.sort();
-    m_variables.removeDuplicates();
+    const QStringList variableList = output.split('\n');
+    QStringList result;
+    foreach (const QString &v, variableList) {
+        if (v.startsWith("CMAKE_COMPILER_IS_GNU<LANG>")) { // This key takes a compiler name :-/
+            result << "CMAKE_COMPILER_IS_GNUCC" << "CMAKE_COMPILER_IS_GNUCXX";
+        } else if (v.contains("<CONFIG>")) {
+            const QString tmp = QString(v).replace("<CONFIG>", "%1");
+            result << tmp.arg("DEBUG") << tmp.arg("RELEASE")
+                   << tmp.arg("MINSIZEREL") << tmp.arg("RELWITHDEBINFO");
+        } else if (v.contains("<LANG>")) {
+            const QString tmp = QString(v).replace("<LANG>", "%1");
+            result << tmp.arg("C") << tmp.arg("CXX");
+        } else if (!v.contains('<') && !v.contains('[')) {
+            result << v;
+        }
+    }
+    return result;
 }
+
+void CMakeTool::fetchGeneratorsFromHelp() const
+{
+    Utils::SynchronousProcessResponse response = run({ "--help" });
+    if (response.result != Utils::SynchronousProcessResponse::Finished)
+        return;
+
+    bool inGeneratorSection = false;
+    QHash<QString, QStringList> generatorInfo;
+    const QStringList lines = response.stdOut().split('\n');
+    foreach (const QString &line, lines) {
+        if (line.isEmpty())
+            continue;
+        if (line == "Generators") {
+            inGeneratorSection = true;
+            continue;
+        }
+        if (!inGeneratorSection)
+            continue;
+
+        if (line.startsWith("  ") && line.at(3) != ' ') {
+            int pos = line.indexOf('=');
+            if (pos < 0)
+                pos = line.length();
+            if (pos >= 0) {
+                --pos;
+                while (pos > 2 && line.at(pos).isSpace())
+                    --pos;
+            }
+            if (pos > 2) {
+                const QString fullName = line.mid(2, pos - 1);
+                const int dashPos = fullName.indexOf(" - ");
+                QString generator;
+                QString extra;
+                if (dashPos < 0) {
+                    generator = fullName;
+                } else {
+                    extra = fullName.mid(0, dashPos);
+                    generator = fullName.mid(dashPos + 3);
+                }
+                QStringList value = generatorInfo.value(generator);
+                if (!extra.isEmpty())
+                    value.append(extra);
+                generatorInfo.insert(generator, value);
+            }
+        }
+    }
+
+    // Populate genertor list:
+    for (auto it = generatorInfo.constBegin(); it != generatorInfo.constEnd(); ++it)
+        m_generators.append(Generator(it.key(), it.value()));
+}
+
+void CMakeTool::fetchVersionFromVersionOutput() const
+{
+    Utils::SynchronousProcessResponse response = run({ "--version" });
+    if (response.result != Utils::SynchronousProcessResponse::Finished)
+        return;
+
+    QRegularExpression versionLine("^cmake version ((\\d+).(\\d+).(\\d+).*)$");
+    const QString responseText = response.stdOut();
+    for (const QStringRef &line : responseText.splitRef(QLatin1Char('\n'))) {
+        QRegularExpressionMatch match = versionLine.match(line);
+        if (!match.hasMatch())
+            continue;
+
+        m_version.major = match.captured(2).toInt();
+        m_version.minor = match.captured(3).toInt();
+        m_version.patch = match.captured(4).toInt();
+        m_version.fullVersion = match.captured(1).toUtf8();
+        break;
+    }
+}
+
+void CMakeTool::fetchFromCapabilities() const
+{
+    Utils::SynchronousProcessResponse response = run({ "-E", "capabilities" }, true);
+    if (response.result != Utils::SynchronousProcessResponse::Finished)
+        return;
+
+    auto doc = QJsonDocument::fromJson(response.stdOut().toUtf8());
+    if (!doc.isObject())
+        return;
+
+    const QVariantMap data = doc.object().toVariantMap();
+    m_hasServerMode = data.value("serverMode").toBool();
+    const QVariantList generatorList = data.value("generators").toList();
+    for (const QVariant &v : generatorList) {
+        const QVariantMap gen = v.toMap();
+        m_generators.append(Generator(gen.value("name").toString(),
+                                      gen.value("extraGenerators").toStringList(),
+                                      gen.value("platformSupport").toBool(),
+                                      gen.value("toolsetSupport").toBool()));
+    }
+
+    const QVariantMap versionInfo = data.value("version").toMap();
+    m_version.major = versionInfo.value("major").toInt();
+    m_version.minor = versionInfo.value("minor").toInt();
+    m_version.patch = versionInfo.value("patch").toInt();
+    m_version.fullVersion = versionInfo.value("string").toByteArray();
+}
+
+} // namespace CMakeProjectManager

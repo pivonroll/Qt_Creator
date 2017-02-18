@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef HELPVIEWER_H
-#define HELPVIEWER_H
+#pragma once
 
 #include <coreplugin/find/textfindconstants.h>
 
@@ -48,6 +42,12 @@ class HelpViewer : public QWidget
     Q_OBJECT
 
 public:
+    enum class Action {
+        NewPage = 0x01,
+        ExternalWindow = 0x02
+    };
+    Q_DECLARE_FLAGS(Actions, Action)
+
     explicit HelpViewer(QWidget *parent = 0);
     ~HelpViewer() { }
 
@@ -62,7 +62,6 @@ public:
     virtual QUrl source() const = 0;
     // metacall in HelpPlugin::updateSideBarSource
     Q_INVOKABLE virtual void setSource(const QUrl &url) = 0;
-    virtual void scrollToAnchor(const QString &anchor) = 0;
     virtual void highlightId(const QString &id) { Q_UNUSED(id) }
 
     virtual void setHtml(const QString &html) = 0;
@@ -72,7 +71,8 @@ public:
     virtual bool isBackwardAvailable() const = 0;
     virtual void addBackHistoryItems(QMenu *backMenu) = 0;
     virtual void addForwardHistoryItems(QMenu *forwardMenu) = 0;
-    virtual void setOpenInNewPageActionVisible(bool visible) = 0;
+    void setActionVisible(Action action, bool visible);
+    bool isActionVisible(Action action);
 
     virtual bool findText(const QString &text, Core::FindFlags flags,
         bool incremental, bool fromSearch, bool *wrapped = 0) = 0;
@@ -84,7 +84,6 @@ public:
     static QString mimeFromUrl(const QUrl &url);
     static bool launchWithExternalApp(const QUrl &url);
 
-public slots:
     void home();
 
     virtual void scaleUp() = 0;
@@ -103,13 +102,15 @@ signals:
     void forwardAvailable(bool);
     void backwardAvailable(bool);
     void loadFinished();
+    void newPageRequested(const QUrl &url);
+    void externalPageRequested(const QUrl &url);
 
-protected slots:
+protected:
     void slotLoadStarted();
     void slotLoadFinished();
+
+    Actions m_visibleActions = 0;
 };
 
 }   // namespace Internal
 }   // namespace Help
-
-#endif  // HELPVIEWER_H

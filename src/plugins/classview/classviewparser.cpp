@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Denis Mingulov
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Denis Mingulov
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -175,7 +170,7 @@ Parser::Parser(QObject *parent)
     connect(this, &Parser::resetDataDone, this, &Parser::onResetDataDone, Qt::QueuedConnection);
 
     // timer for emitting changes
-    connect(d->timer, SIGNAL(timeout()), SLOT(requestCurrentState()), Qt::QueuedConnection);
+    connect(d->timer.data(), &QTimer::timeout, this, &Parser::requestCurrentState, Qt::QueuedConnection);
 }
 
 /*!
@@ -651,7 +646,7 @@ void Parser::resetData(const CPlusPlus::Snapshot &snapshot)
     // check all projects
     foreach (const Project *prj, SessionManager::projects()) {
         if (prj)
-            fileList += prj->files(Project::ExcludeGeneratedFiles);
+            fileList += prj->files(Project::SourceFiles);
     }
     setFileList(fileList);
 
@@ -716,28 +711,19 @@ void Parser::emitCurrentTree()
     Generates a project node file list for the root node \a node.
 */
 
-QStringList Parser::projectNodeFileList(const FolderNode *node) const
+QStringList Parser::projectNodeFileList(const FolderNode *folderNode) const
 {
     QStringList list;
-    if (!node)
-        return list;
-
-    QList<FileNode *> fileNodes = node->fileNodes();
-    QList<FolderNode *> subFolderNodes = node->subFolderNodes();
-
-    foreach (const FileNode *file, fileNodes) {
-        if (file->isGenerated())
-            continue;
-
-        list << file->path().toString();
-    }
-
-    foreach (const FolderNode *folder, subFolderNodes) {
-        if (folder->nodeType() != FolderNodeType && folder->nodeType() != VirtualFolderNodeType)
-            continue;
-        list << projectNodeFileList(folder);
-    }
-
+    folderNode->forEachNode(
+        [&](FileNode *node) {
+            if (!node->isGenerated())
+                list.append(node->filePath().toString());
+        },
+        {},
+        [&](const FolderNode *node) {
+            return node->nodeType() == NodeType::Folder || node->nodeType() == NodeType::VirtualFolder;
+        }
+    );
     return list;
 }
 
@@ -754,7 +740,7 @@ QStringList Parser::addProjectNode(const ParserTreeItem::Ptr &item, const Projec
     if (!node)
         return projectList;
 
-    const QString nodePath = node->path().toString();
+    const QString nodePath = node->filePath().toString();
 
     // our own files
     QStringList fileList;
@@ -768,24 +754,24 @@ QStringList Parser::addProjectNode(const ParserTreeItem::Ptr &item, const Projec
         d->cachedPrjFileLists[nodePath] = fileList;
     }
     if (fileList.count() > 0) {
-        addProject(item, fileList, node->path().toString());
-        projectList << node->path().toString();
+        addProject(item, fileList, node->filePath().toString());
+        projectList << node->filePath().toString();
     }
 
     // subnodes
-    QList<ProjectNode *> projectNodes = node->subProjectNodes();
+    for (const Node *n : node->nodes()) {
+        if (const ProjectNode *project = n->asProjectNode()) {
+            ParserTreeItem::Ptr itemPrj(new ParserTreeItem());
+            SymbolInformation information(project->displayName(), project->filePath().toString());
 
-    foreach (const ProjectNode *project, projectNodes) {
-        ParserTreeItem::Ptr itemPrj(new ParserTreeItem());
-        SymbolInformation information(project->displayName(), project->path().toString());
+            projectList += addProjectNode(itemPrj, project);
 
-        projectList += addProjectNode(itemPrj, project);
+            itemPrj->setIcon(project->icon());
 
-        itemPrj->setIcon(project->icon());
-
-        // append child if item is not null and there is at least 1 child
-        if (!item.isNull() && itemPrj->childCount() > 0)
-            item->appendChild(itemPrj, information);
+            // append child if item is not null and there is at least 1 child
+            if (!item.isNull() && itemPrj->childCount() > 0)
+                item->appendChild(itemPrj, information);
+        }
     }
 
     return projectList;
@@ -798,7 +784,7 @@ QStringList Parser::getAllFiles(const ProjectNode *node)
     if (!node)
         return fileList;
 
-    const QString nodePath = node->path().toString();
+    const QString nodePath = node->filePath().toString();
 
     CitCachedPrjFileLists cit = d->cachedPrjFileLists.constFind(nodePath);
     // try to improve parsing speed by internal cache
@@ -809,10 +795,10 @@ QStringList Parser::getAllFiles(const ProjectNode *node)
         d->cachedPrjFileLists[nodePath] = fileList;
     }
     // subnodes
-    QList<ProjectNode *> projectNodes = node->subProjectNodes();
 
-    foreach (const ProjectNode *project, projectNodes)
-        fileList += getAllFiles(project);
+    for (const Node *n : node->nodes())
+        if (const ProjectNode *project = n->asProjectNode())
+            fileList += getAllFiles(project);
     return fileList;
 }
 
@@ -825,7 +811,7 @@ void Parser::addFlatTree(const ParserTreeItem::Ptr &item, const ProjectNode *nod
     fileList.removeDuplicates();
 
     if (fileList.count() > 0) {
-        addProject(item, fileList, node->path().toString());
+        addProject(item, fileList, node->filePath().toString());
     }
 }
 

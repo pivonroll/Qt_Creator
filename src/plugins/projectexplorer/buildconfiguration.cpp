@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -61,7 +56,7 @@ BuildConfiguration::BuildConfiguration(Target *target, Core::Id id) :
     m_clearSystemEnvironment(false)
 {
     Q_ASSERT(target);
-    BuildStepList *bsl = new BuildStepList(this, Core::Id(Constants::BUILDSTEPS_BUILD));
+    auto bsl = new BuildStepList(this, Core::Id(Constants::BUILDSTEPS_BUILD));
     //: Display name of the build build step list. Used as part of the labels in the project window.
     bsl->setDefaultDisplayName(tr("Build"));
     m_stepLists.append(bsl);
@@ -72,9 +67,10 @@ BuildConfiguration::BuildConfiguration(Target *target, Core::Id id) :
 
     emitEnvironmentChanged();
 
-    connect(target, SIGNAL(kitChanged()),
-            this, SLOT(handleKitUpdate()));
-    connect(this, SIGNAL(environmentChanged()), this, SLOT(emitBuildDirectoryChanged()));
+    connect(target, &Target::kitChanged,
+            this, &BuildConfiguration::handleKitUpdate);
+    connect(this, &BuildConfiguration::environmentChanged,
+            this, &BuildConfiguration::emitBuildDirectoryChanged);
 
     ctor();
 }
@@ -92,8 +88,8 @@ BuildConfiguration::BuildConfiguration(Target *target, BuildConfiguration *sourc
 
     emitEnvironmentChanged();
 
-    connect(target, SIGNAL(kitChanged()),
-            this, SLOT(handleKitUpdate()));
+    connect(target, &Target::kitChanged,
+            this, &BuildConfiguration::handleKitUpdate);
 
     ctor();
 }
@@ -108,13 +104,12 @@ void BuildConfiguration::ctor()
     expander->registerVariable("buildDir", tr("Build directory"),
             [this] { return buildDirectory().toUserOutput(); });
 
-    expander->registerVariable(Constants::VAR_CURRENTBUILD_NAME,
-            QCoreApplication::translate("ProjectExplorer", "Name of current build"),
+    expander->registerVariable(Constants::VAR_CURRENTBUILD_NAME, tr("Name of current build"),
             [this] { return displayName(); }, false);
-}
 
-BuildConfiguration::~BuildConfiguration()
-{
+    expander->registerPrefix(Constants::VAR_CURRENTBUILD_ENV,
+                             tr("Variables in the current build environment"),
+                             [this](const QString &var) { return environment().value(var); });
 }
 
 Utils::FileName BuildConfiguration::buildDirectory() const
@@ -130,6 +125,8 @@ Utils::FileName BuildConfiguration::rawBuildDirectory() const
 
 void BuildConfiguration::setBuildDirectory(const Utils::FileName &dir)
 {
+    if (dir == m_buildDirectory)
+        return;
     m_buildDirectory = dir;
     emitBuildDirectoryChanged();
 }
@@ -181,8 +178,8 @@ bool BuildConfiguration::fromMap(const QVariantMap &map)
             qWarning() << "No data for build step list" << i << "found!";
             continue;
         }
-        BuildStepList *list = new BuildStepList(this, data);
-        if (list->isNull()) {
+        auto list = new BuildStepList(this, Core::Id());
+        if (!list->fromMap(data)) {
             qWarning() << "Failed to restore build step list" << i;
             delete list;
             return false;
@@ -290,7 +287,7 @@ void BuildConfiguration::cloneSteps(BuildConfiguration *source)
     qDeleteAll(m_stepLists);
     m_stepLists.clear();
     foreach (BuildStepList *bsl, source->m_stepLists) {
-        BuildStepList *newBsl = new BuildStepList(this, bsl);
+        auto newBsl = new BuildStepList(this, bsl);
         newBsl->cloneSteps(bsl);
         m_stepLists.append(newBsl);
     }
@@ -304,6 +301,21 @@ bool BuildConfiguration::isEnabled() const
 QString BuildConfiguration::disabledReason() const
 {
     return QString();
+}
+
+QString BuildConfiguration::buildTypeName(BuildConfiguration::BuildType type)
+{
+    switch (type) {
+    case ProjectExplorer::BuildConfiguration::Debug:
+        return QLatin1String("debug");
+    case ProjectExplorer::BuildConfiguration::Profile:
+        return QLatin1String("profile");
+    case ProjectExplorer::BuildConfiguration::Release:
+        return QLatin1String("release");
+    case ProjectExplorer::BuildConfiguration::Unknown: // fallthrough
+    default:
+        return QLatin1String("unknown");
+    }
 }
 
 ///
@@ -339,7 +351,7 @@ IBuildConfigurationFactory *IBuildConfigurationFactory::find(Target *parent, con
 }
 
 // setup
-IBuildConfigurationFactory *IBuildConfigurationFactory::find(Kit *k, const QString &projectPath)
+IBuildConfigurationFactory *IBuildConfigurationFactory::find(const Kit *k, const QString &projectPath)
 {
     QList<IBuildConfigurationFactory *> factories
             = ExtensionSystem::PluginManager::instance()->getObjects<IBuildConfigurationFactory>();

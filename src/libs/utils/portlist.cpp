@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -40,7 +35,7 @@ namespace Utils {
 namespace Internal {
 namespace {
 
-typedef QPair<int, int> Range;
+typedef QPair<Port, Port> Range;
 
 class PortsSpecParser
 {
@@ -87,19 +82,19 @@ private:
 
     void parseElem()
     {
-        const int startPort = parsePort();
+        const Port startPort = parsePort();
         if (atEnd() || nextChar() != '-') {
             m_portList.addPort(startPort);
             return;
         }
         ++m_pos;
-        const int endPort = parsePort();
+        const Port endPort = parsePort();
         if (endPort < startPort)
             throw ParseException("Invalid range (end < start).");
         m_portList.addRange(startPort, endPort);
     }
 
-    int parsePort()
+    Port parsePort()
     {
         if (atEnd())
             throw ParseException("Empty port string.");
@@ -113,7 +108,7 @@ private:
         } while (!atEnd());
         if (port == 0 || port >= 2 << 16)
             throw ParseException("Invalid port value.");
-        return port;
+        return Port(port);
     }
 
     bool atEnd() const { return m_pos == m_portsSpec.length(); }
@@ -158,16 +153,16 @@ PortList PortList::fromString(const QString &portsSpec)
     return Internal::PortsSpecParser(portsSpec).parse();
 }
 
-void PortList::addPort(int port) { addRange(port, port); }
+void PortList::addPort(Port port) { addRange(port, port); }
 
-void PortList::addRange(int startPort, int endPort)
+void PortList::addRange(Port startPort, Port endPort)
 {
     d->ranges << Internal::Range(startPort, endPort);
 }
 
 bool PortList::hasMore() const { return !d->ranges.isEmpty(); }
 
-bool PortList::contains(int port) const
+bool PortList::contains(Port port) const
 {
     foreach (const Internal::Range &r, d->ranges) {
         if (port >= r.first && port <= r.second)
@@ -180,16 +175,17 @@ int PortList::count() const
 {
     int n = 0;
     foreach (const Internal::Range &r, d->ranges)
-        n += r.second - r.first + 1;
+        n += r.second.number() - r.first.number() + 1;
     return n;
 }
 
-int PortList::getNext()
+Port PortList::getNext()
 {
     Q_ASSERT(!d->ranges.isEmpty());
 
     Internal::Range &firstRange = d->ranges.first();
-    const int next = firstRange.first++;
+    const Port next = firstRange.first;
+    firstRange.first = Port(firstRange.first.number() + 1);
     if (firstRange.first > firstRange.second)
         d->ranges.removeFirst();
     return next;
@@ -199,9 +195,9 @@ QString PortList::toString() const
 {
     QString stringRep;
     foreach (const Internal::Range &range, d->ranges) {
-        stringRep += QString::number(range.first);
+        stringRep += QString::number(range.first.number());
         if (range.second != range.first)
-            stringRep += QLatin1Char('-') + QString::number(range.second);
+            stringRep += QLatin1Char('-') + QString::number(range.second.number());
         stringRep += QLatin1Char(',');
     }
     if (!stringRep.isEmpty())

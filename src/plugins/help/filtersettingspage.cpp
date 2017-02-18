@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -49,7 +44,7 @@ FilterSettingsPage::FilterSettingsPage()
     setDisplayName(tr("Filters"));
     setCategory(Help::Constants::HELP_CATEGORY);
     setDisplayCategory(QCoreApplication::translate("Help", Help::Constants::HELP_TR_CATEGORY));
-    setCategoryIcon(QLatin1String(Help::Constants::HELP_CATEGORY_ICON));
+    setCategoryIcon(Utils::Icon(Help::Constants::HELP_CATEGORY_ICON));
 }
 
 QWidget *FilterSettingsPage::widget()
@@ -68,8 +63,8 @@ QWidget *FilterSettingsPage::widget()
                 this, &FilterSettingsPage::addFilter);
         connect(m_ui.filterRemoveButton, &QPushButton::clicked,
                 this, &FilterSettingsPage::removeFilter);
-        connect(HelpManager::instance(), SIGNAL(documentationChanged()),
-                this, SLOT(updateFilterPage()));
+        connect(HelpManager::instance(), &HelpManager::documentationChanged,
+                this, &FilterSettingsPage::updateFilterPage);
     }
     return m_widget;
 }
@@ -226,8 +221,8 @@ void FilterSettingsPage::apply()
 
 void FilterSettingsPage::finish()
 {
-    disconnect(HelpManager::instance(), SIGNAL(documentationChanged()),
-        this, SLOT(updateFilterPage()));
+    disconnect(HelpManager::instance(), &HelpManager::documentationChanged,
+               this, &FilterSettingsPage::updateFilterPage);
     delete m_widget;
 }
 
@@ -248,7 +243,7 @@ QString FilterSettingsPage::msgFilterLabel(const QString &filter) const
 
     return tr("The filter \"%1\" will only show documentation files that"
               " have the attributes %2 specified.").
-            arg(filter, checkedList.join(QLatin1String(", ")));
+            arg(filter, checkedList.join(", "));
 }
 
 void FilterSettingsPage::updateFilterDescription(const QString &filter)

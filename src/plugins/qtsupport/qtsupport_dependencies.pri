@@ -1,7 +1,6 @@
 QTC_PLUGIN_NAME = QtSupport
 QTC_LIB_DEPENDS += \
     extensionsystem \
-    qmljs \
     utils
 QTC_PLUGIN_DEPENDS += \
     coreplugin \
@@ -12,5 +11,6 @@ DEFINES *= \
     PROPARSER_THREAD_SAFE \
     PROEVALUATOR_THREAD_SAFE \
     PROEVALUATOR_CUMULATIVE \
+    PROEVALUATOR_DUAL_VFS \
     PROEVALUATOR_SETENV
 INCLUDEPATH *= $$PWD/../../shared

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef FINDPLUGIN_H
-#define FINDPLUGIN_H
+#pragma once
 
 #include "textfindconstants.h"
 
@@ -41,70 +35,45 @@ QT_END_NAMESPACE
 
 namespace Core {
 class IFindFilter;
-class FindPluginPrivate;
+namespace Internal { class CorePlugin; }
 
-namespace Internal {
-class CorePlugin;
-class FindToolBar;
-class CurrentDocumentFind;
-} // namespace Internal
-
-class CORE_EXPORT FindPlugin : public QObject
+class CORE_EXPORT Find : public QObject
 {
     Q_OBJECT
 
 public:
-    FindPlugin();
-    virtual ~FindPlugin();
-
-    static FindPlugin *instance();
+    static Find *instance();
 
     enum FindDirection {
         FindForwardDirection,
         FindBackwardDirection
     };
 
-    FindFlags findFlags() const;
-    bool hasFindFlag(FindFlag flag);
-    void updateFindCompletion(const QString &text);
-    void updateReplaceCompletion(const QString &text);
-    QStringListModel *findCompletionModel() const;
-    QStringListModel *replaceCompletionModel() const;
-    void setUseFakeVim(bool on);
-    void openFindToolBar(FindDirection direction);
-    void openFindDialog(IFindFilter *filter);
+    static FindFlags findFlags();
+    static bool hasFindFlag(FindFlag flag);
+    static void updateFindCompletion(const QString &text);
+    static void updateReplaceCompletion(const QString &text);
+    static QStringListModel *findCompletionModel();
+    static QStringListModel *replaceCompletionModel();
+    static void setUseFakeVim(bool on);
+    static void openFindToolBar(FindDirection direction);
+    static void openFindDialog(IFindFilter *filter);
 
-    void initialize(const QStringList &, QString *);
-    void extensionsInitialized();
-    void aboutToShutdown();
-
-public slots:
-    void setCaseSensitive(bool sensitive);
-    void setWholeWord(bool wholeOnly);
-    void setBackward(bool backward);
-    void setRegularExpression(bool regExp);
-    void setPreserveCase(bool preserveCase);
+    static void setCaseSensitive(bool sensitive);
+    static void setWholeWord(bool wholeOnly);
+    static void setBackward(bool backward);
+    static void setRegularExpression(bool regExp);
+    static void setPreserveCase(bool preserveCase);
 
 signals:
     void findFlagsChanged();
 
-private slots:
-    void filterChanged();
-    void displayNameChanged();
-    void openFindFilter();
-    void writeSettings();
-
 private:
-    void setFindFlag(Core::FindFlag flag, bool enabled);
-    void updateCompletion(const QString &text, QStringList &completions, QStringListModel *model);
-    void setupMenu();
-    void setupFilterMenuItems();
-    void readSettings();
-
-    //variables
-    FindPluginPrivate *d;
+    friend class Internal::CorePlugin;
+    static void initialize();
+    static void extensionsInitialized();
+    static void aboutToShutdown();
+    static void destroy();
 };
 
 } // namespace Core
-
-#endif // FINDPLUGIN_H

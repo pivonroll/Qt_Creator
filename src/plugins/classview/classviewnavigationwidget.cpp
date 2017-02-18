@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Denis Mingulov
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Denis Mingulov
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,6 +31,9 @@
 #include "classviewconstants.h"
 
 #include <coreplugin/find/itemviewfind.h>
+
+#include <cplusplus/Icons.h>
+
 #include <utils/navigationtreeview.h>
 #include <utils/qtcassert.h>
 
@@ -114,28 +112,28 @@ NavigationWidget::NavigationWidget(QWidget *parent) :
 
     // connect signal/slots
     // selected item
-    connect(treeView, SIGNAL(activated(QModelIndex)), SLOT(onItemActivated(QModelIndex)));
+    connect(treeView, &QAbstractItemView::activated, this, &NavigationWidget::onItemActivated);
 
     // double-clicked item
-    connect(treeView, SIGNAL(doubleClicked(QModelIndex)), SLOT(onItemDoubleClicked(QModelIndex)));
+    connect(treeView, &QAbstractItemView::doubleClicked, this, &NavigationWidget::onItemDoubleClicked);
 
     // connections to the manager
     Manager *manager = Manager::instance();
 
-    connect(this, SIGNAL(visibilityChanged(bool)),
-            manager, SLOT(onWidgetVisibilityIsChanged(bool)));
+    connect(this, &NavigationWidget::visibilityChanged,
+            manager, &Manager::onWidgetVisibilityIsChanged);
 
-    connect(this, SIGNAL(requestGotoLocation(QString,int,int)),
-            manager, SLOT(gotoLocation(QString,int,int)));
+    connect(this, &NavigationWidget::requestGotoLocation,
+            manager, &Manager::gotoLocation);
 
-    connect(this, SIGNAL(requestGotoLocations(QList<QVariant>)),
-            manager, SLOT(gotoLocations(QList<QVariant>)));
+    connect(this, &NavigationWidget::requestGotoLocations,
+            manager, &Manager::gotoLocations);
 
-    connect(manager, SIGNAL(treeDataUpdate(QSharedPointer<QStandardItem>)),
-            this, SLOT(onDataUpdate(QSharedPointer<QStandardItem>)));
+    connect(manager, &Manager::treeDataUpdate,
+            this, &NavigationWidget::onDataUpdate);
 
-    connect(this, SIGNAL(requestTreeDataUpdate()),
-            manager, SLOT(onRequestTreeDataUpdate()));
+    connect(this, &NavigationWidget::requestTreeDataUpdate,
+            manager, &Manager::onRequestTreeDataUpdate);
 }
 
 NavigationWidget::~NavigationWidget()
@@ -175,7 +173,7 @@ QList<QToolButton *> NavigationWidget::createToolButtons()
         // create a button
         fullProjectsModeButton = new QToolButton();
         fullProjectsModeButton->setIcon(
-                QIcon(QLatin1String(":/classview/images/hierarchicalmode.png")));
+                    CPlusPlus::Icons::iconForType(CPlusPlus::Icons::ClassIconType));
         fullProjectsModeButton->setCheckable(true);
         fullProjectsModeButton->setToolTip(tr("Show Subprojects"));
 
@@ -183,8 +181,8 @@ QList<QToolButton *> NavigationWidget::createToolButtons()
         setFlatMode(false);
 
         // connections
-        connect(fullProjectsModeButton, SIGNAL(toggled(bool)),
-                this, SLOT(onFullProjectsModeToggled(bool)));
+        connect(fullProjectsModeButton.data(), &QAbstractButton::toggled,
+                this, &NavigationWidget::onFullProjectsModeToggled);
     }
 
     list << fullProjectsModeButton;

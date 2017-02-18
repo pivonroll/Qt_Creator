@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -110,9 +117,11 @@
                 You can build the application and deploy it to desktop,
                 embedded, and mobile target platforms.
 
-            \li Qt Quick Controls Application
+            \li Qt Quick Controls 2 Application
 
-                Create a Qt Quick application using Qt Quick Controls
+                Create a Qt Quick application using
+                \l{http://doc.qt.io/qt-5/qtquickcontrols2-index.html}
+                {Qt Quick Controls 2} (requires Qt 5.7 or later)
 
             \li Qt Canvas 3D Application
 
@@ -159,28 +168,27 @@
 
                 Qt unit tests for features or classes
 
-            \li Qt Auto Test (commercial only)
+            \li Auto Test Project
 
-                Projects with boilerplate code for an autotest. For more
-                information, see \l {Creating Autotests}.
+                Projects with boilerplate code for a Qt or Google test. For more
+                information, see \l {Creating Tests}.
 
             \li Qt Quick UI
 
                 Use a single QML file that contains the main view. You can
-                review Qt Quick UI projects in a \l{Previewing QML Files}
-                {preview tool} and you need not build them.
-
-            \li Qt Quick Controls UI
-
-                Like a Qt Quick UI project, but using Qt Quick Controls
+                review \l{Creating Qt Quick UI Projects}{Qt Quick UI projects}
+                in a \l{Previewing QML Files}{preview tool} and you need not
+                build them. Qt Quick UI projects cannot be deployed to embedded
+                or mobile target platforms. For those platforms, create a
+                Qt Quick application instead.
 
             \li Qt Custom Designer Widgets
 
                 Custom \QD widget or widget collection
 
-            \li Empty Qt Project
+            \li Empty qmake Project
 
-                Empty Qt project that is based on qmake but does not use any
+                Empty qmake project that is based on qmake but does not use any
                 default classes
 
             \li Subdirs Project
@@ -200,10 +208,21 @@
 
         \list
 
-            \li Plain C or C++ Project
+            \li Plain C or C++ Application
 
-                Plain C or C++ project that uses qmake, Qbs, or CMake but does
+                Plain C or C++ application that uses qmake, Qbs, or CMake but does
                 not use the Qt library
+
+            \li Nim Application (experimental)
+
+                \l{http://nim-lang.org/}{Nim} application that uses qmake
+                or CMake but does not use the Qt library
+
+                \note The \uicontrol {Nim Application} option becomes visible
+                after you enable the experimental Nim plugin. Select
+                \uicontrol Help > \uicontrol {About Plugins} >
+                \uicontrol {Other Languages} > \uicontrol Nim, and then restart
+                \QC.
 
         \endlist
 
@@ -216,6 +235,15 @@
             Import a project from a supported version control system. For more
             information on how version control systems are integrated in
             \QC, see \l{Using Version Control Systems}
+
+        \li Import as qmake Project
+
+            Import an existing project that does not use any of the supported
+            build systems: qmake, Qbs, CMake, or Autotools. The wizard creates
+            a qmake .pro file, which enables you to use \QC as a code editor and
+            as a launcher for debugging and analysis tools. However, if you want
+            to build the project, you might need to edit the generated .pro
+            file.
 
         \li Import Existing Project
 
@@ -262,6 +290,10 @@
 
         \list
 
+            \li Qt item model source and header files that you can use to create
+                classes derived from QAbstractItemModel, QAbstractTableModel, or
+                QAbstractListModel.
+
             \li \QD forms and \QD form classes, which specify parts of user
                 interfaces in Qt widget based projects
 
@@ -269,15 +301,29 @@
             application executable
 
         \li QML files, which specify items in Qt Quick projects.
-            \uicontrol {Qt Quick 1} creates a QML file that imports Qt Quick 1.1 and
-            \uicontrol {Qt Quick 2} creates a QML file that imports Qt Quick 2.0.
-            Select \uicontrol {Qt Quick 1} to add files to a Qt Quick 1 application
-            and \uicontrol {Qt Quick 2} to add files to a Qt Quick 2 application.
-            \uicontrol {Qt Quick UI File} creates an UI form (\e .ui.qml) and
-            the corresponding QML file.
+            \uicontrol {QML File (Qt Quick 2)} creates a QML file that imports
+            Qt Quick 2.0 and \uicontrol {Qt Quick UI File} creates an UI form
+            (\e .ui.qml) and the corresponding QML file.
 
         \li JavaScript files that you can use to write the application logic in
             Qt Quick projects
+
+        \endlist
+
+        \li Models and state charts
+
+        \list
+
+            \li Universal Modeling Language (UML) style models with structured
+                diagrams. However, the model editor uses a variant of UML and
+                provides only a subset of properties for specifying the
+                appearance of model elements. For more information, see
+                \l {Modeling}.
+
+            \li State Chart XML (SCXML) files that contain boilerplate code for
+                state machines. You can use the classes in the \l {Qt SCXML}
+                module to embed state machines created from the files in Qt
+                applications.
 
         \endlist
 
@@ -298,10 +344,24 @@
 
         \endlist
 
+        \li Java
+
+            Java class files that you can use to create Java classes.
+
         \li Python
 
             Python class and source files that you can use to create Python
             classes and scripts with UTF-8 encoding.
+
+        \li Nim (experimental)
+
+        \list
+
+            \li Nim script files.
+
+            \li Nim source files with UTF-8 encoding.
+
+        \endlist
 
     \endlist
 
@@ -311,7 +371,7 @@
     file for a new class that you can add to a C++ project. Specify the class
     name, base class, and header and source files for the class.
 
-    The  wizard supports namespaces. To use a namespace, enter a qualified
+    The wizard supports namespaces. To use a namespace, enter a qualified
     class name in the \uicontrol {Class name} field. For example:
     MyNamespace::MySubNamespace::MyClass.
 
@@ -321,8 +381,49 @@
     change the default suffix of a file, select \uicontrol Tools > \uicontrol Options >
     \uicontrol {C++} > \uicontrol {File Naming}.
 
+    \image qtcreator-options-cpp-files.png "File Naming tab in Options"
+
+    In the \uicontrol {License template} field, you can use
+    \l{Using Variables in Wizards}{predefined wizard variables} to specify the
+    path and filename of the license to use in the source and header files.
+
     You can create your own project and class wizards. For more information,
     see \l{Adding New Custom Wizards}.
+
+    \section2 Creating Resource Files
+
+    \QC supports the \l{The Qt Resource System}{Qt Resource System}, which is a
+    platform-independent mechanism for storing files in the application's
+    executable.
+
+    \image qtcreator-add-resource-wizard.png "New File or Project dialog"
+
+    The wizard creates a resource collection file (.qrc) that you can manage in
+    the resource editor.
+
+    \image qtcreator-add-resource.png "Editing resource files"
+
+    Select \uicontrol Add > \uicontrol {Add Files} to locate and add individual
+    files.
+
+    By default, resources are accessible in the application under the same file
+    name as they have in the source tree, with a \c{:/} prefix, or by a URL with
+    a \c qrc scheme. To specify a path prefix for all files in the \c .qrc file,
+    select \uicontrol Add > \uicontrol {Add Prefix} or enter the prefix in the
+    \uicontrol Prefix field.
+
+    Some resources need to change based on the user's locale, such as
+    translation files or icons. You can specify a locale in the
+    \uicontrol Language field.
+
+    Select \uicontrol Remove to remove the selected file from the resource
+    collection. In the \uicontrol {Remove File} dialog, select the
+    \uicontrol {Delete file permanently} check box to remove the file from
+    the file system. To remove files that cannot be found in the file system,
+    select \uicontrol {Remove Missing Files}.
+
+    The above functions are also available in the context menu in the
+    \uicontrol Projects view.
 
     \section2 Creating OpenGL Fragment and Vertex Shaders
 

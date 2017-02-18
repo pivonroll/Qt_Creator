@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef EDITORMANAGER_P_H
-#define EDITORMANAGER_P_H
+#pragma once
 
 #include "documentmodel.h"
 #include "editorarea.h"
@@ -56,7 +50,6 @@ class EditorManager;
 
 namespace Internal {
 
-class EditorClosingCoreListener;
 class MainWindow;
 class OpenEditorsViewFactory;
 class OpenEditorsWindow;
@@ -68,7 +61,15 @@ class EditorManagerPrivate : public QObject
     friend class Core::EditorManager;
 
 public:
+    enum class CloseFlag {
+        CloseWithAsking,
+        CloseWithoutAsking,
+        Suspend
+    };
+
     static EditorManagerPrivate *instance();
+
+    static void extensionsInitialized(); // only use from MainWindow
 
     static EditorArea *mainEditorArea();
     static EditorView *currentEditorView();
@@ -91,10 +92,11 @@ public:
                                    EditorManager::OpenEditorFlags flags = EditorManager::NoFlags);
     static IEditor *activateEditorForDocument(EditorView *view, IDocument *document,
                                               EditorManager::OpenEditorFlags flags = 0);
-    static void activateEditorForEntry(EditorView *view, DocumentModel::Entry *entry,
+    static bool activateEditorForEntry(EditorView *view, DocumentModel::Entry *entry,
                                        EditorManager::OpenEditorFlags flags = EditorManager::NoFlags);
     /* closes the document if there is no other editor on the document visible */
     static void closeEditorOrDocument(IEditor *editor);
+    static bool closeEditors(const QList<IEditor *> &editors, CloseFlag flag);
 
     static EditorView *viewForEditor(IEditor *editor);
     static void setCurrentView(EditorView *view);
@@ -111,6 +113,10 @@ public:
     static bool autoSaveEnabled();
     static void setAutoSaveInterval(int interval);
     static int autoSaveInterval();
+    static void setAutoSuspendEnabled(bool enabled);
+    static bool autoSuspendEnabled();
+    static void setAutoSuspendMinDocumentCount(int count);
+    static int autoSuspendMinDocumentCount();
     static void setWarnBeforeOpeningBigFilesEnabled(bool enabled);
     static bool warnBeforeOpeningBigFilesEnabled();
     static void setBigFileSizeLimit(int limitInMB);
@@ -136,15 +142,16 @@ public slots:
 
     static void split(Qt::Orientation orientation);
     static void removeAllSplits();
+    static void gotoPreviousSplit();
     static void gotoNextSplit();
 
     void handleDocumentStateChange();
-    static void editorAreaDestroyed(QObject *area);
+    void editorAreaDestroyed(QObject *area);
 
 signals:
     void placeholderTextChanged(const QString &text);
 
-private slots:
+private:
     static void gotoNextDocHistory();
     static void gotoPreviousDocHistory();
 
@@ -162,25 +169,23 @@ private slots:
 
     static void closeAllEditorsExceptVisible();
     static void revertToSaved(IDocument *document);
+    static void autoSuspendDocuments();
 
     static void showInGraphicalShell();
     static void openTerminal();
     static void findInDirectory();
 
-    static void split();
-    static void splitNewWindow();
     static void removeCurrentSplit();
 
     static void setCurrentEditorFromContextChange();
 
-private:
     static OpenEditorsWindow *windowPopup();
     static void showPopupOrSelectDocument();
 
     static EditorManager::EditorFactoryList findFactories(Id editorId, const QString &fileName);
     static IEditor *createEditor(IEditorFactory *factory, const QString &fileName);
     static void addEditor(IEditor *editor);
-    static void removeEditor(IEditor *editor);
+    static void removeEditor(IEditor *editor, bool removeSusependedEntry);
     static IEditor *placeEditor(EditorView *view, IEditor *editor);
     static void restoreEditorState(IEditor *editor);
     static int visibleDocumentsCount();
@@ -204,7 +209,7 @@ private:
     QPointer<IEditor> m_currentEditor;
     QPointer<IEditor> m_scheduledCurrentEditor;
     QPointer<EditorView> m_currentView;
-    QTimer *m_autoSaveTimer;
+    QTimer *m_autoSaveTimer = nullptr;
 
     // actions
     QAction *m_revertToSavedAction;
@@ -223,6 +228,7 @@ private:
     QAction *m_splitNewWindowAction;
     QAction *m_removeCurrentSplitAction;
     QAction *m_removeAllSplitsAction;
+    QAction *m_gotoPreviousSplitAction;
     QAction *m_gotoNextSplitAction;
 
     QAction *m_copyFilePathContextAction;
@@ -239,30 +245,32 @@ private:
     QAction *m_openGraphicalShellAction;
     QAction *m_openTerminalAction;
     QAction *m_findInDirectoryAction;
-    DocumentModel::Entry *m_contextMenuEntry;
-    IEditor *m_contextMenuEditor;
+    DocumentModel::Entry *m_contextMenuEntry = nullptr;
+    IEditor *m_contextMenuEditor = nullptr;
 
-    OpenEditorsWindow *m_windowPopup;
-    EditorClosingCoreListener *m_coreListener;
+    OpenEditorsWindow *m_windowPopup = nullptr;
 
     QMap<QString, QVariant> m_editorStates;
-    OpenEditorsViewFactory *m_openEditorsFactory;
+    OpenEditorsViewFactory *m_openEditorsFactory = nullptr;
 
-    IDocument::ReloadSetting m_reloadSetting;
+    IDocument::ReloadSetting m_reloadSetting = IDocument::AlwaysAsk;
 
     EditorManager::WindowTitleHandler m_titleAdditionHandler;
+    EditorManager::WindowTitleHandler m_sessionTitleHandler;
     EditorManager::WindowTitleHandler m_titleVcsTopicHandler;
 
-    bool m_autoSaveEnabled;
-    int m_autoSaveInterval;
+    bool m_autoSaveEnabled = true;
+    int m_autoSaveInterval = 5;
 
-    bool m_warnBeforeOpeningBigFilesEnabled;
-    int m_bigFileSizeLimitInMB;
+    bool m_autoSuspendEnabled = true;
+    int m_autoSuspendMinDocumentCount = 30;
+
+    bool m_warnBeforeOpeningBigFilesEnabled = true;
+    int m_bigFileSizeLimitInMB = 5;
 
     QString m_placeholderText;
+    QList<std::function<bool(IEditor *)>> m_closeEditorListeners;
 };
 
 } // Internal
 } // Core
-
-#endif // EDITORMANAGER_P_H

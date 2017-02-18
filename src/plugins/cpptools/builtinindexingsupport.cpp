@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,6 +32,7 @@
 #include "cppsourceprocessor.h"
 #include "cpptoolsconstants.h"
 #include "cpptoolsplugin.h"
+#include "cpptoolsreuse.h"
 #include "searchsymbols.h"
 
 #include <coreplugin/icore.h>
@@ -46,10 +42,11 @@
 #include <cplusplus/LookupContext.h>
 #include <utils/qtcassert.h>
 #include <utils/runextensions.h>
+#include <utils/temporarydirectory.h>
 
 #include <QCoreApplication>
-#include <QDir>
 #include <QElapsedTimer>
+#include <QRegularExpression>
 
 using namespace CppTools;
 using namespace CppTools::Internal;
@@ -61,9 +58,10 @@ namespace {
 class ParseParams
 {
 public:
-    ProjectPart::HeaderPaths headerPaths;
+    ProjectPartHeaderPaths headerPaths;
     WorkingCopy workingCopy;
     QSet<QString> sourceFiles;
+    int indexerFileSizeLimitInMb = -1;
 };
 
 class WriteTaskFileForDiagnostics
@@ -74,10 +72,9 @@ public:
     WriteTaskFileForDiagnostics()
         : m_processedDiagnostics(0)
     {
-        const QString fileName = QDir::tempPath()
-                + QLatin1String("/qtc_findErrorsIndexing.diagnostics.")
-                + QDateTime::currentDateTime().toString(QLatin1String("yyMMdd_HHmm"))
-                + QLatin1String(".tasks");
+        const QString fileName = Utils::TemporaryDirectory::masterDirectoryPath()
+                + "/qtc_findErrorsIndexing.diagnostics."
+                + QDateTime::currentDateTime().toString("yyMMdd_HHmm") + ".tasks";
 
         m_file.setFileName(fileName);
         Q_ASSERT(m_file.open(QIODevice::WriteOnly | QIODevice::Text));
@@ -160,7 +157,7 @@ void indexFindErrors(QFutureInterface<void> &future, const ParseParams params)
         // Parse the file as precisely as possible
         BuiltinEditorDocumentParser parser(file);
         parser.setReleaseSourceAndAST(false);
-        parser.update(BuiltinEditorDocumentParser::InMemoryInfo(false));
+        parser.update({CppModelManager::instance()->workingCopy(), nullptr, Language::Cxx, false});
         CPlusPlus::Document::Ptr document = parser.document();
         QTC_ASSERT(document, return);
 
@@ -184,6 +181,7 @@ void indexFindErrors(QFutureInterface<void> &future, const ParseParams params)
 void index(QFutureInterface<void> &future, const ParseParams params)
 {
     QScopedPointer<CppSourceProcessor> sourceProcessor(CppModelManager::createSourceProcessor());
+    sourceProcessor->setFileSizeLimitInMb(params.indexerFileSizeLimitInMb);
     sourceProcessor->setHeaderPaths(params.headerPaths);
     sourceProcessor->setWorkingCopy(params.workingCopy);
 
@@ -203,7 +201,7 @@ void index(QFutureInterface<void> &future, const ParseParams params)
     bool processingHeaders = false;
 
     CppModelManager *cmm = CppModelManager::instance();
-    const ProjectPart::HeaderPaths fallbackHeaderPaths = cmm->headerPaths();
+    const ProjectPartHeaderPaths fallbackHeaderPaths = cmm->headerPaths();
     const CPlusPlus::LanguageFeatures defaultFeatures =
             CPlusPlus::LanguageFeatures::defaultFeatures();
     for (int i = 0; i < files.size(); ++i) {
@@ -229,7 +227,7 @@ void index(QFutureInterface<void> &future, const ParseParams params)
             processingHeaders = true;
         }
 
-        ProjectPart::HeaderPaths headerPaths = parts.isEmpty()
+        ProjectPartHeaderPaths headerPaths = parts.isEmpty()
                 ? fallbackHeaderPaths
                 : parts.first()->headerPaths;
         sourceProcessor->setHeaderPaths(headerPaths);
@@ -283,11 +281,13 @@ public:
         CPlusPlus::Snapshot::const_iterator it = m_snapshot.begin();
 
         QString findString = (m_parameters.flags & Core::FindRegularExpression
-                              ? m_parameters.text : QRegExp::escape(m_parameters.text));
+                              ? m_parameters.text : QRegularExpression::escape(m_parameters.text));
         if (m_parameters.flags & Core::FindWholeWords)
             findString = QString::fromLatin1("\\b%1\\b").arg(findString);
-        QRegExp matcher(findString, (m_parameters.flags & Core::FindCaseSensitively
-                                     ? Qt::CaseSensitive : Qt::CaseInsensitive));
+        QRegularExpression matcher(findString, (m_parameters.flags & Core::FindCaseSensitively
+                                                ? QRegularExpression::NoPatternOption
+                                                : QRegularExpression::CaseInsensitiveOption));
+        matcher.optimize();
         while (it != m_snapshot.end()) {
             if (future.isPaused())
                 future.waitForResume();
@@ -296,7 +296,7 @@ public:
             if (m_fileNames.isEmpty() || m_fileNames.contains(it.value()->fileName())) {
                 QVector<Core::SearchResultItem> resultItems;
                 auto filter = [&](const IndexItem::Ptr &info) -> IndexItem::VisitorResult {
-                    if (matcher.indexIn(info->symbolName()) != -1) {
+                    if (matcher.match(info->symbolName()).hasMatch()) {
                         QString text = info->symbolName();
                         QString scope = info->symbolScope();
                         if (info->type() == IndexItem::Function) {
@@ -310,10 +310,7 @@ public:
                         Core::SearchResultItem item;
                         item.path = scope.split(QLatin1String("::"), QString::SkipEmptyParts);
                         item.text = text;
-                        item.textMarkPos = -1;
-                        item.textMarkLength = 0;
                         item.icon = info->icon();
-                        item.lineNumber = -1;
                         item.userData = qVariantFromValue(info);
                         resultItems << item;
                     }
@@ -354,11 +351,13 @@ QFuture<void> BuiltinIndexingSupport::refreshSourceFiles(const QSet<QString> &so
     CppModelManager *mgr = CppModelManager::instance();
 
     ParseParams params;
+    params.indexerFileSizeLimitInMb = indexerFileSizeLimitInMb();
     params.headerPaths = mgr->headerPaths();
     params.workingCopy = mgr->workingCopy();
+    params.workingCopy.insert(mgr->configurationFileName(), mgr->definedMacros());
     params.sourceFiles = sourceFiles;
 
-    QFuture<void> result = QtConcurrent::run(&parse, params);
+    QFuture<void> result = Utils::runAsync(mgr->sharedThreadPool(), parse, params);
 
     if (m_synchronizer.futures().size() > 10) {
         QList<QFuture<void> > futures = m_synchronizer.futures();

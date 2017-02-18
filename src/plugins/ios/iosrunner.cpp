@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -63,7 +58,7 @@ IosRunner::IosRunner(QObject *parent, IosRunConfiguration *runConfig, bool cppDe
       m_arguments(runConfig->commandLineArguments()),
       m_device(DeviceKitInformation::device(runConfig->target()->kit())),
       m_cppDebug(cppDebug), m_qmlDebugServices(qmlDebugServices), m_cleanExit(false),
-      m_qmlPort(0), m_pid(0)
+      m_pid(0)
 {
     m_deviceType = runConfig->deviceType();
 }
@@ -81,8 +76,8 @@ QString IosRunner::bundlePath()
 QStringList IosRunner::extraArgs()
 {
     QStringList res = m_arguments;
-    if (m_qmlPort != 0)
-        res << QmlDebug::qmlDebugCommandLineArguments(m_qmlDebugServices, m_qmlPort);
+    if (m_qmlPort.isValid())
+        res << QmlDebug::qmlDebugTcpArguments(m_qmlDebugServices, m_qmlPort);
     return res;
 }
 
@@ -118,7 +113,7 @@ void IosRunner::start()
         emit finished(m_cleanExit);
     }
     m_cleanExit = false;
-    m_qmlPort = 0;
+    m_qmlPort = Utils::Port();
     if (!QFileInfo::exists(m_bundleDir)) {
         TaskHub::addTask(Task::Warning,
                          tr("Could not find %1.").arg(m_bundleDir),
@@ -182,7 +177,8 @@ void IosRunner::handleDidStartApp(IosToolHandler *handler, const QString &bundle
 }
 
 void IosRunner::handleGotServerPorts(IosToolHandler *handler, const QString &bundlePath,
-                                         const QString &deviceId, int gdbPort, int qmlPort)
+                                     const QString &deviceId, Utils::Port gdbPort,
+                                     Utils::Port qmlPort)
 {
     Q_UNUSED(bundlePath); Q_UNUSED(deviceId);
     m_qmlPort = qmlPort;
@@ -205,8 +201,8 @@ void IosRunner::handleAppOutput(IosToolHandler *handler, const QString &output)
     QRegExp qmlPortRe(QLatin1String("QML Debugger: Waiting for connection on port ([0-9]+)..."));
     int index = qmlPortRe.indexIn(output);
     QString res(output);
-    if (index != -1 && m_qmlPort)
-       res.replace(qmlPortRe.cap(1), QString::number(m_qmlPort));
+    if (index != -1 && m_qmlPort.isValid())
+       res.replace(qmlPortRe.cap(1), QString::number(m_qmlPort.number()));
     emit appOutput(res);
 }
 
@@ -227,8 +223,8 @@ void IosRunner::handleErrorMsg(IosToolHandler *handler, const QString &msg)
     }
     QRegExp qmlPortRe(QLatin1String("QML Debugger: Waiting for connection on port ([0-9]+)..."));
     int index = qmlPortRe.indexIn(msg);
-    if (index != -1 && m_qmlPort)
-       res.replace(qmlPortRe.cap(1), QString::number(m_qmlPort));
+    if (index != -1 && m_qmlPort.isValid())
+       res.replace(qmlPortRe.cap(1), QString::number(m_qmlPort.number()));
     emit errorMsg(res);
 }
 

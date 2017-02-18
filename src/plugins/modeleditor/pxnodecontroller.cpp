@@ -1,7 +1,7 @@
-/***************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Jochen Becher
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Jochen Becher
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -139,13 +134,13 @@ void PxNodeController::addExplorerNode(const ProjectExplorer::Node *node,
     QTC_ASSERT(diagram, return);
 
     QString elementName = qmt::NameController::convertFileNameToElementName(
-                node->path().toString());
+                node->filePath().toString());
 
     switch (node->nodeType()) {
-    case ProjectExplorer::FileNodeType:
+    case ProjectExplorer::NodeType::File:
     {
         QStringList classNames = d->classViewController->findClassDeclarations(
-                    node->path().toString()).toList();
+                    node->filePath().toString()).toList();
         auto menu = new QMenu;
         menu->addAction(new MenuAction(tr("Add Component %1").arg(elementName), elementName,
                                        MenuAction::TYPE_ADD_COMPONENT, menu));
@@ -167,16 +162,16 @@ void PxNodeController::addExplorerNode(const ProjectExplorer::Node *node,
         menu->popup(QCursor::pos());
         break;
     }
-    case ProjectExplorer::FolderNodeType:
-    case ProjectExplorer::VirtualFolderNodeType:
-    case ProjectExplorer::ProjectNodeType:
+    case ProjectExplorer::NodeType::Folder:
+    case ProjectExplorer::NodeType::VirtualFolder:
+    case ProjectExplorer::NodeType::Project:
     {
         QString stereotype;
         switch (node->nodeType()) {
-        case ProjectExplorer::VirtualFolderNodeType:
+        case ProjectExplorer::NodeType::VirtualFolder:
             stereotype = QStringLiteral("virtual folder");
             break;
-        case ProjectExplorer::ProjectNodeType:
+        case ProjectExplorer::NodeType::Project:
             stereotype = QStringLiteral("project");
             break;
         default:
@@ -203,7 +198,7 @@ void PxNodeController::addExplorerNode(const ProjectExplorer::Node *node,
         menu->popup(QCursor::pos());
         break;
     }
-    case ProjectExplorer::SessionNodeType:
+    case ProjectExplorer::NodeType::Session:
         break;
     }
 }
@@ -219,15 +214,15 @@ qmt::MDiagram *PxNodeController::findDiagramForExplorerNode(const ProjectExplore
                 d->pxnodeUtilities->calcRelativePath(node, d->anchorFolder), false);
 
     QQueue<qmt::MPackage *> roots;
-    roots.append(d->diagramSceneController->getModelController()->getRootPackage());
+    roots.append(d->diagramSceneController->modelController()->rootPackage());
 
     while (!roots.isEmpty()) {
         qmt::MPackage *package = roots.takeFirst();
 
         // append all sub-packages of the same level as next root packages
-        foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+        foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
             if (handle.hasTarget()) {
-                if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.getTarget()))
+                if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.target()))
                     roots.append(childPackage);
             }
         }
@@ -239,10 +234,10 @@ qmt::MDiagram *PxNodeController::findDiagramForExplorerNode(const ProjectExplore
             QString relativeSearchId = qmt::NameController::calcElementNameSearchId(
                         relativeElements.at(relativeIndex));
             found = false;
-            foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+            foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
                 if (handle.hasTarget()) {
-                    if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.getTarget())) {
-                        if (qmt::NameController::calcElementNameSearchId(childPackage->getName()) == relativeSearchId) {
+                    if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.target())) {
+                        if (qmt::NameController::calcElementNameSearchId(childPackage->name()) == relativeSearchId) {
                             package = childPackage;
                             ++relativeIndex;
                             found = true;
@@ -257,13 +252,13 @@ qmt::MDiagram *PxNodeController::findDiagramForExplorerNode(const ProjectExplore
             QTC_ASSERT(relativeIndex >= relativeElements.size(), return 0);
             // complete package chain found so check for appropriate diagram within deepest package
             qmt::MDiagram *diagram = d->diagramSceneController->findDiagramBySearchId(
-                        package, package->getName());
+                        package, package->name());
             if (diagram)
                 return diagram;
             // find first diagram within deepest package
-            foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+            foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
                 if (handle.hasTarget()) {
-                    if (auto diagram = dynamic_cast<qmt::MDiagram *>(handle.getTarget()))
+                    if (auto diagram = dynamic_cast<qmt::MDiagram *>(handle.target()))
                         return diagram;
                 }
             }
@@ -286,7 +281,7 @@ void PxNodeController::onMenuActionTriggered(PxNodeController::MenuAction *actio
     case MenuAction::TYPE_ADD_COMPONENT:
     {
         auto component = new qmt::MComponent();
-        component->setFlags(qmt::MElement::REVERSE_ENGINEERED);
+        component->setFlags(qmt::MElement::ReverseEngineered);
         component->setName(action->elementName);
         newObject = component;
         break;
@@ -295,15 +290,8 @@ void PxNodeController::onMenuActionTriggered(PxNodeController::MenuAction *actio
     {
         // TODO handle template classes
         auto klass = new qmt::MClass();
-        klass->setFlags(qmt::MElement::REVERSE_ENGINEERED);
-        QString qualifiedName = action->className;
-        int i = qualifiedName.lastIndexOf(QStringLiteral("::"));
-        if (i >= 0) {
-            klass->setNamespace(qualifiedName.left(i));
-            klass->setName(qualifiedName.mid(i + 2));
-        } else {
-            klass->setName(qualifiedName);
-        }
+        klass->setFlags(qmt::MElement::ReverseEngineered);
+        parseFullClassName(klass, action->className);
         newObject = klass;
         break;
     }
@@ -311,7 +299,7 @@ void PxNodeController::onMenuActionTriggered(PxNodeController::MenuAction *actio
     case MenuAction::TYPE_ADD_PACKAGE_AND_DIAGRAM:
     {
             auto package = new qmt::MPackage();
-            package->setFlags(qmt::MElement::REVERSE_ENGINEERED);
+            package->setFlags(qmt::MElement::ReverseEngineered);
             package->setName(action->elementName);
             if (!action->packageStereotype.isEmpty())
                 package->setStereotypes(QStringList() << action->packageStereotype);
@@ -326,21 +314,20 @@ void PxNodeController::onMenuActionTriggered(PxNodeController::MenuAction *actio
     case MenuAction::TYPE_ADD_COMPONENT_MODEL:
     {
         auto package = new qmt::MPackage();
-        package->setFlags(qmt::MElement::REVERSE_ENGINEERED);
+        package->setFlags(qmt::MElement::ReverseEngineered);
         package->setName(action->elementName);
         if (!action->packageStereotype.isEmpty())
             package->setStereotypes(QStringList() << action->packageStereotype);
         auto folderNode = dynamic_cast<const ProjectExplorer::FolderNode *>(node);
-        QTC_CHECK(folderNode);
-        if (folderNode) {
-            d->diagramSceneController->getModelController()->getUndoController()->beginMergeSequence(tr("Create Component Model"));
+        if (QTC_GUARD(folderNode)) {
+            d->diagramSceneController->modelController()->undoController()->beginMergeSequence(tr("Create Component Model"));
             QStringList relativeElements = qmt::NameController::buildElementsPath(
                         d->pxnodeUtilities->calcRelativePath(folderNode, d->anchorFolder), true);
             if (qmt::MObject *existingObject = d->pxnodeUtilities->findSameObject(relativeElements, package)) {
                 delete package;
                 package = dynamic_cast<qmt::MPackage *>(existingObject);
                 QTC_ASSERT(package, return);
-                d->diagramSceneController->addExistingModelElement(package->getUid(), pos, diagram);
+                d->diagramSceneController->addExistingModelElement(package->uid(), pos, diagram);
             } else {
                 qmt::MPackage *requestedRootPackage = d->diagramSceneController->findSuitableParentPackage(topMostElementAtPos, diagram);
                 qmt::MPackage *bestParentPackage = d->pxnodeUtilities->createBestMatchingPackagePath(requestedRootPackage, relativeElements);
@@ -348,14 +335,16 @@ void PxNodeController::onMenuActionTriggered(PxNodeController::MenuAction *actio
             }
             d->componentViewController->createComponentModel(folderNode, diagram, d->anchorFolder);
             d->componentViewController->updateIncludeDependencies(package);
-            d->diagramSceneController->getModelController()->getUndoController()->endMergeSequence();
+            d->diagramSceneController->modelController()->undoController()->endMergeSequence();
+        } else {
+            delete package;
         }
         break;
     }
     }
 
     if (newObject) {
-        d->diagramSceneController->getModelController()->getUndoController()->beginMergeSequence(tr("Drop Node"));
+        d->diagramSceneController->modelController()->undoController()->beginMergeSequence(tr("Drop Node"));
         qmt::MObject *parentForDiagram = 0;
         QStringList relativeElements = qmt::NameController::buildElementsPath(
                     d->pxnodeUtilities->calcRelativePath(node, d->anchorFolder),
@@ -363,7 +352,7 @@ void PxNodeController::onMenuActionTriggered(PxNodeController::MenuAction *actio
         if (qmt::MObject *existingObject = d->pxnodeUtilities->findSameObject(relativeElements, newObject)) {
             delete newObject;
             newObject = 0;
-            d->diagramSceneController->addExistingModelElement(existingObject->getUid(), pos, diagram);
+            d->diagramSceneController->addExistingModelElement(existingObject->uid(), pos, diagram);
             parentForDiagram = existingObject;
         } else {
             qmt::MPackage *requestedRootPackage = d->diagramSceneController->findSuitableParentPackage(topMostElementAtPos, diagram);
@@ -376,12 +365,27 @@ void PxNodeController::onMenuActionTriggered(PxNodeController::MenuAction *actio
         if (newDiagramInObject) {
             auto package = dynamic_cast<qmt::MPackage *>(parentForDiagram);
             QTC_ASSERT(package, return);
-            if (d->diagramSceneController->findDiagramBySearchId(package, newDiagramInObject->getName()))
+            if (d->diagramSceneController->findDiagramBySearchId(package, newDiagramInObject->name()))
                 delete newDiagramInObject;
             else
-                d->diagramSceneController->getModelController()->addObject(package, newDiagramInObject);
+                d->diagramSceneController->modelController()->addObject(package, newDiagramInObject);
         }
-        d->diagramSceneController->getModelController()->getUndoController()->endMergeSequence();
+        d->diagramSceneController->modelController()->undoController()->endMergeSequence();
+    }
+}
+
+void PxNodeController::parseFullClassName(qmt::MClass *klass, const QString &fullClassName)
+{
+    QString umlNamespace;
+    QString className;
+    QStringList templateParameters;
+
+    if (qmt::NameController::parseClassName(fullClassName, &umlNamespace, &className, &templateParameters)) {
+        klass->setName(className);
+        klass->setUmlNamespace(umlNamespace);
+        klass->setTemplateParameters(templateParameters);
+    } else {
+        klass->setName(fullClassName);
     }
 }
 

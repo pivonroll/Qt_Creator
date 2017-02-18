@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -31,15 +31,15 @@ import "../common"
 FocusScope {
     id: root
 
-    height: expanded ? 136 : 32
+    height: expanded ? 136 : 40
     signal createNewState
     signal deleteState(int internalNodeId)
     signal duplicateCurrentState
 
     property int stateImageSize: 100
-    property int delegateWidth: stateImageSize + 10
+    property int delegateWidth: stateImageSize + 44
     property int padding: 2
-    property int delegateHeight: root.height - padding * 2
+    property int delegateHeight: root.height - padding * 2 + 1
     property int innerSpacing: -1
     property int currentStateInternalId : 0
 
@@ -57,7 +57,7 @@ FocusScope {
     Rectangle {
         id: background
         anchors.fill: parent
-        color: "#4f4f4f"
+        color: creatorTheme.QmlDesignerBackgroundColorDarkAlternate
     }
 
     MouseArea {
@@ -104,15 +104,22 @@ FocusScope {
             anchors.verticalCenter: parent.verticalCenter
             width: Math.max(parent.height / 2 - 8, 18)
             height: width
-            iconSource: "images/plus.png"
 
             onClicked: root.createNewState()
 
             style: ButtonStyle {
                 background: Rectangle {
-                    property color buttonBaseColor: "#6f6f6f"
+                    property color buttonBaseColor: Qt.darker(creatorTheme.QmlDesignerBackgroundColorDarkAlternate, 1.1)
                     color: control.hovered ? Qt.lighter(buttonBaseColor, 1.2)  : buttonBaseColor
+                    border.color: creatorTheme.QmlDesignerBorderColor
                     border.width: 1
+                    Image {
+                        source: "image://icons/plus"
+                        width: 16
+                        height: 16
+                        anchors.centerIn: parent
+                        smooth: false
+                    }
                 }
             }
         }
@@ -141,10 +148,12 @@ FocusScope {
                 height: delegateHeight
                 isBaseState: 0 == internalNodeId
                 isCurrentState: root.currentStateInternalId == internalNodeId
-                baseColor: isCurrentState ? Qt.darker(highlightColor, 1.2) : background.color
+                baseColor: isCurrentState ? creatorTheme.QmlDesigner_HighlightColor : background.color
                 delegateStateName: stateName
                 delegateStateImageSource: stateImageSource
                 delegateStateImageSize: stateImageSize
+                delegateHasWhenCondition: hasWhenCondition
+                delegateWhenConditionString: whenConditionString
             }
         }
     }

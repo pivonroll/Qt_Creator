@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -49,7 +49,6 @@ MoveTool::MoveTool(FormEditorView *editorView)
 {
     m_selectionIndicator.setCursor(Qt::SizeAllCursor);
 }
-
 
 MoveTool::~MoveTool()
 {
@@ -102,7 +101,12 @@ void MoveTool::mouseMoveEvent(const QList<QGraphicsItem*> &itemList,
         if (containerItem && view()->currentState().isBaseState()) {
             if (containerItem != m_movingItems.first()->parentItem()
                     && event->modifiers().testFlag(Qt::ShiftModifier)) {
-                m_moveManipulator.reparentTo(containerItem);
+
+                FormEditorItem *movingItem = m_movingItems.first();
+
+                if (m_movingItems.count() > 1
+                        || (movingItem->qmlItemNode().canBereparentedTo(containerItem->qmlItemNode())))
+                        m_moveManipulator.reparentTo(containerItem);
             }
         }
 
@@ -369,6 +373,10 @@ void MoveTool::formEditorItemsChanged(const QList<FormEditorItem*> &itemList)
     m_anchorIndicator.updateItems(selectedItemList);
     m_bindingIndicator.updateItems(selectedItemList);
     m_contentNotEditableIndicator.updateItems(selectedItemList);
+}
+
+void MoveTool::focusLost()
+{
 }
 
 }

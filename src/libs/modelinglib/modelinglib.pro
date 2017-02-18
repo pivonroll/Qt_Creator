@@ -1,6 +1,13 @@
 
 include(../../qtcreatorlibrary.pri)
 
-DEFINES += QMT_LIBRARY
+!isEmpty(QT.svg.name): QT += svg
+else: DEFINES += QT_NO_SVG
 
-include(../3rdparty/modeling/modeling.pri)
+DEFINES += MODELING_LIBRARY
+
+INCLUDEPATH += $$PWD $$PWD/qtserialization/inc
+
+include(qstringparser/qstringparser.pri)
+include(qtserialization/qtserialization.pri)
+include(qmt/qmt.pri)

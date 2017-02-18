@@ -8,7 +8,6 @@ QtcPlugin {
     Depends { name: "QmlDebug" }
     Depends { name: "Utils" }
 
-    Depends { name: "AnalyzerBase" }
     Depends { name: "Core" }
     Depends { name: "Debugger" }
     Depends { name: "ProjectExplorer" }
@@ -46,18 +45,18 @@ QtcPlugin {
         "qnxdeployconfigurationfactory.h",
         "qnxdeploystepfactory.cpp",
         "qnxdeploystepfactory.h",
-        "qnxdeviceconfiguration.cpp",
-        "qnxdeviceconfiguration.h",
-        "qnxdeviceconfigurationfactory.cpp",
-        "qnxdeviceconfigurationfactory.h",
-        "qnxdeviceconfigurationwizard.cpp",
-        "qnxdeviceconfigurationwizard.h",
-        "qnxdeviceconfigurationwizardpages.cpp",
-        "qnxdeviceconfigurationwizardpages.h",
+        "qnxdevice.cpp",
+        "qnxdevice.h",
+        "qnxdevicefactory.cpp",
+        "qnxdevicefactory.h",
+        "qnxdevicewizard.cpp",
+        "qnxdevicewizard.h",
         "qnxdeviceprocesslist.cpp",
         "qnxdeviceprocesslist.h",
         "qnxdeviceprocesssignaloperation.cpp",
         "qnxdeviceprocesssignaloperation.h",
+        "qnxdeviceprocess.cpp",
+        "qnxdeviceprocess.h",
         "qnxdevicetester.cpp",
         "qnxdevicetester.h",
         "qnxsettingswidget.cpp",
@@ -85,6 +84,7 @@ QtcPlugin {
         "qnxruncontrolfactory.h",
         "qnxutils.cpp",
         "qnxutils.h",
+        "qnx_export.h",
         "slog2inforunner.cpp",
         "slog2inforunner.h",
     ]

@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Hugues Delorme
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Hugues Delorme
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,24 +9,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+
 #include "bazaarclient.h"
 #include "constants.h"
 
@@ -34,8 +30,9 @@
 
 #include <vcsbase/vcsbaseplugin.h>
 #include <vcsbase/vcsoutputwindow.h>
-#include <vcsbase/vcsbaseeditorparameterwidget.h>
-#include <utils/synchronousprocess.h>
+#include <vcsbase/vcsbaseeditorconfig.h>
+
+#include <utils/hostosinfo.h>
 
 #include <QDir>
 #include <QFileInfo>
@@ -48,28 +45,13 @@ using namespace VcsBase;
 namespace Bazaar {
 namespace Internal {
 
-class BazaarDiffExitCodeInterpreter : public ExitCodeInterpreter
-{
-    Q_OBJECT
-public:
-    BazaarDiffExitCodeInterpreter(QObject *parent) : ExitCodeInterpreter(parent) {}
-    SynchronousProcessResponse::Result interpretExitCode(int code) const;
-};
-
-SynchronousProcessResponse::Result BazaarDiffExitCodeInterpreter::interpretExitCode(int code) const
-{
-    if (code < 0 || code > 2)
-        return SynchronousProcessResponse::FinishedError;
-    return SynchronousProcessResponse::Finished;
-}
-
 // Parameter widget controlling whitespace diff mode, associated with a parameter
-class BazaarDiffParameterWidget : public VcsBaseEditorParameterWidget
+class BazaarDiffConfig : public VcsBaseEditorConfig
 {
     Q_OBJECT
 public:
-    BazaarDiffParameterWidget(VcsBaseClientSettings &settings, QWidget *parent = 0) :
-        VcsBaseEditorParameterWidget(parent)
+    BazaarDiffConfig(VcsBaseClientSettings &settings, QToolBar *toolBar) :
+        VcsBaseEditorConfig(toolBar)
     {
         mapSetting(addToggleButton(QLatin1String("-w"), tr("Ignore Whitespace")),
                    settings.boolPointer(BazaarSettings::diffIgnoreWhiteSpaceKey));
@@ -81,7 +63,7 @@ public:
     {
         QStringList args;
         // Bazaar wants "--diff-options=-w -B.."
-        const QStringList formatArguments = VcsBaseEditorParameterWidget::arguments();
+        const QStringList formatArguments = VcsBaseEditorConfig::arguments();
         if (!formatArguments.isEmpty()) {
             const QString a = QLatin1String("--diff-options=")
                     + formatArguments.join(QString(QLatin1Char(' ')));
@@ -91,12 +73,12 @@ public:
     }
 };
 
-class BazaarLogParameterWidget : public VcsBaseEditorParameterWidget
+class BazaarLogConfig : public VcsBaseEditorConfig
 {
     Q_OBJECT
 public:
-    BazaarLogParameterWidget(VcsBaseClientSettings &settings, QWidget *parent = 0) :
-        VcsBaseEditorParameterWidget(parent)
+    BazaarLogConfig(VcsBaseClientSettings &settings, QToolBar *toolBar) :
+        VcsBaseEditorConfig(toolBar)
     {
         mapSetting(addToggleButton(QLatin1String("--verbose"), tr("Verbose"),
                                    tr("Show files changed in each revision.")),
@@ -120,8 +102,12 @@ public:
 
 BazaarClient::BazaarClient() : VcsBaseClient(new BazaarSettings)
 {
-    setDiffParameterWidgetCreator([this] { return new BazaarDiffParameterWidget(settings()); });
-    setLogParameterWidgetCreator([this] { return new BazaarLogParameterWidget(settings()); });
+    setDiffConfigCreator([this](QToolBar *toolBar) {
+        return new BazaarDiffConfig(settings(), toolBar);
+    });
+    setLogConfigCreator([this](QToolBar *toolBar) {
+        return new BazaarLogConfig(settings(), toolBar);
+    });
 }
 
 bool BazaarClient::synchronousSetUserId()
@@ -130,8 +116,8 @@ bool BazaarClient::synchronousSetUserId()
     args << QLatin1String("whoami")
          << (settings().stringValue(BazaarSettings::userNameKey) + QLatin1String(" <")
              + settings().stringValue(BazaarSettings::userEmailKey) + QLatin1Char('>'));
-    QByteArray stdOut;
-    return vcsFullySynchronousExec(QDir::currentPath(), args, &stdOut);
+    return vcsFullySynchronousExec(QDir::currentPath(), args).result
+            == SynchronousProcessResponse::Finished;
 }
 
 BranchInfo BazaarClient::synchronousBranchQuery(const QString &repositoryRoot) const
@@ -170,11 +156,10 @@ bool BazaarClient::synchronousUncommit(const QString &workingDir,
          << QLatin1String("--verbose") // Will print out what is being removed
          << revisionSpec(revision)
          << extraOptions;
-    QByteArray stdOut;
-    const bool success = vcsFullySynchronousExec(workingDir, args, &stdOut);
-    if (!stdOut.isEmpty())
-        VcsOutputWindow::append(QString::fromUtf8(stdOut));
-    return success;
+
+    const SynchronousProcessResponse result = vcsFullySynchronousExec(workingDir, args);
+    VcsOutputWindow::append(result.stdOut());
+    return result.result == SynchronousProcessResponse::Finished;
 }
 
 void BazaarClient::commit(const QString &repositoryRoot, const QStringList &files,
@@ -184,12 +169,18 @@ void BazaarClient::commit(const QString &repositoryRoot, const QStringList &file
                           QStringList(extraOptions) << QLatin1String("-F") << commitMessageFile);
 }
 
-void BazaarClient::annotate(const QString &workingDir, const QString &file,
-                            const QString &revision, int lineNumber,
-                            const QStringList &extraOptions)
+VcsBaseEditorWidget *BazaarClient::annotate(
+        const QString &workingDir, const QString &file, const QString &revision,
+        int lineNumber, const QStringList &extraOptions)
 {
-    VcsBaseClient::annotate(workingDir, file, revision, lineNumber,
-                            QStringList(extraOptions) << QLatin1String("--long"));
+    return VcsBaseClient::annotate(workingDir, file, revision, lineNumber,
+                                   QStringList(extraOptions) << QLatin1String("--long"));
+}
+
+bool BazaarClient::isVcsDirectory(const FileName &fileName) const
+{
+    return fileName.toFileInfo().isDir()
+            && !fileName.fileName().compare(Constants::BAZAARREPO, HostOsInfo::fileNameCaseSensitivity());
 }
 
 QString BazaarClient::findTopLevelForFile(const QFileInfo &file) const
@@ -207,10 +198,11 @@ bool BazaarClient::managesFile(const QString &workingDirectory, const QString &f
 {
     QStringList args(QLatin1String("status"));
     args << fileName;
-    QByteArray stdOut;
-    if (!vcsFullySynchronousExec(workingDirectory, args, &stdOut))
+
+    const SynchronousProcessResponse result = vcsFullySynchronousExec(workingDirectory, args);
+    if (result.result != SynchronousProcessResponse::Finished)
         return false;
-    return !stdOut.startsWith("unknown");
+    return result.rawStdOut.startsWith("unknown");
 }
 
 void BazaarClient::view(const QString &source, const QString &id, const QStringList &extraOptions)
@@ -244,14 +236,15 @@ QString BazaarClient::vcsCommandString(VcsCommandTag cmd) const
     }
 }
 
-ExitCodeInterpreter *BazaarClient::exitCodeInterpreter(VcsCommandTag cmd, QObject *parent) const
+ExitCodeInterpreter BazaarClient::exitCodeInterpreter(VcsCommandTag cmd) const
 {
-    switch (cmd) {
-    case DiffCommand:
-        return new BazaarDiffExitCodeInterpreter(parent);
-    default:
-        return 0;
+    if (cmd == DiffCommand) {
+        return [](int code) {
+            return (code < 0 || code > 2) ? SynchronousProcessResponse::FinishedError
+                                          : SynchronousProcessResponse::Finished;
+        };
     }
+    return Utils::defaultExitCodeInterpreter;
 }
 
 QStringList BazaarClient::revisionSpec(const QString &revision) const

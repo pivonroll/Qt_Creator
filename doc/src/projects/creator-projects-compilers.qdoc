@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -44,7 +51,7 @@
     \list
 
         \li GNU Compiler Collection (GCC) is a compiler for Linux and
-            OS X.
+            \macos.
 
         \li MinGW (Minimalist GNU for Windows) is a native software port of GCC
             and GNU Binutils for use in the development of native Microsoft
@@ -55,7 +62,9 @@
             for Linux.
 
         \li Clang is a C, C++, Objective C, and Objective C++ front-end for the
-            LLVM compiler for Windows, Linux, and OS X.
+            LLVM compiler for Windows, Linux, and \macos.
+
+        \li Nim is the Nim Compiler for Windows, Linux, and \macos.
 
         \li QCC is the interface for compiling C++ applications for QNX.
 
@@ -70,13 +79,14 @@
     You specify the compiler to use for each kit in \uicontrol Tools >
     \uicontrol Options > \uicontrol {Build & Run} > \uicontrol Kits.
 
-    To add compilers:
+    To add C or C++ compilers:
 
     \list 1
 
         \li Select \uicontrol Tools > \uicontrol Options >
-            \uicontrol {Build & Run} > \uicontrol Compilers > \uicontrol Add
-            and select a compiler in the list.
+            \uicontrol {Build & Run} > \uicontrol Compilers > \uicontrol Add,
+            then select a compiler in the list, and then select \uicontrol C or
+            \uicontrol C++ to add a C or C++ compiler.
 
             \image qtcreator-toolchains.png
 
@@ -104,6 +114,13 @@
 
     \endlist
 
+    \section1 Adding Nim Compilers
+
+    To build an application using the Nim Compiler, select  \uicontrol Tools >
+    \uicontrol Options > \uicontrol {Build & Run} > \uicontrol Compilers >
+    \uicontrol Add > \uicontrol Nim, and specify the path to the directory where
+    the compiler is located.
+
     \section1 Adding Custom Compilers
 
     To add a compiler that is not listed above or a remote compiler, use the
@@ -117,7 +134,8 @@
     \list 1
 
         \li Select \uicontrol Tools > \uicontrol Options > \uicontrol {Build & Run} >
-            \uicontrol Compilers > \uicontrol Add > \uicontrol Custom.
+            \uicontrol Compilers > \uicontrol Add > \uicontrol Custom >
+            \uicontrol C or \uicontrol C++.
 
         \li In the \uicontrol Name field, enter a name for the compiler.
 
@@ -150,6 +168,10 @@
 
             \image qtcreator-custom-parser.png
 
+            The custom error parser enables you to capture errors and warnings separately.
+            You can configure the error parser in the \uicontrol Error tab and the warning
+            parser in the \uicontrol Warning tab:
+
             \list 1
 
                 \li In the \uicontrol {Error message capture pattern} field, specify
@@ -162,6 +184,10 @@
                 \li In the \uicontrol {Capture Positions} field, map the regular
                     expression groups to \uicontrol {File name}, \uicontrol {Line number},
                     and \uicontrol Message.
+
+                \li In the \uicontrol {Capture Output Channels} field, specify whether
+                    messages from standard output, standard error, or both channels
+                    should be captured.
 
                 \li In the \uicontrol {Test} group, you can test how the message that
                     you enter in the \uicontrol {Error message} field is matched when

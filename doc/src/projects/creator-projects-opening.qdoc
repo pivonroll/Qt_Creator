@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -68,11 +75,33 @@
 
     \list 1
 
-        \li Select \uicontrol File > \uicontrol{Open File or Project} and select the project
-            to open.
+        \li Select \uicontrol File > \uicontrol {Open File or Project}
+            (\key Ctrl+O or \key Cmd+O on \macos) and select the project to
+            open.
 
         \li In the \uicontrol {Configure Project} tab, select kits for building and running your
             project, and click \uicontrol {Configure Project}.
+
+    \endlist
+
+    You can use the following keyboard shortcuts to open projects, depending on
+    the mode you are currently in:
+
+    \list
+
+        \li In all modes, select \key Ctrl+O (\key Cmd+O on \macos) to open the
+            \uicontrol {Open File} dialog, where you can select a project file
+            to open a project.
+
+        \li In all modes, except the \uicontrol Help mode, select
+            \key Ctrl+Shift+O (\key Cmd+Shift+O on \macos) to open the
+            \uicontrol {Load Project} dialog, where you can select a project
+            file to open a project.
+
+        \li In the \uicontrol Welcome mode, \uicontrol Projects tab, select
+            \key Ctrl+Shift+number (\key Cmd+Shift+number on \macos), where
+            the number is the number of a project in the list of recently opened
+            projects.
 
     \endlist
 

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -66,6 +61,7 @@
 #include <texteditor/fontsettings.h>
 #include <texteditor/tabsettings.h>
 #include <texteditor/texteditorconstants.h>
+#include <texteditor/texteditorsettings.h>
 #include <texteditor/syntaxhighlighter.h>
 #include <texteditor/refactoroverlay.h>
 #include <texteditor/codeassist/genericproposal.h>
@@ -82,9 +78,9 @@
 #include <QFileInfo>
 #include <QHeaderView>
 #include <QMenu>
+#include <QMetaMethod>
 #include <QPointer>
 #include <QScopedPointer>
-#include <QSignalMapper>
 #include <QTextCodec>
 #include <QTimer>
 #include <QTreeView>
@@ -151,11 +147,11 @@ void QmlJSEditorWidget::finalizeInitialization()
     connect(this->document(), &QTextDocument::modificationChanged,
             this, &QmlJSEditorWidget::modificationChanged);
 
-    connect(m_qmlJsEditorDocument, SIGNAL(updateCodeWarnings(QmlJS::Document::Ptr)),
-            this, SLOT(updateCodeWarnings(QmlJS::Document::Ptr)));
+    connect(m_qmlJsEditorDocument, &QmlJSEditorDocument::updateCodeWarnings,
+            this, &QmlJSEditorWidget::updateCodeWarnings);
 
-    connect(m_qmlJsEditorDocument, SIGNAL(semanticInfoUpdated(QmlJSTools::SemanticInfo)),
-            this, SLOT(semanticInfoUpdated(QmlJSTools::SemanticInfo)));
+    connect(m_qmlJsEditorDocument, &QmlJSEditorDocument::semanticInfoUpdated,
+            this, &QmlJSEditorWidget::semanticInfoUpdated);
 
     setRequestMarkEnabled(true);
     createToolBar();
@@ -194,12 +190,13 @@ static void appendExtraSelectionsForMessages(
             sel.cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, d.loc.length);
         }
 
-        if (d.isWarning())
-            sel.format.setUnderlineColor(Qt::darkYellow);
-        else
-            sel.format.setUnderlineColor(Qt::red);
+        const auto fontSettings = TextEditor::TextEditorSettings::instance()->fontSettings();
 
-        sel.format.setUnderlineStyle(QTextCharFormat::SingleUnderline);
+        if (d.isWarning())
+            sel.format = fontSettings.toTextCharFormat(TextEditor::C_WARNING);
+        else
+            sel.format = fontSettings.toTextCharFormat(TextEditor::C_ERROR);
+
         sel.format.setToolTip(d.message);
 
         selections->append(sel);
@@ -448,7 +445,9 @@ protected:
 
 void QmlJSEditorWidget::setSelectedElements()
 {
-    if (!receivers(SIGNAL(selectedElementsChanged(QList<QmlJS::AST::UiObjectMember*>,QString))))
+    static const QMetaMethod selectedChangedSignal =
+            QMetaMethod::fromSignal(&QmlJSEditorWidget::selectedElementsChanged);
+    if (!isSignalConnected(selectedChangedSignal))
         return;
 
     QTextCursor tc = textCursor();
@@ -543,11 +542,12 @@ void QmlJSEditorWidget::createToolBar()
     policy.setHorizontalPolicy(QSizePolicy::Expanding);
     m_outlineCombo->setSizePolicy(policy);
 
-    connect(m_outlineCombo, SIGNAL(activated(int)), this, SLOT(jumpToOutlineElement(int)));
-    connect(m_qmlJsEditorDocument->outlineModel(), SIGNAL(updated()),
-            m_outlineCombo->view()/*QTreeView*/, SLOT(expandAll()));
-    connect(m_qmlJsEditorDocument->outlineModel(), SIGNAL(updated()),
-            this, SLOT(updateOutlineIndexNow()));
+    connect(m_outlineCombo, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated),
+            this, &QmlJSEditorWidget::jumpToOutlineElement);
+    connect(m_qmlJsEditorDocument->outlineModel(), &QmlOutlineModel::updated,
+            static_cast<QTreeView *>(m_outlineCombo->view()), &QTreeView::expandAll);
+    connect(m_qmlJsEditorDocument->outlineModel(), &QmlOutlineModel::updated,
+            this, &QmlJSEditorWidget::updateOutlineIndexNow);
 
     connect(this, &QmlJSEditorWidget::cursorPositionChanged,
             &m_updateOutlineIndexTimer, static_cast<void (QTimer::*)()>(&QTimer::start));
@@ -688,17 +688,19 @@ void QmlJSEditorWidget::inspectElementUnderCursor() const
     const CppComponentValue *cppValue = findCppComponentToInspect(semanticInfo, cursorPosition);
     if (!cppValue) {
         QString title = tr("Code Model Not Available");
-        const QString nothingToShow = QStringLiteral("nothingToShow");
+        const QString documentId = Constants::QML_JS_EDITOR_PLUGIN + QStringLiteral(".NothingToShow");
         EditorManager::openEditorWithContents(Core::Constants::K_DEFAULT_TEXT_EDITOR_ID, &title,
-                                              tr("Code model not available.").toUtf8(), nothingToShow,
+                                              tr("Code model not available.").toUtf8(), documentId,
                                               EditorManager::IgnoreNavigationHistory);
         return;
     }
 
     QString title = tr("Code Model of %1").arg(cppValue->metaObject()->className());
+    const QString documentId = Constants::QML_JS_EDITOR_PLUGIN + QStringLiteral(".Class.")
+            + cppValue->metaObject()->className();
     IEditor *outputEditor = EditorManager::openEditorWithContents(
                 Core::Constants::K_DEFAULT_TEXT_EDITOR_ID, &title, QByteArray(),
-                cppValue->metaObject()->className(), EditorManager::IgnoreNavigationHistory);
+                documentId, EditorManager::IgnoreNavigationHistory);
 
     if (!outputEditor)
         return;
@@ -822,19 +824,12 @@ void QmlJSEditorWidget::showContextPane()
     }
 }
 
-void QmlJSEditorWidget::performQuickFix(int index)
-{
-    m_quickFixes.at(index)->perform();
-}
-
 void QmlJSEditorWidget::contextMenuEvent(QContextMenuEvent *e)
 {
     QPointer<QMenu> menu(new QMenu(this));
 
     QMenu *refactoringMenu = new QMenu(tr("Refactoring"), menu);
 
-    QSignalMapper mapper;
-    connect(&mapper, SIGNAL(mapped(int)), this, SLOT(performQuickFix(int)));
     if (!m_qmlJsEditorDocument->isSemanticInfoOutdated()) {
         AssistInterface *interface = createAssistInterface(QuickFix, ExplicitlyInvoked);
         if (interface) {
@@ -846,10 +841,8 @@ void QmlJSEditorWidget::contextMenuEvent(QContextMenuEvent *e)
                 for (int index = 0; index < model->size(); ++index) {
                     AssistProposalItem *item = static_cast<AssistProposalItem *>(model->proposalItem(index));
                     QuickFixOperation::Ptr op = item->data().value<QuickFixOperation::Ptr>();
-                    m_quickFixes.append(op);
                     QAction *action = refactoringMenu->addAction(op->description());
-                    mapper.setMapping(action, index);
-                    connect(action, SIGNAL(triggered()), &mapper, SLOT(map()));
+                    connect(action, &QAction::triggered, this, [op]() { op->perform(); });
                 }
                 delete model;
             }
@@ -876,9 +869,6 @@ void QmlJSEditorWidget::contextMenuEvent(QContextMenuEvent *e)
     appendStandardContextMenuActions(menu);
 
     menu->exec(e->globalPos());
-    if (!menu)
-        return;
-    m_quickFixes.clear();
     delete menu;
 }
 
@@ -1027,7 +1017,7 @@ QString QmlJSEditorWidget::foldReplacementText(const QTextBlock &block) const
 
 QmlJSEditor::QmlJSEditor()
 {
-    addContext(ProjectExplorer::Constants::LANG_QMLJS);
+    addContext(ProjectExplorer::Constants::QMLJS_LANGUAGE_ID);
 }
 
 bool QmlJSEditor::isDesignModePreferred() const
@@ -1039,9 +1029,8 @@ bool QmlJSEditor::isDesignModePreferred() const
         alwaysPreferDesignMode = true;
 
     // stay in design mode if we are there
-    IMode *mode = ModeManager::currentMode();
-    return alwaysPreferDesignMode
-            || (mode && mode->id() == Core::Constants::MODE_DESIGN);
+    Id mode = ModeManager::currentMode();
+    return alwaysPreferDesignMode || mode == Core::Constants::MODE_DESIGN;
 }
 
 

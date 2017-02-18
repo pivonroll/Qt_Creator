@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -74,17 +69,17 @@ namespace Internal {
     \sa ProjectExplorer::CustomWizard
 */
 
-CustomWizardFieldPage::LineEditData::LineEditData(QLineEdit* le, const QString &defText, const QString &pText) :
+CustomWizardFieldPage::LineEditData::LineEditData(QLineEdit *le, const QString &defText, const QString &pText) :
     lineEdit(le), defaultText(defText), placeholderText(pText)
 {
 }
 
-CustomWizardFieldPage::TextEditData::TextEditData(QTextEdit* le, const QString &defText) :
+CustomWizardFieldPage::TextEditData::TextEditData(QTextEdit *le, const QString &defText) :
     textEdit(le), defaultText(defText)
 {
 }
 
-CustomWizardFieldPage::PathChooserData::PathChooserData(PathChooser* pe, const QString &defText) :
+CustomWizardFieldPage::PathChooserData::PathChooserData(PathChooser *pe, const QString &defText) :
     pathChooser(pe), defaultText(defText)
 {
 }
@@ -98,7 +93,7 @@ CustomWizardFieldPage::CustomWizardFieldPage(const QSharedPointer<CustomWizardCo
     m_formLayout(new QFormLayout),
     m_errorLabel(new QLabel)
 {
-    QVBoxLayout *vLayout = new QVBoxLayout;
+    auto vLayout = new QVBoxLayout;
     m_formLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     if (debug)
         qDebug() << Q_FUNC_INFO << parameters->fields.size();
@@ -112,10 +107,6 @@ CustomWizardFieldPage::CustomWizardFieldPage(const QSharedPointer<CustomWizardCo
     setLayout(vLayout);
     if (!parameters->fieldPageTitle.isEmpty())
         setTitle(parameters->fieldPageTitle);
-}
-
-CustomWizardFieldPage::~CustomWizardFieldPage()
-{
 }
 
 void CustomWizardFieldPage::addRow(const QString &name, QWidget *w)
@@ -149,7 +140,7 @@ void CustomWizardFieldPage::addField(const CustomWizardField &field)\
     bool spansRow = false;
     // Check known classes: QComboBox
     const QString className = field.controlAttributes.value(QLatin1String("class"));
-    QWidget *fieldWidget = 0;
+    QWidget *fieldWidget = nullptr;
     if (className == QLatin1String("QComboBox")) {
         fieldWidget = registerComboBox(fieldName, field);
     } else if (className == QLatin1String("QTextEdit")) {
@@ -201,7 +192,7 @@ static void comboChoices(const CustomWizardField::ControlAttributeMap &controlAt
 QWidget *CustomWizardFieldPage::registerComboBox(const QString &fieldName,
                                                  const CustomWizardField &field)
 {
-    TextFieldComboBox *combo = new TextFieldComboBox;
+    auto combo = new TextFieldComboBox;
     do { // Set up items and current index
         QStringList values;
         QStringList displayTexts;
@@ -218,21 +209,21 @@ QWidget *CustomWizardFieldPage::registerComboBox(const QString &fieldName,
     } while (false);
     registerField(fieldName, combo, "text", SIGNAL(text4Changed(QString)));
     // Connect to completeChanged() for derived classes that reimplement isComplete()
-    connect(combo, SIGNAL(text4Changed(QString)), SIGNAL(completeChanged()));
+    connect(combo, &TextFieldComboBox::text4Changed, this, &QWizardPage::completeChanged);
     return combo;
 } // QComboBox
 
 QWidget *CustomWizardFieldPage::registerTextEdit(const QString &fieldName,
                                                  const CustomWizardField &field)
 {
-    QTextEdit *textEdit = new QTextEdit;
+    auto textEdit = new QTextEdit;
     // Suppress formatting by default (inverting QTextEdit's default value) when
     // pasting from Bug tracker, etc.
     const bool acceptRichText = field.controlAttributes.value(QLatin1String("acceptRichText")) == QLatin1String("true");
     textEdit->setAcceptRichText(acceptRichText);
     // Connect to completeChanged() for derived classes that reimplement isComplete()
     registerField(fieldName, textEdit, "plainText", SIGNAL(textChanged()));
-    connect(textEdit, SIGNAL(textChanged()), SIGNAL(completeChanged()));
+    connect(textEdit, &QTextEdit::textChanged, this, &QWizardPage::completeChanged);
     const QString defaultText = field.controlAttributes.value(QLatin1String("defaulttext"));
     m_textEdits.push_back(TextEditData(textEdit, defaultText));
     return textEdit;
@@ -241,7 +232,7 @@ QWidget *CustomWizardFieldPage::registerTextEdit(const QString &fieldName,
 QWidget *CustomWizardFieldPage::registerPathChooser(const QString &fieldName,
                                                  const CustomWizardField &field)
 {
-    PathChooser *pathChooser = new PathChooser;
+    auto pathChooser = new PathChooser;
     const QString expectedKind = field.controlAttributes.value(QLatin1String("expectedkind")).toLower();
     if (expectedKind == QLatin1String("existingdirectory"))
         pathChooser->setExpectedKind(PathChooser::ExistingDirectory);
@@ -259,7 +250,7 @@ QWidget *CustomWizardFieldPage::registerPathChooser(const QString &fieldName,
 
     registerField(fieldName, pathChooser, "path", SIGNAL(rawPathChanged(QString)));
     // Connect to completeChanged() for derived classes that reimplement isComplete()
-    connect(pathChooser, SIGNAL(rawPathChanged(QString)), SIGNAL(completeChanged()));
+    connect(pathChooser, &PathChooser::rawPathChanged, this, &QWizardPage::completeChanged);
     const QString defaultText = field.controlAttributes.value(QLatin1String("defaulttext"));
     m_pathChoosers.push_back(PathChooserData(pathChooser, defaultText));
     return pathChooser;
@@ -271,7 +262,7 @@ QWidget *CustomWizardFieldPage::registerCheckBox(const QString &fieldName,
 {
     typedef CustomWizardField::ControlAttributeMap::const_iterator AttributeMapConstIt;
 
-    TextFieldCheckBox *checkBox = new TextFieldCheckBox(fieldDescription);
+    auto checkBox = new TextFieldCheckBox(fieldDescription);
     const bool defaultValue = field.controlAttributes.value(QLatin1String("defaultvalue")) == QLatin1String("true");
     checkBox->setChecked(defaultValue);
     const AttributeMapConstIt trueTextIt = field.controlAttributes.constFind(QLatin1String("truevalue"));
@@ -282,14 +273,14 @@ QWidget *CustomWizardFieldPage::registerCheckBox(const QString &fieldName,
         checkBox->setFalseText(falseTextIt.value());
     registerField(fieldName, checkBox, "text", SIGNAL(textChanged(QString)));
     // Connect to completeChanged() for derived classes that reimplement isComplete()
-    connect(checkBox, SIGNAL(textChanged(QString)), SIGNAL(completeChanged()));
+    connect(checkBox, &TextFieldCheckBox::textChanged, this, &QWizardPage::completeChanged);
     return checkBox;
 }
 
 QWidget *CustomWizardFieldPage::registerLineEdit(const QString &fieldName,
                                                  const CustomWizardField &field)
 {
-    QLineEdit *lineEdit = new QLineEdit;
+    auto lineEdit = new QLineEdit;
 
     const QString validationRegExp = field.controlAttributes.value(QLatin1String("validator"));
     if (!validationRegExp.isEmpty()) {
@@ -301,7 +292,7 @@ QWidget *CustomWizardFieldPage::registerLineEdit(const QString &fieldName,
     }
     registerField(fieldName, lineEdit, "text", SIGNAL(textEdited(QString)));
     // Connect to completeChanged() for derived classes that reimplement isComplete()
-    connect(lineEdit, SIGNAL(textEdited(QString)), SIGNAL(completeChanged()));
+    connect(lineEdit, &QLineEdit::textEdited, this, &QWizardPage::completeChanged);
 
     const QString defaultText = field.controlAttributes.value(QLatin1String("defaulttext"));
     const QString placeholderText = field.controlAttributes.value(QLatin1String("placeholdertext"));
@@ -439,7 +430,7 @@ CustomWizardPage::CustomWizardPage(const QSharedPointer<CustomWizardContext> &ct
 {
     m_pathChooser->setHistoryCompleter(QLatin1String("PE.ProjectDir.History"));
     addRow(tr("Path:"), m_pathChooser);
-    connect(m_pathChooser, SIGNAL(validChanged(bool)), this, SIGNAL(completeChanged()));
+    connect(m_pathChooser, &PathChooser::validChanged, this, &QWizardPage::completeChanged);
 }
 
 QString CustomWizardPage::path() const

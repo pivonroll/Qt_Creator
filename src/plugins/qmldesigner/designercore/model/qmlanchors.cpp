@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -48,25 +48,25 @@ static PropertyName lineTypeToString(AnchorLineType lineType)
     }
 }
 
-static AnchorLineType propertyNameToLineType(const QString & string)
+static AnchorLineType propertyNameToLineType(const PropertyName & name)
 {
-    if (string == QStringLiteral("left"))
+    if (name == "left")
         return AnchorLineLeft;
-    else if (string == QStringLiteral("top"))
+    else if (name == "top")
         return AnchorLineTop;
-    else if (string == QStringLiteral("right"))
+    else if (name == "right")
         return AnchorLineRight;
-    else if (string == QStringLiteral("bottom"))
+    else if (name == "bottom")
         return AnchorLineBottom;
-    else if (string == QStringLiteral("horizontalCenter"))
+    else if (name == "horizontalCenter")
         return AnchorLineHorizontalCenter;
-    else if (string == QStringLiteral("verticalCenter"))
+    else if (name == "verticalCenter")
         return AnchorLineVerticalCenter;
-    else if (string == QStringLiteral("baseline"))
+    else if (name == "baseline")
         return AnchorLineVerticalCenter;
-    else if (string == QStringLiteral("centerIn"))
+    else if (name == "centerIn")
         return AnchorLineCenter;
-    else if (string == QStringLiteral("fill"))
+    else if (name == "fill")
         return AnchorLineFill;
 
     return AnchorLineInvalid;
@@ -173,9 +173,9 @@ void QmlAnchors::setAnchor(AnchorLineType sourceAnchorLine,
         ModelNode targetModelNode = targetQmlItemNode.modelNode();
         QString targetExpression = targetModelNode.validId();
         if (targetQmlItemNode.modelNode() == qmlItemNode().modelNode().parentProperty().parentModelNode())
-            targetExpression = "parent";
+            targetExpression = QLatin1String("parent");
         if (sourceAnchorLine != AnchorLineCenter && sourceAnchorLine != AnchorLineFill)
-            targetExpression = targetExpression + QLatin1Char('.') + lineTypeToString(targetAnchorLine);
+            targetExpression = targetExpression + QLatin1Char('.') + QString::fromLatin1(lineTypeToString(targetAnchorLine));
         qmlItemNode().modelNode().bindingProperty(propertyName).setExpression(targetExpression);
     }
 }
@@ -187,8 +187,8 @@ bool detectHorizontalCycle(const ModelNode &node, QList<ModelNode> knownNodeList
 
     knownNodeList.append(node);
 
-    static PropertyNameList validAnchorLines(PropertyNameList() << "right" << "left" << "horizontalCenter");
-    static PropertyNameList anchorNames(PropertyNameList() << "anchors.right" << "anchors.left" << "anchors.horizontalCenter");
+    static const PropertyNameList validAnchorLines({"right", "left", "horizontalCenter"});
+    static const PropertyNameList anchorNames({"anchors.right", "anchors.left", "anchors.horizontalCenter"});
 
     foreach (const PropertyName &anchorName, anchorNames) {
         if (node.hasBindingProperty(anchorName)) {
@@ -204,7 +204,7 @@ bool detectHorizontalCycle(const ModelNode &node, QList<ModelNode> knownNodeList
 
     }
 
-    static PropertyNameList anchorShortcutNames(PropertyNameList() << "anchors.fill" << "anchors.centerIn");
+    static const PropertyNameList anchorShortcutNames({"anchors.fill", "anchors.centerIn"});
     foreach (const PropertyName &anchorName, anchorShortcutNames) {
         if (node.hasBindingProperty(anchorName)) {
             ModelNode targetNode = node.bindingProperty(anchorName).resolveToModelNode();
@@ -227,8 +227,8 @@ bool detectVerticalCycle(const ModelNode &node, QList<ModelNode> knownNodeList)
 
     knownNodeList.append(node);
 
-    static PropertyNameList validAnchorLines(PropertyNameList() << "top" << "bottom" << "verticalCenter" << "baseline");
-    static PropertyNameList anchorNames(PropertyNameList() << "anchors.top" << "anchors.bottom" << "anchors.verticalCenter" << "anchors.baseline");
+    static const PropertyNameList validAnchorLines({"top", "bottom", "verticalCenter", "baseline"});
+    static const PropertyNameList anchorNames({"anchors.top", "anchors.bottom", "anchors.verticalCenter", "anchors.baseline"});
 
     foreach (const PropertyName &anchorName, anchorNames) {
         if (node.hasBindingProperty(anchorName)) {
@@ -244,7 +244,7 @@ bool detectVerticalCycle(const ModelNode &node, QList<ModelNode> knownNodeList)
 
     }
 
-    static PropertyNameList anchorShortcutNames(PropertyNameList() << "anchors.fill" << "anchors.centerIn");
+    static const PropertyNameList anchorShortcutNames({"anchors.fill", "anchors.centerIn"});
     foreach (const PropertyName &anchorName, anchorShortcutNames) {
         if (node.hasBindingProperty(anchorName)) {
             ModelNode targetNode = node.bindingProperty(anchorName).resolveToModelNode();
@@ -321,15 +321,15 @@ void QmlAnchors::removeAnchor(AnchorLineType sourceAnchorLine)
         const PropertyName propertyName = anchorPropertyName(sourceAnchorLine);
         if (qmlItemNode().nodeInstance().hasAnchor("anchors.fill") && (sourceAnchorLine & AnchorLineFill)) {
             qmlItemNode().modelNode().removeProperty("anchors.fill");
-            qmlItemNode().modelNode().bindingProperty("anchors.top").setExpression("parent.top");
-            qmlItemNode().modelNode().bindingProperty("anchors.left").setExpression("parent.left");
-            qmlItemNode().modelNode().bindingProperty("anchors.bottom").setExpression("parent.bottom");
-            qmlItemNode().modelNode().bindingProperty("anchors.right").setExpression("parent.right");
+            qmlItemNode().modelNode().bindingProperty("anchors.top").setExpression(QLatin1String("parent.top"));
+            qmlItemNode().modelNode().bindingProperty("anchors.left").setExpression(QLatin1String("parent.left"));
+            qmlItemNode().modelNode().bindingProperty("anchors.bottom").setExpression(QLatin1String("parent.bottom"));
+            qmlItemNode().modelNode().bindingProperty("anchors.right").setExpression(QLatin1String("parent.right"));
 
         } else if (qmlItemNode().nodeInstance().hasAnchor("anchors.centerIn") && (sourceAnchorLine & AnchorLineCenter)) {
             qmlItemNode().modelNode().removeProperty("anchors.centerIn");
-            qmlItemNode().modelNode().bindingProperty("anchors.horizontalCenter").setExpression("parent.horizontalCenter");
-            qmlItemNode().modelNode().bindingProperty("anchors.verticalCenter").setExpression("parent.verticalCenter");
+            qmlItemNode().modelNode().bindingProperty("anchors.horizontalCenter").setExpression(QLatin1String("parent.horizontalCenter"));
+            qmlItemNode().modelNode().bindingProperty("anchors.verticalCenter").setExpression(QLatin1String("parent.verticalCenter"));
         }
 
         qmlItemNode().modelNode().removeProperty(propertyName);
@@ -432,10 +432,8 @@ double QmlAnchors::instanceAnchorLine(AnchorLineType anchorLine) const
     case AnchorLineRight: return instanceRightAnchorLine();
     case AnchorLineHorizontalCenter: return instanceHorizontalCenterAnchorLine();
     case AnchorLineVerticalCenter: return instanceVerticalCenterAnchorLine();
-    default: return 0;
+    default: return 0.0;
     }
-
-    return 0.0;
 }
 
 void QmlAnchors::setMargin(AnchorLineType sourceAnchorLineType, double margin) const
@@ -549,7 +547,7 @@ void QmlAnchors::fill()
     if (instanceHasAnchors())
         removeAnchors();
 
-    qmlItemNode().modelNode().bindingProperty("anchors.fill").setExpression("parent");
+    qmlItemNode().modelNode().bindingProperty("anchors.fill").setExpression(QLatin1String("parent"));
 }
 
 void QmlAnchors::centerIn()
@@ -557,7 +555,7 @@ void QmlAnchors::centerIn()
     if (instanceHasAnchors())
         removeAnchors();
 
-    qmlItemNode().modelNode().bindingProperty("anchors.centerIn").setExpression("parent");
+    qmlItemNode().modelNode().bindingProperty("anchors.centerIn").setExpression(QLatin1String("parent"));
 }
 
 bool QmlAnchors::checkForCycle(AnchorLineType anchorLineTyp, const QmlItemNode &sourceItem) const

@@ -17,12 +17,11 @@ HEADERS += \
     cppfunctiondecldeflink.h \
     cpphighlighter.h \
     cpphoverhandler.h \
+    cppparsecontext.h \
     cppincludehierarchy.h \
-    cppincludehierarchyitem.h \
-    cppincludehierarchymodel.h \
-    cppincludehierarchytreeview.h \
     cppinsertvirtualmethods.h \
     cpplocalrenaming.h \
+    cppminimizableinfobars.h \
     cppoutline.h \
     cpppreprocessordialog.h \
     cppquickfix.h \
@@ -32,7 +31,8 @@ HEADERS += \
     cpptypehierarchy.h \
     cppuseselectionsupdater.h \
     cppvirtualfunctionassistprovider.h \
-    cppvirtualfunctionproposalitem.h
+    cppvirtualfunctionproposalitem.h \
+    resourcepreviewhoverhandler.h
 
 SOURCES += \
     cppautocompleter.cpp \
@@ -47,12 +47,11 @@ SOURCES += \
     cppfunctiondecldeflink.cpp \
     cpphighlighter.cpp \
     cpphoverhandler.cpp \
+    cppparsecontext.cpp \
     cppincludehierarchy.cpp \
-    cppincludehierarchyitem.cpp \
-    cppincludehierarchymodel.cpp \
-    cppincludehierarchytreeview.cpp \
     cppinsertvirtualmethods.cpp \
     cpplocalrenaming.cpp \
+    cppminimizableinfobars.cpp \
     cppoutline.cpp \
     cpppreprocessordialog.cpp \
     cppquickfix.cpp \
@@ -62,7 +61,8 @@ SOURCES += \
     cpptypehierarchy.cpp \
     cppuseselectionsupdater.cpp \
     cppvirtualfunctionassistprovider.cpp \
-    cppvirtualfunctionproposalitem.cpp
+    cppvirtualfunctionproposalitem.cpp \
+    resourcepreviewhoverhandler.cpp
 
 FORMS += \
     cpppreprocessordialog.ui \

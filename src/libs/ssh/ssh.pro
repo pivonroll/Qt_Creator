@@ -1,5 +1,5 @@
 QT += gui network
-DEFINES += QSSH_LIBRARY
+DEFINES += QTCSSH_LIBRARY
 
 include(../../qtcreatorlibrary.pri)
 
@@ -29,7 +29,11 @@ SOURCES = $$PWD/sshsendfacility.cpp \
     $$PWD/sshkeycreationdialog.cpp \
     $$PWD/sshinit.cpp \
     $$PWD/sshdirecttcpiptunnel.cpp \
-    $$PWD/sshhostkeydatabase.cpp
+    $$PWD/sshlogging.cpp \
+    $$PWD/sshhostkeydatabase.cpp \
+    $$PWD/sshtcpipforwardserver.cpp \
+    $$PWD/sshtcpiptunnel.cpp \
+    $$PWD/sshforwardedtcpiptunnel.cpp
 
 HEADERS = $$PWD/sshsendfacility_p.h \
     $$PWD/sshremoteprocess.h \
@@ -66,7 +70,13 @@ HEADERS = $$PWD/sshsendfacility_p.h \
     $$PWD/sshdirecttcpiptunnel_p.h \
     $$PWD/sshinit_p.h \
     $$PWD/sshdirecttcpiptunnel.h \
-    $$PWD/sshhostkeydatabase.h
+    $$PWD/sshlogging_p.h \
+    $$PWD/sshhostkeydatabase.h \
+    $$PWD/sshtcpipforwardserver.h \
+    $$PWD/sshtcpipforwardserver_p.h \
+    $$PWD/sshtcpiptunnel_p.h \
+    $$PWD/sshforwardedtcpiptunnel.h \
+    $$PWD/sshforwardedtcpiptunnel_p.h
 
 FORMS = $$PWD/sshkeycreationdialog.ui
 

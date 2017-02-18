@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -48,24 +43,24 @@ const char lastKitKey[] = "LastSelectedKit";
 
 KitChooser::KitChooser(QWidget *parent) :
     QWidget(parent),
-    m_kitMatcher([](const Kit *k) {
-        return k->isValid();
-    })
+    m_kitPredicate([](const Kit *k) { return k->isValid(); })
 {
     m_chooser = new QComboBox(this);
     m_chooser->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
     m_manageButton = new QPushButton(KitConfigWidget::msgManage(), this);
 
-    QHBoxLayout *layout = new QHBoxLayout(this);
+    auto layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_chooser);
     layout->addWidget(m_manageButton);
     setFocusProxy(m_manageButton);
 
-    connect(m_chooser, SIGNAL(currentIndexChanged(int)), SLOT(onCurrentIndexChanged(int)));
-    connect(m_chooser, SIGNAL(activated(int)), SIGNAL(activated(int)));
-    connect(m_manageButton, SIGNAL(clicked()), SLOT(onManageButtonClicked()));
-    connect(KitManager::instance(), SIGNAL(kitsChanged()), SLOT(populate()));
+    connect(m_chooser, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &KitChooser::onCurrentIndexChanged);
+    connect(m_chooser, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated),
+            this, &KitChooser::activated);
+    connect(m_manageButton, &QAbstractButton::clicked, this, &KitChooser::onManageButtonClicked);
+    connect(KitManager::instance(), &KitManager::kitsChanged, this, &KitChooser::populate);
 }
 
 void KitChooser::onManageButtonClicked()
@@ -96,7 +91,7 @@ void KitChooser::populate()
 {
     m_chooser->clear();
     foreach (Kit *kit, KitManager::sortKits(KitManager::kits())) {
-        if (m_kitMatcher(kit)) {
+        if (m_kitPredicate(kit)) {
             m_chooser->addItem(kitText(kit), qVariantFromValue(kit->id()));
             m_chooser->setItemData(m_chooser->count() - 1, kitToolTip(kit), Qt::ToolTipRole);
         }
@@ -119,7 +114,7 @@ Kit *KitChooser::currentKit() const
 {
     const int index = m_chooser->currentIndex();
     Core::ICore::settings()->setValue(QLatin1String(lastKitKey), index);
-    return index == -1 ? 0 : kitAt(index);
+    return index == -1 ? nullptr : kitAt(index);
 }
 
 void KitChooser::setCurrentKitId(Core::Id id)
@@ -138,16 +133,16 @@ Core::Id KitChooser::currentKitId() const
     return kit ? kit->id() : Core::Id();
 }
 
-void KitChooser::setKitMatcher(const KitChooser::KitMatcher &matcher)
+void KitChooser::setKitPredicate(const Kit::Predicate &predicate)
 {
-    m_kitMatcher = matcher;
+    m_kitPredicate = predicate;
     populate();
 }
 
 Kit *KitChooser::kitAt(int index) const
 {
-    Core::Id id = qvariant_cast<Core::Id>(m_chooser->itemData(index));
-    return KitManager::find(id);
+    auto id = qvariant_cast<Core::Id>(m_chooser->itemData(index));
+    return KitManager::kit(id);
 }
 
 } // namespace ProjectExplorer

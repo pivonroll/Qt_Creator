@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Denis Shienkov <denis.shienkov@gmail.com>
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 Denis Shienkov <denis.shienkov@gmail.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,6 +30,7 @@
 
 #include <coreplugin/icore.h>
 #include <extensionsystem/pluginmanager.h>
+#include <projectexplorer/projectexplorerconstants.h>
 
 #include <utils/detailswidget.h>
 #include <utils/qtcassert.h>
@@ -52,6 +48,7 @@
 #include <QTextStream>
 #include <QTreeView>
 #include <QVBoxLayout>
+#include <QGroupBox>
 
 using namespace Utils;
 
@@ -99,7 +96,7 @@ public:
 
 
 GdbServerProviderModel::GdbServerProviderModel(QObject *parent)
-    : TreeModel(parent)
+    : TreeModel<>(parent)
 {
     setHeader({tr("Name"), tr("Type")});
 
@@ -138,7 +135,7 @@ void GdbServerProviderModel::apply()
     QTC_ASSERT(m_providersToRemove.isEmpty(), m_providersToRemove.clear());
 
     // Update providers
-    foreach (TreeItem *item, rootItem()->children()) {
+    for (TreeItem *item : *rootItem()) {
         auto n = static_cast<GdbServerProviderNode *>(item);
         if (!n->changed)
             continue;
@@ -176,7 +173,7 @@ GdbServerProviderNode *GdbServerProviderModel::findNode(const GdbServerProvider 
         return static_cast<GdbServerProviderNode *>(item)->provider == provider;
     };
 
-    return static_cast<GdbServerProviderNode *>(Utils::findOrDefault(rootItem()->children(), test));
+    return static_cast<GdbServerProviderNode *>(Utils::findOrDefault(*rootItem(), test));
 }
 
 QModelIndex GdbServerProviderModel::indexForProvider(GdbServerProvider *provider) const
@@ -189,7 +186,7 @@ void GdbServerProviderModel::markForRemoval(GdbServerProvider *provider)
 {
     GdbServerProviderNode *n = findNode(provider);
     QTC_ASSERT(n, return);
-    delete takeItem(n);
+    destroyItem(n);
 
     if (m_providersToAdd.contains(provider)) {
         m_providersToAdd.removeOne(provider);
@@ -212,7 +209,7 @@ GdbServerProviderNode *GdbServerProviderModel::createNode(
     auto n = new GdbServerProviderNode(provider, changed);
     if (n->widget) {
         connect(n->widget, &GdbServerProviderConfigWidget::dirty, this, [this, n] {
-            foreach (TreeItem *item, rootItem()->children()) {
+            for (TreeItem *item : *rootItem()) {
                 auto nn = static_cast<GdbServerProviderNode *>(item);
                 if (nn->widget == n->widget) {
                     nn->changed = true;
@@ -238,7 +235,7 @@ void GdbServerProviderModel::removeProvider(GdbServerProvider *provider)
 {
     m_providersToRemove.removeAll(provider);
     if (GdbServerProviderNode *n = findNode(provider))
-        delete takeItem(n);
+        destroyItem(n);
 
     emit providerStateChanged();
 }
@@ -298,9 +295,15 @@ GdbServerProvidersSettingsWidget::GdbServerProvidersSettingsWidget
     verticalLayout->addWidget(m_providerView);
     verticalLayout->addLayout(buttonLayout);
 
-    auto horizontalLayout = new QHBoxLayout(this);
+    auto horizontalLayout = new QHBoxLayout();
     horizontalLayout->addLayout(verticalLayout);
     horizontalLayout->addWidget(m_container);
+
+    auto groupBox = new QGroupBox(tr("GDB Server Providers"), this);
+    groupBox->setLayout(horizontalLayout);
+
+    auto topLayout = new QVBoxLayout(this);
+    topLayout->addWidget(groupBox);
 
     connect(&m_model, &GdbServerProviderModel::providerStateChanged,
             this, &GdbServerProvidersSettingsWidget::updateState);
@@ -416,12 +419,11 @@ QModelIndex GdbServerProvidersSettingsWidget::currentIndex() const
 GdbServerProvidersSettingsPage::GdbServerProvidersSettingsPage(QObject *parent)
     : Core::IOptionsPage(parent)
 {
-    setCategory(Constants::BAREMETAL_SETTINGS_CATEGORY);
-    setDisplayCategory(QCoreApplication::translate(
-                       "BareMetal", Constants::BAREMETAL_SETTINGS_TR_CATEGORY));
-    setCategoryIcon(QLatin1String(Constants::BAREMETAL_SETTINGS_CATEGORY_ICON));
     setId(Constants::GDB_PROVIDERS_SETTINGS_ID);
-    setDisplayName(tr("GDB Server Providers"));
+    setDisplayName(tr("Bare Metal"));
+    setCategory(ProjectExplorer::Constants::DEVICE_SETTINGS_CATEGORY);
+    setDisplayCategory(QCoreApplication::translate("ProjectExplorer",
+                                       ProjectExplorer::Constants::DEVICE_SETTINGS_TR_CATEGORY));
 }
 
 QWidget *GdbServerProvidersSettingsPage::widget()
@@ -441,9 +443,10 @@ void GdbServerProvidersSettingsPage::finish()
 {
     if (m_configWidget)
         disconnect(GdbServerProviderManager::instance(), &GdbServerProviderManager::providersChanged,
-                   m_configWidget.data(), &GdbServerProvidersSettingsWidget::providerSelectionChanged);
+                   m_configWidget, &GdbServerProvidersSettingsWidget::providerSelectionChanged);
 
-    delete m_configWidget.data();
+    delete m_configWidget;
+    m_configWidget = 0;
 }
 
 } // namespace Internal

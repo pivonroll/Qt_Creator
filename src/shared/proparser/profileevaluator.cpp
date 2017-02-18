@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "profileevaluator.h"
 
 #include "qmakeglobals.h"
+#include "qmakevfs.h"
 #include "ioutils.h"
 
 #include <QDir>
@@ -44,9 +40,10 @@ void ProFileEvaluator::initialize()
     QMakeEvaluator::initStatics();
 }
 
-ProFileEvaluator::ProFileEvaluator(ProFileGlobals *option, QMakeParser *parser, QMakeVfs *vfs,
+ProFileEvaluator::ProFileEvaluator(QMakeGlobals *option, QMakeParser *parser, QMakeVfs *vfs,
                                    QMakeHandler *handler)
-  : d(new QMakeEvaluator(option, parser, vfs, handler))
+  : d(new QMakeEvaluator(option, parser, vfs, handler)),
+    m_vfs(vfs)
 {
 }
 
@@ -79,76 +76,86 @@ QStringList ProFileEvaluator::values(const QString &variableName) const
     return ret;
 }
 
-QStringList ProFileEvaluator::values(const QString &variableName, const ProFile *pro) const
+QVector<ProFileEvaluator::SourceFile> ProFileEvaluator::fixifiedValues(
+        const QString &variable, const QString &baseDirectory, const QString &buildDirectory) const
 {
-    // It makes no sense to put any kind of magic into expanding these
-    const ProStringList &values = d->m_valuemapStack.first().value(ProKey(variableName));
-    QStringList ret;
-    ret.reserve(values.size());
-    foreach (const ProString &str, values)
-        if (str.sourceFile() == pro)
-            ret << d->m_option->expandEnvVars(str.toQString());
-    return ret;
+    QVector<SourceFile> result;
+    foreach (const ProString &str, d->values(ProKey(variable))) {
+        const QString &el = d->m_option->expandEnvVars(str.toQString());
+        if (IoUtils::isAbsolutePath(el)) {
+            result << SourceFile{ QDir::cleanPath(el), str.sourceFile() };
+        } else {
+            QString fn = QDir::cleanPath(baseDirectory + QLatin1Char('/') + el);
+            if (IoUtils::exists(fn))
+                result << SourceFile{ fn, str.sourceFile() };
+            else
+                result << SourceFile{ QDir::cleanPath(buildDirectory + QLatin1Char('/') + el),
+                                      str.sourceFile() };
+        }
+    }
+    return result;
 }
 
-QString ProFileEvaluator::sysrootify(const QString &path, const QString &baseDir) const
+QStringList ProFileEvaluator::sourcesToFiles(const QVector<ProFileEvaluator::SourceFile> &sources)
 {
-    ProFileGlobals *option = static_cast<ProFileGlobals *>(d->m_option);
-#ifdef Q_OS_WIN
-    Qt::CaseSensitivity cs = Qt::CaseInsensitive;
-#else
-    Qt::CaseSensitivity cs = Qt::CaseSensitive;
-#endif
-    const bool isHostSystemPath =
-        option->sysroot.isEmpty() || path.startsWith(option->sysroot, cs)
-        || path.startsWith(baseDir, cs) || path.startsWith(d->m_outputDir, cs)
-        || !QFileInfo::exists(option->sysroot + path);
-
-    return isHostSystemPath ? path : option->sysroot + path;
+    QStringList result;
+    result.reserve(sources.size());
+    for (const auto &src : sources)
+        result << src.fileName;
+    return result;
 }
 
+// VFS note: all search paths are assumed to be real.
 QStringList ProFileEvaluator::absolutePathValues(
         const QString &variable, const QString &baseDirectory) const
 {
     QStringList result;
     foreach (const QString &el, values(variable)) {
-        QString absEl = IoUtils::isAbsolutePath(el)
-            ? sysrootify(el, baseDirectory) : IoUtils::resolvePath(baseDirectory, el);
+        QString absEl = IoUtils::resolvePath(baseDirectory, el);
         if (IoUtils::fileType(absEl) == IoUtils::FileIsDir)
-            result << QDir::cleanPath(absEl);
+            result << absEl;
     }
     return result;
 }
 
-QStringList ProFileEvaluator::absoluteFileValues(
+QVector<ProFileEvaluator::SourceFile> ProFileEvaluator::absoluteFileValues(
         const QString &variable, const QString &baseDirectory, const QStringList &searchDirs,
-        const ProFile *pro) const
+        QHash<ProString, bool> *handled) const
 {
-    QStringList result;
-    foreach (const QString &el, pro ? values(variable, pro) : values(variable)) {
+    QMakeVfs::VfsFlags flags = (d->m_cumulative ? QMakeVfs::VfsCumulative : QMakeVfs::VfsExact);
+    QVector<SourceFile> result;
+    foreach (const ProString &str, d->values(ProKey(variable))) {
+        bool &seen = (*handled)[str];
+        if (seen)
+            continue;
+        seen = true;
+        const QString &el = d->m_option->expandEnvVars(str.toQString());
         QString absEl;
         if (IoUtils::isAbsolutePath(el)) {
-            const QString elWithSysroot = sysrootify(el, baseDirectory);
-            if (IoUtils::exists(elWithSysroot)) {
-                result << QDir::cleanPath(elWithSysroot);
+            QString fn = QDir::cleanPath(el);
+            if (m_vfs->exists(fn, flags)) {
+                result << SourceFile{ fn, str.sourceFile() };
                 goto next;
             }
-            absEl = elWithSysroot;
+            absEl = fn;
         } else {
             foreach (const QString &dir, searchDirs) {
-                QString fn = dir + QLatin1Char('/') + el;
-                if (IoUtils::exists(fn)) {
-                    result << QDir::cleanPath(fn);
+                QString fn = QDir::cleanPath(dir + QLatin1Char('/') + el);
+                if (m_vfs->exists(fn, flags)) {
+                    result << SourceFile{ fn, str.sourceFile() };
                     goto next;
                 }
             }
             if (baseDirectory.isEmpty())
                 goto next;
-            absEl = baseDirectory + QLatin1Char('/') + el;
+            absEl = QDir::cleanPath(baseDirectory + QLatin1Char('/') + el);
         }
         {
-            absEl = QDir::cleanPath(absEl);
             int nameOff = absEl.lastIndexOf(QLatin1Char('/'));
+            if (nameOff < 0) {
+                // The entry is garbage (possibly after env var expansion)
+                goto next;
+            }
             QString absDir = d->m_tmp1.setRawData(absEl.constData(), nameOff);
             if (IoUtils::exists(absDir)) {
                 QString wildcard = d->m_tmp2.setRawData(absEl.constData() + nameOff + 1,
@@ -156,9 +163,10 @@ QStringList ProFileEvaluator::absoluteFileValues(
                 if (wildcard.contains(QLatin1Char('*')) || wildcard.contains(QLatin1Char('?'))) {
                     wildcard.detach(); // Keep m_tmp out of QRegExp's cache
                     QDir theDir(absDir);
+                    theDir.setFilter(theDir.filter() & ~QDir::AllDirs);
                     foreach (const QString &fn, theDir.entryList(QStringList(wildcard)))
                         if (fn != QLatin1String(".") && fn != QLatin1String(".."))
-                            result << absDir + QLatin1Char('/') + fn;
+                            result << SourceFile{ absDir + QLatin1Char('/') + fn, str.sourceFile() };
                 } // else if (acceptMissing)
             }
         }

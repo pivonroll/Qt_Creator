@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -42,6 +37,7 @@
 #include <projectexplorer/toolchainmanager.h>
 #include <projectexplorer/projectexplorer.h>
 
+#include <utils/algorithm.h>
 #include <utils/environment.h>
 #include <utils/hostosinfo.h>
 
@@ -67,14 +63,16 @@ static const char ANDROID_NDK_TC_VERION[] = "Qt4ProjectManager.Android.NDK_TC_VE
 QHash<Abi, QList<int> > AndroidToolChainFactory::m_newestVersionForAbi;
 FileName AndroidToolChainFactory::m_ndkLocation;
 
-AndroidToolChain::AndroidToolChain(const Abi &abi, const QString &ndkToolChainVersion, Detection d)
+AndroidToolChain::AndroidToolChain(const Abi &abi, const QString &ndkToolChainVersion, Core::Id l, Detection d)
     : GccToolChain(Constants::ANDROID_TOOLCHAIN_ID, d),
       m_ndkToolChainVersion(ndkToolChainVersion), m_secondaryToolChain(false)
 {
+    setLanguage(l);
     setTargetAbi(abi);
-    setDisplayName(QString::fromLatin1("Android GCC (%1-%2)")
-                   .arg(AndroidConfig::displayName(targetAbi()))
-                   .arg(ndkToolChainVersion));
+    setDisplayName(QString::fromLatin1("Android GCC (%1, %2-%3)")
+                   .arg(ToolChainManager::displayNameOfLanguageId(l),
+                        AndroidConfig::displayName(targetAbi()),
+                        ndkToolChainVersion));
 }
 
 // for fromMap
@@ -105,7 +103,6 @@ bool AndroidToolChain::isValid() const
 
 void AndroidToolChain::addToEnvironment(Environment &env) const
 {
-
 // TODO this vars should be configurable in projects -> build tab
 // TODO invalidate all .pro files !!!
 
@@ -113,9 +110,15 @@ void AndroidToolChain::addToEnvironment(Environment &env) const
     env.set(QLatin1String("ANDROID_NDK_TOOLCHAIN_PREFIX"), AndroidConfig::toolchainPrefix(targetAbi()));
     env.set(QLatin1String("ANDROID_NDK_TOOLS_PREFIX"), AndroidConfig::toolsPrefix(targetAbi()));
     env.set(QLatin1String("ANDROID_NDK_TOOLCHAIN_VERSION"), m_ndkToolChainVersion);
-    QString javaHome = AndroidConfigurations::currentConfig().openJDKLocation().toString();
-    if (!javaHome.isEmpty() && QFileInfo::exists(javaHome))
-        env.set(QLatin1String("JAVA_HOME"), javaHome);
+    const Utils::FileName javaHome = AndroidConfigurations::currentConfig().openJDKLocation();
+    if (!javaHome.isEmpty() && javaHome.toFileInfo().exists()) {
+        env.set(QLatin1String("JAVA_HOME"), javaHome.toString());
+        Utils::FileName javaBin = javaHome;
+        javaBin.appendPath(QLatin1String("bin"));
+        const QString jb = javaBin.toUserOutput();
+        if (!Utils::contains(env.path(), [&jb](const QString &p) { return p == jb; }))
+            env.prependOrSetPath(jb);
+    }
     env.set(QLatin1String("ANDROID_HOME"), AndroidConfigurations::currentConfig().sdkLocation().toString());
     env.set(QLatin1String("ANDROID_SDK_ROOT"), AndroidConfigurations::currentConfig().sdkLocation().toString());
 }
@@ -197,9 +200,9 @@ bool AndroidToolChain::fromMap(const QVariantMap &data)
     return isValid();
 }
 
-QList<FileName> AndroidToolChain::suggestedMkspecList() const
+FileNameList AndroidToolChain::suggestedMkspecList() const
 {
-    return QList<FileName>()<< FileName::fromLatin1("android-g++");
+    return FileNameList()<< FileName::fromLatin1("android-g++");
 }
 
 QString AndroidToolChain::makeCommand(const Environment &env) const
@@ -230,10 +233,13 @@ bool AndroidToolChain::isSecondaryToolChain() const
 
 void AndroidToolChain::setSecondaryToolChain(bool b)
 {
+    if (m_secondaryToolChain == b)
+        return;
     m_secondaryToolChain = b;
+    toolChainUpdated();
 }
 
-QList<Abi> AndroidToolChain::detectSupportedAbis() const
+GccToolChain::DetectedAbisResult AndroidToolChain::detectSupportedAbis() const
 {
     return QList<Abi>() << targetAbi();
 }
@@ -258,9 +264,14 @@ AndroidToolChainFactory::AndroidToolChainFactory()
     setDisplayName(tr("Android GCC"));
 }
 
-QList<ToolChain *> AndroidToolChainFactory::autoDetect()
+QSet<Core::Id> Android::Internal::AndroidToolChainFactory::supportedLanguages() const
 {
-    return createToolChainsForNdk(AndroidConfigurations::currentConfig().ndkLocation());
+    return { ProjectExplorer::Constants::CXX_LANGUAGE_ID };
+}
+
+QList<ToolChain *> AndroidToolChainFactory::autoDetect(const QList<ToolChain *> &alreadyKnown)
+{
+    return autodetectToolChainsForNdk(AndroidConfigurations::currentConfig().ndkLocation(), alreadyKnown);
 }
 
 bool AndroidToolChainFactory::canRestore(const QVariantMap &data)
@@ -286,22 +297,24 @@ QList<AndroidToolChainFactory::AndroidToolChainInformation> AndroidToolChainFact
     QRegExp versionRegExp(NDKGccVersionRegExp);
     FileName path = ndkPath;
     QDirIterator it(path.appendPath(QLatin1String("toolchains")).toString(),
-                    QStringList() << QLatin1String("*"), QDir::Dirs);
+                    QStringList("*"), QDir::Dirs);
     while (it.hasNext()) {
         const QString &fileName = FileName::fromString(it.next()).fileName();
         int idx = versionRegExp.indexIn(fileName);
         if (idx == -1)
             continue;
-        AndroidToolChainInformation ati;
-        ati.version = fileName.mid(idx + 1);
-        QString platform = fileName.left(idx);
-        ati.abi = AndroidConfig::abiForToolChainPrefix(platform);
-        if (ati.abi.architecture() == Abi::UnknownArchitecture) // e.g. mipsel which is not yet supported
-            continue;
-        // AndroidToolChain *tc = new AndroidToolChain(arch, version, true);
-        ati.compilerCommand = AndroidConfigurations::currentConfig().gccPath(ati.abi, ati.version);
-        // tc->setCompilerCommand(compilerPath);
-        result.append(ati);
+        for (const Core::Id lang : { ProjectExplorer::Constants::CXX_LANGUAGE_ID,
+                                     ProjectExplorer::Constants::C_LANGUAGE_ID }) {
+            AndroidToolChainInformation ati;
+            ati.language = lang;
+            ati.version = fileName.mid(idx + 1);
+            QString platform = fileName.left(idx);
+            ati.abi = AndroidConfig::abiForToolChainPrefix(platform);
+            if (ati.abi.architecture() == Abi::UnknownArchitecture) // e.g. mipsel which is not yet supported
+                continue;
+            ati.compilerCommand = AndroidConfigurations::currentConfig().gccPath(ati.abi, lang, ati.version);
+            result.append(ati);
+        }
     }
     return result;
 }
@@ -317,7 +330,7 @@ QList<int> AndroidToolChainFactory::versionNumberFromString(const QString &versi
             index = end;
 
         bool ok;
-        int v = version.mid(start, index - start).toInt(&ok);
+        int v = version.midRef(start, index - start).toInt(&ok);
         if (!ok) // unparseable, return what we have
             return result;
 
@@ -343,24 +356,39 @@ bool AndroidToolChainFactory::versionCompareLess(const QList<int> &a, const QLis
     return false;
 }
 
-bool AndroidToolChainFactory::versionCompareLess(AndroidToolChain *atc, AndroidToolChain *btc)
+bool AndroidToolChainFactory::versionCompareLess(QList<AndroidToolChain *> atc,
+                                                 QList<AndroidToolChain *> btc)
 {
-    QList<int> a = versionNumberFromString(atc->ndkToolChainVersion());
-    QList<int> b = versionNumberFromString(btc->ndkToolChainVersion());
+    const QList<int> a = versionNumberFromString(atc.at(0)->ndkToolChainVersion());
+    const QList<int> b = versionNumberFromString(btc.at(0)->ndkToolChainVersion());
 
     return versionCompareLess(a, b);
 }
 
-QList<ToolChain *> AndroidToolChainFactory::createToolChainsForNdk(const FileName &ndkPath)
+static AndroidToolChain *findToolChain(Utils::FileName &compilerPath, Core::Id lang,
+                                       const QList<ToolChain *> &alreadyKnown)
+{
+    return static_cast<AndroidToolChain *>(
+                Utils::findOrDefault(alreadyKnown, [compilerPath, lang](ToolChain *tc) {
+                                                       return tc->typeId() == Constants::ANDROID_TOOLCHAIN_ID
+                                                           && tc->language() == lang
+                                                           && tc->compilerCommand() == compilerPath;
+                                                   }));
+}
+
+QList<ToolChain *>
+AndroidToolChainFactory::autodetectToolChainsForNdk(const FileName &ndkPath,
+                                                    const QList<ToolChain *> &alreadyKnown)
 {
     QList<ToolChain *> result;
     if (ndkPath.isEmpty())
         return result;
+
     QRegExp versionRegExp(NDKGccVersionRegExp);
     FileName path = ndkPath;
     QDirIterator it(path.appendPath(QLatin1String("toolchains")).toString(),
-                    QStringList() << QLatin1String("*"), QDir::Dirs);
-    QHash<Abi, AndroidToolChain *> newestToolChainForArch;
+                    QStringList("*"), QDir::Dirs);
+    QHash<Abi, QList<AndroidToolChain *>> newestToolChainForArch;
 
     while (it.hasNext()) {
         const QString &fileName = FileName::fromString(it.next()).fileName();
@@ -372,23 +400,30 @@ QList<ToolChain *> AndroidToolChainFactory::createToolChainsForNdk(const FileNam
         Abi abi = AndroidConfig::abiForToolChainPrefix(platform);
         if (abi.architecture() == Abi::UnknownArchitecture) // e.g. mipsel which is not yet supported
             continue;
-        AndroidToolChain *tc = new AndroidToolChain(abi, version, ToolChain::AutoDetection);
-        FileName compilerPath = AndroidConfigurations::currentConfig().gccPath(abi, version);
-        tc->resetToolChain(compilerPath);
-        result.append(tc);
+        QList<AndroidToolChain *> toolChainBundle;
+        for (Core::Id lang : { ProjectExplorer::Constants::CXX_LANGUAGE_ID, ProjectExplorer::Constants::C_LANGUAGE_ID }) {
+            FileName compilerPath = AndroidConfigurations::currentConfig().gccPath(abi, lang, version);
 
-        QHash<Abi, AndroidToolChain *>::const_iterator it
-                = newestToolChainForArch.constFind(abi);
+            AndroidToolChain *tc = findToolChain(compilerPath, lang, alreadyKnown);
+            if (!tc) {
+                tc = new AndroidToolChain(abi, version, lang,
+                                          ToolChain::AutoDetection);
+                tc->resetToolChain(compilerPath);
+            }
+            result.append(tc);
+            toolChainBundle.append(tc);
+        }
+
+        auto it = newestToolChainForArch.constFind(abi);
         if (it == newestToolChainForArch.constEnd())
-            newestToolChainForArch.insert(abi, tc);
-        else if (versionCompareLess(it.value(), tc))
-            newestToolChainForArch[abi] = tc;
+            newestToolChainForArch.insert(abi, toolChainBundle);
+        else if (versionCompareLess(it.value(), toolChainBundle))
+            newestToolChainForArch[abi] = toolChainBundle;
     }
 
     foreach (ToolChain *tc, result) {
         AndroidToolChain *atc = static_cast<AndroidToolChain *>(tc);
-        if (newestToolChainForArch.value(atc->targetAbi()) != atc)
-            atc->setSecondaryToolChain(true);
+        atc->setSecondaryToolChain(!newestToolChainForArch.value(atc->targetAbi()).contains(atc));
     }
 
     return result;
@@ -402,7 +437,7 @@ QList<int> AndroidToolChainFactory::newestToolChainVersionForArch(const Abi &abi
         m_ndkLocation = AndroidConfigurations::currentConfig().ndkLocation();
         FileName path = m_ndkLocation;
         QDirIterator it(path.appendPath(QLatin1String("toolchains")).toString(),
-                        QStringList() << QLatin1String("*"), QDir::Dirs);
+                        QStringList("*"), QDir::Dirs);
         while (it.hasNext()) {
             const QString &fileName = FileName::fromString(it.next()).fileName();
             int idx = versionRegExp.indexIn(fileName);

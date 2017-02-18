@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,10 +29,15 @@
 #include "sftpchannel_p.h"
 #include "sshdirecttcpiptunnel.h"
 #include "sshdirecttcpiptunnel_p.h"
+#include "sshforwardedtcpiptunnel.h"
+#include "sshforwardedtcpiptunnel_p.h"
 #include "sshincomingpacket_p.h"
+#include "sshlogging_p.h"
 #include "sshremoteprocess.h"
 #include "sshremoteprocess_p.h"
 #include "sshsendfacility_p.h"
+#include "sshtcpipforwardserver.h"
+#include "sshtcpipforwardserver_p.h"
 
 #include <QList>
 
@@ -56,10 +56,54 @@ void SshChannelManager::handleChannelRequest(const SshIncomingPacket &packet)
         ->handleChannelRequest(packet);
 }
 
-void SshChannelManager::handleChannelOpen(const SshIncomingPacket &)
+void SshChannelManager::handleChannelOpen(const SshIncomingPacket &packet)
 {
-    throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
-        "Server tried to open channel on client.");
+    SshChannelOpen channelOpen = packet.extractChannelOpen();
+
+    SshTcpIpForwardServer::Ptr server;
+
+    foreach (const SshTcpIpForwardServer::Ptr &candidate, m_listeningForwardServers) {
+        if (candidate->port() == channelOpen.remotePort
+                && candidate->bindAddress().toUtf8() == channelOpen.remoteAddress) {
+            server = candidate;
+            break;
+        }
+    };
+
+
+    if (server.isNull()) {
+        // Apparently the server knows a remoteAddress we are not aware of. There are plenty of ways
+        // to make that happen: /etc/hosts on the server, different writings for localhost,
+        // different DNS servers, ...
+        // Rather than trying to figure that out, we just use the first listening forwarder with the
+        // same port.
+        foreach (const SshTcpIpForwardServer::Ptr &candidate, m_listeningForwardServers) {
+            if (candidate->port() == channelOpen.remotePort) {
+                server = candidate;
+                break;
+            }
+        };
+    }
+
+    if (server.isNull()) {
+        SshOpenFailureType reason = (channelOpen.remotePort == 0) ?
+                    SSH_OPEN_UNKNOWN_CHANNEL_TYPE : SSH_OPEN_ADMINISTRATIVELY_PROHIBITED;
+        try {
+            m_sendFacility.sendChannelOpenFailurePacket(channelOpen.remoteChannel, reason,
+                                                        QByteArray());
+        }  catch (const Botan::Exception &e) {
+            qCWarning(sshLog, "Botan error: %s", e.what());
+        }
+        return;
+    }
+
+    SshForwardedTcpIpTunnel::Ptr tunnel(new SshForwardedTcpIpTunnel(m_nextLocalChannelId++,
+                                                                    m_sendFacility));
+    tunnel->d->handleOpenSuccess(channelOpen.remoteChannel, channelOpen.remoteWindowSize,
+                                 channelOpen.remoteMaxPacketSize);
+    tunnel->open(QIODevice::ReadWrite);
+    server->setNewConnection(tunnel);
+    insertChannel(tunnel->d, tunnel);
 }
 
 void SshChannelManager::handleChannelOpenFailure(const SshIncomingPacket &packet)
@@ -130,6 +174,39 @@ void SshChannelManager::handleChannelClose(const SshIncomingPacket &packet)
     }
 }
 
+void SshChannelManager::handleRequestSuccess(const SshIncomingPacket &packet)
+{
+    if (m_waitingForwardServers.isEmpty()) {
+        throw SshServerException(SSH_DISCONNECT_PROTOCOL_ERROR,
+                                 "Unexpected request success packet.",
+                                 tr("Unexpected request success packet."));
+    }
+    SshTcpIpForwardServer::Ptr server = m_waitingForwardServers.takeFirst();
+    if (server->state() == SshTcpIpForwardServer::Closing) {
+        server->setClosed();
+    } else if (server->state() == SshTcpIpForwardServer::Initializing) {
+        quint16 port = server->port();
+        if (port == 0)
+            port = packet.extractRequestSuccess().bindPort;
+        server->setListening(port);
+        m_listeningForwardServers.append(server);
+    } else {
+        QSSH_ASSERT(false);
+    }
+}
+
+void SshChannelManager::handleRequestFailure(const SshIncomingPacket &packet)
+{
+    Q_UNUSED(packet);
+    if (m_waitingForwardServers.isEmpty()) {
+        throw SshServerException(SSH_DISCONNECT_PROTOCOL_ERROR,
+                                 "Unexpected request failure packet.",
+                                 tr("Unexpected request failure packet."));
+    }
+    SshTcpIpForwardServer::Ptr tunnel = m_waitingForwardServers.takeFirst();
+    tunnel->setClosed();
+}
+
 SshChannelManager::ChannelIterator SshChannelManager::lookupChannelAsIterator(quint32 channelId,
     bool allowNotFound)
 {
@@ -170,7 +247,7 @@ QSsh::SftpChannel::Ptr SshChannelManager::createSftpChannel()
     return sftp;
 }
 
-SshDirectTcpIpTunnel::Ptr SshChannelManager::createTunnel(const QString &originatingHost,
+SshDirectTcpIpTunnel::Ptr SshChannelManager::createDirectTunnel(const QString &originatingHost,
         quint16 originatingPort, const QString &remoteHost, quint16 remotePort)
 {
     SshDirectTcpIpTunnel::Ptr tunnel(new SshDirectTcpIpTunnel(m_nextLocalChannelId++,
@@ -179,10 +256,32 @@ SshDirectTcpIpTunnel::Ptr SshChannelManager::createTunnel(const QString &origina
     return tunnel;
 }
 
+SshTcpIpForwardServer::Ptr SshChannelManager::createForwardServer(const QString &remoteHost,
+        quint16 remotePort)
+{
+    SshTcpIpForwardServer::Ptr server(new SshTcpIpForwardServer(remoteHost, remotePort,
+                                                                m_sendFacility));
+    connect(server.data(), &SshTcpIpForwardServer::stateChanged,
+            this, [this, server](SshTcpIpForwardServer::State state) {
+        switch (state) {
+        case SshTcpIpForwardServer::Closing:
+            m_listeningForwardServers.removeOne(server);
+            // fall through
+        case SshTcpIpForwardServer::Initializing:
+            m_waitingForwardServers.append(server);
+            break;
+        case SshTcpIpForwardServer::Listening:
+        case SshTcpIpForwardServer::Inactive:
+            break;
+        }
+    });
+    return server;
+}
+
 void SshChannelManager::insertChannel(AbstractSshChannel *priv,
     const QSharedPointer<QObject> &pub)
 {
-    connect(priv, SIGNAL(timeout()), this, SIGNAL(timeout()));
+    connect(priv, &AbstractSshChannel::timeout, this, &SshChannelManager::timeout);
     m_channels.insert(priv->localChannelId(), priv);
     m_sessions.insert(priv, pub);
 }

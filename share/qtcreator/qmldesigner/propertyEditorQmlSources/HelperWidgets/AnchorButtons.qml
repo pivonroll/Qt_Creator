@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,7 +33,8 @@ ButtonRow {
     id: buttonRow
 
     ButtonRowButton {
-        iconSource: "images/anchor-top.png"
+        iconSource: "image://icons/anchor-top"
+        tooltip: qsTr("Anchor item to the top.")
 
         property bool topAnchored: anchorBackend.topAnchored
         onTopAnchoredChanged: {
@@ -52,7 +53,8 @@ ButtonRow {
     }
 
     ButtonRowButton {
-        iconSource: "images/anchor-bottom.png"
+        iconSource: "image://icons/anchor-bottom"
+        tooltip: qsTr("Anchor item to the bottom.")
 
         property bool bottomAnchored: anchorBackend.bottomAnchored
         onBottomAnchoredChanged: {
@@ -72,7 +74,8 @@ ButtonRow {
     }
 
     ButtonRowButton {
-        iconSource: "images/anchor-left.png"
+        iconSource: "image://icons/anchor-left"
+        tooltip: qsTr("Anchor item to the left.")
 
         property bool leftAnchored: anchorBackend.leftAnchored
         onLeftAnchoredChanged: {
@@ -91,7 +94,8 @@ ButtonRow {
     }
 
     ButtonRowButton {
-        iconSource: "images/anchor-right.png"
+        iconSource: "image://icons/anchor-right"
+        tooltip: qsTr("Anchor item to the right.")
 
         property bool rightAnchored: anchorBackend.rightAnchored
         onRightAnchoredChanged: {
@@ -115,7 +119,8 @@ ButtonRow {
 
 
     ButtonRowButton {
-        iconSource: "images/anchor-fill.png"
+        iconSource: "image://icons/anchor-fill"
+        tooltip: qsTr("Fill parent item.")
 
         property bool isFilled: anchorBackend.isFilled
         onIsFilledChanged: {
@@ -136,7 +141,8 @@ ButtonRow {
     }
 
     ButtonRowButton {
-        iconSource: "images/anchor-vertical.png"
+        iconSource: "image://icons/anchor-vertical"
+        tooltip: qsTr("Anchor item vertically.")
 
         property bool verticalCentered: anchorBackend.verticalCentered;
         onVerticalCenteredChanged: {
@@ -157,7 +163,8 @@ ButtonRow {
     }
 
     ButtonRowButton {
-        iconSource: "images/anchor-horizontal.png"
+        iconSource: "image://icons/anchor-horizontal"
+        tooltip: qsTr("Anchor item horizontally.")
 
         property bool horizontalCentered: anchorBackend.horizontalCentered;
         onHorizontalCenteredChanged: {

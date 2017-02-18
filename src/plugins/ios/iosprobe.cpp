@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,26 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "iosprobe.h"
+
+#include <utils/synchronousprocess.h>
 
 #include <QDir>
 #include <QFileInfo>
@@ -98,14 +95,16 @@ void IosProbe::addDeveloperPath(const QString &path)
 
 void IosProbe::detectDeveloperPaths()
 {
-    QProcess selectedXcode;
     QString program = QLatin1String("/usr/bin/xcode-select");
     QStringList arguments(QLatin1String("--print-path"));
-    selectedXcode.start(program, arguments, QProcess::ReadOnly);
-    if (!selectedXcode.waitForFinished() || selectedXcode.exitCode()) {
+
+    Utils::SynchronousProcess selectedXcode;
+    selectedXcode.setTimeoutS(5);
+    Utils::SynchronousProcessResponse response = selectedXcode.run(program, arguments);
+    if (response.result != Utils::SynchronousProcessResponse::Finished) {
         qCWarning(probeLog) << QString::fromLatin1("Could not detect selected xcode with /usr/bin/xcode-select");
     } else {
-        QString path = QString::fromLocal8Bit(selectedXcode.readAllStandardOutput());
+        QString path = response.stdOut();
         path.chop(1);
         addDeveloperPath(path);
     }
@@ -117,17 +116,26 @@ void IosProbe::setupDefaultToolchains(const QString &devPath, const QString &xco
     qCDebug(probeLog) << QString::fromLatin1("Setting up platform \"%1\".").arg(xcodeName);
     QString indent = QLatin1String("  ");
 
+    auto getClangInfo = [devPath, indent](const QString &compiler) {
+        QFileInfo compilerInfo(devPath
+                                + QLatin1String("/Toolchains/XcodeDefault.xctoolchain/usr/bin/")
+                                + compiler);
+        if (!compilerInfo.exists())
+            qCWarning(probeLog) << indent << QString::fromLatin1("Default toolchain %1 not found.")
+                                    .arg(compilerInfo.canonicalFilePath());
+        return compilerInfo;
+    };
+
     // detect clang (default toolchain)
-    QFileInfo clangFileInfo(devPath
-                            + QLatin1String("/Toolchains/XcodeDefault.xctoolchain/usr/bin")
-                            + QLatin1String("/clang++"));
-    bool hasClang = clangFileInfo.exists();
-    if (!hasClang)
-        qCWarning(probeLog) << indent << QString::fromLatin1("Default toolchain %1 not found.")
-                                .arg(clangFileInfo.canonicalFilePath());
+    const QFileInfo clangCppInfo = getClangInfo("clang++");
+    const bool hasClangCpp = clangCppInfo.exists();
+
+    const QFileInfo clangCInfo = getClangInfo("clang");
+    const bool hasClangC = clangCInfo.exists();
+
     // Platforms
-    QDir platformsDir(devPath + QLatin1String("/Platforms"));
-    QFileInfoList platforms = platformsDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    const QDir platformsDir(devPath + QLatin1String("/Platforms"));
+    const QFileInfoList platforms = platformsDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     foreach (const QFileInfo &fInfo, platforms) {
         if (fInfo.isDir() && fInfo.suffix() == QLatin1String("platform")) {
             qCDebug(probeLog) << indent << QString::fromLatin1("Setting up %1").arg(fInfo.fileName());
@@ -142,7 +150,7 @@ void IosProbe::setupDefaultToolchains(const QString &devPath, const QString &xco
             if (name != QLatin1String("macosx") && name != QLatin1String("iphoneos")
                     && name != QLatin1String("iphonesimulator"))
             {
-                qCWarning(probeLog) << indent << QString::fromLatin1("Skipping unknown platform %1").arg(name);
+                qCDebug(probeLog) << indent << QString::fromLatin1("Skipping unknown platform %1").arg(name);
                 continue;
             }
 
@@ -160,14 +168,20 @@ void IosProbe::setupDefaultToolchains(const QString &devPath, const QString &xco
                 defaultProp[i.key()] = i.value();
             }
 
-            QString clangFullName = name + QLatin1String("-clang") + xcodeName;
-            QString clang11FullName = name + QLatin1String("-clang11") + xcodeName;
+            const QString clangFullName = name + QLatin1String("-clang") + xcodeName;
+            const QString clang11FullName = name + QLatin1String("-clang11") + xcodeName;
             // detect gcc
-            QFileInfo gccFileInfo(fInfo.absoluteFilePath() + QLatin1String("/Developer/usr/bin/g++"));
-            QString gccFullName = name + QLatin1String("-gcc") + xcodeName;
-            if (!gccFileInfo.exists())
-                gccFileInfo = QFileInfo(devPath + QLatin1String("/usr/bin/g++"));
-            bool hasGcc = gccFileInfo.exists();
+            QFileInfo gccCppInfo(fInfo.absoluteFilePath() + QLatin1String("/Developer/usr/bin/g++"));
+            if (!gccCppInfo.exists())
+                gccCppInfo = QFileInfo(devPath + QLatin1String("/usr/bin/g++"));
+            const bool hasGccCppCompiler = gccCppInfo.exists();
+
+            QFileInfo gccCInfo(fInfo.absoluteFilePath() + QLatin1String("/Developer/usr/bin/gcc"));
+            if (!gccCInfo.exists())
+                gccCInfo = QFileInfo(devPath + QLatin1String("/usr/bin/gcc"));
+            const bool hasGccCCompiler = gccCInfo.exists();
+
+            const QString gccFullName = name + QLatin1String("-gcc") + xcodeName;
 
             QStringList extraFlags;
             if (defaultProp.contains(QLatin1String("NATIVE_ARCH"))) {
@@ -179,45 +193,58 @@ void IosProbe::setupDefaultToolchains(const QString &devPath, const QString &xco
                 // don't generate a toolchain for 64 bit (to fix when we support that)
                 extraFlags << QLatin1String("-arch") << QLatin1String("i386");
             }
-            if (hasClang) {
-                Platform clangProfile;
-                clangProfile.developerPath = Utils::FileName::fromString(devPath);
-                clangProfile.platformKind = 0;
-                clangProfile.name = clangFullName;
-                clangProfile.platformPath = Utils::FileName(fInfo);
-                clangProfile.compilerPath = Utils::FileName(clangFileInfo);
+
+            auto getArch = [extraFlags](const QFileInfo &compiler) {
                 QStringList flags = extraFlags;
                 flags << QLatin1String("-dumpmachine");
-                QString compilerTriplet = qsystem(clangFileInfo.canonicalFilePath(), flags)
-                        .simplified();
-                QStringList compilerTripletl = compilerTriplet.split(QLatin1Char('-'));
-                clangProfile.architecture = compilerTripletl.value(0);
+                const QStringList compilerTriplet = qsystem(compiler.canonicalFilePath(), flags)
+                        .simplified().split(QLatin1Char('-'));
+                return compilerTriplet.value(0);
+            };
+
+            if (hasClangCpp || hasClangC) {
+                Platform clangProfile;
+                clangProfile.type = Platform::CLang;
+                clangProfile.developerPath = Utils::FileName::fromString(devPath);
+                clangProfile.platformKind = 0;
+                clangProfile.platformPath = Utils::FileName(fInfo);
+                clangProfile.architecture = getArch(hasClangCpp ? clangCppInfo : clangCInfo);
                 clangProfile.backendFlags = extraFlags;
                 qCDebug(probeLog) << indent << QString::fromLatin1("* adding profile %1").arg(clangProfile.name);
-                m_platforms[clangProfile.name] = clangProfile;
-                clangProfile.platformKind |= Platform::Cxx11Support;
-                clangProfile.backendFlags.append(QLatin1String("-std=c++11"));
-                clangProfile.backendFlags.append(QLatin1String("-stdlib=libc++"));
-                clangProfile.name = clang11FullName;
-                m_platforms[clangProfile.name] = clangProfile;
+                clangProfile.name = clangFullName;
+                if (hasClangC) {
+                    clangProfile.cCompilerPath = Utils::FileName(clangCInfo);
+                    m_platforms[clangFullName] = clangProfile;
+                }
+                if (hasClangCpp) {
+                    clangProfile.cxxCompilerPath = Utils::FileName(clangCppInfo);
+                    m_platforms[clangFullName] = clangProfile;
+                    clangProfile.platformKind |= Platform::Cxx11Support;
+                    clangProfile.backendFlags.append(QLatin1String("-std=c++11"));
+                    clangProfile.backendFlags.append(QLatin1String("-stdlib=libc++"));
+                    clangProfile.name = clang11FullName;
+                    m_platforms[clang11FullName] = clangProfile;
+                }
             }
-            if (hasGcc) {
+
+            if (hasGccCppCompiler || hasGccCCompiler) {
                 Platform gccProfile;
+                gccProfile.type = Platform::GCC;
                 gccProfile.developerPath = Utils::FileName::fromString(devPath);
                 gccProfile.name = gccFullName;
                 gccProfile.platformKind = 0;
                 // use the arm-apple-darwin10-llvm-* variant and avoid the extraFlags if available???
                 gccProfile.platformPath = Utils::FileName(fInfo);
-                gccProfile.compilerPath = Utils::FileName(gccFileInfo);
-                QStringList flags = extraFlags;
-                flags << QLatin1String("-dumpmachine");
-                QString compilerTriplet = qsystem(gccFileInfo.canonicalFilePath(), flags)
-                        .simplified();
-                QStringList compilerTripletl = compilerTriplet.split(QLatin1Char('-'));
-                gccProfile.architecture = compilerTripletl.value(0);
+                gccProfile.architecture = getArch(hasGccCppCompiler ? gccCppInfo : gccCInfo);
                 gccProfile.backendFlags = extraFlags;
                 qCDebug(probeLog) << indent << QString::fromLatin1("* adding profile %1").arg(gccProfile.name);
-                m_platforms[gccProfile.name] = gccProfile;
+                if (hasGccCppCompiler) {
+                    gccProfile.cxxCompilerPath = Utils::FileName(gccCppInfo);
+                }
+                if (hasGccCCompiler) {
+                    gccProfile.cCompilerPath = Utils::FileName(gccCInfo);
+                }
+                m_platforms[gccFullName] = gccProfile;
             }
 
             // set SDKs/sysroot
@@ -263,15 +290,18 @@ void IosProbe::setupDefaultToolchains(const QString &devPath, const QString &xco
                 if (sysRoot.isEmpty() && !sdkName.isEmpty())
                     qCDebug(probeLog) << indent << QString::fromLatin1("Failed to find sysroot %1").arg(sdkName);
             }
-            if (hasClang && !sysRoot.isEmpty()) {
-                m_platforms[clangFullName].platformKind |= Platform::BasePlatform;
-                m_platforms[clangFullName].sdkPath = Utils::FileName::fromString(sysRoot);
-                m_platforms[clang11FullName].platformKind |= Platform::BasePlatform;
-                m_platforms[clang11FullName].sdkPath = Utils::FileName::fromString(sysRoot);
-            }
-            if (hasGcc && !sysRoot.isEmpty()) {
-                m_platforms[gccFullName].platformKind |= Platform::BasePlatform;
-                m_platforms[gccFullName].sdkPath = Utils::FileName::fromString(sysRoot);
+
+            if (!sysRoot.isEmpty()) {
+                auto itr = m_platforms.begin();
+                while (itr != m_platforms.end()) {
+                    if (itr.key() == clangFullName ||
+                            itr.key() == clang11FullName ||
+                            itr.key() == gccFullName) {
+                        itr.value().platformKind |= Platform::BasePlatform;
+                        itr.value().sdkPath = Utils::FileName::fromString(sysRoot);
+                    }
+                    ++itr;
+                }
             }
         }
         indent = QLatin1String("  ");
@@ -288,6 +318,27 @@ void IosProbe::detectFirst()
 QMap<QString, Platform> IosProbe::detectedPlatforms()
 {
     return m_platforms;
+}
+
+QDebug operator<<(QDebug debug, const Platform &platform)
+{
+    QDebugStateSaver saver(debug); Q_UNUSED(saver)
+    debug.nospace() << "(name=" << platform.name
+                    << ", C++ compiler=" << platform.cxxCompilerPath.toString()
+                    << ", C compiler=" << platform.cCompilerPath.toString()
+                    << ", flags=" << platform.backendFlags
+                    << ")";
+    return debug;
+}
+
+bool Platform::operator==(const Platform &other) const
+{
+    return name == other.name;
+}
+
+uint qHash(const Platform &platform)
+{
+    return qHash(platform.name);
 }
 
 }

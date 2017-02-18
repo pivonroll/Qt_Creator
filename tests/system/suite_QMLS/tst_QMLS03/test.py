@@ -1,32 +1,27 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
 source("../../shared/qtcreator.py")
 
@@ -72,20 +67,22 @@ def checkUsages(resultsView, expectedResults, directory):
 
 def main():
     # prepare example project
-    sourceExample = os.path.abspath(sdkPath + "/Examples/4.7/declarative/animation/basics/property-animation")
-    proFile = "propertyanimation.pro"
+    sourceExample = os.path.join(Qt5Path.examplesPath(Targets.DESKTOP_561_DEFAULT),
+                                 "quick", "animation")
+    proFile = "animation.pro"
     if not neededFilePresent(os.path.join(sourceExample, proFile)):
         return
     # copy example project to temp directory
     templateDir = prepareTemplate(sourceExample)
     examplePath = os.path.join(templateDir, proFile)
+    templateDir = os.path.join(templateDir, "basics")   # only check subproject
     startApplication("qtcreator" + SettingsPath)
     if not startedWithoutPluginError():
         return
     # open example project
-    openQmakeProject(examplePath, Targets.DESKTOP_480_DEFAULT)
+    openQmakeProject(examplePath, Targets.DESKTOP_531_DEFAULT)
     # open qml file
-    openDocument("propertyanimation.QML.qml.color-animation\\.qml")
+    openDocument("animation.Resources.animation\\.qrc./animation.basics.color-animation\\.qml")
     # get editor
     editorArea = waitForObject(":Qt Creator_QmlJSEditor::QmlJSTextEditorWidget")
     # 1. check usages using context menu
@@ -98,7 +95,7 @@ def main():
     invokeContextMenuItem(editorArea, "Find Usages")
     # check if usage was properly found
     expectedResults = [ExpectedResult("color-animation.qml", 49, "Rectangle {"),
-                       ExpectedResult("color-animation.qml", 96, "Rectangle {"),
+                       ExpectedResult("color-animation.qml", 109, "Rectangle {"),
                        ExpectedResult("property-animation.qml", 48, "Rectangle {"),
                        ExpectedResult("property-animation.qml", 57, "Rectangle {")]
     resultsView = waitForObject(":Qt Creator_Find::Internal::SearchResultTreeView")
@@ -117,7 +114,7 @@ def main():
     invokeMenuItem("Tools", "QML/JS", "Find Usages")
     # check if usage was properly found
     expectedResults = [ExpectedResult("color-animation.qml", 50, "anchors { left: parent.left; top: parent.top; right: parent.right; bottom: parent.verticalCenter }"),
-                       ExpectedResult("color-animation.qml", 97, "anchors { left: parent.left; top: parent.verticalCenter; right: parent.right; bottom: parent.bottom }"),
+                       ExpectedResult("color-animation.qml", 110, "anchors { left: parent.left; top: parent.verticalCenter; right: parent.right; bottom: parent.bottom }"),
                        ExpectedResult("property-animation.qml", 49, "anchors { left: parent.left; top: parent.top; right: parent.right; bottom: parent.verticalCenter }"),
                        ExpectedResult("property-animation.qml", 58, "anchors { left: parent.left; top: parent.verticalCenter; right: parent.right; bottom: parent.bottom }")]
     resultsView = waitForObject(":Qt Creator_Find::Internal::SearchResultTreeView")
@@ -135,7 +132,7 @@ def main():
         type(editorArea, "<Left>")
     type(editorArea, "<Ctrl+Shift+u>")
     # check if usage was properly found
-    expectedResults = [ExpectedResult("color-animation.qml", 87, "SequentialAnimation on opacity {")]
+    expectedResults = [ExpectedResult("color-animation.qml", 93, "SequentialAnimation on opacity {")]
     resultsView = waitForObject(":Qt Creator_Find::Internal::SearchResultTreeView")
     test.verify(checkUsages(resultsView, expectedResults, templateDir),
                 "Verifying if usages were properly found using shortcut.")

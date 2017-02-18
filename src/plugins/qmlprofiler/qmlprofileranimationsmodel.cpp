@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,125 +9,106 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "qmlprofileranimationsmodel.h"
 #include "qmlprofilermodelmanager.h"
 #include "qmlprofilerdatamodel.h"
-#include <utils/qtcassert.h>
-#include <QCoreApplication>
 
+#include <utils/qtcassert.h>
+#include <timeline/timelineformattime.h>
+
+#include <QCoreApplication>
 #include <QVector>
 #include <QHash>
 #include <QUrl>
 #include <QString>
 #include <QStack>
 
-#include <QDebug>
 
 namespace QmlProfiler {
 namespace Internal {
 
 QmlProfilerAnimationsModel::QmlProfilerAnimationsModel(QmlProfilerModelManager *manager,
                                                        QObject *parent) :
-    QmlProfilerTimelineModel(manager, QmlDebug::Event, QmlDebug::MaximumRangeType,
-                             QmlDebug::ProfileAnimations, parent)
+    QmlProfilerTimelineModel(manager, Event, MaximumRangeType, ProfileAnimations, parent)
 {
-    m_maxGuiThreadAnimations = m_maxRenderThreadAnimations = 0;
+    m_minNextStartTimes[0] = m_minNextStartTimes[1] = 0;
 }
 
 void QmlProfilerAnimationsModel::clear()
 {
+    m_minNextStartTimes[0] = m_minNextStartTimes[1] = 0;
     m_maxGuiThreadAnimations = m_maxRenderThreadAnimations = 0;
     m_data.clear();
     QmlProfilerTimelineModel::clear();
 }
 
-bool QmlProfilerAnimationsModel::accepted(const QmlProfilerDataModel::QmlEventTypeData &event) const
+bool QmlProfilerAnimationsModel::accepted(const QmlEventType &type) const
 {
-    return QmlProfilerTimelineModel::accepted(event) &&
-            event.detailType== QmlDebug::AnimationFrame;
+    return QmlProfilerTimelineModel::accepted(type) && type.detailType() == AnimationFrame;
 }
 
-void QmlProfilerAnimationsModel::loadData()
+void QmlProfilerAnimationsModel::loadEvent(const QmlEvent &event, const QmlEventType &type)
 {
-    QmlProfilerDataModel *simpleModel = modelManager()->qmlModel();
-    if (simpleModel->isEmpty())
-        return;
+    Q_UNUSED(type);
+    AnimationThread lastThread = (AnimationThread)event.number<qint32>(2);
 
-    // collect events
-    const QVector<QmlProfilerDataModel::QmlEventData> &referenceList = simpleModel->getEvents();
-    const QVector<QmlProfilerDataModel::QmlEventTypeData> &typeList = simpleModel->getEventTypes();
+    // initial estimation of the event duration: 1/framerate
+    qint64 estimatedDuration = event.number<qint32>(0) > 0 ? 1e9 / event.number<qint32>(0) : 1;
 
-    QmlDebug::AnimationThread lastThread;
+    // the profiler registers the animation events at the end of them
+    qint64 realEndTime = event.timestamp();
+
+    // ranges should not overlap. If they do, our estimate wasn't accurate enough
+    qint64 realStartTime = qMax(event.timestamp() - estimatedDuration,
+                                m_minNextStartTimes[lastThread]);
+
+    // Sometimes our estimate is far off or the server has miscalculated the frame rate
+    if (realStartTime >= realEndTime)
+        realEndTime = realStartTime + 1;
+
+    // Don't "fix" the framerate even if we've fixed the duration.
+    // The server should know better after all and if it doesn't we want to see that.
     QmlPaintEventData lastEvent;
-    qint64 minNextStartTimes[] = {0, 0};
+    lastEvent.typeId = event.typeIndex();
+    lastEvent.framerate = event.number<qint32>(0);
+    lastEvent.animationcount = event.number<qint32>(1);
+    QTC_ASSERT(lastEvent.animationcount > 0, return);
 
-    foreach (const QmlProfilerDataModel::QmlEventData &event, referenceList) {
-        const QmlProfilerDataModel::QmlEventTypeData &type = typeList[event.typeIndex];
-        if (!accepted(type))
-            continue;
+    m_data.insert(insert(realStartTime, realEndTime - realStartTime, lastThread), lastEvent);
 
-        lastThread = (QmlDebug::AnimationThread)event.numericData3;
+    if (lastThread == GuiThread)
+        m_maxGuiThreadAnimations = qMax(lastEvent.animationcount, m_maxGuiThreadAnimations);
+    else
+        m_maxRenderThreadAnimations = qMax(lastEvent.animationcount,
+                                           m_maxRenderThreadAnimations);
 
-        // initial estimation of the event duration: 1/framerate
-        qint64 estimatedDuration = event.numericData1 > 0 ? 1e9/event.numericData1 : 1;
+    m_minNextStartTimes[lastThread] = event.timestamp() + 1;
+}
 
-        // the profiler registers the animation events at the end of them
-        qint64 realEndTime = event.startTime;
-
-        // ranges should not overlap. If they do, our estimate wasn't accurate enough
-        qint64 realStartTime = qMax(event.startTime - estimatedDuration, minNextStartTimes[lastThread]);
-
-        // Sometimes our estimate is far off or the server has miscalculated the frame rate
-        if (realStartTime >= realEndTime)
-            realEndTime = realStartTime + 1;
-
-        // Don't "fix" the framerate even if we've fixed the duration.
-        // The server should know better after all and if it doesn't we want to see that.
-        lastEvent.typeId = event.typeIndex;
-        lastEvent.framerate = (int)event.numericData1;
-        lastEvent.animationcount = (int)event.numericData2;
-        QTC_ASSERT(lastEvent.animationcount > 0, continue);
-
-        m_data.insert(insert(realStartTime, realEndTime - realStartTime, lastThread), lastEvent);
-
-        if (lastThread == QmlDebug::GuiThread)
-            m_maxGuiThreadAnimations = qMax(lastEvent.animationcount, m_maxGuiThreadAnimations);
-        else
-            m_maxRenderThreadAnimations = qMax(lastEvent.animationcount, m_maxRenderThreadAnimations);
-
-        minNextStartTimes[lastThread] = event.startTime + 1;
-
-        updateProgress(count(), referenceList.count());
-    }
-
+void QmlProfilerAnimationsModel::finalize()
+{
     computeNesting();
     setExpandedRowCount((m_maxGuiThreadAnimations == 0 || m_maxRenderThreadAnimations == 0) ? 2 : 3);
     setCollapsedRowCount(expandedRowCount());
-    updateProgress(1, 1);
 }
 
 int QmlProfilerAnimationsModel::rowFromThreadId(int threadId) const
 {
-    return (threadId == QmlDebug::GuiThread || m_maxGuiThreadAnimations == 0) ? 1 : 2;
+    return (threadId == GuiThread || m_maxGuiThreadAnimations == 0) ? 1 : 2;
 }
 
 int QmlProfilerAnimationsModel::rowMaxValue(int rowNumber) const
@@ -157,7 +138,7 @@ int QmlProfilerAnimationsModel::collapsedRow(int index) const
     return rowFromThreadId(selectionId(index));
 }
 
-QColor QmlProfilerAnimationsModel::color(int index) const
+QRgb QmlProfilerAnimationsModel::color(int index) const
 {
     double fpsFraction = m_data[index].framerate / 60.0;
     if (fpsFraction > 1.0)
@@ -169,7 +150,7 @@ QColor QmlProfilerAnimationsModel::color(int index) const
 
 float QmlProfilerAnimationsModel::relativeHeight(int index) const
 {
-    return (float)m_data[index].animationcount / (float)(selectionId(index) == QmlDebug::GuiThread ?
+    return (float)m_data[index].animationcount / (float)(selectionId(index) == GuiThread ?
                                                              m_maxGuiThreadAnimations :
                                                              m_maxRenderThreadAnimations);
 }
@@ -180,17 +161,17 @@ QVariantList QmlProfilerAnimationsModel::labels() const
 
     if (m_maxGuiThreadAnimations > 0) {
         QVariantMap element;
-        element.insert(QLatin1String("displayName"), QVariant(tr("Animations")));
-        element.insert(QLatin1String("description"), QVariant(tr("GUI Thread")));
-        element.insert(QLatin1String("id"), QVariant(QmlDebug::GuiThread));
+        element.insert(QLatin1String("displayName"), tr("Animations"));
+        element.insert(QLatin1String("description"), tr("GUI Thread"));
+        element.insert(QLatin1String("id"), GuiThread);
         result << element;
     }
 
     if (m_maxRenderThreadAnimations > 0) {
         QVariantMap element;
-        element.insert(QLatin1String("displayName"), QVariant(tr("Animations")));
-        element.insert(QLatin1String("description"), QVariant(tr("Render Thread")));
-        element.insert(QLatin1String("id"), QVariant(QmlDebug::RenderThread));
+        element.insert(QLatin1String("displayName"), tr("Animations"));
+        element.insert(QLatin1String("description"), tr("Render Thread"));
+        element.insert(QLatin1String("id"), RenderThread);
         result << element;
     }
 
@@ -202,13 +183,13 @@ QVariantMap QmlProfilerAnimationsModel::details(int index) const
     QVariantMap result;
 
     result.insert(QStringLiteral("displayName"), displayName());
-    result.insert(tr("Duration"), QmlProfilerDataModel::formatTime(duration(index)));
+    result.insert(tr("Duration"), Timeline::formatTime(duration(index)));
     result.insert(tr("Framerate"), QString::fromLatin1("%1 FPS").arg(m_data[index].framerate));
-    result.insert(tr("Animations"), QString::fromLatin1("%1").arg(m_data[index].animationcount));
-    result.insert(tr("Context"), tr(selectionId(index) == QmlDebug::GuiThread ? "GUI Thread" :
-                                                                                "Render Thread"));
+    result.insert(tr("Animations"), QString::number(m_data[index].animationcount));
+    result.insert(tr("Context"), selectionId(index) == GuiThread ? tr("GUI Thread") :
+                                                                   tr("Render Thread"));
     return result;
 }
 
-}
-}
+} // namespace Internal
+} // namespace QmlProfiler

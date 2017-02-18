@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,6 +32,8 @@
 
 #include <QFontMetrics>
 
+#include <algorithm>
+
 namespace ProjectExplorer {
 namespace Internal {
 
@@ -44,11 +41,7 @@ namespace Internal {
 // TaskModel
 /////
 
-TaskModel::TaskModel(QObject *parent) :
-    QAbstractItemModel(parent),
-    m_maxSizeOfFileName(0),
-    m_lastMaxSizeIndex(0),
-    m_sizeOfLineNumber(0)
+TaskModel::TaskModel(QObject *parent) : QAbstractItemModel(parent)
 {
     m_categories.insert(Core::Id(), CategoryData());
 }
@@ -115,7 +108,7 @@ void TaskModel::addTask(const Task &task)
     CategoryData &data = m_categories[task.category];
     CategoryData &global = m_categories[Core::Id()];
 
-    QList<Task>::iterator it = qLowerBound(m_tasks.begin(), m_tasks.end(),task.taskId, sortById);
+    auto it = std::lower_bound(m_tasks.begin(), m_tasks.end(),task.taskId, sortById);
     int i = it - m_tasks.begin();
     beginInsertRows(QModelIndex(), i, i);
     m_tasks.insert(it, task);
@@ -140,7 +133,7 @@ void TaskModel::removeTask(const Task &task)
 
 int TaskModel::rowForId(unsigned int id)
 {
-    QList<Task>::const_iterator it = qLowerBound(m_tasks.constBegin(), m_tasks.constEnd(), id, sortById);
+    auto it = std::lower_bound(m_tasks.constBegin(), m_tasks.constEnd(), id, sortById);
     if (it == m_tasks.constEnd())
         return -1;
     return it - m_tasks.constBegin();
@@ -336,14 +329,14 @@ TaskFilterModel::TaskFilterModel(TaskModel *sourceModel, QObject *parent) : QAbs
     Q_ASSERT(m_sourceModel);
     updateMapping();
 
-    connect(m_sourceModel, SIGNAL(rowsInserted(QModelIndex,int,int)),
-            this, SLOT(handleNewRows(QModelIndex,int,int)));
-    connect(m_sourceModel, SIGNAL(rowsAboutToBeRemoved(QModelIndex,int,int)),
-            this, SLOT(handleRowsAboutToBeRemoved(QModelIndex,int,int)));
-    connect(m_sourceModel, SIGNAL(modelReset()),
-            this, SLOT(handleReset()));
-    connect(m_sourceModel, SIGNAL(dataChanged(QModelIndex,QModelIndex)),
-            this, SLOT(handleDataChanged(QModelIndex,QModelIndex)));
+    connect(m_sourceModel, &QAbstractItemModel::rowsInserted,
+            this, &TaskFilterModel::handleNewRows);
+    connect(m_sourceModel, &QAbstractItemModel::rowsAboutToBeRemoved,
+            this, &TaskFilterModel::handleRowsAboutToBeRemoved);
+    connect(m_sourceModel, &QAbstractItemModel::modelReset,
+            this, &TaskFilterModel::handleReset);
+    connect(m_sourceModel, &QAbstractItemModel::dataChanged,
+            this, &TaskFilterModel::handleDataChanged);
 
     m_includeUnknowns = m_includeWarnings = m_includeErrors = true;
 }
@@ -383,8 +376,8 @@ QVariant TaskFilterModel::data(const QModelIndex &index, int role) const
 
 static QPair<int, int> findFilteredRange(int first, int last, const QList<int> &list)
 {
-    QList<int>::const_iterator filteredFirst = qLowerBound(list, first);
-    QList<int>::const_iterator filteredLast = qUpperBound(filteredFirst, list.constEnd(), last);
+    auto filteredFirst = std::lower_bound(list.constBegin(), list.constEnd(), first);
+    auto filteredLast = std::upper_bound(filteredFirst, list.constEnd(), last);
     return qMakePair(filteredFirst - list.constBegin(), filteredLast - list.constBegin() - 1);
 }
 
@@ -408,7 +401,7 @@ void TaskFilterModel::handleNewRows(const QModelIndex &index, int first, int las
     if (last == m_sourceModel->rowCount() - 1)
         filteredFirst = m_mapping.count();
     else
-        filteredFirst = qLowerBound(m_mapping, first) - m_mapping.constBegin();
+        filteredFirst = std::lower_bound(m_mapping.constBegin(), m_mapping.constEnd(), first) - m_mapping.constBegin();
 
     const int filteredLast = filteredFirst + newItems - 1;
     beginInsertRows(QModelIndex(), filteredFirst, filteredLast);
@@ -458,8 +451,8 @@ void TaskFilterModel::handleReset()
 
 QModelIndex TaskFilterModel::mapFromSource(const QModelIndex &idx) const
 {
-    QList<int>::const_iterator it = qBinaryFind(m_mapping.constBegin(), m_mapping.constEnd(), idx.row());
-    if (it == m_mapping.constEnd())
+    auto it = std::lower_bound(m_mapping.constBegin(), m_mapping.constEnd(), idx.row());
+    if (it == m_mapping.constEnd() || idx.row() != *it)
         return QModelIndex();
     return index(it - m_mapping.constBegin(), 0);
 }

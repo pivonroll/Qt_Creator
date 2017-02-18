@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QmlItemNode_H
-#define QmlItemNode_H
+#pragma once
 
 #include <qmldesignercorelib_global.h>
 #include <modelnode.h>
@@ -92,6 +91,7 @@ public:
 
     bool modelIsMovable() const;
     bool modelIsResizable() const;
+    bool modelIsInLayout() const;
 
     QRectF instanceBoundingRect() const;
     QRectF instancePaintedBoundingRect() const;
@@ -110,7 +110,7 @@ public:
     QPixmap instanceRenderPixmap() const;
     QPixmap instanceBlurredRenderPixmap() const;
 
-    TypeName simplifiedTypeName() const;
+    QString simplifiedTypeName() const;
 
     const QList<QmlItemNode> allDirectSubModelNodes() const;
     const QList<QmlItemNode> allSubModelNodes() const;
@@ -121,6 +121,9 @@ public:
 
     void setSize(const QSizeF &size);
     bool isInLayout() const;
+    bool canBereparentedTo(const ModelNode &potentialParent) const;
+
+    bool isInStackedContainer() const;
 };
 
 QMLDESIGNERCORE_EXPORT uint qHash(const QmlItemNode &node);
@@ -152,6 +155,3 @@ QMLDESIGNERCORE_EXPORT QList<ModelNode> toModelNodeList(const QList<QmlItemNode>
 QMLDESIGNERCORE_EXPORT QList<QmlItemNode> toQmlItemNodeList(const QList<ModelNode> &modelNodeList);
 
 } //QmlDesigner
-
-
-#endif // QmlItemNode_H

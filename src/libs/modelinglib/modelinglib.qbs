@@ -1,18 +1,26 @@
 import qbs 1.0
 
 QtcLibrary {
-    name: "ModelingLib"
+    name: "Modeling"
 
+    cpp.defines: base.concat("MODELING_LIBRARY")
     cpp.includePaths: base.concat([
-        "../3rdparty/modeling",
-        "../3rdparty/modeling/qtserialization/inc",
+        ".",
+        "./qtserialization/inc",
     ])
 
-    Depends { name: "Qt.widgets" }
+    Depends { name: "Qt"; submodules: ["widgets"] }
+    Depends { name: "Qt.svg"; required: false }
+    Depends { name: "Utils" }
+
+    Properties {
+        condition: !Qt.svg.present
+        cpp.defines: base.concat("QT_NO_SVG")
+    }
 
     Group {
         name: "Qmt"
-        prefix: "../3rdparty/modeling/qmt/"
+        prefix: "./qmt/"
         files: [
             "config/configcontroller.cpp",
             "config/configcontroller.h",
@@ -130,6 +138,8 @@ QtcLibrary {
             "diagram_scene/parts/contextlabelitem.h",
             "diagram_scene/parts/customiconitem.cpp",
             "diagram_scene/parts/customiconitem.h",
+            "diagram_scene/parts/editabletextitem.cpp",
+            "diagram_scene/parts/editabletextitem.h",
             "diagram_scene/parts/pathselectionitem.cpp",
             "diagram_scene/parts/pathselectionitem.h",
             "diagram_scene/parts/rectangularselectionitem.cpp",
@@ -234,8 +244,6 @@ QtcLibrary {
             "project/project.h",
             "project_controller/projectcontroller.cpp",
             "project_controller/projectcontroller.h",
-            "serializer/diagramreferenceserializer.cpp",
-            "serializer/diagramreferenceserializer.h",
             "serializer/diagramserializer.cpp",
             "serializer/diagramserializer.h",
             "serializer/infrastructureserializer.cpp",
@@ -294,7 +302,7 @@ QtcLibrary {
 
     Group {
         name: "QStringParser"
-        prefix: "../3rdparty/modeling/qstringparser/"
+        prefix: "./qstringparser/"
         files: [
             "qstringparser.cpp",
             "qstringparser.h",
@@ -303,7 +311,7 @@ QtcLibrary {
 
     Group {
         name: "QtSerialization"
-        prefix: "../3rdparty/modeling/qtserialization/"
+        prefix: "./qtserialization/"
         files: [
             "inc/qark/access.h",
             "inc/qark/archivebasics.h",
@@ -314,6 +322,7 @@ QtcLibrary {
             "inc/qark/impl/loadingrefmap.h",
             "inc/qark/impl/objectid.h",
             "inc/qark/impl/savingrefmap.h",
+            "inc/qark/parameters.h",
             "inc/qark/qxmlinarchive.h",
             "inc/qark/qxmloutarchive.h",
             "inc/qark/reference.h",
@@ -321,6 +330,7 @@ QtcLibrary {
             "inc/qark/serialize_basic.h",
             "inc/qark/serialize_container.h",
             "inc/qark/serialize_enum.h",
+            "inc/qark/serialize_pointer.h",
             "inc/qark/tag.h",
             "inc/qark/typeregistry.h",
             "src/flag.cpp",
@@ -330,8 +340,9 @@ QtcLibrary {
 
     Group {
         name: "Images"
-        prefix: "../3rdparty/modeling/qmt/resources/"
+        prefix: "./qmt/resources/"
         files: [
+            "resources.qrc",
             "25x25/align-bottom.png",
             "25x25/align-horizontal.png",
             "25x25/align-left.png",
@@ -358,8 +369,8 @@ QtcLibrary {
 
     Export {
         cpp.includePaths: [
-            "../3rdparty/modeling",
-            "../3rdparty/modeling/qtserialization/inc"
+            ".",
+            "./qtserialization/inc"
         ]
     }
 }

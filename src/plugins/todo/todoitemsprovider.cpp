@@ -1,8 +1,8 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Dmitry Savchenko
-** Copyright (C) 2015 Vasiliy Sorokin
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Dmitry Savchenko
+** Copyright (C) 2016 Vasiliy Sorokin
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -10,22 +10,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -116,15 +111,15 @@ void TodoItemsProvider::createScanners()
         m_scanners << new QmlJsTodoItemsScanner(m_settings.keywords, this);
 
     foreach (TodoItemsScanner *scanner, m_scanners) {
-        connect(scanner, SIGNAL(itemsFetched(QString,QList<TodoItem>)), this,
-            SLOT(itemsFetched(QString,QList<TodoItem>)), Qt::QueuedConnection);
+        connect(scanner, &TodoItemsScanner::itemsFetched, this,
+            &TodoItemsProvider::itemsFetched, Qt::QueuedConnection);
     }
 }
 
 void TodoItemsProvider::setItemsListWithinStartupProject()
 {
     QHashIterator<QString, QList<TodoItem> > it(m_itemsHash);
-    QSet<QString> fileNames = QSet<QString>::fromList(m_startupProject->files(Project::ExcludeGeneratedFiles));
+    QSet<QString> fileNames = QSet<QString>::fromList(m_startupProject->files(Project::SourceFiles));
 
     QVariantMap settings = m_startupProject->namedSettings(QLatin1String(Constants::SETTINGS_NAME_KEY)).toMap();
 
@@ -151,7 +146,7 @@ void TodoItemsProvider::setItemsListWithinSubproject()
     // TODO prefer current editor as source of sub-project
     Node *node = ProjectTree::currentNode();
     if (node) {
-        ProjectNode *projectNode = node->projectNode();
+        ProjectNode *projectNode = node->parentProjectNode();
         if (projectNode) {
 
             FindAllFilesVisitor filesVisitor;
@@ -161,7 +156,7 @@ void TodoItemsProvider::setItemsListWithinSubproject()
             QSet<Utils::FileName> subprojectFileNames =
                     QSet<Utils::FileName>::fromList(filesVisitor.filePaths());
             QSet<QString> fileNames = QSet<QString>::fromList(
-                        m_startupProject->files(ProjectExplorer::Project::ExcludeGeneratedFiles));
+                        m_startupProject->files(ProjectExplorer::Project::SourceFiles));
             QHashIterator<QString, QList<TodoItem> > it(m_itemsHash);
             while (it.hasNext()) {
                 it.next();
@@ -213,16 +208,17 @@ void TodoItemsProvider::updateListTimeoutElapsed()
 void TodoItemsProvider::setupStartupProjectBinding()
 {
     m_startupProject = SessionManager::startupProject();
-    connect(SessionManager::instance(), SIGNAL(startupProjectChanged(ProjectExplorer::Project*)),
-        SLOT(startupProjectChanged(ProjectExplorer::Project*)));
-    connect(ProjectExplorerPlugin::instance(), SIGNAL(fileListChanged()), SLOT(projectsFilesChanged()));
+    connect(SessionManager::instance(), &SessionManager::startupProjectChanged,
+        this, &TodoItemsProvider::startupProjectChanged);
+    connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::fileListChanged,
+            this, &TodoItemsProvider::projectsFilesChanged);
 }
 
 void TodoItemsProvider::setupCurrentEditorBinding()
 {
     m_currentEditor = Core::EditorManager::currentEditor();
-    connect(Core::EditorManager::instance(), SIGNAL(currentEditorChanged(Core::IEditor*)),
-        SLOT(currentEditorChanged(Core::IEditor*)));
+    connect(Core::EditorManager::instance(), &Core::EditorManager::currentEditorChanged,
+        this, &TodoItemsProvider::currentEditorChanged);
 }
 
 void TodoItemsProvider::setupUpdateListTimer()

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -65,21 +65,17 @@ public:
             m_sharedMemory->unlock();
     }
 
-    bool lock()
-    {
-        if (m_sharedMemory && m_sharedMemory->lock())
+    bool tryLocker(const QString &function) {
+        if (!m_sharedMemory)
+            return false;
+
+        if (m_sharedMemory->lock())
             return true;
+
+        m_sharedMemory->m_errorString = QStringLiteral("%1: unable to lock").arg(function);
+        m_sharedMemory->m_error = QSharedMemory::LockError;
         m_sharedMemory = 0;
         return false;
-    }
-
-    bool tryLocker(const QString function) {
-        if (!lock()) {
-            m_sharedMemory->m_errorString = QStringLiteral("%1: unable to lock").arg(function);
-            m_sharedMemory->m_error = QSharedMemory::LockError;
-            return false;
-        }
-        return true;
     }
 
 private:
@@ -128,10 +124,13 @@ SharedMemory::~SharedMemory()
 {
     if (m_memory) {
         munmap(m_memory, m_size);
+        m_memory = nullptr;
+        m_size = 0;
     }
 
     if (m_fileHandle != -1) {
         close(m_fileHandle);
+        cleanHandleInternal();
         if (m_createdByMe)
             shm_unlink(m_nativeKey);
     }
@@ -146,7 +145,7 @@ void SharedMemory::setKey(const QString &key)
 
     if (isAttached())
         detach();
-    cleanHandleInternal();
+
     m_key = key;
     m_nativeKey = makePlatformSafeKey(key);
 }
@@ -295,15 +294,15 @@ void SharedMemory::setErrorString(const QString &function)
         m_error = QSharedMemory::OutOfResources;
         break;
     default:
-        m_errorString = QStringLiteral("%1: unknown error %2").arg(function).arg(strerror(errno));
+        m_errorString = QStringLiteral("%1: unknown error %2")
+                .arg(function).arg(QString::fromLocal8Bit(strerror(errno)));
         m_error = QSharedMemory::UnknownError;
     }
 }
 
 bool SharedMemory::initKeyInternal()
 {
-    if (!cleanHandleInternal())
-        return false;
+    cleanHandleInternal();
 
     m_systemSemaphore.setKey(QString(), 1);
     m_systemSemaphore.setKey(m_key, 1);
@@ -344,10 +343,9 @@ int SharedMemory::handle()
     return m_fileHandle;
 }
 
-bool SharedMemory::cleanHandleInternal()
+void SharedMemory::cleanHandleInternal()
 {
     m_fileHandle = -1;
-    return true;
 }
 
 bool SharedMemory::createInternal(QSharedMemory::AccessMode mode, int size)

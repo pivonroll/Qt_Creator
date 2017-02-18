@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,32 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#include "extensioncontext.h"
-#include "outputcallback.h"
 #include "eventcallback.h"
+#include "extensioncontext.h"
+#include "gdbmihelpers.h"
+#include "outputcallback.h"
+#include "stringutils.h"
 #include "symbolgroup.h"
 #include "symbolgroupvalue.h"
-#include "stringutils.h"
-#include "gdbmihelpers.h"
+
+#ifdef WITH_PYTHON
+#include <Python.h>
+#include "pystdoutredirect.h"
+#endif
 
 #include <cstdio>
 #include <sstream>
@@ -111,7 +111,8 @@ enum Command {
     CmdWidgetAt,
     CmdBreakPoints,
     CmdTest,
-    CmdSetParameter
+    CmdSetParameter,
+    CmdScript
 };
 
 static const CommandDescription commandDescriptions[] = {
@@ -177,7 +178,8 @@ static const CommandDescription commandDescriptions[] = {
 {"breakpoints","List breakpoints with modules","[-h] [-v]"},
 {"test","Testing command","-T type | -w watch-expression"},
 {"setparameter","Set parameter",
- "maxStringLength=value maxArraySize=value maxStackDepth=value stateNotification=1,0"}
+ "maxStringLength=value maxArraySize=value maxStackDepth=value stateNotification=1,0"},
+{"script", "Run Python command", "[-t token]"}
 };
 
 typedef std::vector<std::string> StringVector;
@@ -280,7 +282,7 @@ extern "C" HRESULT CALLBACK pid(CIDebugClient *client, PCSTR args)
 
     int token;
     commandTokens<StringList>(args, &token);
-    dprintf("Qt Creator CDB extension version 3.4 %d bit.\n",
+    dprintf("Qt Creator CDB extension version 4.2 %d bit.\n",
             sizeof(void *) * 8);
     if (const ULONG pid = currentProcessId(client))
         ExtensionContext::instance().report('R', token, 0, "pid", "%u", pid);
@@ -513,14 +515,16 @@ static std::string commandLocals(ExtensionCommandContext &commandExtCtx,PCSTR ar
     if (watchSynchronization) {
         watchesSymbolGroup = 0;
         extCtx.discardWatchesSymbolGroup();
-        if (!watcherInameExpressionMap.empty()) {
-            // Force group into existence
-            watchesSymbolGroup = extCtx.watchesSymbolGroup(commandExtCtx.symbols(), errorMessage);
-            if (!watchesSymbolGroup || !watchesSymbolGroup->synchronize(commandExtCtx.symbols(),
-                                                                        watcherInameExpressionMap,
-                                                                        errorMessage)) {
-                return std::string();
-            }
+    }
+
+    if (watchesSymbolGroup == 0
+            && (!watcherInameExpressionMap.empty() || WatchesSymbolGroup::isWatchIname(iname))) {
+        // Force group into existence
+        watchesSymbolGroup = extCtx.watchesSymbolGroup(commandExtCtx.symbols(), errorMessage);
+        if (!watchesSymbolGroup || !watchesSymbolGroup->synchronize(commandExtCtx.symbols(),
+                                                                    watcherInameExpressionMap,
+                                                                    errorMessage)) {
+            return std::string();
         }
     }
 
@@ -565,6 +569,36 @@ static std::string commandLocals(ExtensionCommandContext &commandExtCtx,PCSTR ar
         return watchesSymbolGroup->dump(iname, dumpContext, parameters.dumpParameters, errorMessage);
     else
         return symGroup->dump(iname, dumpContext, parameters.dumpParameters, errorMessage);
+}
+
+extern "C" HRESULT CALLBACK script(CIDebugClient *client, PCSTR argsIn)
+{
+    ExtensionCommandContext exc(client);
+    int token;
+#ifdef WITH_PYTHON
+    std::stringstream command;
+    for (std::string arg : commandTokens<StringList>(argsIn, &token))
+        command << arg << ' ';
+
+    PyObject *ptype      = NULL;
+    PyObject *pvalue     = NULL;
+    PyObject *ptraceback = NULL;
+    PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+    startCapturePyStdout();
+    const char result = (PyRun_SimpleString(command.str().c_str()) == 0) ? 'R' : 'N';
+    if (PyErr_Occurred())
+        PyErr_Print();
+    ExtensionContext::instance().reportLong(result, token, "script", getPyStdout().c_str());
+    endCapturePyStdout();
+    PyErr_Restore(ptype, pvalue, ptraceback);
+#else
+    commandTokens<StringList>(argsIn, &token);
+    ExtensionContext::instance().report('N', token, 0, "script",
+            "Python is not supported in this CDB extension.\n"
+            "You need to define PYTHON_INSTALL_DIR in your creator build environment "
+            "pointing to a Python 3.5 installation.");
+#endif
+    return S_OK;
 }
 
 extern "C" HRESULT CALLBACK locals(CIDebugClient *client, PCSTR args)
@@ -665,7 +699,7 @@ static std::string dumplocalHelper(ExtensionCommandContext &exc,PCSTR args, int 
         return std::string();
     }
     std::wstring value;
-    if (!dumpSimpleType(n->asSymbolGroupNode(), SymbolGroupValueContext(exc.dataSpaces(), exc.symbols()), &value)) {
+    if (!dumpSimpleType(n->asSymbolGroupNode(), SymbolGroupValueContext(exc.dataSpaces(), exc.symbols()), &value, &std::string())) {
         *errorMessage = "Cannot dump " + iname;
         return std::string();
     }
@@ -957,7 +991,7 @@ extern "C" HRESULT CALLBACK help(CIDebugClient *, PCSTR)
 }
 
 // Extension command 'memory':
-// Display memory as base64
+// Display memory as hex
 
 extern "C" HRESULT CALLBACK memory(CIDebugClient *Client, PCSTR argsIn)
 {
@@ -973,7 +1007,7 @@ extern "C" HRESULT CALLBACK memory(CIDebugClient *Client, PCSTR argsIn)
     if (tokens.size()  == 2
             && integerFromString(tokens.front(), &address)
             && integerFromString(tokens.at(1), &length)) {
-        memory = memoryToBase64(exc.dataSpaces(), address, length, &errorMessage);
+        memory = memoryToHex(exc.dataSpaces(), address, length, &errorMessage);
     } else {
         errorMessage = singleLineUsage(commandDescriptions[CmdMemory]);
     }
@@ -1057,7 +1091,7 @@ extern "C" HRESULT CALLBACK qmlstack(CIDebugClient *client, PCSTR argsIn)
 
     int token = 0;
     bool humanReadable = false;
-    ULONG64 jsExecutionContext = 0;
+    ULONG64 jsExecutionEngine = 0;
     std::string stackDump;
 
     do {
@@ -1067,16 +1101,16 @@ extern "C" HRESULT CALLBACK qmlstack(CIDebugClient *client, PCSTR argsIn)
              tokens.pop_front();
         }
         if (!tokens.empty()) {
-            if (!integerFromString(tokens.front(), &jsExecutionContext)) {
+            if (!integerFromString(tokens.front(), &jsExecutionEngine)) {
                 errorMessage = "Invalid address " + tokens.front();
                 break;
             }
             tokens.pop_front();
         }
         ExtensionCommandContext exc(client);
-        if (!jsExecutionContext) { // Try to find execution context unless it was given.
-            jsExecutionContext = ExtensionContext::instance().jsExecutionContext(exc, &errorMessage);
-            if (!jsExecutionContext)
+        if (!jsExecutionEngine) { // Try to find execution engine unless it was given.
+            jsExecutionEngine = ExtensionContext::instance().jsExecutionEngine(exc, &errorMessage);
+            if (!jsExecutionEngine)
                 break;
         }
         // call function to get stack trace. Call with exceptions handled right from
@@ -1084,7 +1118,7 @@ extern "C" HRESULT CALLBACK qmlstack(CIDebugClient *client, PCSTR argsIn)
         std::ostringstream callStr;
         const QtInfo &qtInfo = QtInfo::get(SymbolGroupValueContext(exc.dataSpaces(), exc.symbols()));
         callStr << qtInfo.prependQtModule("qt_v4StackTrace(", QtInfo::Qml) << std::showbase << std::hex
-                << jsExecutionContext << std::dec << std::noshowbase << ')';
+                << jsExecutionEngine << std::dec << std::noshowbase << ')';
         std::wstring wOutput;
         if (!ExtensionContext::instance().call(callStr.str(), ExtensionContext::CallWithExceptionsHandled, &wOutput, &errorMessage))
             break;

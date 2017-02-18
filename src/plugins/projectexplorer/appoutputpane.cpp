@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "appoutputpane.h"
 #include "projectexplorer.h"
+#include "projectexplorericons.h"
 #include "projectexplorersettings.h"
 #include "runconfiguration.h"
 #include "session.h"
@@ -37,7 +33,6 @@
 
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
-#include <coreplugin/coreconstants.h>
 #include <coreplugin/outputwindow.h>
 #include <coreplugin/find/basetextfind.h>
 #include <coreplugin/coreconstants.h>
@@ -51,6 +46,7 @@
 #include <utils/algorithm.h>
 #include <utils/outputformatter.h>
 #include <utils/qtcassert.h>
+#include <utils/utilsicons.h>
 
 #include <QAction>
 #include <QVBoxLayout>
@@ -89,27 +85,26 @@ class TabWidget : public QTabWidget
 {
     Q_OBJECT
 public:
-    TabWidget(QWidget *parent = 0);
+    TabWidget(QWidget *parent = nullptr);
 signals:
-    void contextMenuRequested(const QPoint &pos, const int index);
+    void contextMenuRequested(const QPoint &pos, int index);
 protected:
-    bool eventFilter(QObject *object, QEvent *event);
-private slots:
-    void slotContextMenuRequested(const QPoint &pos);
+    bool eventFilter(QObject *object, QEvent *event) override;
 private:
-    int m_tabIndexForMiddleClick;
+    void slotContextMenuRequested(const QPoint &pos);
+    int m_tabIndexForMiddleClick = -1;
 };
 
 }
 }
 
 TabWidget::TabWidget(QWidget *parent)
-    : QTabWidget(parent), m_tabIndexForMiddleClick(-1)
+    : QTabWidget(parent)
 {
     tabBar()->installEventFilter(this);
     setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(this, SIGNAL(customContextMenuRequested(QPoint)),
-            this, SLOT(slotContextMenuRequested(QPoint)));
+    connect(this, &QWidget::customContextMenuRequested,
+            this, &TabWidget::slotContextMenuRequested);
 }
 
 bool TabWidget::eventFilter(QObject *object, QEvent *event)
@@ -143,9 +138,8 @@ void TabWidget::slotContextMenuRequested(const QPoint &pos)
 }
 
 AppOutputPane::RunControlTab::RunControlTab(RunControl *rc, Core::OutputWindow *w) :
-    runControl(rc), window(w), asyncClosing(false), behaviorOnOutput(Flash)
-{
-}
+    runControl(rc), window(w)
+{ }
 
 AppOutputPane::AppOutputPane() :
     m_mainWidget(new QWidget),
@@ -163,17 +157,15 @@ AppOutputPane::AppOutputPane() :
     setObjectName(QLatin1String("AppOutputPane")); // Used in valgrind engine
 
     // Rerun
-    m_reRunButton->setIcon(QIcon(QLatin1String(Constants::ICON_RUN_SMALL)));
+    m_reRunButton->setIcon(Utils::Icons::RUN_SMALL_TOOLBAR.icon());
     m_reRunButton->setToolTip(tr("Re-run this run-configuration"));
     m_reRunButton->setAutoRaise(true);
     m_reRunButton->setEnabled(false);
-    connect(m_reRunButton, SIGNAL(clicked()),
-            this, SLOT(reRunRunControl()));
+    connect(m_reRunButton, &QToolButton::clicked,
+            this, &AppOutputPane::reRunRunControl);
 
     // Stop
-    QIcon stopIcon = QIcon(QLatin1String(Constants::ICON_STOP));
-    stopIcon.addFile(QLatin1String(Constants::ICON_STOP_SMALL));
-    m_stopAction->setIcon(stopIcon);
+    m_stopAction->setIcon(Utils::Icons::STOP_SMALL_TOOLBAR.icon());
     m_stopAction->setToolTip(tr("Stop"));
     m_stopAction->setEnabled(false);
 
@@ -182,27 +174,27 @@ AppOutputPane::AppOutputPane() :
     m_stopButton->setDefaultAction(cmd->action());
     m_stopButton->setAutoRaise(true);
 
-    connect(m_stopAction, SIGNAL(triggered()),
-            this, SLOT(stopRunControl()));
+    connect(m_stopAction, &QAction::triggered,
+            this, &AppOutputPane::stopRunControl);
 
     // Attach
     m_attachButton->setToolTip(msgAttachDebuggerTooltip());
     m_attachButton->setEnabled(false);
-    m_attachButton->setIcon(QIcon(QLatin1String(Constants::ICON_DEBUG_SMALL)));
+    m_attachButton->setIcon(Icons::DEBUG_START_SMALL_TOOLBAR.icon());
     m_attachButton->setAutoRaise(true);
 
-    connect(m_attachButton, SIGNAL(clicked()),
-            this, SLOT(attachToRunControl()));
+    connect(m_attachButton, &QToolButton::clicked,
+            this, &AppOutputPane::attachToRunControl);
 
     m_zoomInButton->setToolTip(tr("Increase Font Size"));
-    m_zoomInButton->setIcon(QIcon(QLatin1String(Core::Constants::ICON_PLUS)));
+    m_zoomInButton->setIcon(Utils::Icons::PLUS_TOOLBAR.icon());
     m_zoomInButton->setAutoRaise(true);
 
     connect(m_zoomInButton, &QToolButton::clicked,
             this, &AppOutputPane::zoomIn);
 
     m_zoomOutButton->setToolTip(tr("Decrease Font Size"));
-    m_zoomOutButton->setIcon(QIcon(QLatin1String(Core::Constants::ICON_MINUS)));
+    m_zoomOutButton->setIcon(Utils::Icons::MINUS.icon());
     m_zoomOutButton->setAutoRaise(true);
 
     connect(m_zoomOutButton, &QToolButton::clicked,
@@ -215,11 +207,13 @@ AppOutputPane::AppOutputPane() :
     m_tabWidget->setDocumentMode(true);
     m_tabWidget->setTabsClosable(true);
     m_tabWidget->setMovable(true);
-    connect(m_tabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
+    connect(m_tabWidget, &QTabWidget::tabCloseRequested,
+            this, [this](int index) { closeTab(index); });
     layout->addWidget(m_tabWidget);
 
-    connect(m_tabWidget, SIGNAL(currentChanged(int)), this, SLOT(tabChanged(int)));
-    connect(m_tabWidget, SIGNAL(contextMenuRequested(QPoint,int)), this, SLOT(contextMenuRequested(QPoint,int)));
+    connect(m_tabWidget, &QTabWidget::currentChanged, this, &AppOutputPane::tabChanged);
+    connect(m_tabWidget, &TabWidget::contextMenuRequested,
+            this, &AppOutputPane::contextMenuRequested);
 
     m_mainWidget->setLayout(layout);
 
@@ -229,10 +223,10 @@ AppOutputPane::AppOutputPane() :
     connect(TextEditor::TextEditorSettings::instance(), &TextEditor::TextEditorSettings::behaviorSettingsChanged,
             this, &AppOutputPane::updateBehaviorSettings);
 
-    connect(SessionManager::instance(), SIGNAL(aboutToUnloadSession(QString)),
-            this, SLOT(aboutToUnloadSession()));
-    connect(ProjectExplorerPlugin::instance(), SIGNAL(settingsChanged()),
-            this, SLOT(updateFromSettings()));
+    connect(SessionManager::instance(), &SessionManager::aboutToUnloadSession,
+            this, &AppOutputPane::aboutToUnloadSession);
+    connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::settingsChanged,
+            this, &AppOutputPane::updateFromSettings);
 
 #ifdef Q_OS_WIN
     connect(this, &AppOutputPane::allRunControlsFinished,
@@ -327,8 +321,7 @@ QWidget *AppOutputPane::outputWidget(QWidget *)
 
 QList<QWidget*> AppOutputPane::toolBarWidgets() const
 {
-    return QList<QWidget*>() << m_reRunButton << m_stopButton << m_attachButton
-                             << m_zoomInButton << m_zoomOutButton;
+    return { m_reRunButton, m_stopButton, m_attachButton, m_zoomInButton, m_zoomOutButton };
 }
 
 QString AppOutputPane::displayName() const
@@ -387,32 +380,32 @@ void AppOutputPane::updateBehaviorSettings()
 
 void AppOutputPane::createNewOutputWindow(RunControl *rc)
 {
-    connect(rc, SIGNAL(started()),
-            this, SLOT(slotRunControlStarted()));
-    connect(rc, SIGNAL(finished()),
-            this, SLOT(slotRunControlFinished()));
-    connect(rc, SIGNAL(applicationProcessHandleChanged()),
-            this, SLOT(enableButtons()));
-    connect(rc, SIGNAL(appendMessage(ProjectExplorer::RunControl*,QString,Utils::OutputFormat)),
-            this, SLOT(appendMessage(ProjectExplorer::RunControl*,QString,Utils::OutputFormat)));
+    connect(rc, &RunControl::started,
+            this, &AppOutputPane::slotRunControlStarted);
+    connect(rc, &RunControl::finished,
+            this, &AppOutputPane::slotRunControlFinished);
+    connect(rc, &RunControl::applicationProcessHandleChanged,
+            this, &AppOutputPane::enableDefaultButtons);
+    connect(rc, &RunControl::appendMessageRequested,
+            this, &AppOutputPane::appendMessage);
 
     Utils::OutputFormatter *formatter = rc->outputFormatter();
 
     // First look if we can reuse a tab
-    const int size = m_runControlTabs.size();
-    for (int i = 0; i < size; i++) {
-        RunControlTab &tab =m_runControlTabs[i];
-        if (tab.runControl->sameRunConfiguration(rc) && !tab.runControl->isRunning()) {
-            // Reuse this tab
-            delete tab.runControl;
-            tab.runControl = rc;
-            handleOldOutput(tab.window);
-            tab.window->scrollToBottom();
-            tab.window->setFormatter(formatter);
-            if (debug)
-                qDebug() << "OutputPane::createNewOutputWindow: Reusing tab" << i << " for " << rc;
-            return;
-        }
+    const int tabIndex = Utils::indexOf(m_runControlTabs, [rc](const RunControlTab &tab) {
+        return rc->canReUseOutputPane(tab.runControl);
+    });
+    if (tabIndex != -1) {
+        RunControlTab &tab = m_runControlTabs[tabIndex];
+        // Reuse this tab
+        delete tab.runControl;
+        tab.runControl = rc;
+        handleOldOutput(tab.window);
+        tab.window->scrollToBottom();
+        tab.window->setFormatter(formatter);
+        if (debug)
+            qDebug() << "OutputPane::createNewOutputWindow: Reusing tab" << tabIndex << " for " << rc;
+        return;
     }
     // Create new
     static uint counter = 0;
@@ -420,7 +413,7 @@ void AppOutputPane::createNewOutputWindow(RunControl *rc)
     Core::Context context(contextId);
     Core::OutputWindow *ow = new Core::OutputWindow(context, m_tabWidget);
     ow->setWindowTitle(tr("Application Output Window"));
-    ow->setWindowIcon(QIcon(QLatin1String(Constants::ICON_WINDOW)));
+    ow->setWindowIcon(Icons::WINDOW.icon());
     ow->setFormatter(formatter);
     ow->setWordWrapEnabled(ProjectExplorerPlugin::projectExplorerSettings().wrapAppOutput);
     ow->setMaxLineCount(ProjectExplorerPlugin::projectExplorerSettings().maxAppOutputLines);
@@ -428,8 +421,7 @@ void AppOutputPane::createNewOutputWindow(RunControl *rc)
     ow->setBaseFont(TextEditor::TextEditorSettings::fontSettings().font());
     ow->setFontZoom(m_zoom);
 
-    connect(ow, &Core::OutputWindow::wheelZoom,
-            this, [this, ow]() {
+    connect(ow, &Core::OutputWindow::wheelZoom, this, [this, ow]() {
         m_zoom = ow->fontZoom();
         foreach (const RunControlTab &tab, m_runControlTabs)
             tab.window->setFontZoom(m_zoom);
@@ -455,9 +447,7 @@ void AppOutputPane::handleOldOutput(Core::OutputWindow *window) const
 
 void AppOutputPane::updateFromSettings()
 {
-    const int size = m_runControlTabs.size();
-    for (int i = 0; i < size; i++) {
-        RunControlTab &tab =m_runControlTabs[i];
+    foreach (const RunControlTab &tab, m_runControlTabs) {
         tab.window->setWordWrapEnabled(ProjectExplorerPlugin::projectExplorerSettings().wrapAppOutput);
         tab.window->setMaxLineCount(ProjectExplorerPlugin::projectExplorerSettings().maxAppOutputLines);
     }
@@ -537,14 +527,9 @@ bool AppOutputPane::closeTabs(CloseTabMode mode)
 
 QList<RunControl *> AppOutputPane::allRunControls() const
 {
-    return Utils::transform(m_runControlTabs,[](const RunControlTab &tab) {
+    return Utils::transform<QList>(m_runControlTabs,[](const RunControlTab &tab) {
         return tab.runControl;
     });
-}
-
-bool AppOutputPane::closeTab(int index)
-{
-    return closeTab(index, CloseTabWithPrompt);
 }
 
 bool AppOutputPane::closeTab(int tabIndex, CloseTabMode closeTabMode)
@@ -611,7 +596,7 @@ void AppOutputPane::projectRemoved()
     tabChanged(m_tabWidget->currentIndex());
 }
 
-void AppOutputPane::enableButtons()
+void AppOutputPane::enableDefaultButtons()
 {
     const RunControl *rc = currentRunControl();
     const bool isRunning = rc && rc->isRunning();
@@ -636,15 +621,18 @@ void AppOutputPane::zoomOut()
     m_zoom = m_runControlTabs.first().window->fontZoom();
 }
 
-void AppOutputPane::enableButtons(const RunControl *rc /* = 0 */, bool isRunning /*  = false */)
+void AppOutputPane::enableButtons(const RunControl *rc, bool isRunning)
 {
     if (rc) {
         m_reRunButton->setEnabled(!isRunning && rc->supportsReRunning());
-        m_reRunButton->setIcon(QIcon(rc->icon()));
+        m_reRunButton->setIcon(rc->icon().icon());
         m_stopAction->setEnabled(isRunning);
         if (isRunning && debuggerPlugin() && rc->applicationProcessHandle().isValid()) {
             m_attachButton->setEnabled(true);
-            m_attachButton->setToolTip(msgAttachDebuggerTooltip(rc->applicationProcessHandle().toString()));
+            Utils::ProcessHandle h = rc->applicationProcessHandle();
+            QString tip = h.isValid() ? RunControl::tr("PID %1").arg(h.pid())
+                                      : RunControl::tr("Invalid");
+            m_attachButton->setToolTip(msgAttachDebuggerTooltip(tip));
         } else {
             m_attachButton->setEnabled(false);
             m_attachButton->setToolTip(msgAttachDebuggerTooltip());
@@ -653,7 +641,7 @@ void AppOutputPane::enableButtons(const RunControl *rc /* = 0 */, bool isRunning
         m_zoomOutButton->setEnabled(true);
     } else {
         m_reRunButton->setEnabled(false);
-        m_reRunButton->setIcon(QIcon(QLatin1String(Constants::ICON_RUN_SMALL)));
+        m_reRunButton->setIcon(Utils::Icons::RUN_SMALL_TOOLBAR.icon());
         m_attachButton->setEnabled(false);
         m_attachButton->setToolTip(msgAttachDebuggerTooltip());
         m_stopAction->setEnabled(false);
@@ -665,11 +653,11 @@ void AppOutputPane::enableButtons(const RunControl *rc /* = 0 */, bool isRunning
 void AppOutputPane::tabChanged(int i)
 {
     const int index = indexOf(m_tabWidget->widget(i));
-    if (i != -1) {
+    if (i != -1 && index != -1) {
         const RunControl *rc = m_runControlTabs.at(index).runControl;
         enableButtons(rc, rc->isRunning());
     } else {
-        enableButtons();
+        enableDefaultButtons();
     }
 }
 
@@ -701,8 +689,7 @@ void AppOutputPane::slotRunControlStarted()
 void AppOutputPane::slotRunControlFinished()
 {
     RunControl *rc = qobject_cast<RunControl *>(sender());
-    QMetaObject::invokeMethod(this, "slotRunControlFinished2", Qt::QueuedConnection,
-                              Q_ARG(ProjectExplorer::RunControl *, rc));
+    QTimer::singleShot(0, this, [this, rc]() { slotRunControlFinished2(rc); });
     rc->outputFormatter()->flush();
 }
 

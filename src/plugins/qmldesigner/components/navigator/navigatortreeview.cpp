@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,12 +34,14 @@
 #include "metainfo.h"
 
 #include <utils/stylehelper.h>
+#include <utils/theme/theme.h>
 
 #include <QLineEdit>
 #include <QPen>
 #include <QPixmapCache>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QStyleFactory>
 
 
 namespace QmlDesigner {
@@ -52,6 +54,12 @@ namespace {
 class TreeViewStyle : public QProxyStyle
 {
 public:
+    TreeViewStyle(QObject *parent) : QProxyStyle(QStyleFactory::create("fusion"))
+    {
+        setParent(parent);
+        baseStyle()->setParent(parent);
+    }
+
     void drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget = 0) const
     {
         static QRect mouseOverStateSavedFrameRectangle;
@@ -161,26 +169,13 @@ private: // variables
 NavigatorTreeView::NavigatorTreeView(QWidget *parent)
     : QTreeView(parent)
 {
-    TreeViewStyle *style = new TreeViewStyle;
-    setStyle(style);
-    style->setParent(this);
+    setStyle(new TreeViewStyle(this));
 }
 
 void NavigatorTreeView::drawSelectionBackground(QPainter *painter, const QStyleOption &option)
 {
     painter->save();
-    QLinearGradient gradient;
-
-    QColor highlightColor = Utils::StyleHelper::notTooBrightHighlightColor();
-    gradient.setColorAt(0, highlightColor.lighter(130));
-    gradient.setColorAt(1, highlightColor.darker(130));
-    gradient.setStart(option.rect.topLeft());
-    gradient.setFinalStop(option.rect.bottomLeft());
-    painter->fillRect(option.rect, gradient);
-    painter->setPen(highlightColor.lighter());
-    painter->drawLine(option.rect.topLeft(),option.rect.topRight());
-    painter->setPen(highlightColor.darker());
-    painter->drawLine(option.rect.bottomLeft(),option.rect.bottomRight());
+    painter->fillRect(option.rect, option.palette.color(QPalette::Highlight));
     painter->restore();
 }
 

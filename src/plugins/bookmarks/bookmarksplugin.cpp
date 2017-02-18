@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -46,7 +41,6 @@
 #include <texteditor/texteditorconstants.h>
 
 #include <QtPlugin>
-#include <QDebug>
 
 #include <QMenu>
 
@@ -77,9 +71,11 @@ bool BookmarksPlugin::initialize(const QStringList & /*arguments*/, QString *)
     mbm->menu()->setTitle(tr("&Bookmarks"));
     mtools->addMenu(mbm);
 
+    const Context editorManagerContext(Core::Constants::C_EDITORMANAGER);
+
     //Toggle
     m_toggleAction = new QAction(tr("Toggle Bookmark"), this);
-    Command *cmd = ActionManager::registerAction(m_toggleAction, BOOKMARKS_TOGGLE_ACTION);
+    Command *cmd = ActionManager::registerAction(m_toggleAction, BOOKMARKS_TOGGLE_ACTION, editorManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+M") : tr("Ctrl+M")));
     mbm->addAction(cmd);
 
@@ -87,13 +83,13 @@ bool BookmarksPlugin::initialize(const QStringList & /*arguments*/, QString *)
 
     //Previous
     m_prevAction = new QAction(tr("Previous Bookmark"), this);
-    cmd = ActionManager::registerAction(m_prevAction, BOOKMARKS_PREV_ACTION);
+    cmd = ActionManager::registerAction(m_prevAction, BOOKMARKS_PREV_ACTION, editorManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+,") : tr("Ctrl+,")));
     mbm->addAction(cmd);
 
     //Next
     m_nextAction = new QAction(tr("Next Bookmark"), this);
-    cmd = ActionManager::registerAction(m_nextAction, BOOKMARKS_NEXT_ACTION);
+    cmd = ActionManager::registerAction(m_nextAction, BOOKMARKS_NEXT_ACTION, editorManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+.") : tr("Ctrl+.")));
     mbm->addAction(cmd);
 
@@ -101,12 +97,12 @@ bool BookmarksPlugin::initialize(const QStringList & /*arguments*/, QString *)
 
     //Previous Doc
     m_docPrevAction = new QAction(tr("Previous Bookmark in Document"), this);
-    cmd = ActionManager::registerAction(m_docPrevAction, BOOKMARKS_PREVDOC_ACTION);
+    cmd = ActionManager::registerAction(m_docPrevAction, BOOKMARKS_PREVDOC_ACTION, editorManagerContext);
     mbm->addAction(cmd);
 
     //Next Doc
     m_docNextAction = new QAction(tr("Next Bookmark in Document"), this);
-    cmd = ActionManager::registerAction(m_docNextAction, BOOKMARKS_NEXTDOC_ACTION);
+    cmd = ActionManager::registerAction(m_docNextAction, BOOKMARKS_NEXTDOC_ACTION, editorManagerContext);
     mbm->addAction(cmd);
 
     m_editBookmarkAction = new QAction(tr("Edit Bookmark"), this);
@@ -172,13 +168,6 @@ void BookmarksPlugin::editorOpened(IEditor *editor)
                 [this, editor](TextEditorWidget *, int line, TextMarkRequestKind kind) {
                     if (kind == BookmarkRequest && !editor->document()->isTemporary())
                         m_bookmarkManager->toggleBookmark(editor->document()->filePath().toString(), line);
-                });
-
-
-        connect(widget, &TextEditorWidget::markTooltipRequested, m_bookmarkManager,
-                [this, editor](TextEditorWidget *, const QPoint &pos, int line) {
-                    if (editor->document())
-                        m_bookmarkManager->handleBookmarkTooltipRequest(editor, pos, line);
                 });
 
         connect(widget, &TextEditorWidget::markContextMenuRequested,

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,6 +38,8 @@
 #include <QVBoxLayout>
 #include <QFormLayout>
 
+#include <projectexplorer/projectexplorerconstants.h>
+
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
 
@@ -58,7 +55,7 @@ AndroidGdbServerKitInformation::AndroidGdbServerKitInformation()
     setPriority(27999); // Just one less than Debugger!
 }
 
-QVariant AndroidGdbServerKitInformation::defaultValue(Kit *kit) const
+QVariant AndroidGdbServerKitInformation::defaultValue(const Kit *kit) const
 {
     return autoDetect(kit).toString();
 }
@@ -87,7 +84,7 @@ Core::Id AndroidGdbServerKitInformation::id()
 bool AndroidGdbServerKitInformation::isAndroidKit(const Kit *kit)
 {
     QtSupport::BaseQtVersion *qt = QtSupport::QtKitInformation::qtVersion(kit);
-    ToolChain *tc = ToolChainKitInformation::toolChain(kit);
+    ToolChain *tc = ToolChainKitInformation::toolChain(kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (qt && tc)
         return qt->type() == QLatin1String(Constants::ANDROIDQT)
                 && tc->typeId() == Constants::ANDROID_TOOLCHAIN_ID;
@@ -105,12 +102,12 @@ void AndroidGdbServerKitInformation::setGdbSever(Kit *kit, const FileName &gdbSe
     kit->setValue(AndroidGdbServerKitInformation::id(), gdbServerCommand.toString());
 }
 
-FileName AndroidGdbServerKitInformation::autoDetect(Kit *kit)
+FileName AndroidGdbServerKitInformation::autoDetect(const Kit *kit)
 {
-    ToolChain *tc = ToolChainKitInformation::toolChain(kit);
+    ToolChain *tc = ToolChainKitInformation::toolChain(kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (!tc || tc->typeId() != Constants::ANDROID_TOOLCHAIN_ID)
         return FileName();
-    AndroidToolChain *atc = static_cast<AndroidToolChain *>(tc);
+    auto atc = static_cast<AndroidToolChain *>(tc);
     return atc->suggestedGdbServer();
 }
 
@@ -119,17 +116,19 @@ FileName AndroidGdbServerKitInformation::autoDetect(Kit *kit)
 ///////////////
 
 
-AndroidGdbServerKitInformationWidget::AndroidGdbServerKitInformationWidget(Kit *kit, const KitInformation *ki)
-    : KitConfigWidget(kit, ki),
-      m_label(new ElidingLabel),
-      m_button(new QPushButton(tr("Manage...")))
+AndroidGdbServerKitInformationWidget::AndroidGdbServerKitInformationWidget(Kit *kit, const KitInformation *ki) :
+    KitConfigWidget(kit, ki),
+    m_label(new ElidingLabel),
+    m_button(new QPushButton(tr("Manage...")))
 {
     // ToolButton with Menu, defaulting to 'Autodetect'.
-    QMenu *buttonMenu = new QMenu(m_button);
+    auto buttonMenu = new QMenu(m_button);
     QAction *autoDetectAction = buttonMenu->addAction(tr("Auto-detect"));
-    connect(autoDetectAction, SIGNAL(triggered()), this, SLOT(autoDetectDebugger()));
+    connect(autoDetectAction, &QAction::triggered,
+            this, &AndroidGdbServerKitInformationWidget::autoDetectDebugger);
     QAction *changeAction = buttonMenu->addAction(tr("Edit..."));
-    connect(changeAction, SIGNAL(triggered()), this, SLOT(showDialog()));
+    connect(changeAction, &QAction::triggered,
+            this, &AndroidGdbServerKitInformationWidget::showDialog);
     m_button->setMenu(buttonMenu);
 
     refresh();
@@ -184,21 +183,21 @@ void AndroidGdbServerKitInformationWidget::autoDetectDebugger()
 void AndroidGdbServerKitInformationWidget::showDialog()
 {
     QDialog dialog;
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
-    QFormLayout *formLayout = new QFormLayout;
+    auto layout = new QVBoxLayout(&dialog);
+    auto formLayout = new QFormLayout;
     formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
-    QLabel *binaryLabel = new QLabel(tr("&Binary:"));
-    PathChooser *chooser = new PathChooser;
+    auto binaryLabel = new QLabel(tr("&Binary:"));
+    auto chooser = new PathChooser;
     chooser->setExpectedKind(PathChooser::ExistingCommand);
     chooser->setPath(AndroidGdbServerKitInformation::gdbServer(m_kit).toString());
     binaryLabel->setBuddy(chooser);
     formLayout->addRow(binaryLabel, chooser);
     layout->addLayout(formLayout);
 
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, &dialog);
-    connect(buttonBox, SIGNAL(accepted()), &dialog, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), &dialog, SLOT(reject()));
+    auto buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, &dialog);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttonBox);
 
     dialog.setWindowTitle(tr("GDB Server for \"%1\"").arg(m_kit->displayName()));

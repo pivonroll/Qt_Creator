@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,25 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "baseeditordocumentparser.h"
 #include "baseeditordocumentprocessor.h"
 
-#include "cpptoolsreuse.h"
+#include "cppmodelmanager.h"
+#include "cppprojectpartchooser.h"
 #include "editordocumenthandle.h"
 
 namespace CppTools {
@@ -45,19 +41,21 @@ namespace CppTools {
     It's meant to be used in the C++ editor to get precise results by using
     the "best" project part for a file.
 
-    Derived classes are expected to implement updateHelper() this way:
+    Derived classes are expected to implement updateImpl() this way:
 
     \list
         \li Get a copy of the configuration and the last state.
         \li Work on the data and do whatever is necessary. At least, update
             the project part with the help of determineProjectPart().
-        \li Ensure the new state is set before updateHelper() returns.
+        \li Ensure the new state is set before updateImpl() returns.
     \endlist
 */
 
 BaseEditorDocumentParser::BaseEditorDocumentParser(const QString &filePath)
     : m_filePath(filePath)
 {
+    static int meta = qRegisterMetaType<ProjectPartInfo>("CppTools::ProjectPartInfo");
+    Q_UNUSED(meta);
 }
 
 BaseEditorDocumentParser::~BaseEditorDocumentParser()
@@ -81,10 +79,17 @@ void BaseEditorDocumentParser::setConfiguration(const Configuration &configurati
     m_configuration = configuration;
 }
 
-void BaseEditorDocumentParser::update(const InMemoryInfo &info)
+void BaseEditorDocumentParser::update(const UpdateParams &updateParams)
+{
+    QFutureInterface<void> dummy;
+    update(dummy, updateParams);
+}
+
+void BaseEditorDocumentParser::update(const QFutureInterface<void> &future,
+                                      const UpdateParams &updateParams)
 {
     QMutexLocker locker(&m_updateIsRunning);
-    updateHelper(info);
+    updateImpl(future, updateParams);
 }
 
 BaseEditorDocumentParser::State BaseEditorDocumentParser::state() const
@@ -99,9 +104,9 @@ void BaseEditorDocumentParser::setState(const State &state)
     m_state = state;
 }
 
-ProjectPart::Ptr BaseEditorDocumentParser::projectPart() const
+ProjectPartInfo BaseEditorDocumentParser::projectPartInfo() const
 {
-    return state().projectPart;
+    return state().projectPartInfo;
 }
 
 BaseEditorDocumentParser::Ptr BaseEditorDocumentParser::get(const QString &filePath)
@@ -114,44 +119,35 @@ BaseEditorDocumentParser::Ptr BaseEditorDocumentParser::get(const QString &fileP
     return BaseEditorDocumentParser::Ptr();
 }
 
-ProjectPart::Ptr BaseEditorDocumentParser::determineProjectPart(const QString &filePath,
-                                                                const Configuration &config,
-                                                                const State &state)
+ProjectPartInfo BaseEditorDocumentParser::determineProjectPart(
+        const QString &filePath,
+        const QString &preferredProjectPartId,
+        const ProjectPartInfo &currentProjectPartInfo,
+        const ProjectExplorer::Project *activeProject,
+        Language languagePreference,
+        bool projectsUpdated)
 {
-    if (config.manuallySetProjectPart)
-        return config.manuallySetProjectPart;
+    Internal::ProjectPartChooser chooser;
+    chooser.setFallbackProjectPart([](){
+        return CppModelManager::instance()->fallbackProjectPart();
+    });
+    chooser.setProjectPartsForFile([](const QString &filePath) {
+        return CppModelManager::instance()->projectPart(filePath);
+    });
+    chooser.setProjectPartsFromDependenciesForFile([&](const QString &filePath) {
+        const auto fileName = Utils::FileName::fromString(filePath);
+        return CppModelManager::instance()->projectPartFromDependencies(fileName);
+    });
 
-    ProjectPart::Ptr projectPart = state.projectPart;
+    const ProjectPartInfo chooserResult
+            = chooser.choose(filePath,
+                             currentProjectPartInfo,
+                             preferredProjectPartId,
+                             activeProject,
+                             languagePreference,
+                             projectsUpdated);
 
-    CppModelManager *cmm = CppModelManager::instance();
-    QList<ProjectPart::Ptr> projectParts = cmm->projectPart(filePath);
-    if (projectParts.isEmpty()) {
-        if (projectPart && config.stickToPreviousProjectPart)
-            // File is not directly part of any project, but we got one before. We will re-use it,
-            // because re-calculating this can be expensive when the dependency table is big.
-            return projectPart;
-
-        // Fall-back step 1: Get some parts through the dependency table:
-        projectParts = cmm->projectPartFromDependencies(Utils::FileName::fromString(filePath));
-        if (projectParts.isEmpty())
-            // Fall-back step 2: Use fall-back part from the model manager:
-            projectPart = cmm->fallbackProjectPart();
-        else
-            projectPart = projectParts.first();
-    } else {
-        if (!projectParts.contains(projectPart))
-            // Apparently the project file changed, so update our project part.
-            projectPart = projectParts.first();
-    }
-
-    return projectPart;
-}
-
-BaseEditorDocumentParser::InMemoryInfo::InMemoryInfo(bool withModifiedFiles)
-    : workingCopy(CppTools::CppModelManager::instance()->workingCopy())
-{
-    if (withModifiedFiles)
-        modifiedFiles = CppTools::modifiedFiles();
+    return chooserResult;
 }
 
 } // namespace CppTools

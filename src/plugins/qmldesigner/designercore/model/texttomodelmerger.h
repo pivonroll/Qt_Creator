@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef TEXTTOMODELMERGER_H
-#define TEXTTOMODELMERGER_H
+#pragma once
 
 #include "qmldesignercorelib_global.h"
 #include "import.h"
 #include "nodelistproperty.h"
 #include "modelnode.h"
 
+#include <qmljs/qmljsscopechain.h>
 #include <qmljs/qmljsscopechain.h>
 
 #include <QStringList>
@@ -39,7 +39,7 @@
 namespace QmlDesigner {
 
 class RewriterView;
-class RewriterError;
+class DocumentMessage;
 
 namespace Internal {
 
@@ -52,6 +52,8 @@ class TextToModelMerger
     TextToModelMerger &operator=(const TextToModelMerger&);
 
 public:
+    static QmlJS::Document::MutablePtr createParsedDocument(const QUrl &url, const QString &data, QList<DocumentMessage> *errors);
+
     TextToModelMerger(RewriterView *reWriterView);
     bool isActive() const;
 
@@ -90,6 +92,7 @@ public:
     void syncNodeProperty(AbstractProperty &modelProperty,
                           QmlJS::AST::UiObjectBinding *binding,
                           ReadingContext *context,
+                          const TypeName &astType,
                           DifferenceHandler &differenceHandler);
     void syncExpressionProperty(AbstractProperty &modelProperty,
                                 const QString &javascript,
@@ -133,12 +136,10 @@ public:
 private:
     void setupCustomParserNode(const ModelNode &node);
     void setupComponent(const ModelNode &node);
-    void collectLinkErrors(QList<RewriterError> *errors, const ReadingContext &ctxt);
-    void collectImportErrors(QList<RewriterError> *errors);
-    void collectSemanticErrorsAndWarnings(QList<RewriterError> *errors,
-                                          QList<RewriterError> *warnings);
-    bool showWarningsDialogIgnored(const QList<RewriterError> &warnings);
-
+    void collectLinkErrors(QList<DocumentMessage> *errors, const ReadingContext &ctxt);
+    void collectImportErrors(QList<DocumentMessage> *errors);
+    void collectSemanticErrorsAndWarnings(QList<DocumentMessage> *errors,
+                                          QList<DocumentMessage> *warnings);
     void populateQrcMapping(const QString &filePath);
 
     static QString textAt(const QmlJS::Document::Ptr &doc,
@@ -190,6 +191,7 @@ public:
                                       int majorVersion,
                                       int minorVersion,
                                       QmlJS::AST::UiObjectMember *astNode,
+                                      const TypeName &dynamicPropertyType,
                                       ReadingContext *context) = 0;
     virtual void modelNodeAbsentFromQml(ModelNode &modelNode) = 0;
     virtual ModelNode listPropertyMissingModelNode(NodeListProperty &modelProperty,
@@ -241,7 +243,9 @@ public:
                                       int majorVersion,
                                       int minorVersion,
                                       QmlJS::AST::UiObjectMember *astNode,
+                                      const TypeName &dynamicPropertyType,
                                       ReadingContext *context);
+
     virtual void modelNodeAbsentFromQml(ModelNode &modelNode);
     virtual ModelNode listPropertyMissingModelNode(NodeListProperty &modelProperty,
                                                    ReadingContext *context,
@@ -289,7 +293,9 @@ public:
                                       int majorVersion,
                                       int minorVersion,
                                       QmlJS::AST::UiObjectMember *astNode,
+                                      const TypeName &dynamicPropertyType,
                                       ReadingContext *context);
+
     virtual void modelNodeAbsentFromQml(ModelNode &modelNode);
     virtual ModelNode listPropertyMissingModelNode(NodeListProperty &modelProperty,
                                                    ReadingContext *context,
@@ -308,5 +314,3 @@ public:
 
 } //Internal
 } //QmlDesigner
-
-#endif // TEXTTOMODELMERGER_H

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -66,16 +61,15 @@ BuildSettingsWidget::~BuildSettingsWidget()
 }
 
 BuildSettingsWidget::BuildSettingsWidget(Target *target) :
-    m_target(target),
-    m_buildConfiguration(0)
+    m_target(target)
 {
     Q_ASSERT(m_target);
 
-    QVBoxLayout *vbox = new QVBoxLayout(this);
+    auto vbox = new QVBoxLayout(this);
     vbox->setContentsMargins(0, 0, 0, 0);
 
     if (!IBuildConfigurationFactory::find(m_target)) {
-        QLabel *noSettingsLabel = new QLabel(this);
+        auto noSettingsLabel = new QLabel(this);
         noSettingsLabel->setText(tr("No build settings available"));
         QFont f = noSettingsLabel->font();
         f.setPointSizeF(f.pointSizeF() * 1.2);
@@ -85,7 +79,7 @@ BuildSettingsWidget::BuildSettingsWidget(Target *target) :
     }
 
     { // Edit Build Configuration row
-        QHBoxLayout *hbox = new QHBoxLayout();
+        auto hbox = new QHBoxLayout();
         hbox->setContentsMargins(0, 0, 0, 0);
         hbox->addWidget(new QLabel(tr("Edit build configuration:"), this));
         m_buildConfigurationComboBox = new QComboBox(this);
@@ -115,35 +109,35 @@ BuildSettingsWidget::BuildSettingsWidget(Target *target) :
     }
 
     m_buildConfiguration = m_target->activeBuildConfiguration();
-    BuildConfigurationModel *model = static_cast<BuildConfigurationModel *>(m_buildConfigurationComboBox->model());
+    auto model = static_cast<BuildConfigurationModel *>(m_buildConfigurationComboBox->model());
     m_buildConfigurationComboBox->setCurrentIndex(model->indexFor(m_buildConfiguration).row());
 
     updateAddButtonMenu();
     updateBuildSettings();
 
-    connect(m_buildConfigurationComboBox, SIGNAL(currentIndexChanged(int)),
-            this, SLOT(currentIndexChanged(int)));
+    connect(m_buildConfigurationComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &BuildSettingsWidget::currentIndexChanged);
 
-    connect(m_removeButton, SIGNAL(clicked()),
-            this, SLOT(deleteConfiguration()));
+    connect(m_removeButton, &QAbstractButton::clicked,
+            this, [this]() { deleteConfiguration(m_buildConfiguration); });
 
-    connect(m_renameButton, SIGNAL(clicked()),
-            this, SLOT(renameConfiguration()));
+    connect(m_renameButton, &QAbstractButton::clicked,
+            this, &BuildSettingsWidget::renameConfiguration);
 
-    connect(m_target, SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-            this, SLOT(updateActiveConfiguration()));
+    connect(m_target, &Target::activeBuildConfigurationChanged,
+            this, &BuildSettingsWidget::updateActiveConfiguration);
 
-    connect(m_target, SIGNAL(kitChanged()), this, SLOT(updateAddButtonMenu()));
+    connect(m_target, &Target::kitChanged, this, &BuildSettingsWidget::updateAddButtonMenu);
 }
 
 void BuildSettingsWidget::addSubWidget(NamedWidget *widget)
 {
     widget->setContentsMargins(0, 10, 0, 0);
 
-    QLabel *label = new QLabel(this);
+    auto label = new QLabel(this);
     label->setText(widget->displayName());
-    connect(widget, SIGNAL(displayNameChanged(QString)),
-            label, SLOT(setText(QString)));
+    connect(widget, &NamedWidget::displayNameChanged,
+            label, &QLabel::setText);
     QFont f = label->font();
     f.setBold(true);
     f.setPointSizeF(f.pointSizeF() * 1.2);
@@ -179,8 +173,9 @@ void BuildSettingsWidget::updateAddButtonMenu()
 
     if (m_target) {
         if (m_target->activeBuildConfiguration()) {
-            m_addButtonMenu->addAction(tr("&Clone Selected"),
-                                       this, SLOT(cloneConfiguration()));
+            QAction *cloneAction = m_addButtonMenu->addAction(tr("&Clone Selected"));
+            connect(cloneAction, &QAction::triggered,
+                    this, [this]() { cloneConfiguration(m_buildConfiguration); });
         }
         IBuildConfigurationFactory *factory = IBuildConfigurationFactory::find(m_target);
         if (!factory)
@@ -222,7 +217,7 @@ void BuildSettingsWidget::updateBuildSettings()
 
 void BuildSettingsWidget::currentIndexChanged(int index)
 {
-    BuildConfigurationModel *model = static_cast<BuildConfigurationModel *>(m_buildConfigurationComboBox->model());
+    auto model = static_cast<BuildConfigurationModel *>(m_buildConfigurationComboBox->model());
     BuildConfiguration *buildConfiguration = model->buildConfigurationAt(index);
     SessionManager::setActiveBuildConfiguration(m_target, buildConfiguration, SetActive::Cascade);
 }
@@ -234,7 +229,7 @@ void BuildSettingsWidget::updateActiveConfiguration()
 
     m_buildConfiguration = m_target->activeBuildConfiguration();
 
-    BuildConfigurationModel *model = static_cast<BuildConfigurationModel *>(m_buildConfigurationComboBox->model());
+    auto model = static_cast<BuildConfigurationModel *>(m_buildConfigurationComboBox->model());
     m_buildConfigurationComboBox->setCurrentIndex(model->indexFor(m_buildConfiguration).row());
 
     updateBuildSettings();
@@ -262,16 +257,6 @@ void BuildSettingsWidget::createConfiguration(BuildInfo *info)
     m_target->addBuildConfiguration(bc);
     SessionManager::setActiveBuildConfiguration(m_target, bc, SetActive::Cascade);
     info->displayName = originalDisplayName;
-}
-
-void BuildSettingsWidget::cloneConfiguration()
-{
-    cloneConfiguration(m_buildConfiguration);
-}
-
-void BuildSettingsWidget::deleteConfiguration()
-{
-    deleteConfiguration(m_buildConfiguration);
 }
 
 QString BuildSettingsWidget::uniqueName(const QString & name)

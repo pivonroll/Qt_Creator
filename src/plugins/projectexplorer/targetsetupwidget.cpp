@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -61,15 +56,12 @@ namespace Internal {
 TargetSetupWidget::TargetSetupWidget(Kit *k,
                                      const QString &projectPath,
                                      const QList<BuildInfo *> &infoList) :
-    m_kit(k),
-    m_haveImported(false),
-    m_ignoreChange(false),
-    m_selected(0)
+    m_kit(k)
 {
     Q_ASSERT(m_kit);
 
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    QVBoxLayout *vboxLayout = new QVBoxLayout();
+    auto vboxLayout = new QVBoxLayout();
     setLayout(vboxLayout);
     vboxLayout->setContentsMargins(0, 0, 0, 0);
     m_detailsWidget = new Utils::DetailsWidget(this);
@@ -79,20 +71,20 @@ TargetSetupWidget::TargetSetupWidget(Kit *k,
     m_detailsWidget->setToolTip(m_kit->toHtml());
     vboxLayout->addWidget(m_detailsWidget);
 
-    Utils::FadingWidget *panel = new Utils::FadingWidget(m_detailsWidget);
-    QHBoxLayout *panelLayout = new QHBoxLayout(panel);
+    auto panel = new Utils::FadingWidget(m_detailsWidget);
+    auto panelLayout = new QHBoxLayout(panel);
     m_manageButton = new QPushButton(KitConfigWidget::msgManage());
     panelLayout->addWidget(m_manageButton);
     m_detailsWidget->setToolWidget(panel);
 
     handleKitUpdate(m_kit);
 
-    QWidget *widget = new QWidget;
-    QVBoxLayout *layout = new QVBoxLayout;
+    auto widget = new QWidget;
+    auto layout = new QVBoxLayout;
     widget->setLayout(layout);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    QWidget *w = new QWidget;
+    auto w = new QWidget;
     m_newBuildsLayout = new QGridLayout;
     m_newBuildsLayout->setMargin(0);
     if (Utils::HostOsInfo::isMacHost())
@@ -108,13 +100,13 @@ TargetSetupWidget::TargetSetupWidget(Kit *k,
 
     setProjectPath(projectPath);
 
-    connect(m_detailsWidget, SIGNAL(checked(bool)),
-            this, SLOT(targetCheckBoxToggled(bool)));
+    connect(m_detailsWidget, &Utils::DetailsWidget::checked,
+            this, &TargetSetupWidget::targetCheckBoxToggled);
 
-    connect(KitManager::instance(), SIGNAL(kitUpdated(ProjectExplorer::Kit*)),
-            this, SLOT(handleKitUpdate(ProjectExplorer::Kit*)));
+    connect(KitManager::instance(), &KitManager::kitUpdated,
+            this, &TargetSetupWidget::handleKitUpdate);
 
-    connect(m_manageButton, SIGNAL(clicked()), this, SLOT(manageKit()));
+    connect(m_manageButton, &QAbstractButton::clicked, this, &TargetSetupWidget::manageKit);
 }
 
 TargetSetupWidget::~TargetSetupWidget()
@@ -130,7 +122,7 @@ Kit *TargetSetupWidget::kit()
 
 void TargetSetupWidget::clearKit()
 {
-    m_kit = 0;
+    m_kit = nullptr;
 }
 
 bool TargetSetupWidget::isKitSelected() const
@@ -170,29 +162,26 @@ void TargetSetupWidget::addBuildInfo(BuildInfo *info, bool isImport)
 
     m_infoList << info;
 
-    QCheckBox *checkbox = new QCheckBox;
+    auto checkbox = new QCheckBox;
     checkbox->setText(info->displayName);
     checkbox->setChecked(m_enabled.at(pos));
     checkbox->setAttribute(Qt::WA_LayoutUsesWidgetRect);
     m_newBuildsLayout->addWidget(checkbox, pos * 2, 0);
 
-    Utils::PathChooser *pathChooser = new Utils::PathChooser();
+    auto pathChooser = new Utils::PathChooser();
     pathChooser->setExpectedKind(Utils::PathChooser::Directory);
     pathChooser->setFileName(info->buildDirectory);
     pathChooser->setHistoryCompleter(QLatin1String("TargetSetup.BuildDir.History"));
     pathChooser->setReadOnly(isImport);
     m_newBuildsLayout->addWidget(pathChooser, pos * 2, 1);
 
-    QLabel *reportIssuesLabel = new QLabel;
+    auto reportIssuesLabel = new QLabel;
     reportIssuesLabel->setIndent(32);
     m_newBuildsLayout->addWidget(reportIssuesLabel, pos * 2 + 1, 0, 1, 2);
     reportIssuesLabel->setVisible(false);
 
-    connect(checkbox, SIGNAL(toggled(bool)),
-            this, SLOT(checkBoxToggled(bool)));
-
-    connect(pathChooser, SIGNAL(rawPathChanged(QString)),
-            this, SLOT(pathChanged()));
+    connect(checkbox, &QAbstractButton::toggled, this, &TargetSetupWidget::checkBoxToggled);
+    connect(pathChooser, &Utils::PathChooser::rawPathChanged, this, &TargetSetupWidget::pathChanged);
 
     m_checkboxes.append(checkbox);
     m_pathChoosers.append(pathChooser);
@@ -297,7 +286,7 @@ void TargetSetupWidget::clear()
 
 void TargetSetupWidget::checkBoxToggled(bool b)
 {
-    QCheckBox *box = qobject_cast<QCheckBox *>(sender());
+    auto box = qobject_cast<QCheckBox *>(sender());
     if (!box)
         return;
     int index = m_checkboxes.indexOf(box);
@@ -317,7 +306,7 @@ void TargetSetupWidget::pathChanged()
 {
     if (m_ignoreChange)
         return;
-    Utils::PathChooser *pathChooser = qobject_cast<Utils::PathChooser *>(sender());
+    auto pathChooser = qobject_cast<Utils::PathChooser *>(sender());
     if (!pathChooser)
         return;
     int index = m_pathChoosers.indexOf(pathChooser);

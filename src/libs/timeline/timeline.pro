@@ -15,8 +15,9 @@ SOURCES += \
     $$PWD/timelinerenderstate.cpp \
     $$PWD/timelinenotesmodel.cpp \
     $$PWD/timelineabstractrenderer.cpp \
-    $$PWD/timelineoverviewrenderer.cpp
-
+    $$PWD/timelineoverviewrenderer.cpp \
+    $$PWD/timelinetheme.cpp \
+    $$PWD/timelineformattime.cpp
 
 HEADERS += \
     $$PWD/timeline_global.h \
@@ -37,9 +38,16 @@ HEADERS += \
     $$PWD/timelineabstractrenderer.h \
     $$PWD/timelineabstractrenderer_p.h \
     $$PWD/timelineoverviewrenderer_p.h \
-    $$PWD/timelineoverviewrenderer.h
+    $$PWD/timelineoverviewrenderer.h \
+    $$PWD/timelinetheme.h \
+    $$PWD/timelineformattime.h
 
 RESOURCES += \
     $$PWD/qml/timeline.qrc
 
 DISTFILES += README
+
+equals(TEST, 1) {
+    SOURCES += runscenegraphtest.cpp
+    HEADERS += runscenegraphtest.h
+}

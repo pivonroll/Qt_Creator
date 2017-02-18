@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,6 +38,7 @@ publication by Neil Fraser: http://neil.fraser.name/writing/diff/
 #include <QMap>
 #include <QPair>
 #include <QCoreApplication>
+#include <QFutureInterfaceBase>
 
 namespace DiffEditor {
 
@@ -206,23 +202,23 @@ static QList<Diff> cleanupOverlaps(const QList<Diff> &diffList)
 
 static int cleanupSemanticsScore(const QString &text1, const QString &text2)
 {
-    static QRegExp blankLineEnd = QRegExp(QLatin1String("\\n\\r?\\n$"));
-    static QRegExp blankLineStart = QRegExp(QLatin1String("^\\r?\\n\\r?\\n"));
-    static QRegExp sentenceEnd = QRegExp(QLatin1String("\\. $"));
+    const QRegExp blankLineEnd = QRegExp(QLatin1String("\\n\\r?\\n$"));
+    const QRegExp blankLineStart = QRegExp(QLatin1String("^\\r?\\n\\r?\\n"));
+    const QRegExp sentenceEnd = QRegExp(QLatin1String("\\. $"));
 
     if (!text1.count() || !text2.count()) // Edges
         return 6;
 
-    QChar char1 = text1[text1.count() - 1];
-    QChar char2 = text2[0];
-    bool nonAlphaNumeric1 = !char1.isLetterOrNumber();
-    bool nonAlphaNumeric2 = !char2.isLetterOrNumber();
-    bool whitespace1 = nonAlphaNumeric1 && char1.isSpace();
-    bool whitespace2 = nonAlphaNumeric2 && char2.isSpace();
-    bool lineBreak1 = whitespace1 && char1.category() == QChar::Other_Control;
-    bool lineBreak2 = whitespace2 && char2.category() == QChar::Other_Control;
-    bool blankLine1 = lineBreak1 && blankLineEnd.indexIn(text1) != -1;
-    bool blankLine2 = lineBreak2 && blankLineStart.indexIn(text2) != -1;
+    const QChar char1 = text1[text1.count() - 1];
+    const QChar char2 = text2[0];
+    const bool nonAlphaNumeric1 = !char1.isLetterOrNumber();
+    const bool nonAlphaNumeric2 = !char2.isLetterOrNumber();
+    const bool whitespace1 = nonAlphaNumeric1 && char1.isSpace();
+    const bool whitespace2 = nonAlphaNumeric2 && char2.isSpace();
+    const bool lineBreak1 = whitespace1 && char1.category() == QChar::Other_Control;
+    const bool lineBreak2 = whitespace2 && char2.category() == QChar::Other_Control;
+    const bool blankLine1 = lineBreak1 && blankLineEnd.indexIn(text1) != -1;
+    const bool blankLine2 = lineBreak2 && blankLineStart.indexIn(text2) != -1;
 
     if (blankLine1 || blankLine2) // Blank lines
       return 5;
@@ -990,9 +986,10 @@ QString Diff::toString() const
 
 ///////////////
 
-Differ::Differ()
+Differ::Differ(QFutureInterfaceBase *jobController)
     : m_diffMode(Differ::LineMode),
-      m_currentDiffMode(Differ::LineMode)
+      m_currentDiffMode(Differ::LineMode),
+      m_jobController(jobController)
 {
 
 }
@@ -1129,6 +1126,11 @@ QList<Diff> Differ::diffMyers(const QString &text1, const QString &text2)
     int kMinReverse = -D;
     int kMaxReverse = D;
     for (int d = 0; d <= D; d++) {
+        if (m_jobController && m_jobController->isCanceled()) {
+            delete [] forwardV;
+            delete [] reverseV;
+            return QList<Diff>();
+        }
         // going forward
         for (int k = qMax(-d, kMinForward + qAbs(d + kMinForward) % 2);
              k <= qMin(d, kMaxForward - qAbs(d + kMaxForward) % 2);
@@ -1242,7 +1244,18 @@ QList<Diff> Differ::diffNonCharMode(const QString &text1, const QString &text2)
     QString lastDelete;
     QString lastInsert;
     QList<Diff> newDiffList;
+    if (m_jobController) {
+        m_jobController->setProgressRange(0, diffList.count());
+        m_jobController->setProgressValue(0);
+    }
     for (int i = 0; i <= diffList.count(); i++) {
+        if (m_jobController) {
+            if (m_jobController->isCanceled()) {
+                m_currentDiffMode = diffMode;
+                return QList<Diff>();
+            }
+            m_jobController->setProgressValue(i + 1);
+        }
         const Diff diffItem = i < diffList.count()
                   ? diffList.at(i)
                   : Diff(Diff::Equal); // dummy, ensure we process to the end

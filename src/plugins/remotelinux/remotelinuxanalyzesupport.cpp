@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,7 +27,7 @@
 
 #include "remotelinuxrunconfiguration.h"
 
-#include <analyzerbase/analyzerruncontrol.h>
+#include <debugger/analyzer/analyzerruncontrol.h>
 
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/project.h>
@@ -40,6 +35,7 @@
 #include <projectexplorer/toolchain.h>
 #include <projectexplorer/devicesupport/deviceapplicationrunner.h>
 #include <projectexplorer/kitinformation.h>
+#include <projectexplorer/runnables.h>
 
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
@@ -49,8 +45,9 @@
 #include <QPointer>
 
 using namespace QSsh;
-using namespace Analyzer;
+using namespace Debugger;
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace RemoteLinux {
 namespace Internal {
@@ -60,15 +57,27 @@ class RemoteLinuxAnalyzeSupportPrivate
 public:
     RemoteLinuxAnalyzeSupportPrivate(AnalyzerRunControl *rc, Core::Id runMode)
         : runControl(rc),
-          qmlProfiling(runMode == ProjectExplorer::Constants::QML_PROFILER_RUN_MODE),
-          qmlPort(-1)
+          runMode(runMode)
     {
+        if (runMode != ProjectExplorer::Constants::PERFPROFILER_RUN_MODE)
+            return;
+        RunConfiguration *runConfiguration = runControl->runConfiguration();
+        QTC_ASSERT(runConfiguration, return);
+        IRunConfigurationAspect *perfAspect =
+                runConfiguration->extraAspect("Analyzer.Perf.Settings");
+        QTC_ASSERT(perfAspect, return);
+        perfRecordArguments =
+                perfAspect->currentSettings()->property("perfRecordArguments").toStringList()
+                .join(' ');
     }
 
     const QPointer<AnalyzerRunControl> runControl;
-    bool qmlProfiling;
-    int qmlPort;
+    Core::Id runMode;
+    Utils::Port qmlPort;
+    QString remoteFifo;
+    QString perfRecordArguments;
 
+    DeviceApplicationRunner outputGatherer;
     QmlDebug::QmlOutputParser outputParser;
 };
 
@@ -76,34 +85,13 @@ public:
 
 using namespace Internal;
 
-AnalyzerStartParameters RemoteLinuxAnalyzeSupport::startParameters(const RunConfiguration *runConfig,
-                                                                   Core::Id runMode)
-{
-    AnalyzerStartParameters params;
-    params.runMode = runMode;
-    params.connParams = DeviceKitInformation::device(runConfig->target()->kit())->sshParameters();
-    params.displayName = runConfig->displayName();
-    params.sysroot = SysRootKitInformation::sysRoot(runConfig->target()->kit()).toString();
-    params.analyzerHost = params.connParams.host;
-
-    auto rc = qobject_cast<const AbstractRemoteLinuxRunConfiguration *>(runConfig);
-    QTC_ASSERT(rc, return params);
-
-    params.debuggee = rc->remoteExecutableFilePath();
-    params.debuggeeArgs = Utils::QtcProcess::Arguments::createUnixArgs(rc->arguments()).toString();
-    params.workingDirectory = rc->workingDirectory();
-    params.environment = rc->environment();
-
-    return params;
-}
-
-RemoteLinuxAnalyzeSupport::RemoteLinuxAnalyzeSupport(AbstractRemoteLinuxRunConfiguration *runConfig,
+RemoteLinuxAnalyzeSupport::RemoteLinuxAnalyzeSupport(RunConfiguration *runConfig,
                                                      AnalyzerRunControl *engine, Core::Id runMode)
     : AbstractRemoteLinuxRunSupport(runConfig, engine),
       d(new RemoteLinuxAnalyzeSupportPrivate(engine, runMode))
 {
-    connect(d->runControl, SIGNAL(starting(const Analyzer::AnalyzerRunControl*)),
-            SLOT(handleRemoteSetupRequested()));
+    connect(d->runControl.data(), &AnalyzerRunControl::starting,
+            this, &RemoteLinuxAnalyzeSupport::handleRemoteSetupRequested);
     connect(&d->outputParser, &QmlDebug::QmlOutputParser::waitingForConnectionOnPort,
             this, &RemoteLinuxAnalyzeSupport::remoteIsRunning);
     connect(engine, &RunControl::finished,
@@ -118,7 +106,7 @@ RemoteLinuxAnalyzeSupport::~RemoteLinuxAnalyzeSupport()
 void RemoteLinuxAnalyzeSupport::showMessage(const QString &msg, Utils::OutputFormat format)
 {
     if (state() != Inactive && d->runControl)
-        d->runControl->logApplicationMessage(msg, format);
+        d->runControl->appendMessage(msg, format);
     d->outputParser.processOutput(msg);
 }
 
@@ -126,19 +114,34 @@ void RemoteLinuxAnalyzeSupport::handleRemoteSetupRequested()
 {
     QTC_ASSERT(state() == Inactive, return);
 
-    showMessage(tr("Checking available ports...") + QLatin1Char('\n'), Utils::NormalMessageFormat);
-    AbstractRemoteLinuxRunSupport::handleRemoteSetupRequested();
+    if (d->runMode == ProjectExplorer::Constants::QML_PROFILER_RUN_MODE) {
+        showMessage(tr("Checking available ports...") + QLatin1Char('\n'),
+                    Utils::NormalMessageFormat);
+        startPortsGathering();
+    } else if (d->runMode == ProjectExplorer::Constants::PERFPROFILER_RUN_MODE) {
+        showMessage(tr("Creating remote socket...") + QLatin1Char('\n'),
+                    Utils::NormalMessageFormat);
+        createRemoteFifo();
+    }
 }
 
 void RemoteLinuxAnalyzeSupport::startExecution()
 {
-    QTC_ASSERT(state() == GatheringPorts, return);
+    QTC_ASSERT(state() == GatheringResources, return);
 
-    // Currently we support only QML profiling
-    QTC_ASSERT(d->qmlProfiling, return);
-
-    if (!setPort(d->qmlPort))
-        return;
+    if (d->runMode == ProjectExplorer::Constants::QML_PROFILER_RUN_MODE) {
+        d->qmlPort = findPort();
+        if (!d->qmlPort.isValid()) {
+            handleAdapterSetupFailed(tr("Not enough free ports on device for profiling."));
+            return;
+        }
+    } else if (d->runMode == ProjectExplorer::Constants::PERFPROFILER_RUN_MODE) {
+        d->remoteFifo = fifo();
+        if (d->remoteFifo.isEmpty()) {
+            handleAdapterSetupFailed(tr("FIFO for profiling data could not be created."));
+            return;
+        }
+    }
 
     setState(StartingRunner);
 
@@ -156,12 +159,33 @@ void RemoteLinuxAnalyzeSupport::startExecution()
     connect(runner, &DeviceApplicationRunner::reportError,
             this, &RemoteLinuxAnalyzeSupport::handleAppRunnerError);
 
-    const QStringList args = arguments()
-            << QmlDebug::qmlDebugCommandLineArguments(QmlDebug::QmlProfilerServices, d->qmlPort);
+    auto r = runnable();
 
-    runner->setWorkingDirectory(workingDirectory());
-    runner->setEnvironment(environment());
-    runner->start(device(), remoteFilePath(), args);
+    if (d->runMode == ProjectExplorer::Constants::QML_PROFILER_RUN_MODE) {
+        if (!r.commandLineArguments.isEmpty())
+            r.commandLineArguments.append(QLatin1Char(' '));
+        r.commandLineArguments += QmlDebug::qmlDebugTcpArguments(QmlDebug::QmlProfilerServices,
+                                                                 d->qmlPort);
+    } else if (d->runMode == ProjectExplorer::Constants::PERFPROFILER_RUN_MODE) {
+        r.commandLineArguments = QLatin1String("-c 'perf record -o - ") + d->perfRecordArguments
+                + QLatin1String(" -- ") + r.executable + QLatin1String(" ")
+                + r.commandLineArguments + QLatin1String(" > ") + d->remoteFifo
+                + QLatin1String("'");
+        r.executable = QLatin1String("sh");
+
+        connect(&d->outputGatherer, SIGNAL(remoteStdout(QByteArray)),
+                d->runControl, SIGNAL(analyzePerfOutput(QByteArray)));
+        connect(&d->outputGatherer, SIGNAL(finished(bool)),
+                d->runControl, SIGNAL(perfFinished()));
+
+        StandardRunnable outputRunner;
+        outputRunner.executable = QLatin1String("sh");
+        outputRunner.commandLineArguments =
+                QString::fromLatin1("-c 'cat %1 && rm -r `dirname %1`'").arg(d->remoteFifo);
+        d->outputGatherer.start(device(), outputRunner);
+        remoteIsRunning();
+    }
+    runner->start(device(), r);
 }
 
 void RemoteLinuxAnalyzeSupport::handleAppRunnerError(const QString &error)
@@ -200,7 +224,7 @@ void RemoteLinuxAnalyzeSupport::handleRemoteOutput(const QByteArray &output)
 
 void RemoteLinuxAnalyzeSupport::handleRemoteErrorOutput(const QByteArray &output)
 {
-    QTC_ASSERT(state() != GatheringPorts, return);
+    QTC_ASSERT(state() != GatheringResources, return);
 
     if (!d->runControl)
         return;
@@ -221,7 +245,6 @@ void RemoteLinuxAnalyzeSupport::handleAdapterSetupFailed(const QString &error)
 
 void RemoteLinuxAnalyzeSupport::handleRemoteProcessStarted()
 {
-    QTC_ASSERT(d->qmlProfiling, return);
     QTC_ASSERT(state() == StartingRunner, return);
 
     handleAdapterSetupDone();

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -144,8 +139,8 @@ AutoCompleter::AutoCompleter()
 AutoCompleter::~AutoCompleter()
 {}
 
-bool AutoCompleter::contextAllowsAutoParentheses(const QTextCursor &cursor,
-                                                 const QString &textToInsert) const
+bool AutoCompleter::contextAllowsAutoBrackets(const QTextCursor &cursor,
+                                              const QString &textToInsert) const
 {
     QChar ch;
 
@@ -153,9 +148,6 @@ bool AutoCompleter::contextAllowsAutoParentheses(const QTextCursor &cursor,
         ch = textToInsert.at(0);
 
     switch (ch.unicode()) {
-    case '\'':
-    case '"':
-
     case '(':
     case '[':
     case '{':
@@ -212,6 +204,50 @@ bool AutoCompleter::contextAllowsAutoParentheses(const QTextCursor &cursor,
     return true;
 }
 
+bool AutoCompleter::contextAllowsAutoQuotes(const QTextCursor &cursor,
+                                            const QString &textToInsert) const
+{
+    if (!isQuote(textToInsert))
+        return false;
+
+    const Token token = tokenUnderCursor(cursor);
+    switch (token.kind) {
+    case Token::Comment:
+        return false;
+
+    case Token::RightBrace:
+        return false;
+
+    case Token::String: {
+        const QString blockText = cursor.block().text();
+        const QStringRef tokenText = blockText.midRef(token.offset, token.length);
+        QChar quote = tokenText.at(0);
+        // if a string literal doesn't start with a quote, it must be multiline
+        if (quote != QLatin1Char('"') && quote != QLatin1Char('\'')) {
+            const int startState = blockStartState(cursor.block());
+            if ((startState & Scanner::MultiLineMask) == Scanner::MultiLineStringDQuote)
+                quote = QLatin1Char('"');
+            else if ((startState & Scanner::MultiLineMask) == Scanner::MultiLineStringSQuote)
+                quote = QLatin1Char('\'');
+        }
+
+        // never insert ' into string literals, it adds spurious ' when writing contractions
+        if (textToInsert.at(0) == QLatin1Char('\''))
+            return false;
+
+        if (textToInsert.at(0) != quote || isCompleteStringLiteral(tokenText))
+            break;
+
+        return false;
+    }
+
+    default:
+        break;
+    } // end of switch
+
+    return true;
+}
+
 bool AutoCompleter::contextAllowsElectricCharacters(const QTextCursor &cursor) const
 {
     Token token = tokenUnderCursor(cursor);
@@ -231,7 +267,8 @@ bool AutoCompleter::isInComment(const QTextCursor &cursor) const
 
 QString AutoCompleter::insertMatchingBrace(const QTextCursor &cursor,
                                            const QString &text,
-                                           QChar,
+                                           QChar lookAhead,
+                                           bool skipChars,
                                            int *skippedChars) const
 {
     if (text.length() != 1)
@@ -240,22 +277,8 @@ QString AutoCompleter::insertMatchingBrace(const QTextCursor &cursor,
     if (! shouldInsertMatchingText(cursor))
         return QString();
 
-    const QChar la = cursor.document()->characterAt(cursor.position());
-
     const QChar ch = text.at(0);
     switch (ch.unicode()) {
-    case '\'':
-        if (la != ch)
-            return QString(ch);
-        ++*skippedChars;
-        break;
-
-    case '"':
-        if (la != ch)
-            return QString(ch);
-        ++*skippedChars;
-        break;
-
     case '(':
         return QString(QLatin1Char(')'));
 
@@ -269,7 +292,7 @@ QString AutoCompleter::insertMatchingBrace(const QTextCursor &cursor,
     case ']':
     case '}':
     case ';':
-        if (la == ch)
+        if (lookAhead == ch && skipChars)
             ++*skippedChars;
         break;
 
@@ -277,6 +300,18 @@ QString AutoCompleter::insertMatchingBrace(const QTextCursor &cursor,
         break;
     } // end of switch
 
+    return QString();
+}
+
+QString AutoCompleter::insertMatchingQuote(const QTextCursor &/*tc*/, const QString &text,
+                                           QChar lookAhead, bool skipChars, int *skippedChars) const
+{
+    if (isQuote(text)) {
+        if (lookAhead == text && skipChars)
+            ++*skippedChars;
+        else
+            return text;
+    }
     return QString();
 }
 

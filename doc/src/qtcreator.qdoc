@@ -1,20 +1,27 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
-**
-**************************************************************************/
+****************************************************************************/
 
 // **********************************************************************
 // NOTE: the sections are not ordered by their logical order to avoid
@@ -34,7 +41,7 @@
     (IDE) for application developers to create applications for multiple
     desktop, \l {http://doc.qt.io/QtForDeviceCreation/index.html}{embedded},
     and mobile device platforms, such as \l{Connecting Android Devices}{Android}
-    and \l{Connecting iOS Devices}{iOS}. It is available for Linux, OS X and
+    and \l{Connecting iOS Devices}{iOS}. It is available for Linux, \macos and
     Windows
     operating systems. For more information, see \l{Supported Platforms}.
 
@@ -47,6 +54,7 @@
             \li \inlineimage creator_gettingstarted.png
             \li \inlineimage creator_managingprojects.png
             \li \inlineimage creator_designinguserinterface.png
+            \li \inlineimage creator_coding.png
         \row
             \li \b {\l{Getting Started}}
                 \list
@@ -69,36 +77,34 @@
                     \li \l{Developing Widget Based Applications}
                     \li \l{Optimizing Applications for Mobile Devices}
                 \endlist
-        \row
-            \li \inlineimage creator_coding.png
-            \li \inlineimage creator_buildingrunning.png
-            \li \inlineimage creator_testing.png
-        \row
             \li \b {\l{Coding}}
                 \list
                     \li \l{Writing Code}
                     \li \l{Finding}
                     \li \l{Refactoring}
                     \li \l{Configuring the Editor}
-            \endlist
+                    \li \l{Modeling}
+                    \li \l{Editing State Charts}
+                \endlist
+        \row
+            \li \inlineimage creator_buildingrunning.png
+            \li \inlineimage creator_testing.png
+            \li \inlineimage creator_advanceduse.png
+            \li \inlineimage creator_gettinghelp.png
+        \row
             \li \b {\l{Building and Running}}
                 \list
                     \li \l{Building for Multiple Platforms}
                     \li \l{Running on Multiple Platforms}
                     \li \l{Deploying to Mobile Devices}
                     \li \l{Connecting Mobile Devices}
-            \endlist
+                \endlist
             \li \b {\l{Testing}}
                 \list
                     \li \l{Debugging}
                     \li \l{Analyzing Code}
                     \li \l{Running Autotests}
                 \endlist
-        \row
-            \li \inlineimage creator_advanceduse.png
-            \li \inlineimage creator_gettinghelp.png
-            \li
-        \row
             \li \b {\l{Advanced Use}}
                 \list
                     \li \l{Supported Platforms}
@@ -115,10 +121,12 @@
                     \li \l{Known Issues}
                     \li \l{Glossary}
                 \endlist
-            \li
         \row
-            \li {3,1} \note To report bugs and suggestions to the Qt Bug
+            \li {4,1} \note To report bugs and suggestions to the Qt Bug
                 Tracker, select \uicontrol {Help > Report Bug}.
+                To copy and paste detailed information about your system to the
+                bug report, select \uicontrol Help >
+                \uicontrol {System Information}.
 
                 You can also join the \QC mailing list at:
                 \l{http://lists.qt-project.org/mailman/listinfo/}
@@ -140,7 +148,6 @@
                 \li \l{Creating a Qt Quick Application}
                 \li \l{Creating a Qt Widget Based Application}
                 \li \l{Creating a Mobile Application}
-                \li \l{Using Qt Quick UI Forms}
             \endlist
         \endlist
         \li \l{Managing Projects}
@@ -156,6 +163,15 @@
                 \endlist
             \endlist
             \li \l{Using Version Control Systems}
+            \list
+                \li \l{Using Bazaar}
+                \li \l{Using ClearCase}
+                \li \l{Using CVS}
+                \li \l{Using Git}
+                \li \l{Using Mercurial}
+                \li \l{Using Perforce}
+                \li \l{Using Subversion}
+            \endlist
             \li \l{Configuring Projects}
             \list
                 \li \l{Adding Kits}
@@ -184,6 +200,7 @@
                 \li \l {Creating Buttons}
                 \li \l {Creating Scalable Buttons and Borders}
                 \li \l {Creating Screens}
+                \li \l {Browsing ISO 7000 Icons}
                 \li \l {Exporting Designs from Graphics Software}
                 \li \l {Using QML Modules with Plugins}
             \endlist
@@ -206,7 +223,7 @@
                 \li \l{Pasting and Fetching Code Snippets}
                 \li \l{Using Text Editing Macros}
                 \li \l{Comparing Files}
-                \li \l{Parsing C++ Files}
+                \li \l{Parsing C++ Files with the Clang Code Model}
             \endlist
             \li \l{Finding}
             \list
@@ -221,6 +238,9 @@
                 \li \l{Using FakeVim Mode}
             \endlist
             \li \l{Editing MIME Types}
+            \li \l{Modeling}
+            \li \l{Editing State Charts}
+
         \endlist
         \li \l{Building and Running}
         \list

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,7 @@
 #include "idocument.h"
 #include "coreconstants.h"
 
+#include <coreplugin/diffservice.h>
 #include <coreplugin/dialogs/readonlyfilesdialog.h>
 #include <coreplugin/dialogs/saveitemsdialog.h>
 #include <coreplugin/editormanager/editormanager.h>
@@ -42,6 +38,8 @@
 #include <coreplugin/editormanager/ieditor.h>
 #include <coreplugin/editormanager/ieditorfactory.h>
 #include <coreplugin/editormanager/iexternaleditor.h>
+
+#include <extensionsystem/pluginmanager.h>
 
 #include <utils/fileutils.h>
 #include <utils/hostosinfo.h>
@@ -131,11 +129,16 @@ struct FileState
 };
 
 
-struct DocumentManagerPrivate
+class DocumentManagerPrivate : public QObject
 {
+    Q_OBJECT
+public:
     DocumentManagerPrivate();
     QFileSystemWatcher *fileWatcher();
     QFileSystemWatcher *linkWatcher();
+
+    void checkOnNextFocusChange();
+    void onApplicationFocusChange();
 
     QMap<QString, FileState> m_states;
     QSet<QString> m_changedFiles;
@@ -149,6 +152,7 @@ struct DocumentManagerPrivate
     QFileSystemWatcher *m_fileWatcher; // Delayed creation.
     QFileSystemWatcher *m_linkWatcher; // Delayed creation (only UNIX/if a link is seen).
     bool m_blockActivated;
+    bool m_checkOnFocusChange = false;
     QString m_lastVisitedDirectory;
     QString m_defaultLocationForNewFiles;
     QString m_projectsDirectory;
@@ -168,8 +172,8 @@ QFileSystemWatcher *DocumentManagerPrivate::fileWatcher()
 {
     if (!m_fileWatcher) {
         m_fileWatcher= new QFileSystemWatcher(m_instance);
-        QObject::connect(m_fileWatcher, SIGNAL(fileChanged(QString)),
-                         m_instance, SLOT(changedFile(QString)));
+        QObject::connect(m_fileWatcher, &QFileSystemWatcher::fileChanged,
+                         m_instance, &DocumentManager::changedFile);
     }
     return m_fileWatcher;
 }
@@ -180,13 +184,26 @@ QFileSystemWatcher *DocumentManagerPrivate::linkWatcher()
         if (!m_linkWatcher) {
             m_linkWatcher = new QFileSystemWatcher(m_instance);
             m_linkWatcher->setObjectName(QLatin1String("_qt_autotest_force_engine_poller"));
-            QObject::connect(m_linkWatcher, SIGNAL(fileChanged(QString)),
-                             m_instance, SLOT(changedFile(QString)));
+            QObject::connect(m_linkWatcher, &QFileSystemWatcher::fileChanged,
+                             m_instance, &DocumentManager::changedFile);
         }
         return m_linkWatcher;
     }
 
     return fileWatcher();
+}
+
+void DocumentManagerPrivate::checkOnNextFocusChange()
+{
+    m_checkOnFocusChange = true;
+}
+
+void DocumentManagerPrivate::onApplicationFocusChange()
+{
+    if (!m_checkOnFocusChange)
+        return;
+    m_checkOnFocusChange = false;
+    m_instance->checkForReload();
 }
 
 DocumentManagerPrivate::DocumentManagerPrivate() :
@@ -197,6 +214,7 @@ DocumentManagerPrivate::DocumentManagerPrivate() :
     m_useProjectsDirectory(true),
     m_blockedIDocument(0)
 {
+    connect(qApp, &QApplication::focusChanged, this, &DocumentManagerPrivate::onApplicationFocusChange);
 }
 
 } // namespace Internal
@@ -214,6 +232,9 @@ DocumentManager::DocumentManager(QObject *parent)
     qApp->installEventFilter(this);
 
     readSettings();
+
+    if (d->m_useProjectsDirectory)
+        setFileDialogLastVisitedDirectory(d->m_projectsDirectory);
 }
 
 DocumentManager::~DocumentManager()
@@ -276,7 +297,8 @@ void DocumentManager::addDocuments(const QList<IDocument *> &documents, bool add
 
         foreach (IDocument *document, documents) {
             if (document && !d->m_documentsWithoutWatch.contains(document)) {
-                connect(document, SIGNAL(destroyed(QObject*)), m_instance, SLOT(documentDestroyed(QObject*)));
+                connect(document, &QObject::destroyed,
+                        m_instance, &DocumentManager::documentDestroyed);
                 connect(document, &IDocument::filePathChanged,
                         m_instance, &DocumentManager::filePathChanged);
                 d->m_documentsWithoutWatch.append(document);
@@ -287,9 +309,10 @@ void DocumentManager::addDocuments(const QList<IDocument *> &documents, bool add
 
     foreach (IDocument *document, documents) {
         if (document && !d->m_documentsWithWatch.contains(document)) {
-            connect(document, SIGNAL(changed()), m_instance, SLOT(checkForNewFileName()));
-            connect(document, SIGNAL(destroyed(QObject*)), m_instance, SLOT(documentDestroyed(QObject*)));
-            connect(document, &IDocument::filePathChanged, m_instance, &DocumentManager::filePathChanged);
+            connect(document, &IDocument::changed, m_instance, &DocumentManager::checkForNewFileName);
+            connect(document, &QObject::destroyed, m_instance, &DocumentManager::documentDestroyed);
+            connect(document, &IDocument::filePathChanged,
+                    m_instance, &DocumentManager::filePathChanged);
             addFileInfo(document);
         }
     }
@@ -430,9 +453,9 @@ bool DocumentManager::removeDocument(IDocument *document)
     if (!d->m_documentsWithoutWatch.removeOne(document)) {
         addWatcher = true;
         removeFileInfo(document);
-        disconnect(document, SIGNAL(changed()), m_instance, SLOT(checkForNewFileName()));
+        disconnect(document, &IDocument::changed, m_instance, &DocumentManager::checkForNewFileName);
     }
-    disconnect(document, SIGNAL(destroyed(QObject*)), m_instance, SLOT(documentDestroyed(QObject*)));
+    disconnect(document, &QObject::destroyed, m_instance, &DocumentManager::documentDestroyed);
     return addWatcher;
 }
 
@@ -559,7 +582,7 @@ static bool saveModifiedFilesHelper(const QList<IDocument *> &documents,
         if (document && document->isModified()) {
             QString name = document->filePath().toString();
             if (name.isEmpty())
-                name = document->suggestedFileName();
+                name = document->fallbackSaveAsFileName();
 
             // There can be several IDocuments pointing to the same file
             // Prefer one that is not readonly
@@ -586,6 +609,11 @@ static bool saveModifiedFilesHelper(const QList<IDocument *> &documents,
                     (*alwaysSave) = dia.alwaysSaveChecked();
                 if (failedToSave)
                     (*failedToSave) = modifiedDocuments;
+                const QStringList filesToDiff = dia.filesToDiff();
+                if (!filesToDiff.isEmpty()) {
+                    if (auto diffService = ExtensionSystem::PluginManager::getObject<DiffService>())
+                        diffService->diffModifiedFiles(filesToDiff);
+                }
                 return false;
             }
             if (alwaysSave)
@@ -668,27 +696,28 @@ QString DocumentManager::getSaveFileName(const QString &title, const QString &pa
             // specified. Otherwise the suffix must be one available in the selected filter. If
             // the name already ends with such suffix nothing needs to be done. But if not, the
             // first one from the filter is appended.
-            if (selectedFilter && *selectedFilter != QCoreApplication::translate(
-                    "Core", Constants::ALL_FILES_FILTER)) {
+            if (selectedFilter && *selectedFilter != MimeDatabase::allFilesFilterString()) {
                 // Mime database creates filter strings like this: Anything here (*.foo *.bar)
                 QRegExp regExp(QLatin1String(".*\\s+\\((.*)\\)$"));
                 const int index = regExp.lastIndexIn(*selectedFilter);
                 if (index != -1) {
                     bool suffixOk = false;
-                    const QStringList &suffixes = regExp.cap(1).remove(QLatin1Char('*')).split(QLatin1Char(' '));
-                    foreach (const QString &suffix, suffixes)
+                    QString caption = regExp.cap(1);
+                    caption.remove(QLatin1Char('*'));
+                    const QVector<QStringRef> suffixes = caption.splitRef(QLatin1Char(' '));
+                    foreach (const QStringRef &suffix, suffixes)
                         if (fileName.endsWith(suffix)) {
                             suffixOk = true;
                             break;
                         }
                     if (!suffixOk && !suffixes.isEmpty())
-                        fileName.append(suffixes.at(0));
+                        fileName.append(suffixes.at(0).toString());
                 }
             }
             if (QFile::exists(fileName)) {
                 if (QMessageBox::warning(ICore::dialogParent(), tr("Overwrite?"),
                     tr("An item named \"%1\" already exists at this location. "
-                       "Do you want to overwrite it?").arg(fileName),
+                       "Do you want to overwrite it?").arg(QDir::toNativeSeparators(fileName)),
                     QMessageBox::Yes | QMessageBox::No) == QMessageBox::No) {
                     repeat = true;
                 }
@@ -710,40 +739,36 @@ QString DocumentManager::getSaveFileNameWithExtension(const QString &title, cons
 /*!
     Asks the user for a new file name (\gui {Save File As}) for \a document.
 */
-QString DocumentManager::getSaveAsFileName(const IDocument *document, const QString &filter, QString *selectedFilter)
+QString DocumentManager::getSaveAsFileName(const IDocument *document)
 {
-    if (!document)
-        return QLatin1String("");
-    QString absoluteFilePath = document->filePath().toString();
-    const QFileInfo fi(absoluteFilePath);
-    QString path;
-    QString fileName;
-    if (absoluteFilePath.isEmpty()) {
-        fileName = document->suggestedFileName();
-        const QString defaultPath = document->defaultPath();
+    QTC_ASSERT(document, return QString());
+    Utils::MimeDatabase mdb;
+    const QString filter = Utils::MimeDatabase::allFiltersString();
+    const QString filePath = document->filePath().toString();
+    QString selectedFilter;
+    QString fileDialogPath = filePath;
+    if (!filePath.isEmpty()) {
+        selectedFilter = mdb.mimeTypeForFile(filePath).filterString();
+    } else {
+        const QString suggestedName = document->fallbackSaveAsFileName();
+        if (!suggestedName.isEmpty()) {
+            const QList<MimeType> types = mdb.mimeTypesForFileName(suggestedName);
+            if (!types.isEmpty())
+                selectedFilter = types.first().filterString();
+        }
+        const QString defaultPath = document->fallbackSaveAsPath();
         if (!defaultPath.isEmpty())
-            path = defaultPath;
-    } else {
-        path = fi.absolutePath();
-        fileName = fi.fileName();
+            fileDialogPath = defaultPath + (suggestedName.isEmpty()
+                    ? QString()
+                    : '/' + suggestedName);
     }
+    if (selectedFilter.isEmpty())
+        selectedFilter = mdb.mimeTypeForName(document->mimeType()).filterString();
 
-    QString filterString;
-    if (filter.isEmpty()) {
-        Utils::MimeDatabase mdb;
-        const Utils::MimeType &mt = mdb.mimeTypeForFile(fi);
-        if (mt.isValid())
-            filterString = mt.filterString();
-        selectedFilter = &filterString;
-    } else {
-        filterString = filter;
-    }
-
-    absoluteFilePath = getSaveFileName(tr("Save File As"),
-        path + QLatin1Char('/') + fileName,
-        filterString,
-        selectedFilter);
-    return absoluteFilePath;
+    return getSaveFileName(tr("Save File As"),
+                           fileDialogPath,
+                           filter,
+                           &selectedFilter);
 }
 
 /*!
@@ -869,13 +894,7 @@ QStringList DocumentManager::getOpenFileNames(const QString &filters,
                                               const QString &pathIn,
                                               QString *selectedFilter)
 {
-    QString path = pathIn;
-    if (path.isEmpty()) {
-        if (EditorManager::currentDocument() && !EditorManager::currentDocument()->isTemporary())
-            path = EditorManager::currentDocument()->filePath().toString();
-        if (path.isEmpty() && useProjectsDirectory())
-            path = projectsDirectory();
-    }
+    const QString &path = pathIn.isEmpty() ? fileDialogInitialDirectory() : pathIn;
     const QStringList files = QFileDialog::getOpenFileNames(ICore::dialogParent(),
                                                       tr("Open File"),
                                                       path, filters,
@@ -893,23 +912,26 @@ void DocumentManager::changedFile(const QString &fileName)
         d->m_changedFiles.insert(fileName);
 
     if (wasempty && !d->m_changedFiles.isEmpty())
-        QTimer::singleShot(200, this, SLOT(checkForReload()));
+        QTimer::singleShot(200, this, &DocumentManager::checkForReload);
 }
 
 void DocumentManager::checkForReload()
 {
     if (d->m_changedFiles.isEmpty())
         return;
-    if (!QApplication::activeWindow())
+    if (QApplication::applicationState() != Qt::ApplicationActive)
         return;
-
-    if (QApplication::activeModalWidget() || d->m_blockActivated) {
+    // If d->m_blockActivated is true, then it means that the event processing of either the
+    // file modified dialog, or of loading large files, has delivered a file change event from
+    // a watcher *and* the timer triggered. We may never end up here in a nested way, so
+    // recheck later at the end of the checkForReload function.
+    if (d->m_blockActivated)
+        return;
+    if (QApplication::activeModalWidget()) {
         // We do not want to prompt for modified file if we currently have some modal dialog open.
-        // If d->m_blockActivated is true, then it means that the event processing of either the
-        // file modified dialog, or of loading large files, has delivered a file change event from
-        // a watcher *and* the timer triggered. We may never end up here in a nested way, so
-        // recheck later.
-        QTimer::singleShot(200, this, SLOT(checkForReload()));
+        // There is no really sensible way to get notified globally if a window closed,
+        // so just check on every focus change.
+        d->checkOnNextFocusChange();
         return;
     }
 
@@ -961,6 +983,7 @@ void DocumentManager::checkForReload()
 
     // handle the IDocuments
     QStringList errorStrings;
+    QStringList filesToDiff;
     foreach (IDocument *document, changedIDocuments) {
         IDocument::ChangeTrigger trigger = IDocument::TriggerInternal;
         IDocument::ChangeType type = IDocument::TypePermissions;
@@ -1050,7 +1073,7 @@ void DocumentManager::checkForReload()
             // IDocument wants us to ask
             } else if (type == IDocument::TypeContents) {
                 // content change, IDocument wants to ask user
-                if (previousReloadAnswer == ReloadNone) {
+                if (previousReloadAnswer == ReloadNone || previousReloadAnswer == ReloadNoneAndDiff) {
                     // answer already given, ignore
                     success = document->reload(&errorString, IDocument::FlagIgnore, IDocument::TypeContents);
                 } else if (previousReloadAnswer == ReloadAll) {
@@ -1059,7 +1082,8 @@ void DocumentManager::checkForReload()
                 } else {
                     // Ask about content change
                     previousReloadAnswer = reloadPrompt(document->filePath(), document->isModified(),
-                                                               ICore::dialogParent());
+                                                        ExtensionSystem::PluginManager::getObject<DiffService>(),
+                                                        ICore::dialogParent());
                     switch (previousReloadAnswer) {
                     case ReloadAll:
                     case ReloadCurrent:
@@ -1067,6 +1091,7 @@ void DocumentManager::checkForReload()
                         break;
                     case ReloadSkipCurrent:
                     case ReloadNone:
+                    case ReloadNoneAndDiff:
                         success = document->reload(&errorString, IDocument::FlagIgnore, IDocument::TypeContents);
                         break;
                     case CloseCurrent:
@@ -1074,6 +1099,9 @@ void DocumentManager::checkForReload()
                         break;
                     }
                 }
+                if (previousReloadAnswer == ReloadNoneAndDiff)
+                    filesToDiff.append(document->filePath().toString());
+
             // IDocument wants us to ask, and it's the TypeRemoved case
             } else {
                 // Ask about removed file
@@ -1117,6 +1145,12 @@ void DocumentManager::checkForReload()
 
         d->m_blockedIDocument = 0;
     }
+
+    if (!filesToDiff.isEmpty()) {
+        if (auto diffService = ExtensionSystem::PluginManager::getObject<DiffService>())
+            diffService->diffModifiedFiles(filesToDiff);
+    }
+
     if (!errorStrings.isEmpty())
         QMessageBox::critical(ICore::dialogParent(), tr("File Error"),
                               errorStrings.join(QLatin1Char('\n')));
@@ -1131,7 +1165,8 @@ void DocumentManager::checkForReload()
     }
 
     d->m_blockActivated = false;
-
+    // re-check in case files where modified while the dialog was open
+    QTimer::singleShot(0, this, &DocumentManager::checkForReload);
 //    dump();
 }
 
@@ -1377,9 +1412,8 @@ void DocumentManager::notifyFilesChangedInternally(const QStringList &files)
 
 bool DocumentManager::eventFilter(QObject *obj, QEvent *e)
 {
-    if (obj == qApp && e->type() == QEvent::ApplicationActivate) {
-        // activeWindow is not necessarily set yet, do checkForReload asynchronously
-        QTimer::singleShot(0, this, SLOT(checkForReload()));
+    if (obj == qApp && e->type() == QEvent::ApplicationStateChange) {
+        QTimer::singleShot(0, this, &DocumentManager::checkForReload);
     }
     return false;
 }
@@ -1398,3 +1432,5 @@ FileChangeBlocker::~FileChangeBlocker()
 }
 
 } // namespace Core
+
+#include "documentmanager.moc"

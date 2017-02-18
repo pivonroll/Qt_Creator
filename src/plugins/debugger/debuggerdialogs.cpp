@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,12 +28,12 @@
 #include "debuggerkitinformation.h"
 #include "debuggerstartparameters.h"
 #include "debuggerruncontrol.h"
-#include "debuggerstringutils.h"
 #include "cdb/cdbengine.h"
 
 #include <coreplugin/icore.h>
-#include <projectexplorer/toolchain.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/runnables.h>
+#include <projectexplorer/toolchain.h>
 #include <utils/pathchooser.h>
 #include <utils/fancylineedit.h>
 #include <utils/qtcassert.h>
@@ -110,14 +105,16 @@ DebuggerKitChooser::DebuggerKitChooser(Mode mode, QWidget *parent)
     , m_hostAbi(Abi::hostAbi())
     , m_mode(mode)
 {
-    setKitMatcher([this](const Kit *k) {
+    setKitPredicate([this](const Kit *k) {
         // Match valid debuggers and restrict local debugging to compatible toolchains.
-        if (!DebuggerKitInformation::isValidDebugger(k))
+        auto errors = DebuggerKitInformation::configurationErrors(k);
+        // we do not care for mismatched ABI if we want *any* debugging
+        if (m_mode == AnyDebugging && errors == DebuggerKitInformation::DebuggerDoesNotMatch)
+            errors = DebuggerKitInformation::NoConfigurationError;
+        if (errors)
             return false;
-        if (m_mode == LocalDebugging) {
-            const ToolChain *tc = ToolChainKitInformation::toolChain(k);
-            return tc && tc->targetAbi().os() == m_hostAbi.os();
-        }
+        if (m_mode == LocalDebugging)
+            return ToolChainKitInformation::targetAbi(k).os() == m_hostAbi.os();
         return true;
     });
 }
@@ -136,7 +133,6 @@ QString DebuggerKitChooser::kitToolTip(Kit *k) const
 class StartApplicationParameters
 {
 public:
-    StartApplicationParameters();
     QString displayName() const;
     bool equals(const StartApplicationParameters &rhs) const;
     void toSettings(QSettings *) const;
@@ -148,28 +144,20 @@ public:
     Id kitId;
     uint serverPort;
     QString serverAddress;
-    QString localExecutable;
-    QString processArgs;
-    QString workingDirectory;
-    bool breakAtMain;
-    bool runInTerminal;
+    StandardRunnable runnable;
+    bool breakAtMain = false;
     QString serverStartScript;
     QString debugInfoLocation;
 };
 
-StartApplicationParameters::StartApplicationParameters() :
-    breakAtMain(false), runInTerminal(false)
-{
-}
-
 bool StartApplicationParameters::equals(const StartApplicationParameters &rhs) const
 {
-    return localExecutable == rhs.localExecutable
+    return runnable.executable == rhs.runnable.executable
         && serverPort == rhs.serverPort
-        && processArgs == rhs.processArgs
-        && workingDirectory == rhs.workingDirectory
+        && runnable.commandLineArguments == rhs.runnable.commandLineArguments
+        && runnable.workingDirectory == rhs.runnable.workingDirectory
         && breakAtMain == rhs.breakAtMain
-        && runInTerminal == rhs.runInTerminal
+        && runnable.runMode == rhs.runnable.runMode
         && serverStartScript == rhs.serverStartScript
         && kitId == rhs.kitId
         && debugInfoLocation == rhs.debugInfoLocation
@@ -180,7 +168,8 @@ QString StartApplicationParameters::displayName() const
 {
     const int maxLength = 60;
 
-    QString name = FileName::fromString(localExecutable).fileName() + QLatin1Char(' ') + processArgs;
+    QString name = FileName::fromString(runnable.executable).fileName()
+            + QLatin1Char(' ') + runnable.commandLineArguments;
     if (name.size() > 60) {
         int index = name.lastIndexOf(QLatin1Char(' '), maxLength);
         if (index == -1)
@@ -189,7 +178,7 @@ QString StartApplicationParameters::displayName() const
         name += QLatin1String("...");
     }
 
-    if (Kit *kit = KitManager::find(kitId))
+    if (Kit *kit = KitManager::kit(kitId))
         name += QString::fromLatin1(" (%1)").arg(kit->displayName());
 
     return name;
@@ -197,30 +186,31 @@ QString StartApplicationParameters::displayName() const
 
 void StartApplicationParameters::toSettings(QSettings *settings) const
 {
-    settings->setValue(_("LastKitId"), kitId.toSetting());
-    settings->setValue(_("LastServerPort"), serverPort);
-    settings->setValue(_("LastServerAddress"), serverAddress);
-    settings->setValue(_("LastExternalExecutable"), localExecutable);
-    settings->setValue(_("LastExternalExecutableArguments"), processArgs);
-    settings->setValue(_("LastExternalWorkingDirectory"), workingDirectory);
-    settings->setValue(_("LastExternalBreakAtMain"), breakAtMain);
-    settings->setValue(_("LastExternalRunInTerminal"), runInTerminal);
-    settings->setValue(_("LastServerStartScript"), serverStartScript);
-    settings->setValue(_("LastDebugInfoLocation"), debugInfoLocation);
+    settings->setValue("LastKitId", kitId.toSetting());
+    settings->setValue("LastServerPort", serverPort);
+    settings->setValue("LastServerAddress", serverAddress);
+    settings->setValue("LastExternalExecutable", runnable.executable);
+    settings->setValue("LastExternalExecutableArguments", runnable.commandLineArguments);
+    settings->setValue("LastExternalWorkingDirectory", runnable.workingDirectory);
+    settings->setValue("LastExternalBreakAtMain", breakAtMain);
+    settings->setValue("LastExternalRunInTerminal", runnable.runMode == ApplicationLauncher::Console);
+    settings->setValue("LastServerStartScript", serverStartScript);
+    settings->setValue("LastDebugInfoLocation", debugInfoLocation);
 }
 
 void StartApplicationParameters::fromSettings(const QSettings *settings)
 {
-    kitId = Id::fromSetting(settings->value(_("LastKitId")));
-    serverPort = settings->value(_("LastServerPort")).toUInt();
-    serverAddress = settings->value(_("LastServerAddress")).toString();
-    localExecutable = settings->value(_("LastExternalExecutable")).toString();
-    processArgs = settings->value(_("LastExternalExecutableArguments")).toString();
-    workingDirectory = settings->value(_("LastExternalWorkingDirectory")).toString();
-    breakAtMain = settings->value(_("LastExternalBreakAtMain")).toBool();
-    runInTerminal = settings->value(_("LastExternalRunInTerminal")).toBool();
-    serverStartScript = settings->value(_("LastServerStartScript")).toString();
-    debugInfoLocation = settings->value(_("LastDebugInfoLocation")).toString();
+    kitId = Id::fromSetting(settings->value("LastKitId"));
+    serverPort = settings->value("LastServerPort").toUInt();
+    serverAddress = settings->value("LastServerAddress").toString();
+    runnable.executable = settings->value("LastExternalExecutable").toString();
+    runnable.commandLineArguments = settings->value("LastExternalExecutableArguments").toString();
+    runnable.workingDirectory = settings->value("LastExternalWorkingDirectory").toString();
+    breakAtMain = settings->value("LastExternalBreakAtMain").toBool();
+    runnable.runMode = settings->value("LastExternalRunInTerminal").toBool()
+            ? ApplicationLauncher::Console : ApplicationLauncher::Gui;
+    serverStartScript = settings->value("LastServerStartScript").toString();
+    debugInfoLocation = settings->value("LastDebugInfoLocation").toString();
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -236,6 +226,9 @@ StartApplicationDialog::StartApplicationDialog(QWidget *parent)
     setWindowTitle(tr("Start Debugger"));
 
     d->kitChooser = new KitChooser(this);
+    d->kitChooser->setKitPredicate([this](const Kit *k) {
+        return !DebuggerKitInformation::configurationErrors(k);
+    });
     d->kitChooser->populate();
 
     d->serverPortLabel = new QLabel(tr("Server port:"), this);
@@ -336,7 +329,7 @@ void StartApplicationDialog::setHistory(const QList<StartApplicationParameters> 
     d->historyComboBox->clear();
     for (int i = l.size(); --i >= 0; ) {
         const StartApplicationParameters &p = l.at(i);
-        if (!p.localExecutable.isEmpty())
+        if (!p.runnable.executable.isEmpty())
             d->historyComboBox->addItem(p.displayName(), QVariant::fromValue(p));
     }
 }
@@ -407,18 +400,19 @@ bool StartApplicationDialog::run(QWidget *parent, DebuggerRunParameters *rp, Kit
         settings->endGroup();
     }
 
-    rp->executable = newParameters.localExecutable;
+    rp->inferior.executable = newParameters.runnable.executable;
     const QString inputAddress = dialog.d->serverAddressEdit->text();
     if (!inputAddress.isEmpty())
         rp->remoteChannel = inputAddress;
     else
         rp->remoteChannel = rp->connParams.host;
-    rp->remoteChannel += QLatin1Char(':') + QString::number(newParameters.serverPort);
+    if (!rp->remoteChannel.isEmpty())
+        rp->remoteChannel += QLatin1Char(':') + QString::number(newParameters.serverPort);
     rp->displayName = newParameters.displayName();
-    rp->workingDirectory = newParameters.workingDirectory;
-    rp->useTerminal = newParameters.runInTerminal;
-    if (!newParameters.processArgs.isEmpty())
-        rp->processArgs = newParameters.processArgs;
+    rp->inferior.workingDirectory = newParameters.runnable.workingDirectory;
+    rp->useTerminal = newParameters.runnable.runMode == ApplicationLauncher::Console;
+    if (!newParameters.runnable.commandLineArguments.isEmpty())
+        rp->inferior.commandLineArguments = newParameters.runnable.commandLineArguments;
     rp->breakOnMain = newParameters.breakAtMain;
     rp->serverStartScript = newParameters.serverStartScript;
     rp->debugInfoLocation = newParameters.debugInfoLocation;
@@ -438,14 +432,15 @@ StartApplicationParameters StartApplicationDialog::parameters() const
     StartApplicationParameters result;
     result.serverPort = d->serverPortSpinBox->value();
     result.serverAddress = d->serverAddressEdit->text();
-    result.localExecutable = d->localExecutablePathChooser->path();
+    result.runnable.executable = d->localExecutablePathChooser->path();
     result.serverStartScript = d->serverStartScriptPathChooser->path();
     result.kitId = d->kitChooser->currentKitId();
     result.debugInfoLocation = d->debuginfoPathChooser->path();
-    result.processArgs = d->arguments->text();
-    result.workingDirectory = d->workingDirectory->path();
+    result.runnable.commandLineArguments = d->arguments->text();
+    result.runnable.workingDirectory = d->workingDirectory->path();
     result.breakAtMain = d->breakAtMainCheckBox->isChecked();
-    result.runInTerminal = d->runInTerminalCheckBox->isChecked();
+    result.runnable.runMode = d->runInTerminalCheckBox->isChecked()
+            ? ApplicationLauncher::Console : ApplicationLauncher::Gui;
     return result;
 }
 
@@ -454,12 +449,12 @@ void StartApplicationDialog::setParameters(const StartApplicationParameters &p)
     d->kitChooser->setCurrentKitId(p.kitId);
     d->serverPortSpinBox->setValue(p.serverPort);
     d->serverAddressEdit->setText(p.serverAddress);
-    d->localExecutablePathChooser->setPath(p.localExecutable);
+    d->localExecutablePathChooser->setPath(p.runnable.executable);
     d->serverStartScriptPathChooser->setPath(p.serverStartScript);
     d->debuginfoPathChooser->setPath(p.debugInfoLocation);
-    d->arguments->setText(p.processArgs);
-    d->workingDirectory->setPath(p.workingDirectory);
-    d->runInTerminalCheckBox->setChecked(p.runInTerminal);
+    d->arguments->setText(p.runnable.commandLineArguments);
+    d->workingDirectory->setPath(p.runnable.workingDirectory);
+    d->runInTerminalCheckBox->setChecked(p.runnable.runMode == ApplicationLauncher::Console);
     d->breakAtMainCheckBox->setChecked(p.breakAtMain);
     updateState();
 }
@@ -874,8 +869,8 @@ TypeFormatsDialog::TypeFormatsDialog(QWidget *parent)
     m_ui->addPage(tr("Standard Types"));
     m_ui->addPage(tr("Misc Types"));
 
-    connect(m_ui->buttonBox, SIGNAL(accepted()), SLOT(accept()));
-    connect(m_ui->buttonBox, SIGNAL(rejected()), SLOT(reject()));
+    connect(m_ui->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(m_ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 TypeFormatsDialog::~TypeFormatsDialog()

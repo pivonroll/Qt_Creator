@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef HELPWIDGET_H
-#define HELPWIDGET_H
+#pragma once
 
 #include <coreplugin/icontext.h>
 
@@ -84,7 +78,7 @@ public:
                           bool newPage = false);
     void activateSideBarItem(const QString &id);
 
-public slots:
+public:
     void setSource(const QUrl &url);
     void updateCloseButton();
 
@@ -98,13 +92,12 @@ signals:
     void sourceChanged(const QUrl &url);
     void filterActivated(const QString &name);
 
-private slots:
+private:
     void updateBackMenu();
     void updateForwardMenu();
     void updateWindowTitle();
     void helpModeButtonClicked();
 
-private:
     void goHome();
     void addBookmark();
     void copy();
@@ -118,39 +111,37 @@ private:
     void addSideBar();
     QString sideBarSettingsKey() const;
 
-    Core::IContext *m_context;
+    Core::IContext *m_context = nullptr;
     WidgetStyle m_style;
-    QAction *m_toggleSideBarAction;
-    QAction *m_switchToHelp;
-    QAction *m_homeAction;
-    QMenu *m_backMenu;
-    QMenu *m_forwardMenu;
-    QAction *m_backAction;
-    QAction *m_forwardAction;
-    QAction *m_addBookmarkAction;
-    QComboBox *m_filterComboBox;
-    QAction *m_closeAction;
-    QAction *m_scaleUp;
-    QAction *m_scaleDown;
-    QAction *m_resetScale;
-    QAction *m_printAction;
-    QAction *m_copy;
+    QAction *m_toggleSideBarAction = nullptr;
+    QAction *m_switchToHelp = nullptr;
+    QAction *m_homeAction = nullptr;
+    QMenu *m_backMenu = nullptr;
+    QMenu *m_forwardMenu = nullptr;
+    QAction *m_backAction = nullptr;
+    QAction *m_forwardAction = nullptr;
+    QAction *m_addBookmarkAction = nullptr;
+    QComboBox *m_filterComboBox = nullptr;
+    QAction *m_closeAction = nullptr;
+    QAction *m_scaleUp = nullptr;
+    QAction *m_scaleDown = nullptr;
+    QAction *m_resetScale = nullptr;
+    QAction *m_printAction = nullptr;
+    QAction *m_copy = nullptr;
 
-    QStackedWidget *m_viewerStack;
-    QPrinter *m_printer;
+    QStackedWidget *m_viewerStack = nullptr;
+    QPrinter *m_printer = nullptr;
 
-    Core::MiniSplitter *m_sideBarSplitter;
-    Core::SideBar *m_sideBar;
-    QAction *m_contentsAction;
-    QAction *m_indexAction;
-    QAction *m_bookmarkAction;
-    QAction *m_searchAction;
-    QAction *m_openPagesAction;
+    Core::MiniSplitter *m_sideBarSplitter = nullptr;
+    Core::SideBar *m_sideBar = nullptr;
+    QAction *m_contentsAction = nullptr;
+    QAction *m_indexAction = nullptr;
+    QAction *m_bookmarkAction = nullptr;
+    QAction *m_searchAction = nullptr;
+    QAction *m_openPagesAction = nullptr;
 
     QStringList m_searchTerms;
 };
 
 } // Internal
 } // Help
-
-#endif // HELPWIDGET_H

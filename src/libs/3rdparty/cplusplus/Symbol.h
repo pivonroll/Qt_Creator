@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_SYMBOL_H
-#define CPLUSPLUS_SYMBOL_H
+#pragma once
 
 #include "CPlusPlusForwardDeclarations.h"
 
@@ -135,7 +134,7 @@ public:
     /// Returns true if this Symbol is an Enum.
     bool isEnum() const;
 
-    /// Returns true if this Symbol is a Function.
+    /// Returns true if this Symbol is an Function.
     bool isFunction() const;
 
     /// Returns true if this Symbol is a Namespace.
@@ -143,9 +142,6 @@ public:
 
     /// Returns true if this Symbol is a Template.
     bool isTemplate() const;
-
-    /// Returns true if this Symbol is an ExplicitInstantiation.
-    bool isExplicitInstantiation() const;
 
     /// Returns true if this Symbol is a Class.
     bool isClass() const;
@@ -206,7 +202,6 @@ public:
     virtual const Function *asFunction() const { return 0; }
     virtual const Namespace *asNamespace() const { return 0; }
     virtual const Template *asTemplate() const { return 0; }
-    virtual const ExplicitInstantiation *asExplicitInstantiation() const { return 0; }
     virtual const NamespaceAlias *asNamespaceAlias() const { return 0; }
     virtual const Class *asClass() const { return 0; }
     virtual const Block *asBlock() const { return 0; }
@@ -233,7 +228,6 @@ public:
     virtual Function *asFunction() { return 0; }
     virtual Namespace *asNamespace() { return 0; }
     virtual Template *asTemplate() { return 0; }
-    virtual ExplicitInstantiation *asExplicitInstantiation() { return 0; }
     virtual NamespaceAlias *asNamespaceAlias() { return 0; }
     virtual Class *asClass() { return 0; }
     virtual Block *asBlock() { return 0; }
@@ -330,6 +324,3 @@ private:
 };
 
 } // namespace CPlusPlus
-
-
-#endif // CPLUSPLUS_SYMBOL_H

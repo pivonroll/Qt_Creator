@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -171,12 +166,13 @@ void TypePrettyPrinter::visit(Namespace *type)
 void TypePrettyPrinter::visit(Template *type)
 {
     if (Symbol *d = type->declaration()) {
-        if (overview()->showTemplateParameters && ! _name.isEmpty()) {
+        const Overview &oo = *overview();
+        if (oo.showTemplateParameters && ! _name.isEmpty()) {
             _name += QLatin1Char('<');
             for (unsigned index = 0; index < type->templateParameterCount(); ++index) {
                 if (index)
                     _name += QLatin1String(", ");
-                QString arg = overview()->prettyName(type->templateParameterAt(index)->name());
+                QString arg = oo.prettyName(type->templateParameterAt(index)->name());
                 if (arg.isEmpty()) {
                     arg += QLatin1Char('T');
                     arg += QString::number(index + 1);
@@ -411,6 +407,27 @@ void TypePrettyPrinter::visit(Function *type)
         }
     }
 
+    if (_overview->showEnclosingTemplate) {
+        if (Template *templ = type->enclosingTemplate()) {
+            QString templateScope = "template<";
+            for (unsigned i = 0, total = templ->templateParameterCount(); i < total; ++i) {
+                if (Symbol *param = templ->templateParameterAt(i)) {
+                    if (i > 0)
+                        templateScope.append(", ");
+                    if (TypenameArgument *typenameArg = param->asTypenameArgument()) {
+                        templateScope.append(QLatin1String(typenameArg->isClassDeclarator()
+                                                           ? "class " : "typename "));
+                        templateScope.append(_overview->prettyName(typenameArg->name()));
+                    } else if (Argument *arg = param->asArgument()) {
+                        templateScope.append(operator()(arg->type(),
+                                                        _overview->prettyName(arg->name())));
+                    }
+                }
+            }
+            _text.prepend(templateScope + ">\n");
+        }
+    }
+
     if (_overview->showFunctionSignatures) {
         Overview argumentText;
         argumentText.starBindFlags = _overview->starBindFlags;
@@ -458,6 +475,17 @@ void TypePrettyPrinter::visit(Function *type)
         if (type->isVolatile()) {
             appendSpace();
             _text += QLatin1String("volatile");
+        }
+
+        // add ref-qualifier
+        if (type->refQualifier() != Function::NoRefQualifier) {
+            if (!_overview->starBindFlags.testFlag(Overview::BindToLeftSpecifier)
+                    || (!type->isConst() && !type->isVolatile())) {
+                appendSpace();
+            }
+            _text += type->refQualifier() == Function::LvalueRefQualifier
+                        ? QLatin1String("&")
+                        : QLatin1String("&&");
         }
     }
 }

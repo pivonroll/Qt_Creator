@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QTSUPPORT_QTKITINFORMATION_H
-#define QTSUPPORT_QTKITINFORMATION_H
+#pragma once
 
 #include "qtsupport_global.h"
 
@@ -48,20 +42,20 @@ class QTSUPPORT_EXPORT QtKitInformation : public ProjectExplorer::KitInformation
 public:
     QtKitInformation();
 
-    QVariant defaultValue(ProjectExplorer::Kit *k) const;
+    QVariant defaultValue(const ProjectExplorer::Kit *k) const override;
 
-    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const;
-    void fix(ProjectExplorer::Kit *);
+    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const override;
+    void fix(ProjectExplorer::Kit *) override;
 
-    ProjectExplorer::KitConfigWidget *createConfigWidget(ProjectExplorer::Kit *k) const;
+    ProjectExplorer::KitConfigWidget *createConfigWidget(ProjectExplorer::Kit *k) const override;
 
-    QString displayNamePostfix(const ProjectExplorer::Kit *k) const;
+    QString displayNamePostfix(const ProjectExplorer::Kit *k) const override;
 
-    ItemList toUserOutput(const ProjectExplorer::Kit *k) const;
+    ItemList toUserOutput(const ProjectExplorer::Kit *k) const override;
 
-    void addToEnvironment(const ProjectExplorer::Kit *k, Utils::Environment &env) const;
-    ProjectExplorer::IOutputParser *createOutputParser(const ProjectExplorer::Kit *k) const;
-    void addToMacroExpander(ProjectExplorer::Kit *kit, Utils::MacroExpander *expander) const;
+    void addToEnvironment(const ProjectExplorer::Kit *k, Utils::Environment &env) const override;
+    ProjectExplorer::IOutputParser *createOutputParser(const ProjectExplorer::Kit *k) const override;
+    void addToMacroExpander(ProjectExplorer::Kit *kit, Utils::MacroExpander *expander) const override;
 
     static Core::Id id();
     static int qtVersionId(const ProjectExplorer::Kit *k);
@@ -69,16 +63,16 @@ public:
     static BaseQtVersion *qtVersion(const ProjectExplorer::Kit *k);
     static void setQtVersion(ProjectExplorer::Kit *k, const BaseQtVersion *v);
 
-    static ProjectExplorer::KitMatcher platformMatcher(const QString &availablePlatforms);
-    static ProjectExplorer::KitMatcher qtVersionMatcher(const Core::FeatureSet &required = Core::FeatureSet(),
-                                 const QtVersionNumber &min = QtVersionNumber(0, 0, 0),
-                                 const QtVersionNumber &max = QtVersionNumber(INT_MAX, INT_MAX, INT_MAX));
+    static ProjectExplorer::Kit::Predicate platformPredicate(Core::Id availablePlatforms);
+    static ProjectExplorer::Kit::Predicate
+    qtVersionPredicate(const QSet<Core::Id> &required = QSet<Core::Id>(),
+                       const QtVersionNumber &min = QtVersionNumber(0, 0, 0),
+                       const QtVersionNumber &max = QtVersionNumber(INT_MAX, INT_MAX, INT_MAX));
 
-    QSet<QString> availablePlatforms(const ProjectExplorer::Kit *k) const;
-    QString displayNameForPlatform(const ProjectExplorer::Kit *k, const QString &platform) const;
-    Core::FeatureSet availableFeatures(const ProjectExplorer::Kit *k) const;
+    QSet<Core::Id> supportedPlatforms(const ProjectExplorer::Kit *k) const override;
+    QSet<Core::Id> availableFeatures(const ProjectExplorer::Kit *k) const override;
 
-private slots:
+private:
     void qtVersionsChanged(const QList<int> &addedIds,
                            const QList<int> &removedIds,
                            const QList<int> &changedIds);
@@ -86,5 +80,3 @@ private slots:
 };
 
 } // namespace QtSupport
-
-#endif // QTSUPPORT_QTKITINFORMATION_H

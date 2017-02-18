@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -319,7 +319,7 @@ QmlJS::AST::UiObjectMemberList *QMLRewriter::searchMemberToInsertAfter(QmlJS::AS
         idx = propertyOrder.size() - 1;
 
     for (; idx > 0; --idx) {
-        const QString prop = propertyOrder.at(idx - 1);
+        const QString prop = QString::fromLatin1(propertyOrder.at(idx - 1));
         QmlJS::AST::UiObjectMemberList *candidate = orderedMembers.value(prop, 0);
         if (candidate != 0)
             return candidate;
@@ -332,6 +332,7 @@ void QMLRewriter::dump(const ASTPath &path)
 {
     qDebug() << "AST path with" << path.size() << "node(s):";
     for (int i = 0; i < path.size(); ++i) {
-        qDebug() << qPrintable(QString(i + 1, QLatin1Char('-'))) << typeid(*path.at(i)).name();
+        auto node = path.at(i);
+        qDebug().noquote() << QString(i + 1, QLatin1Char('-')) << typeid(*node).name();
     }
 }

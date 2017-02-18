@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,30 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QMLPROFILERDATAMODEL_H
-#define QMLPROFILERDATAMODEL_H
+#pragma once
 
 #include "qmlprofilermodelmanager.h"
+#include "qmlprofilereventtypes.h"
+#include "qmleventlocation.h"
+#include "qmleventtype.h"
+#include "qmlevent.h"
 
-#include <qmldebug/qmlprofilereventtypes.h>
 #include <utils/fileinprojectfinder.h>
+#include <projectexplorer/runconfiguration.h>
 
 namespace QmlProfiler {
 
@@ -42,63 +40,30 @@ class QMLPROFILER_EXPORT QmlProfilerDataModel : public QObject
 {
     Q_OBJECT
 public:
-    struct QmlEventTypeData {
-        QString displayName;
-        QmlDebug::QmlEventLocation location;
-        QmlDebug::Message message;
-        QmlDebug::RangeType rangeType;
-        int detailType; // can be EventType, BindingType, PixmapEventType or SceneGraphFrameType
-        QString data;
-    };
-
-    struct QmlEventData {
-        int typeIndex;
-        qint64 startTime;
-        qint64 duration;
-        qint64 numericData1;
-        qint64 numericData2;
-        qint64 numericData3;
-        qint64 numericData4;
-        qint64 numericData5;
-    };
-
-    struct QmlEventNoteData {
-        int typeIndex;
-        qint64 startTime;
-        qint64 duration;
-        QString text;
-    };
-
-    static QString formatTime(qint64 timestamp);
-
-    explicit QmlProfilerDataModel(Utils::FileInProjectFinder *fileFinder,
-                                  QmlProfilerModelManager *parent);
+    explicit QmlProfilerDataModel(QObject *parent = nullptr);
     ~QmlProfilerDataModel();
 
-    const QVector<QmlEventData> &getEvents() const;
-    const QVector<QmlEventTypeData> &getEventTypes() const;
-    const QVector<QmlEventNoteData> &getEventNotes() const;
-    void setData(qint64 traceStart, qint64 traceEnd, const QVector<QmlEventTypeData> &types,
-                 const QVector<QmlEventData> &events);
-    void setNoteData(const QVector<QmlEventNoteData> &notes);
-    void processData();
+    const QmlEventType &eventType(int typeId) const;
+    const QVector<QmlEventType> &eventTypes() const;
+    void addEventTypes(const QVector<QmlEventType> &types);
+    void addEventType(const QmlEventType &type);
 
-    int count() const;
+    void populateFileFinder(const ProjectExplorer::RunConfiguration *runConfiguration = nullptr);
+    QString findLocalFile(const QString &remoteFile);
+
     void clear();
     bool isEmpty() const;
-    void addQmlEvent(QmlDebug::Message message, QmlDebug::RangeType rangeType, int bindingType,
-                     qint64 startTime, qint64 duration, const QString &data,
-                     const QmlDebug::QmlEventLocation &location, qint64 ndata1, qint64 ndata2,
-                     qint64 ndata3, qint64 ndata4, qint64 ndata5);
-    qint64 lastTimeMark() const;
+    void addEvent(const QmlEvent &event);
+    void addEvents(const QVector<QmlEvent> &events);
+    void replayEvents(qint64 startTime, qint64 endTime,
+                      QmlProfilerModelManager::EventLoader loader) const;
+    void finalize();
 
 signals:
-    void changed();
-    void requestReload();
+    void allTypesLoaded();
 
 protected slots:
-    void detailsChanged(int requestId, const QString &newString);
-    void detailsDone();
+    void detailsChanged(int typeId, const QString &newString);
 
 private:
     class QmlProfilerDataModelPrivate;
@@ -106,6 +71,4 @@ private:
     Q_DECLARE_PRIVATE(QmlProfilerDataModel)
 };
 
-}
-
-#endif
+} // namespace QmlProfiler

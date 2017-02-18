@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -42,11 +37,12 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/session.h>
 #include <texteditor/texteditor.h>
-#include <utils/tooltip/tooltip.h>
+#include <utils/icon.h>
 #include <utils/qtcassert.h>
 #include <utils/checkablemessagebox.h>
 #include <utils/theme/theme.h>
 #include <utils/dropsupport.h>
+#include <utils/utilsicons.h>
 
 #include <QAction>
 #include <QContextMenuEvent>
@@ -77,7 +73,7 @@ BookmarkDelegate::BookmarkDelegate(QObject *parent)
 
 QSize BookmarkDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    QStyleOptionViewItemV4 opt = option;
+    QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
 
     QFontMetrics fm(option.font);
@@ -116,7 +112,7 @@ void BookmarkDelegate::generateGradientPixmap(int width, int height, const QColo
 
 void BookmarkDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    QStyleOptionViewItemV4 opt = option;
+    QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
     painter->save();
 
@@ -206,8 +202,9 @@ void BookmarkDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opti
     painter->drawText(6, opt.rect.top() + fm.ascent() + fm.height() + 6, lineText);
 
     // Separator lines
+    const QRectF innerRect = QRectF(opt.rect).adjusted(0.5, 0.5, -0.5, -0.5);
     painter->setPen(QColor::fromRgb(150,150,150));
-    painter->drawLine(0, opt.rect.bottom(), opt.rect.right(), opt.rect.bottom());
+    painter->drawLine(innerRect.bottomLeft(), innerRect.bottomRight());
     painter->restore();
 }
 
@@ -227,7 +224,7 @@ BookmarkView::BookmarkView(BookmarkManager *manager)  :
     setItemDelegate(new BookmarkDelegate(this));
     setFrameStyle(QFrame::NoFrame);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    setFocusPolicy(Qt::NoFocus);
+    setAttribute(Qt::WA_MacShowFocusRect, false);
     setSelectionModel(manager->selectionModel());
     setSelectionMode(QAbstractItemView::SingleSelection);
     setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -323,7 +320,7 @@ void BookmarkView::gotoBookmark(const QModelIndex &index)
 ////
 
 BookmarkManager::BookmarkManager() :
-    m_bookmarkIcon(QLatin1String(":/bookmarks/images/bookmark.png")),
+    m_bookmarkIcon(Utils::Icons::BOOKMARK_TEXTEDITOR.pixmap()),
     m_selectionModel(new QItemSelectionModel(this, this))
 {
     connect(ICore::instance(), &ICore::contextChanged,
@@ -335,6 +332,7 @@ BookmarkManager::BookmarkManager() :
     updateActionStatus();
     Bookmark::setCategoryColor(Constants::BOOKMARKS_TEXT_MARK_CATEGORY,
                                Theme::Bookmarks_TextMarkColor);
+    Bookmark::setDefaultToolTip(Constants::BOOKMARKS_TEXT_MARK_CATEGORY, tr("Bookmark"));
 }
 
 BookmarkManager::~BookmarkManager()
@@ -814,7 +812,7 @@ void BookmarkManager::addBookmark(const QString &s)
     if (index3 != -1 || index2 != -1 || index1 != -1) {
         const QString &filePath = s.mid(index1+1, index2-index1-1);
         const QString &note = s.mid(index3 + 1);
-        const int lineNumber = s.mid(index2 + 1, index3 - index2 - 1).toInt();
+        const int lineNumber = s.midRef(index2 + 1, index3 - index2 - 1).toInt();
         if (!filePath.isEmpty() && !findBookmark(filePath, lineNumber)) {
             Bookmark *b = new Bookmark(lineNumber, this);
             b->updateFileName(filePath);
@@ -847,17 +845,6 @@ void BookmarkManager::saveBookmarks()
     SessionManager::setValue(QLatin1String("Bookmarks"), list);
 }
 
-void BookmarkManager::operateTooltip(QWidget *widget, const QPoint &pos, Bookmark *mark)
-{
-    if (!mark)
-        return;
-
-    if (mark->note().isEmpty())
-        ToolTip::hide();
-    else
-        ToolTip::show(pos, mark->note(), widget);
-}
-
 /* Loads the bookmarks from the session settings. */
 void BookmarkManager::loadBookmarks()
 {
@@ -867,12 +854,6 @@ void BookmarkManager::loadBookmarks()
         addBookmark(bookmarkString);
 
     updateActionStatus();
-}
-
-void BookmarkManager::handleBookmarkTooltipRequest(IEditor *editor, const QPoint &pos, int line)
-{
-    Bookmark *mark = findBookmark(editor->document()->filePath().toString(), line);
-    operateTooltip(editor->widget(), pos, mark);
 }
 
 // BookmarkViewFactory

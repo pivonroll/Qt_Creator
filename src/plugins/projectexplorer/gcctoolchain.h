@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef GCCTOOLCHAIN_H
-#define GCCTOOLCHAIN_H
+#pragma once
 
 #include "projectexplorer_export.h"
 
@@ -60,8 +54,9 @@ public:
     GccToolChain(Core::Id typeId, Detection d);
     QString typeDisplayName() const override;
     Abi targetAbi() const override;
+    QString originalTargetTriple() const override;
     QString version() const;
-    QList<Abi> supportedAbis() const;
+    QList<Abi> supportedAbis() const override;
     void setTargetAbi(const Abi &);
 
     bool isValid() const override;
@@ -74,7 +69,7 @@ public:
                                         const Utils::FileName &sysRoot) const override;
     void addToEnvironment(Utils::Environment &env) const override;
     QString makeCommand(const Utils::Environment &environment) const override;
-    QList<Utils::FileName> suggestedMkspecList() const override;
+    Utils::FileNameList suggestedMkspecList() const override;
     IOutputParser *outputParser() const override;
 
     QVariantMap toMap() const override;
@@ -95,6 +90,19 @@ public:
 
     static void addCommandPathToEnvironment(const Utils::FileName &command, Utils::Environment &env);
 
+    class DetectedAbisResult {
+    public:
+        DetectedAbisResult() = default;
+        DetectedAbisResult(const QList<Abi> &supportedAbis,
+                           const QString &originalTargetTriple = QString()) :
+            supportedAbis(supportedAbis),
+            originalTargetTriple(originalTargetTriple)
+        { }
+
+        QList<Abi> supportedAbis;
+        QString originalTargetTriple;
+    };
+
 protected:
     typedef QList<QPair<QStringList, QByteArray> > GccCache;
 
@@ -104,13 +112,14 @@ protected:
 
     void setCompilerCommand(const Utils::FileName &path);
     void setSupportedAbis(const QList<Abi> &m_abis);
+    void setOriginalTargetTriple(const QString &targetTriple);
     void setMacroCache(const QStringList &allCxxflags, const QByteArray &macroCache) const;
     QByteArray macroCache(const QStringList &allCxxflags) const;
 
     virtual QString defaultDisplayName() const;
     virtual CompilerFlags defaultCompilerFlags() const;
 
-    virtual QList<Abi> detectSupportedAbis() const;
+    virtual DetectedAbisResult detectSupportedAbis() const;
     virtual QString detectVersion() const;
 
     // Reinterpret options for compiler drivers inheriting from GccToolChain (e.g qcc) to apply -Wp option
@@ -123,16 +132,16 @@ protected:
 
     class WarningFlagAdder
     {
-        QByteArray m_flagUtf8;
-        WarningFlags &m_flags;
-        bool m_doesEnable;
-        bool m_triggered;
     public:
         WarningFlagAdder(const QString &flag, WarningFlags &flags);
         void operator ()(const char name[], WarningFlags flagsSet);
-        void operator ()(const char name[], WarningFlag flag);
 
         bool triggered() const;
+    private:
+        QByteArray m_flagUtf8;
+        WarningFlags &m_flags;
+        bool m_doesEnable;
+        bool m_triggered = false;
     };
 
 private:
@@ -146,6 +155,7 @@ private:
 
     Abi m_targetAbi;
     mutable QList<Abi> m_supportedAbis;
+    mutable QString m_originalTargetTriple;
     mutable QList<HeaderPath> m_headerPaths;
     mutable QString m_version;
 
@@ -172,7 +182,7 @@ public:
 
     ToolChain *clone() const override;
 
-    QList<Utils::FileName> suggestedMkspecList() const override;
+    Utils::FileNameList suggestedMkspecList() const override;
     void addToEnvironment(Utils::Environment &env) const override;
 
 protected:
@@ -195,7 +205,7 @@ public:
 
     ToolChain *clone() const override;
 
-    QList<Utils::FileName> suggestedMkspecList() const override;
+    Utils::FileNameList suggestedMkspecList() const override;
 
 private:
     explicit MingwToolChain(Detection d);
@@ -218,7 +228,7 @@ public:
 
     ToolChain *clone() const override;
 
-    QList<Utils::FileName> suggestedMkspecList() const override;
+    Utils::FileNameList suggestedMkspecList() const override;
 
 private:
     explicit LinuxIccToolChain(Detection d);
@@ -228,5 +238,3 @@ private:
 };
 
 } // namespace ProjectExplorer
-
-#endif // GCCTOOLCHAIN_H

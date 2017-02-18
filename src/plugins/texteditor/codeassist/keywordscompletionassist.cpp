@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,30 +33,29 @@
 #include <texteditor/texteditorsettings.h>
 #include <texteditor/texteditor.h>
 
+#include <utils/algorithm.h>
+
 namespace TextEditor {
 
 // --------------------------
 // Keywords
 // --------------------------
-Keywords::Keywords()
-{
-}
-
 // Note: variables and functions must be sorted
-Keywords::Keywords(const QStringList &variabels, const QStringList &functions, const QMap<QString, QStringList> &functionArgs)
-    : m_variables(variabels), m_functions(functions), m_functionArgs(functionArgs)
+Keywords::Keywords(const QStringList &variables, const QStringList &functions, const QMap<QString, QStringList> &functionArgs)
+    : m_variables(variables), m_functions(functions), m_functionArgs(functionArgs)
 {
-
+    Utils::sort(m_variables);
+    Utils::sort(m_functions);
 }
 
 bool Keywords::isVariable(const QString &word) const
 {
-    return qBinaryFind(m_variables, word) != m_variables.constEnd();
+    return std::binary_search(m_variables.constBegin(), m_variables.constEnd(), word);
 }
 
 bool Keywords::isFunction(const QString &word) const
 {
-    return qBinaryFind(m_functions, word) != m_functions.constEnd();
+    return std::binary_search(m_functions.constBegin(), m_functions.constEnd(), word);
 }
 
 QStringList Keywords::variables() const
@@ -88,49 +82,52 @@ KeywordsAssistProposalItem::KeywordsAssistProposalItem(bool isFunction)
 {
 }
 
-KeywordsAssistProposalItem::~KeywordsAssistProposalItem()
-{}
-
 bool KeywordsAssistProposalItem::prematurelyApplies(const QChar &c) const
 {
     // only '(' in case of a function
     return c == QLatin1Char('(') && m_isFunction;
 }
 
-void KeywordsAssistProposalItem::applyContextualContent(TextEditorWidget *editorWidget,
+void KeywordsAssistProposalItem::applyContextualContent(TextDocumentManipulatorInterface &manipulator,
                                                         int basePosition) const
 {
     const CompletionSettings &settings = TextEditorSettings::completionSettings();
 
-    int replaceLength = editorWidget->position() - basePosition;
+    int replaceLength = manipulator.currentPosition() - basePosition;
     QString toInsert = text();
     int cursorOffset = 0;
+    const QChar characterAtCurrentPosition = manipulator.characterAt(manipulator.currentPosition());
+    bool setAutoCompleteSkipPosition = false;
+
     if (m_isFunction && settings.m_autoInsertBrackets) {
         if (settings.m_spaceAfterFunctionName) {
-            if (editorWidget->textAt(editorWidget->position(), 2) == QLatin1String(" (")) {
+            if (manipulator.textAt(manipulator.currentPosition(), 2) == QLatin1String(" (")) {
                 cursorOffset = 2;
-            } else if (editorWidget->characterAt(editorWidget->position()) == QLatin1Char('(')
-                       || editorWidget->characterAt(editorWidget->position()) == QLatin1Char(' ')) {
+            } else if ( characterAtCurrentPosition == QLatin1Char('(')
+                       || characterAtCurrentPosition == QLatin1Char(' ')) {
                 replaceLength += 1;
                 toInsert += QLatin1String(" (");
             } else {
                 toInsert += QLatin1String(" ()");
                 cursorOffset = -1;
+                setAutoCompleteSkipPosition = true;
             }
         } else {
-            if (editorWidget->characterAt(editorWidget->position()) == QLatin1Char('(')) {
+            if (characterAtCurrentPosition == QLatin1Char('(')) {
                 cursorOffset = 1;
             } else {
                 toInsert += QLatin1String("()");
                 cursorOffset = -1;
+                setAutoCompleteSkipPosition = true;
             }
         }
     }
 
-    editorWidget->setCursorPosition(basePosition);
-    editorWidget->replace(replaceLength, toInsert);
+    manipulator.replace(basePosition, replaceLength, toInsert);
     if (cursorOffset)
-        editorWidget->setCursorPosition(editorWidget->position() + cursorOffset);
+        manipulator.setCursorPosition(manipulator.currentPosition() + cursorOffset);
+    if (setAutoCompleteSkipPosition)
+        manipulator.setAutoCompleteSkipPosition(manipulator.currentPosition());
 }
 
 // -------------------------
@@ -138,9 +135,6 @@ void KeywordsAssistProposalItem::applyContextualContent(TextEditorWidget *editor
 // -------------------------
 KeywordsFunctionHintModel::KeywordsFunctionHintModel(const QStringList &functionSymbols)
         : m_functionSymbols(functionSymbols)
-{}
-
-KeywordsFunctionHintModel::~KeywordsFunctionHintModel()
 {}
 
 void KeywordsFunctionHintModel::reset()
@@ -166,13 +160,10 @@ int KeywordsFunctionHintModel::activeArgument(const QString &prefix) const
 // KeywordsCompletionAssistProcessor
 // ---------------------------------
 KeywordsCompletionAssistProcessor::KeywordsCompletionAssistProcessor(Keywords keywords)
-    : m_startPosition(-1)
+    : m_snippetCollector(QString(), QIcon(":/texteditor/images/snippet.png"))
     , m_variableIcon(QLatin1String(":/codemodel/images/keyword.png"))
-    , m_functionIcon(QLatin1String(":/codemodel/images/func.png"))
+    , m_functionIcon(QLatin1String(":/codemodel/images/member.png"))
     , m_keywords(keywords)
-{}
-
-KeywordsCompletionAssistProcessor::~KeywordsCompletionAssistProcessor()
 {}
 
 IAssistProposal *KeywordsCompletionAssistProcessor::perform(const AssistInterface *interface)
@@ -180,10 +171,10 @@ IAssistProposal *KeywordsCompletionAssistProcessor::perform(const AssistInterfac
     m_interface.reset(interface);
 
     if (isInComment())
-        return 0;
+        return nullptr;
 
     if (interface->reason() == IdleEditor && !acceptsIdleEditor())
-        return 0;
+        return nullptr;
 
     if (m_startPosition == -1)
         m_startPosition = findStartOfName();
@@ -192,14 +183,12 @@ IAssistProposal *KeywordsCompletionAssistProcessor::perform(const AssistInterfac
     if (m_keywords.isFunction(m_word)
         && m_interface->characterAt(nextCharPos) == QLatin1Char('(')) {
         QStringList functionSymbols = m_keywords.argsForFunction(m_word);
-        IFunctionHintProposalModel *model =
-                new KeywordsFunctionHintModel(functionSymbols);
-        IAssistProposal *proposal = new FunctionHintProposal(m_startPosition, model);
-        return proposal;
+        IFunctionHintProposalModel *model = new KeywordsFunctionHintModel(functionSymbols);
+        return new FunctionHintProposal(m_startPosition, model);
     } else {
-        QList<AssistProposalItem *> items;
-        addWordsToProposalList(&items, m_keywords.variables(), m_variableIcon);
-        addWordsToProposalList(&items, m_keywords.functions(), m_functionIcon);
+        QList<AssistProposalItemInterface *> items = m_snippetCollector.collect();
+        items.append(generateProposalList(m_keywords.variables(), m_variableIcon));
+        items.append(generateProposalList(m_keywords.variables(), m_variableIcon));
         return new GenericProposal(m_startPosition, items);
     }
 }
@@ -207,6 +196,11 @@ IAssistProposal *KeywordsCompletionAssistProcessor::perform(const AssistInterfac
 QChar KeywordsCompletionAssistProcessor::startOfCommentChar() const
 {
     return QLatin1Char('#');
+}
+
+void KeywordsCompletionAssistProcessor::setSnippetGroup(const QString &id)
+{
+    m_snippetCollector.setGroupId(id);
 }
 
 void KeywordsCompletionAssistProcessor::setKeywords(Keywords keywords)
@@ -217,7 +211,7 @@ void KeywordsCompletionAssistProcessor::setKeywords(Keywords keywords)
 bool KeywordsCompletionAssistProcessor::acceptsIdleEditor()
 {
     const int pos = m_interface->position();
-    QChar characterUnderCursor = m_interface->characterAt(pos);
+    const QChar characterUnderCursor = m_interface->characterAt(pos);
     if (!characterUnderCursor.isLetterOrNumber()) {
         m_startPosition = findStartOfName();
         if (pos - m_startPosition >= 3 && !isInComment())
@@ -239,7 +233,7 @@ int KeywordsCompletionAssistProcessor::findStartOfName(int pos)
         chr = m_interface->characterAt(--pos);
     } while (chr.isLetterOrNumber() || chr == QLatin1Char('_'));
 
-    int start = ++pos;
+    const int start = ++pos;
     m_word.clear();
     do {
         m_word += m_interface->characterAt(pos);
@@ -256,22 +250,18 @@ bool KeywordsCompletionAssistProcessor::isInComment() const
     tc.setPosition(m_interface->position());
     tc.movePosition(QTextCursor::StartOfLine, QTextCursor::KeepAnchor);
     const QString &lineBeginning = tc.selectedText();
-    if (lineBeginning.contains(startOfCommentChar()))
-        return true;
-    return false;
+    return lineBeginning.contains(startOfCommentChar());
 }
 
-void KeywordsCompletionAssistProcessor::addWordsToProposalList(QList<AssistProposalItem *> *items, const QStringList &words, const QIcon &icon)
+QList<AssistProposalItemInterface *>
+KeywordsCompletionAssistProcessor::generateProposalList(const QStringList &words, const QIcon &icon)
 {
-    if (!items)
-        return;
-
-    for (int i = 0; i < words.count(); ++i) {
-        AssistProposalItem *item = new KeywordsAssistProposalItem(m_keywords.isFunction(words.at(i)));
-        item->setText(words.at(i));
+    return Utils::transform(words, [this, &icon](const QString &word) -> AssistProposalItemInterface * {
+        AssistProposalItem *item = new KeywordsAssistProposalItem(m_keywords.isFunction(word));
+        item->setText(word);
         item->setIcon(icon);
-        items->append(item);
-    }
+        return item;
+    });
 }
 
 } // namespace TextEditor

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "abstractremotelinuxrunsupport.h"
-#include "abstractremotelinuxrunconfiguration.h"
 
-#include <projectexplorer/target.h>
-#include <projectexplorer/kitinformation.h>
 #include <projectexplorer/devicesupport/deviceapplicationrunner.h>
 #include <projectexplorer/devicesupport/deviceusedportsgatherer.h>
+#include <projectexplorer/kitinformation.h>
+#include <projectexplorer/runnables.h>
+#include <projectexplorer/target.h>
+
 #include <utils/environment.h>
 #include <utils/portlist.h>
 
@@ -46,32 +42,28 @@ namespace Internal {
 class AbstractRemoteLinuxRunSupportPrivate
 {
 public:
-    AbstractRemoteLinuxRunSupportPrivate(const AbstractRemoteLinuxRunConfiguration *runConfig)
+    AbstractRemoteLinuxRunSupportPrivate(const RunConfiguration *runConfig)
         : state(AbstractRemoteLinuxRunSupport::Inactive),
-          device(DeviceKitInformation::device(runConfig->target()->kit())),
-          remoteFilePath(runConfig->remoteExecutableFilePath()),
-          arguments(runConfig->arguments()),
-          environment(runConfig->environment()),
-          workingDir(runConfig->workingDirectory())
+          runnable(runConfig->runnable().as<StandardRunnable>()),
+          device(DeviceKitInformation::device(runConfig->target()->kit()))
     {
     }
 
     AbstractRemoteLinuxRunSupport::State state;
+    StandardRunnable runnable;
     DeviceApplicationRunner appRunner;
     DeviceUsedPortsGatherer portsGatherer;
+    DeviceApplicationRunner fifoCreator;
     const IDevice::ConstPtr device;
     Utils::PortList portList;
-    const QString remoteFilePath;
-    const QStringList arguments;
-    const Utils::Environment environment;
-    const QString workingDir;
+    QString fifo;
 };
 
 } // namespace Internal
 
 using namespace Internal;
 
-AbstractRemoteLinuxRunSupport::AbstractRemoteLinuxRunSupport(AbstractRemoteLinuxRunConfiguration *runConfig, QObject *parent)
+AbstractRemoteLinuxRunSupport::AbstractRemoteLinuxRunSupport(RunConfiguration *runConfig, QObject *parent)
     : QObject(parent),
       d(new AbstractRemoteLinuxRunSupportPrivate(runConfig))
 {
@@ -93,26 +85,15 @@ AbstractRemoteLinuxRunSupport::State AbstractRemoteLinuxRunSupport::state() cons
     return d->state;
 }
 
-void AbstractRemoteLinuxRunSupport::handleRemoteSetupRequested()
+void AbstractRemoteLinuxRunSupport::handleResourcesError(const QString &message)
 {
-    QTC_ASSERT(d->state == Inactive, return);
-    d->state = GatheringPorts;
-    connect(&d->portsGatherer, &DeviceUsedPortsGatherer::error,
-            this, &AbstractRemoteLinuxRunSupport::handlePortsGathererError);
-    connect(&d->portsGatherer, &DeviceUsedPortsGatherer::portListReady,
-            this, &AbstractRemoteLinuxRunSupport::handlePortListReady);
-    d->portsGatherer.start(d->device);
-}
-
-void AbstractRemoteLinuxRunSupport::handlePortsGathererError(const QString &message)
-{
-    QTC_ASSERT(d->state == GatheringPorts, return);
+    QTC_ASSERT(d->state == GatheringResources, return);
     handleAdapterSetupFailed(message);
 }
 
-void AbstractRemoteLinuxRunSupport::handlePortListReady()
+void AbstractRemoteLinuxRunSupport::handleResourcesAvailable()
 {
-    QTC_ASSERT(d->state == GatheringPorts, return);
+    QTC_ASSERT(d->state == GatheringResources, return);
 
     d->portList = d->device->freePorts();
     startExecution();
@@ -138,39 +119,72 @@ void AbstractRemoteLinuxRunSupport::setFinished()
     d->state = Inactive;
 }
 
-bool AbstractRemoteLinuxRunSupport::setPort(int &port)
+Utils::Port AbstractRemoteLinuxRunSupport::findPort() const
 {
-    port = d->portsGatherer.getNextFreePort(&d->portList);
-    if (port == -1) {
-        handleAdapterSetupFailed(tr("Not enough free ports on device for debugging."));
-        return false;
-    }
-    return true;
+    return d->portsGatherer.getNextFreePort(&d->portList);
 }
 
-QStringList AbstractRemoteLinuxRunSupport::arguments() const
+QString AbstractRemoteLinuxRunSupport::fifo() const
 {
-    return d->arguments;
+    return d->fifo;
 }
 
-QString AbstractRemoteLinuxRunSupport::remoteFilePath() const
+void AbstractRemoteLinuxRunSupport::startPortsGathering()
 {
-    return d->remoteFilePath;
+    QTC_ASSERT(d->state == Inactive, return);
+    d->state = GatheringResources;
+    connect(&d->portsGatherer, &DeviceUsedPortsGatherer::error,
+            this, &AbstractRemoteLinuxRunSupport::handleResourcesError);
+    connect(&d->portsGatherer, &DeviceUsedPortsGatherer::portListReady,
+            this, &AbstractRemoteLinuxRunSupport::handleResourcesAvailable);
+    d->portsGatherer.start(d->device);
 }
 
-Utils::Environment AbstractRemoteLinuxRunSupport::environment() const
+void AbstractRemoteLinuxRunSupport::createRemoteFifo()
 {
-    return d->environment;
-}
+    QTC_ASSERT(d->state == Inactive, return);
+    d->state = GatheringResources;
 
-QString AbstractRemoteLinuxRunSupport::workingDirectory() const
-{
-    return d->workingDir;
+    StandardRunnable r;
+    r.executable = QLatin1String("/bin/sh");
+    r.commandLineArguments = "-c 'd=`mktemp -d` && mkfifo $d/fifo && echo -n $d/fifo'";
+    r.workingDirectory = QLatin1String("/tmp");
+    r.runMode = ApplicationLauncher::Console;
+
+    QSharedPointer<QByteArray> output(new QByteArray);
+    QSharedPointer<QByteArray> errors(new QByteArray);
+
+    connect(&d->fifoCreator, &DeviceApplicationRunner::finished,
+            this, [this, output, errors](bool success) {
+        if (!success) {
+            handleResourcesError(QString("Failed to create fifo: %1").arg(QLatin1String(*errors)));
+        } else {
+            d->fifo = QString::fromLatin1(*output);
+            handleResourcesAvailable();
+        }
+    });
+
+    connect(&d->fifoCreator, &DeviceApplicationRunner::remoteStdout,
+            this, [output](const QByteArray &data) {
+        output->append(data);
+    });
+
+    connect(&d->fifoCreator, &DeviceApplicationRunner::remoteStderr,
+            this, [errors](const QByteArray &data) {
+        errors->append(data);
+    });
+
+    d->fifoCreator.start(d->device, r);
 }
 
 const IDevice::ConstPtr AbstractRemoteLinuxRunSupport::device() const
 {
     return d->device;
+}
+
+const StandardRunnable &AbstractRemoteLinuxRunSupport::runnable() const
+{
+    return d->runnable;
 }
 
 void AbstractRemoteLinuxRunSupport::reset()

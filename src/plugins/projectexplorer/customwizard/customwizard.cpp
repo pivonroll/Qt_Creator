@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,13 +28,15 @@
 #include "customwizardpage.h"
 #include "customwizardscriptgenerator.h"
 
-#include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/baseprojectwizarddialog.h>
+#include <projectexplorer/projectexplorer.h>
+#include <projectexplorer/runconfiguration.h>
 
 #include <coreplugin/icore.h>
 #include <coreplugin/messagemanager.h>
 
 #include <extensionsystem/pluginmanager.h>
+#include <utils/algorithm.h>
 #include <utils/fileutils.h>
 #include <utils/qtcassert.h>
 
@@ -125,7 +122,8 @@ void CustomWizard::setParameters(const CustomWizardParametersPtr &p)
     d->m_parameters = p;
 
     setId(p->id);
-    setWizardKind(p->kind);
+    setSupportedProjectTypes((p->kind == Core::IWizardFactory::FileWizard)
+                             ?  QSet<Core::Id>() : QSet<Core::Id>() << "UNKNOWN_PROJECT");
     setIcon(p->icon);
     setDescription(p->description);
     setDisplayName(p->displayName);
@@ -138,10 +136,10 @@ void CustomWizard::setParameters(const CustomWizardParametersPtr &p)
 Core::BaseFileWizard *CustomWizard::create(QWidget *parent, const Core::WizardDialogParameters &p) const
 {
     QTC_ASSERT(!d->m_parameters.isNull(), return 0);
-    Core::BaseFileWizard *wizard = new Core::BaseFileWizard(this, p.extraValues(), parent);
+    auto wizard = new Core::BaseFileWizard(this, p.extraValues(), parent);
 
     d->m_context->reset();
-    CustomWizardPage *customPage = new CustomWizardPage(d->m_context, parameters());
+    auto customPage = new CustomWizardPage(d->m_context, parameters());
     customPage->setPath(p.defaultPath());
     if (parameters()->firstPageId >= 0)
         wizard->setPage(parameters()->firstPageId, customPage);
@@ -205,7 +203,7 @@ template <class WizardPage>
         WizardPage *findWizardPage(const QWizard *w)
 {
     foreach (int pageId, w->pageIds())
-        if (WizardPage *wp = qobject_cast<WizardPage *>(w->page(pageId)))
+        if (auto wp = qobject_cast<WizardPage *>(w->page(pageId)))
             return wp;
     return 0;
 }
@@ -333,7 +331,7 @@ CustomWizard *CustomWizard::createWizard(const CustomProjectWizard::CustomWizard
             return p->klass.isEmpty() ? (p->kind == factory->kind()) : (p->klass == factory->klass());
         });
 
-    CustomWizard *rc = 0;
+    CustomWizard *rc = nullptr;
     if (factory)
         rc = factory->create();
 
@@ -358,7 +356,6 @@ CustomWizard *CustomWizard::createWizard(const CustomProjectWizard::CustomWizard
 
 QList<Core::IWizardFactory *> CustomWizard::createWizards()
 {
-    QList<Core::IWizardFactory *> rc;
     QString errorMessage;
     QString verboseLog;
     const QString templateDirName = Core::ICore::resourcePath() +
@@ -371,28 +368,31 @@ QList<Core::IWizardFactory *> CustomWizard::createWizards()
 
     const QDir templateDir(templateDirName);
     if (CustomWizardPrivate::verbose)
-        verboseLog = QString::fromLatin1("### CustomWizard: Checking \"%1\"\n").arg(templateDirName);
+        verboseLog += QString::fromLatin1("### CustomWizard: Checking \"%1\"\n").arg(templateDirName);
     if (!templateDir.exists()) {
         if (CustomWizardPrivate::verbose)
            qWarning("Custom project template path %s does not exist.", qPrintable(templateDir.absolutePath()));
-        return rc;
+        return QList<Core::IWizardFactory *>();
     }
 
     const QDir userTemplateDir(userTemplateDirName);
     if (CustomWizardPrivate::verbose)
-        verboseLog = QString::fromLatin1("### CustomWizard: Checking \"%1\"\n").arg(userTemplateDirName);
+        verboseLog += QString::fromLatin1("### CustomWizard: Checking \"%1\"\n").arg(userTemplateDirName);
 
     const QDir::Filters filters = QDir::Dirs|QDir::Readable|QDir::NoDotAndDotDot;
     const QDir::SortFlags sortflags = QDir::Name|QDir::IgnoreCase;
-    QList<QFileInfo> dirs = templateDir.entryInfoList(filters, sortflags);
+    QList<QFileInfo> dirs;
     if (userTemplateDir.exists()) {
         if (CustomWizardPrivate::verbose)
-            verboseLog = QString::fromLatin1("### CustomWizard: userTemplateDir \"%1\" found, adding\n").arg(userTemplateDirName);
+            verboseLog += QString::fromLatin1("### CustomWizard: userTemplateDir \"%1\" found, adding\n").arg(userTemplateDirName);
         dirs += userTemplateDir.entryInfoList(filters, sortflags);
     }
+    dirs += templateDir.entryInfoList(filters, sortflags);
 
     const QString configFile = QLatin1String(configFileC);
     // Check and parse config file in each directory.
+
+    QList<CustomWizardParametersPtr> toCreate;
 
     while (!dirs.isEmpty()) {
         const QFileInfo dirFi = dirs.takeFirst();
@@ -403,11 +403,13 @@ QList<Core::IWizardFactory *> CustomWizard::createWizards()
             CustomWizardParametersPtr parameters(new CustomWizardParameters);
             switch (parameters->parse(dir.absoluteFilePath(configFile), &errorMessage)) {
             case CustomWizardParameters::ParseOk:
-                parameters->directory = dir.absolutePath();
-                if (CustomWizard *w = createWizard(parameters))
-                    rc.push_back(w);
-                else
-                    qWarning("Custom wizard factory function failed for %s", qPrintable(parameters->id.toString()));
+                if (!Utils::contains(toCreate, [parameters](CustomWizardParametersPtr p) { return parameters->id == p->id; })) {
+                    parameters->directory = dir.absolutePath();
+                    toCreate.append(parameters);
+                } else {
+                    verboseLog += QString::fromLatin1("Customwizard: Ignoring wizard in %1 due to duplicate Id %2.\n")
+                            .arg(dir.absolutePath()).arg(parameters->id.toString());
+                }
                 break;
             case CustomWizardParameters::ParseDisabled:
                 if (CustomWizardPrivate::verbose)
@@ -429,6 +431,18 @@ QList<Core::IWizardFactory *> CustomWizard::createWizards()
             }
         }
     }
+
+    QList<Core::IWizardFactory *> rc;
+    foreach (CustomWizardParametersPtr p, toCreate) {
+        if (CustomWizard *w = createWizard(p)) {
+            rc.push_back(w);
+        } else {
+            qWarning("Custom wizard factory function failed for %s from %s.",
+                     qPrintable(p->id.toString()), qPrintable(p->directory));
+        }
+    }
+
+
     if (CustomWizardPrivate::verbose) { // Print to output pane for Windows.
         qWarning("%s", qPrintable(verboseLog));
         Core::MessageManager::write(verboseLog, Core::MessageManager::ModeSwitch);
@@ -461,7 +475,7 @@ CustomProjectWizard::CustomProjectWizard()
 Core::BaseFileWizard *CustomProjectWizard::create(QWidget *parent,
                                      const Core::WizardDialogParameters &parameters) const
 {
-    BaseProjectWizardDialog *projectDialog = new BaseProjectWizardDialog(this, parent, parameters);
+    auto projectDialog = new BaseProjectWizardDialog(this, parent, parameters);
     initProjectWizardDialog(projectDialog,
                             parameters.defaultPath(),
                             projectDialog->extensionPages());
@@ -529,8 +543,9 @@ bool CustomProjectWizard::postGenerateOpen(const Core::GeneratedFiles &l, QStrin
             ProjectExplorerPlugin::OpenProjectResult result
                     = ProjectExplorerPlugin::openProject(file.path());
             if (!result) {
+                if (errorMessage)
+                    *errorMessage = result.errorMessage();
                 return false;
-                *errorMessage = result.errorMessage();
             }
         }
     }

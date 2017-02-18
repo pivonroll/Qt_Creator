@@ -30,6 +30,7 @@
 
 #include "cppassert.h"
 
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <memory>
@@ -467,7 +468,10 @@ bool isInteger(const StringLiteral *stringLiteral)
 {
     const int size = stringLiteral->size();
     const char *chars = stringLiteral->chars();
-    for (int i = 0; i < size; ++i) {
+    int i = 0;
+    if (chars[i] == '-')
+        ++i;
+    for (; i < size; ++i) {
         if (!isdigit(chars[i]))
             return false;
     }
@@ -1917,19 +1921,9 @@ bool Bind::visit(SimpleDeclarationAST *ast)
         methodKey = methodKeyForInvokableToken(tokenKind(ast->qt_invokable_token));
 
     // unsigned qt_invokable_token = ast->qt_invokable_token;
-    const ExpressionAST *declTypeExpression = 0;
-    bool isTypedef = false;
     FullySpecifiedType type;
     for (SpecifierListAST *it = ast->decl_specifier_list; it; it = it->next) {
         type = this->specifier(it->value, type);
-        if (type.isTypedef())
-            isTypedef = true;
-
-        type.setTypedef(isTypedef);
-        if (type.isDecltype()) {
-            if (DecltypeSpecifierAST *decltypeSpec = it->value->asDecltypeSpecifier())
-                declTypeExpression = decltypeSpec->expression;
-        }
     }
 
     List<Symbol *> **symbolTail = &ast->symbols;
@@ -1985,8 +1979,6 @@ bool Bind::visit(SimpleDeclarationAST *ast)
                 translationUnit()->error(location(declaratorId->name, ast->firstToken()), "auto-initialized variable must have an initializer");
             else if (initializer)
                 decl->setInitializer(asStringLiteral(initializer));
-        } else if (declTy.isDecltype()) {
-            decl->setInitializer(asStringLiteral(declTypeExpression));
         }
 
         if (_scope->isClass()) {
@@ -2367,15 +2359,11 @@ bool Bind::visit(ParameterDeclarationAST *ast)
 
 bool Bind::visit(TemplateDeclarationAST *ast)
 {
-    Scope *scope = 0;
-    if (ast->less_token)
-        scope = control()->newTemplate(ast->firstToken(), 0);
-    else
-        scope = control()->newExplicitInstantiation(ast->firstToken(), 0);
-    scope->setStartOffset(tokenAt(ast->firstToken()).utf16charsBegin());
-    scope->setEndOffset(tokenAt(ast->lastToken() - 1).utf16charsEnd());
-    ast->symbol = scope;
-    Scope *previousScope = switchScope(scope);
+    Template *templ = control()->newTemplate(ast->firstToken(), 0);
+    templ->setStartOffset(tokenAt(ast->firstToken()).utf16charsBegin());
+    templ->setEndOffset(tokenAt(ast->lastToken() - 1).utf16charsEnd());
+    ast->symbol = templ;
+    Scope *previousScope = switchScope(templ);
 
     for (DeclarationListAST *it = ast->template_parameter_list; it; it = it->next) {
         this->declaration(it->value);
@@ -2384,17 +2372,12 @@ bool Bind::visit(TemplateDeclarationAST *ast)
     this->declaration(ast->declaration);
     (void) switchScope(previousScope);
 
-    Symbol *decl = 0;
-    if (Template *templ = scope->asTemplate())
-        decl = templ->declaration();
-    else if (ExplicitInstantiation *inst = scope->asExplicitInstantiation())
-        decl = inst->declaration();
-    if (decl) {
-        scope->setSourceLocation(decl->sourceLocation(), translationUnit());
-        scope->setName(decl->name());
+    if (Symbol *decl = templ->declaration()) {
+        templ->setSourceLocation(decl->sourceLocation(), translationUnit());
+        templ->setName(decl->name());
     }
 
-    _scope->addMember(scope);
+    _scope->addMember(templ);
     return false;
 }
 
@@ -2405,9 +2388,11 @@ bool Bind::visit(TypenameTypeParameterAST *ast)
     // unsigned dot_dot_dot_token = ast->dot_dot_dot_token;
     const Name *name = this->name(ast->name);
     ExpressionTy type_id = this->expression(ast->type_id);
+    CPlusPlus::Kind classKey = translationUnit()->tokenKind(ast->classkey_token);
 
     TypenameArgument *arg = control()->newTypenameArgument(sourceLocation, name);
     arg->setType(type_id);
+    arg->setClassDeclarator(classKey == T_CLASS);
     ast->symbol = arg;
     _scope->addMember(arg);
     return false;
@@ -3039,7 +3024,6 @@ bool Bind::visit(TypeofSpecifierAST *ast)
 bool Bind::visit(DecltypeSpecifierAST *ast)
 {
     _type = this->expression(ast->expression);
-    _type.setDecltype(true);
     return false;
 }
 
@@ -3272,6 +3256,14 @@ bool Bind::visit(FunctionDeclaratorAST *ast)
     fun->setVolatile(type.isVolatile());
     fun->setOverride(type.isOverride());
     fun->setFinal(type.isFinal());
+
+    // propagate ref-qualifier
+    if (ast->ref_qualifier_token) {
+        const Kind kind = tokenAt(ast->ref_qualifier_token).kind();
+        CPP_CHECK(kind == T_AMPER || kind == T_AMPER_AMPER); // & or && are only allowed
+        fun->setRefQualifier(kind == T_AMPER ? Function::LvalueRefQualifier :
+                                               Function::RvalueRefQualifier);
+    }
 
     this->exceptionSpecification(ast->exception_specification, type);
     if (ast->as_cpp_initializer != 0) {

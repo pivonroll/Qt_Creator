@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,11 +33,13 @@
 
 #include <coreplugin/helpmanager.h>
 #include <coreplugin/icore.h>
+
 #include <qtsupport/qtkitinformation.h>
 #include <qtsupport/qtversionmanager.h>
+
+#include <utils/algorithm.h>
 #include <utils/environment.h>
 #include <utils/qtcassert.h>
-#include <utils/algorithm.h>
 
 #include <algorithm>
 
@@ -73,22 +70,57 @@ int ExampleSetModel::readCurrentIndexFromSettings() const
     return -1;
 }
 
-ExampleSetModel::ExampleSetModel(ExamplesListModel *examplesModel, QObject *parent) :
-    QStandardItemModel(parent),
-    examplesModel(examplesModel)
+ExampleSetModel::ExampleSetModel()
 {
+    // read extra example sets settings
+    QSettings *settings = Core::ICore::settings();
+    const QStringList list = settings->value("Help/InstalledExamples", QStringList()).toStringList();
+    if (debugExamples())
+        qWarning() << "Reading Help/InstalledExamples from settings:" << list;
+    for (const QString &item : list) {
+        const QStringList &parts = item.split(QLatin1Char('|'));
+        if (parts.size() < 3) {
+            if (debugExamples())
+                qWarning() << "Item" << item << "has less than 3 parts (separated by '|'):" << parts;
+            continue;
+        }
+        ExtraExampleSet set;
+        set.displayName = parts.at(0);
+        set.manifestPath = parts.at(1);
+        set.examplesPath = parts.at(2);
+        QFileInfo fi(set.manifestPath);
+        if (!fi.isDir() || !fi.isReadable()) {
+            if (debugExamples())
+                qWarning() << "Manifest path " << set.manifestPath << "is not a readable directory, ignoring";
+            continue;
+        }
+        m_extraExampleSets.append(set);
+        if (debugExamples()) {
+            qWarning() << "Adding examples set displayName=" << set.displayName
+                       << ", manifestPath=" << set.manifestPath
+                       << ", examplesPath=" << set.examplesPath;
+        }
+    }
+
+    connect(QtVersionManager::instance(), &QtVersionManager::qtVersionsLoaded,
+            this, &ExampleSetModel::qtVersionManagerLoaded);
+
+    if (auto helpManager = Core::HelpManager::instance()) {
+        connect(helpManager, &Core::HelpManager::setupFinished,
+                this, &ExampleSetModel::helpManagerInitialized);
+    }
 }
 
-void ExampleSetModel::update()
+void ExampleSetModel::recreateModel()
 {
     beginResetModel();
     clear();
 
     QSet<QString> extraManifestDirs;
-    QList<ExamplesListModel::ExtraExampleSet> extraExampleSets = examplesModel->extraExampleSets();
-    for (int i = 0; i < extraExampleSets.size(); ++i)  {
-        ExamplesListModel::ExtraExampleSet set = extraExampleSets.at(i);
+    for (int i = 0; i < m_extraExampleSets.size(); ++i)  {
+        const ExtraExampleSet &set = m_extraExampleSets.at(i);
         QStandardItem *newItem = new QStandardItem();
+        newItem->setData(set.displayName, Qt::DisplayRole);
         newItem->setData(set.displayName, Qt::UserRole + 1);
         newItem->setData(QVariant(), Qt::UserRole + 2);
         newItem->setData(i, Qt::UserRole + 3);
@@ -97,9 +129,7 @@ void ExampleSetModel::update()
         extraManifestDirs.insert(set.manifestPath);
     }
 
-    QList<BaseQtVersion *> qtVersions = examplesModel->qtVersions();
-
-    foreach (BaseQtVersion *version, qtVersions) {
+    foreach (BaseQtVersion *version, QtVersionManager::versions()) {
         // sanitize away qt versions that have already been added through extra sets
         if (extraManifestDirs.contains(version->documentationPath())) {
             if (debugExamples()) {
@@ -109,6 +139,7 @@ void ExampleSetModel::update()
             continue;
         }
         QStandardItem *newItem = new QStandardItem();
+        newItem->setData(version->displayName(), Qt::DisplayRole);
         newItem->setData(version->displayName(), Qt::UserRole + 1);
         newItem->setData(version->uniqueId(), Qt::UserRole + 2);
         newItem->setData(QVariant(), Qt::UserRole + 3);
@@ -129,13 +160,12 @@ int ExampleSetModel::indexForQtVersion(BaseQtVersion *qtVersion) const
         if (getType(i) == QtExampleSet && getQtId(i) == qtVersion->uniqueId())
             return i;
     }
+
     // check for extra set
-    const QList<ExamplesListModel::ExtraExampleSet> &extraExamples
-            = examplesModel->extraExampleSets();
     const QString &documentationPath = qtVersion->documentationPath();
     for (int i = 0; i < rowCount(); ++i) {
-        if (getType(i) == ExtraExampleSet
-                && extraExamples.at(getExtraExampleSetIndex(i)).manifestPath == documentationPath)
+        if (getType(i) == ExtraExampleSetType
+                && m_extraExampleSets.at(getExtraExampleSetIndex(i)).manifestPath == documentationPath)
             return i;
     }
     return -1;
@@ -168,7 +198,7 @@ ExampleSetModel::ExampleSetType ExampleSetModel::getType(int i) const
     QVariant variant = data(modelIndex, Qt::UserRole + 2); /*Qt version uniqueId*/
     if (variant.isValid())
         return QtExampleSet;
-    return ExtraExampleSet;
+    return ExtraExampleSetType;
 }
 
 int ExampleSetModel::getQtId(int i) const
@@ -191,50 +221,11 @@ int ExampleSetModel::getExtraExampleSetIndex(int i) const
     return variant.toInt();
 }
 
-QHash<int, QByteArray> ExampleSetModel::roleNames() const
+ExamplesListModel::ExamplesListModel(QObject *parent)
+    : QAbstractListModel(parent)
 {
-    QHash<int, QByteArray> roleNames;
-    roleNames[Qt::UserRole + 1] = "text";
-    roleNames[Qt::UserRole + 2] = "QtId";
-    roleNames[Qt::UserRole + 3] = "extraSetIndex";
-    return roleNames;
-}
-
-ExamplesListModel::ExamplesListModel(QObject *parent) :
-    QAbstractListModel(parent),
-    m_exampleSetModel(new ExampleSetModel(this, this)),
-    m_selectedExampleSetIndex(-1)
-{
-    // read extra example sets settings
-    QSettings *settings = Core::ICore::settings();
-    QStringList list = settings->value(QLatin1String("Help/InstalledExamples"),
-                                       QStringList()).toStringList();
-    if (debugExamples())
-        qWarning() << "Reading Help/InstalledExamples from settings:" << list;
-    foreach (const QString &item, list) {
-        const QStringList &parts = item.split(QLatin1Char('|'));
-        if (parts.size() < 3) {
-            if (debugExamples())
-                qWarning() << "Item" << item << "has less than 3 parts (separated by '|'):" << parts;
-            continue;
-        }
-        ExtraExampleSet set;
-        set.displayName = parts.at(0);
-        set.manifestPath = parts.at(1);
-        set.examplesPath = parts.at(2);
-        QFileInfo fi(set.manifestPath);
-        if (!fi.isDir() || !fi.isReadable()) {
-            if (debugExamples())
-                qWarning() << "Manifest path " << set.manifestPath << "is not a readable directory, ignoring";
-            continue;
-        }
-        m_extraExampleSets.append(set);
-        if (debugExamples()) {
-            qWarning() << "Adding examples set displayName=" << set.displayName
-                       << ", manifestPath=" << set.manifestPath
-                       << ", examplesPath=" << set.examplesPath;
-        }
-    }
+    connect(&m_exampleSetModel, &ExampleSetModel::selectedExampleSetChanged,
+            this, &ExamplesListModel::updateExamples);
 }
 
 static QString fixStringForTags(const QString &string)
@@ -448,7 +439,7 @@ void ExamplesListModel::updateExamples()
     QString examplesInstallPath;
     QString demosInstallPath;
 
-    QStringList sources = exampleSources(&examplesInstallPath, &demosInstallPath);
+    QStringList sources = m_exampleSetModel.exampleSources(&examplesInstallPath, &demosInstallPath);
 
     beginResetModel();
     m_exampleItems.clear();
@@ -489,17 +480,13 @@ void ExamplesListModel::updateExamples()
     endResetModel();
 }
 
-void ExamplesListModel::updateQtVersions()
+void ExampleSetModel::updateQtVersionList()
 {
-    QList<BaseQtVersion*> versions = QtVersionManager::validVersions();
-
-    QMutableListIterator<BaseQtVersion*> iter(versions);
-    while (iter.hasNext()) {
-        BaseQtVersion *version = iter.next();
-        if (!version->hasExamples()
-                && !version->hasDemos())
-            iter.remove();
-    }
+    QList<BaseQtVersion*> versions
+            = QtVersionManager::sortVersions(
+                QtVersionManager::versions(BaseQtVersion::isValidPredicate([](const BaseQtVersion *v) {
+        return v->hasExamples() || v->hasDemos();
+    })));
 
     // prioritize default qt version
     ProjectExplorer::Kit *defaultKit = ProjectExplorer::KitManager::defaultKit();
@@ -507,45 +494,36 @@ void ExamplesListModel::updateQtVersions()
     if (defaultVersion && versions.contains(defaultVersion))
         versions.move(versions.indexOf(defaultVersion), 0);
 
-    if (m_qtVersions == versions && m_selectedExampleSetIndex >= 0)
-        return;
-
-    m_qtVersions = versions;
-
-    m_exampleSetModel->update();
+    recreateModel();
 
     int currentIndex = m_selectedExampleSetIndex;
     if (currentIndex < 0) // reset from settings
-        currentIndex = m_exampleSetModel->readCurrentIndexFromSettings();
+        currentIndex = readCurrentIndexFromSettings();
 
-    ExampleSetModel::ExampleSetType currentType
-            = m_exampleSetModel->getType(currentIndex);
+    ExampleSetModel::ExampleSetType currentType = getType(currentIndex);
 
     if (currentType == ExampleSetModel::InvalidExampleSet) {
         // select examples corresponding to 'highest' Qt version
         BaseQtVersion *highestQt = findHighestQtVersion();
-        currentIndex = m_exampleSetModel->indexForQtVersion(highestQt);
+        currentIndex = indexForQtVersion(highestQt);
     } else if (currentType == ExampleSetModel::QtExampleSet) {
         // try to select the previously selected Qt version, or
         // select examples corresponding to 'highest' Qt version
-        int currentQtId = m_exampleSetModel->getQtId(currentIndex);
-        BaseQtVersion *newQtVersion = Utils::findOrDefault(m_qtVersions,
-                                                    Utils::equal(&BaseQtVersion::uniqueId, currentQtId));
-
+        int currentQtId = getQtId(currentIndex);
+        BaseQtVersion *newQtVersion = QtVersionManager::version(currentQtId);
         if (!newQtVersion)
             newQtVersion = findHighestQtVersion();
-        currentIndex = m_exampleSetModel->indexForQtVersion(newQtVersion);
+        currentIndex = indexForQtVersion(newQtVersion);
     } // nothing to do for extra example sets
     selectExampleSet(currentIndex);
+    emit selectedExampleSetChanged(currentIndex);
 }
 
-BaseQtVersion *ExamplesListModel::findHighestQtVersion() const
+BaseQtVersion *ExampleSetModel::findHighestQtVersion() const
 {
-    QList<BaseQtVersion *> versions = qtVersions();
-
-    BaseQtVersion *newVersion = 0;
-
-    foreach (BaseQtVersion *version, versions) {
+    BaseQtVersion *newVersion = nullptr;
+    const QList<BaseQtVersion *> versions = QtVersionManager::versions();
+    for (BaseQtVersion *version : versions) {
         if (!newVersion) {
             newVersion = version;
         } else {
@@ -561,35 +539,30 @@ BaseQtVersion *ExamplesListModel::findHighestQtVersion() const
     if (!newVersion && !versions.isEmpty())
         newVersion = versions.first();
 
-    if (!newVersion)
-        return 0;
-
     return newVersion;
 }
 
-QStringList ExamplesListModel::exampleSources(QString *examplesInstallPath, QString *demosInstallPath)
+QStringList ExampleSetModel::exampleSources(QString *examplesInstallPath, QString *demosInstallPath)
 {
     QStringList sources;
-    QString resourceDir = Core::ICore::resourcePath() + QLatin1String("/welcomescreen/");
 
     // Qt Creator shipped tutorials
-    sources << (resourceDir + QLatin1String("/qtcreator_tutorials.xml"));
+    sources << ":/qtsupport/qtcreator_tutorials.xml";
 
     QString examplesPath;
     QString demosPath;
     QString manifestScanPath;
 
-    ExampleSetModel::ExampleSetType currentType
-            = m_exampleSetModel->getType(m_selectedExampleSetIndex);
-    if (currentType == ExampleSetModel::ExtraExampleSet) {
-        int index = m_exampleSetModel->getExtraExampleSetIndex(m_selectedExampleSetIndex);
+    ExampleSetModel::ExampleSetType currentType = getType(m_selectedExampleSetIndex);
+    if (currentType == ExampleSetModel::ExtraExampleSetType) {
+        int index = getExtraExampleSetIndex(m_selectedExampleSetIndex);
         ExtraExampleSet exampleSet = m_extraExampleSets.at(index);
         manifestScanPath = exampleSet.manifestPath;
         examplesPath = exampleSet.examplesPath;
         demosPath = exampleSet.examplesPath;
     } else if (currentType == ExampleSetModel::QtExampleSet) {
-        int qtId = m_exampleSetModel->getQtId(m_selectedExampleSetIndex);
-        foreach (BaseQtVersion *version, qtVersions()) {
+        int qtId = getQtId(m_selectedExampleSetIndex);
+        foreach (BaseQtVersion *version, QtVersionManager::versions()) {
             if (version->uniqueId() == qtId) {
                 manifestScanPath = version->documentationPath();
                 examplesPath = version->examplesPath();
@@ -633,252 +606,102 @@ QString prefixForItem(const ExampleItem &item)
 
 QVariant ExamplesListModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || index.row()+1 > m_exampleItems.count()) {
-        qDebug() << Q_FUNC_INFO << "invalid index requested";
+    if (!index.isValid() || index.row() >= m_exampleItems.count())
         return QVariant();
-    }
 
-    ExampleItem item = m_exampleItems.at(index.row());
+    const ExampleItem &item = m_exampleItems.at(index.row());
     switch (role)
     {
     case Qt::DisplayRole: // for search only
-        return QString(prefixForItem(item) + item.name + QLatin1Char(' ') + item.tags.join(QLatin1Char(' ')));
-    case Name:
-        return item.name;
-    case ProjectPath:
-        return item.projectPath;
-    case Description:
-        return item.description;
-    case ImageUrl:
-        return item.imageUrl;
-    case DocUrl:
-        return item.docUrl;
-    case FilesToOpen:
-        return item.filesToOpen;
-    case MainFile:
-        return item.mainFile;
-    case Tags:
-        return item.tags;
-    case Difficulty:
-        return item.difficulty;
-    case Dependencies:
-        return item.dependencies;
-    case HasSourceCode:
-        return item.hasSourceCode;
-    case Type:
-        return item.type;
-    case IsVideo:
-        return item.isVideo;
-    case VideoUrl:
-        return item.videoUrl;
-    case VideoLength:
-        return item.videoLength;
-    case Platforms:
-        return item.platforms;
-    case IsHighlighted:
-        return item.isHighlighted;
+        return QString(prefixForItem(item) + item.name + ' ' + item.tags.join(' '));
+    case Qt::UserRole:
+        return QVariant::fromValue<ExampleItem>(item);
     default:
-        qDebug() << Q_FUNC_INFO << "role type not supported";
         return QVariant();
     }
 }
 
-QHash<int, QByteArray> ExamplesListModel::roleNames() const
-{
-    QHash<int, QByteArray> roleNames;
-    roleNames[Name] = "name";
-    roleNames[ProjectPath] = "projectPath";
-    roleNames[ImageUrl] = "imageUrl";
-    roleNames[Description] = "description";
-    roleNames[DocUrl] = "docUrl";
-    roleNames[FilesToOpen] = "filesToOpen";
-    roleNames[MainFile] = "mainFile";
-    roleNames[Tags] = "tags";
-    roleNames[Difficulty] = "difficulty";
-    roleNames[Type] = "type";
-    roleNames[HasSourceCode] = "hasSourceCode";
-    roleNames[Dependencies] = "dependencies";
-    roleNames[IsVideo] = "isVideo";
-    roleNames[VideoUrl] = "videoUrl";
-    roleNames[VideoLength] = "videoLength";
-    roleNames[Platforms] = "platforms";
-    roleNames[IsHighlighted] = "isHighlighted";
-    return roleNames;
-}
-
-void ExamplesListModel::update()
-{
-    updateQtVersions();
-    updateExamples();
-}
-
-int ExamplesListModel::selectedExampleSet() const
-{
-    return m_selectedExampleSetIndex;
-}
-
-void ExamplesListModel::selectExampleSet(int index)
+void ExampleSetModel::selectExampleSet(int index)
 {
     if (index != m_selectedExampleSetIndex) {
         m_selectedExampleSetIndex = index;
-        m_exampleSetModel->writeCurrentIdToSettings(m_selectedExampleSetIndex);
-        updateExamples();
-        emit selectedExampleSetChanged();
+        writeCurrentIdToSettings(m_selectedExampleSetIndex);
+        emit selectedExampleSetChanged(m_selectedExampleSetIndex);
     }
 }
 
-ExamplesListModelFilter::ExamplesListModelFilter(ExamplesListModel *sourceModel, QObject *parent) :
+void ExampleSetModel::qtVersionManagerLoaded()
+{
+    m_qtVersionManagerInitialized = true;
+    tryToInitialize();
+}
+
+void ExampleSetModel::helpManagerInitialized()
+{
+    m_helpManagerInitialized = true;
+    tryToInitialize();
+}
+
+
+void ExampleSetModel::tryToInitialize()
+{
+    if (m_initalized || !m_qtVersionManagerInitialized || !m_helpManagerInitialized)
+        return;
+
+    m_initalized = true;
+
+    connect(QtVersionManager::instance(), &QtVersionManager::qtVersionsChanged,
+            this, &ExampleSetModel::updateQtVersionList);
+    connect(ProjectExplorer::KitManager::instance(), &ProjectExplorer::KitManager::defaultkitChanged,
+            this, &ExampleSetModel::updateQtVersionList);
+
+    updateQtVersionList();
+}
+
+
+ExamplesListModelFilter::ExamplesListModelFilter(ExamplesListModel *sourceModel, bool showTutorialsOnly, QObject *parent) :
     QSortFilterProxyModel(parent),
-    m_showTutorialsOnly(true),
-    m_sourceModel(sourceModel),
-    m_timerId(0),
-    m_blockIndexUpdate(false),
-    m_qtVersionManagerInitialized(false),
-    m_helpManagerInitialized(false),
-    m_initalized(false),
-    m_exampleDataRequested(false)
+    m_showTutorialsOnly(showTutorialsOnly)
 {
-    // initialization hooks
-    connect(QtVersionManager::instance(), SIGNAL(qtVersionsLoaded()),
-            this, SLOT(qtVersionManagerLoaded()));
-    connect(Core::HelpManager::instance(), SIGNAL(setupFinished()),
-            this, SLOT(helpManagerInitialized()));
-
-    connect(this, SIGNAL(showTutorialsOnlyChanged()), SLOT(updateFilter()));
-
-    connect(m_sourceModel, SIGNAL(selectedExampleSetChanged()), this, SIGNAL(exampleSetIndexChanged()));
-
-    setSourceModel(m_sourceModel);
-}
-
-void ExamplesListModelFilter::updateFilter()
-{
-    ExamplesListModel *exampleListModel = qobject_cast<ExamplesListModel*>(sourceModel());
-    if (exampleListModel) {
-        exampleListModel->beginReset();
-        invalidateFilter();
-        exampleListModel->endReset();
-    }
-}
-
-bool containsSubString(const QStringList &list, const QString &substr, Qt::CaseSensitivity cs)
-{
-    return Utils::contains(list, [&substr, &cs](const QString &elem) {
-        return elem.contains(substr, cs);
-    });
+    setSourceModel(sourceModel);
+    setDynamicSortFilter(true);
+    setFilterCaseSensitivity(Qt::CaseInsensitive);
+    sort(0);
 }
 
 bool ExamplesListModelFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
 {
-    if (m_showTutorialsOnly) {
-        int type = sourceModel()->index(sourceRow, 0, sourceParent).data(Type).toInt();
-        if (type != Tutorial)
-            return false;
-    }
+    const ExampleItem item = sourceModel()->index(sourceRow, 0, sourceParent).data(Qt::UserRole).value<ExampleItem>();
 
-    if (!m_showTutorialsOnly) {
-        int type = sourceModel()->index(sourceRow, 0, sourceParent).data(Type).toInt();
-        if (type != Example && type != Demo)
-            return false;
-    }
+    if (m_showTutorialsOnly && item.type != Tutorial)
+        return false;
 
-    const QStringList tags = sourceModel()->index(sourceRow, 0, sourceParent).data(Tags).toStringList();
+    if (!m_showTutorialsOnly && item.type != Example && item.type != Demo)
+        return false;
 
     if (!m_filterTags.isEmpty()) {
-        return Utils::allOf(m_filterTags, [tags](const QString &filterTag) {
-            return tags.contains(filterTag);
+        return Utils::allOf(m_filterTags, [&item](const QString &filterTag) {
+            return item.tags.contains(filterTag);
         });
     }
 
-    if (!m_searchString.isEmpty()) {
-        const QString description = sourceModel()->index(sourceRow, 0, sourceParent).data(Description).toString();
-        const QString name = sourceModel()->index(sourceRow, 0, sourceParent).data(Name).toString();
-
-        foreach (const QString &subString, m_searchString) {
+    if (!m_filterStrings.isEmpty()) {
+        for (const QString &subString : m_filterStrings) {
             bool wordMatch = false;
-            wordMatch |= (bool)name.contains(subString, Qt::CaseInsensitive);
+            wordMatch |= bool(item.name.contains(subString, Qt::CaseInsensitive));
             if (wordMatch)
                 continue;
-            wordMatch |= containsSubString(tags, subString, Qt::CaseInsensitive);
+            const auto subMatch = [&subString](const QString &elem) { return elem.contains(subString); };
+            wordMatch |= Utils::contains(item.tags, subMatch);
             if (wordMatch)
                 continue;
-            wordMatch |= (bool)description.contains(subString, Qt::CaseInsensitive);
+            wordMatch |= bool(item.description.contains(subString, Qt::CaseInsensitive));
             if (!wordMatch)
                 return false;
         }
     }
 
     return QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent);
-}
-
-int ExamplesListModelFilter::rowCount(const QModelIndex &parent) const
-{
-    exampleDataRequested();
-    return QSortFilterProxyModel::rowCount(parent);
-}
-
-QVariant ExamplesListModelFilter::data(const QModelIndex &index, int role) const
-{
-    exampleDataRequested();
-    return QSortFilterProxyModel::data(index, role);
-}
-
-QAbstractItemModel* ExamplesListModelFilter::exampleSetModel()
-{
-    return m_sourceModel->exampleSetModel();
-}
-
-void ExamplesListModelFilter::filterForExampleSet(int index)
-{
-    if (m_blockIndexUpdate || !m_initalized)
-        return;
-
-    m_sourceModel->selectExampleSet(index);
-}
-
-void ExamplesListModelFilter::setShowTutorialsOnly(bool showTutorialsOnly)
-{
-    m_showTutorialsOnly = showTutorialsOnly;
-    emit showTutorialsOnlyChanged();
-}
-
-void ExamplesListModelFilter::handleQtVersionsChanged()
-{
-    m_blockIndexUpdate = true;
-    m_sourceModel->update();
-    m_blockIndexUpdate = false;
-}
-
-void ExamplesListModelFilter::qtVersionManagerLoaded()
-{
-    m_qtVersionManagerInitialized = true;
-    tryToInitialize();
-}
-
-void ExamplesListModelFilter::helpManagerInitialized()
-{
-    m_helpManagerInitialized = true;
-    tryToInitialize();
-}
-
-void ExamplesListModelFilter::exampleDataRequested() const
-{
-    ExamplesListModelFilter *that = const_cast<ExamplesListModelFilter *>(this);
-    that->m_exampleDataRequested = true;
-    that->tryToInitialize();
-}
-
-void ExamplesListModelFilter::tryToInitialize()
-{
-    if (!m_initalized
-            && m_qtVersionManagerInitialized && m_helpManagerInitialized && m_exampleDataRequested) {
-        m_initalized = true;
-        connect(QtVersionManager::instance(), SIGNAL(qtVersionsChanged(QList<int>,QList<int>,QList<int>)),
-                this, SLOT(handleQtVersionsChanged()));
-        connect(ProjectExplorer::KitManager::instance(), SIGNAL(defaultkitChanged()),
-                this, SLOT(handleQtVersionsChanged()));
-        handleQtVersionsChanged();
-    }
 }
 
 void ExamplesListModelFilter::delayedUpdateFilter()
@@ -889,15 +712,10 @@ void ExamplesListModelFilter::delayedUpdateFilter()
     m_timerId = startTimer(320);
 }
 
-int ExamplesListModelFilter::exampleSetIndex() const
-{
-    return m_sourceModel->selectedExampleSet();
-}
-
 void ExamplesListModelFilter::timerEvent(QTimerEvent *timerEvent)
 {
     if (m_timerId == timerEvent->timerId()) {
-        updateFilter();
+        invalidateFilter();
         killTimer(m_timerId);
         m_timerId = 0;
     }
@@ -985,31 +803,35 @@ struct SearchStringLexer
     }
 };
 
-void ExamplesListModelFilter::parseSearchString(const QString &arg)
+void ExamplesListModelFilter::setSearchString(const QString &arg)
 {
-    QStringList tags;
-    QStringList searchTerms;
+    if (m_searchString == arg)
+        return;
+
+    m_searchString = arg;
+    m_filterTags.clear();
+    m_filterStrings.clear();
+
+    // parse and update
     SearchStringLexer lex(arg);
     bool isTag = false;
     while (int tk = lex()) {
         if (tk == SearchStringLexer::TAG) {
             isTag = true;
-            searchTerms.append(lex.yytext);
+            m_filterStrings.append(lex.yytext);
         }
 
         if (tk == SearchStringLexer::STRING_LITERAL) {
             if (isTag) {
-                searchTerms.pop_back();
-                tags.append(lex.yytext);
+                m_filterStrings.pop_back();
+                m_filterTags.append(lex.yytext);
                 isTag = false;
             } else {
-                searchTerms.append(lex.yytext);
+                m_filterStrings.append(lex.yytext);
             }
         }
     }
 
-    setSearchStrings(searchTerms);
-    setFilterTags(tags);
     delayedUpdateFilter();
 }
 

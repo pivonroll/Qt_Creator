@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,12 +28,11 @@
 #include "customwizardparameters.h"
 
 #include <utils/hostosinfo.h>
+#include <utils/synchronousprocess.h>
+#include <utils/temporarydirectory.h>
 
-#include <QProcess>
-#include <QDir>
 #include <QFileInfo>
 #include <QDebug>
-#include <QTemporaryFile>
 #include <QSharedPointer>
 
 namespace ProjectExplorer {
@@ -88,7 +82,7 @@ static bool
                               const QMap<QString, QString> &fieldMap,
                               QString *stdOut /* = 0 */, QString *errorMessage)
 {
-    QProcess process;
+    Utils::SynchronousProcess process;
     const QString binary = script.front();
     QStringList arguments;
     const int binarySize = script.size();
@@ -112,33 +106,24 @@ static bool
             arguments.push_back(value);
     }
     process.setWorkingDirectory(workingDirectory);
+    process.setTimeoutS(30);
     if (CustomWizard::verbose())
         qDebug("In %s, running:\n%s\n%s\n", qPrintable(workingDirectory),
                qPrintable(binary),
                qPrintable(arguments.join(QLatin1Char(' '))));
-    process.start(binary, arguments);
-    if (!process.waitForStarted()) {
-        *errorMessage = QString::fromLatin1("Unable to start generator script %1: %2").
-                arg(binary, process.errorString());
-        return false;
-    }
-    if (!process.waitForFinished()) {
-        *errorMessage = QString::fromLatin1("Generator script %1 timed out").arg(binary);
-        return false;
-    }
-    if (process.exitStatus() != QProcess::NormalExit) {
-        *errorMessage = QString::fromLatin1("Generator script %1 crashed").arg(binary);
-        return false;
-    }
-    if (process.exitCode() != 0) {
-        const QString stdErr = QString::fromLocal8Bit(process.readAllStandardError());
-        *errorMessage = QString::fromLatin1("Generator script %1 returned %2 (%3)").
-                arg(binary).arg(process.exitCode()).arg(stdErr);
+    Utils::SynchronousProcessResponse response = process.run(binary, arguments);
+    if (response.result != Utils::SynchronousProcessResponse::Finished) {
+        *errorMessage = QString::fromLatin1("Generator script failed: %1")
+                .arg(response.exitMessage(binary, 30));
+        const QString stdErr = response.stdErr();
+        if (!stdErr.isEmpty()) {
+            errorMessage->append(QLatin1Char('\n'));
+            errorMessage->append(stdErr);
+        }
         return false;
     }
     if (stdOut) {
-        *stdOut = QString::fromLocal8Bit(process.readAllStandardOutput());
-        stdOut->remove(QLatin1Char('\r'));
+        *stdOut = response.stdOut();
         if (CustomWizard::verbose())
             qDebug("Output: '%s'\n", qPrintable(*stdOut));
     }
@@ -161,8 +146,8 @@ Core::GeneratedFiles
 {
     // Run in temporary directory as the target path may not exist yet.
     QString stdOut;
-    if (!runGenerationScriptHelper(QDir::tempPath(), script, arguments, true,
-                             fieldMap, &stdOut, errorMessage))
+    if (!runGenerationScriptHelper(Utils::TemporaryDirectory::masterDirectoryPath(),
+                                   script, arguments, true, fieldMap, &stdOut, errorMessage))
         return Core::GeneratedFiles();
     Core::GeneratedFiles files;
     // Parse the output consisting of lines with ',' separated tokens.

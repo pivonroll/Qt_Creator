@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,6 +32,7 @@
 #include <projectexplorer/toolchain.h>
 #include <projectexplorer/projectexplorerconstants.h>
 
+#include <utils/environment.h>
 #include <utils/fileutils.h>
 #include <utils/macroexpander.h>
 #include <utils/qtcassert.h>
@@ -60,17 +56,15 @@ DebuggerKitInformation::DebuggerKitInformation()
     setPriority(28000);
 }
 
-QVariant DebuggerKitInformation::defaultValue(Kit *k) const
+QVariant DebuggerKitInformation::defaultValue(const Kit *k) const
 {
-    ToolChain *tc = ToolChainKitInformation::toolChain(k);
-    if (!tc)
-        return QVariant();
-
-    const Abi toolChainAbi = tc->targetAbi();
-    foreach (const DebuggerItem &item, DebuggerItemManager::debuggers())
-        foreach (const Abi targetAbi, item.abis())
+    const Abi toolChainAbi = ToolChainKitInformation::targetAbi(k);
+    foreach (const DebuggerItem &item, DebuggerItemManager::debuggers()) {
+        foreach (const Abi targetAbi, item.abis()) {
             if (targetAbi.isCompatibleWith(toolChainAbi))
                 return item.id();
+        }
+    }
 
     return QVariant();
 }
@@ -92,14 +86,14 @@ void DebuggerKitInformation::setup(Kit *k)
     //  </valuemap>
     const QVariant rawId = k->value(DebuggerKitInformation::id());
 
-    const ToolChain *tc = ToolChainKitInformation::toolChain(k);
+    const Abi tcAbi = ToolChainKitInformation::targetAbi(k);
 
     // Get the best of the available debugger matching the kit's toolchain.
     // The general idea is to find an item that exactly matches what
     // is stored in the kit information, but also accept item based
     // on toolchain matching as fallback with a lower priority.
 
-    const DebuggerItem *bestItem = 0;
+    DebuggerItem bestItem;
     DebuggerItem::MatchLevel bestLevel = DebuggerItem::DoesNotMatch;
 
     foreach (const DebuggerItem &item, DebuggerItemManager::debuggers()) {
@@ -107,13 +101,7 @@ void DebuggerKitInformation::setup(Kit *k)
 
         if (rawId.isNull()) {
             // Initial setup of a kit.
-            if (tc) {
-                // Use item if target toolchain fits.
-                level = item.matchTarget(tc->targetAbi());
-            } else {
-                // Use item if host toolchain fits, but only as fallback.
-                level = std::min(item.matchTarget(Abi::hostAbi()), DebuggerItem::MatchesSomewhat);
-            }
+            level = item.matchTarget(tcAbi);
         } else if (rawId.type() == QVariant::String) {
             // New structure.
             if (item.id() == rawId) {
@@ -122,8 +110,7 @@ void DebuggerKitInformation::setup(Kit *k)
             } else {
                 // This item does not match by ID, and is an unlikely candidate.
                 // However, consider using it as fallback if the tool chain fits.
-                if (tc)
-                    level = std::min(item.matchTarget(tc->targetAbi()), DebuggerItem::MatchesSomewhat);
+                level = std::min(item.matchTarget(tcAbi), DebuggerItem::MatchesSomewhat);
             }
         } else {
             // Old structure.
@@ -134,43 +121,31 @@ void DebuggerKitInformation::setup(Kit *k)
                 // an engine type.
                 DebuggerEngineType autoEngine = DebuggerEngineType(map.value(QLatin1String("EngineType")).toInt());
                 if (item.engineType() == autoEngine) {
-                    if (tc) {
-                        // Use item if target toolchain fits.
-                        level = item.matchTarget(tc->targetAbi());
-                    } else {
-                        // Use item if host toolchain fits, but only as fallback.
-                        level = std::min(item.matchTarget(Abi::hostAbi()), DebuggerItem::MatchesSomewhat);
-                    }
+                    // Use item if host toolchain fits, but only as fallback.
+                    level = std::min(item.matchTarget(tcAbi), DebuggerItem::MatchesSomewhat);
                 }
             } else {
                 // We have an executable path.
                 FileName fileName = FileName::fromUserInput(binary);
                 if (item.command() == fileName) {
                     // And it's is the path of this item.
-                    if (tc) {
-                        // Use item if target toolchain fits.
-                        level = item.matchTarget(tc->targetAbi());
-                    } else {
-                        // Use item if host toolchain fits, but only as fallback.
-                        level = std::min(item.matchTarget(Abi::hostAbi()), DebuggerItem::MatchesSomewhat);
-                    }
+                    level = std::min(item.matchTarget(tcAbi), DebuggerItem::MatchesSomewhat);
                 } else {
                     // This item does not match by filename, and is an unlikely candidate.
                     // However, consider using it as fallback if the tool chain fits.
-                    if (tc)
-                        level = std::min(item.matchTarget(tc->targetAbi()), DebuggerItem::MatchesSomewhat);
+                    level = std::min(item.matchTarget(tcAbi), DebuggerItem::MatchesSomewhat);
                 }
             }
         }
 
         if (level > bestLevel) {
             bestLevel = level;
-            bestItem = &item;
+            bestItem = item;
         }
     }
 
     // Use the best id we found, or an invalid one.
-    k->setValue(DebuggerKitInformation::id(), bestItem ? bestItem->id() : QVariant());
+    k->setValue(DebuggerKitInformation::id(), bestLevel != DebuggerItem::DoesNotMatch ? bestItem.id() : QVariant());
 }
 
 
@@ -216,14 +191,7 @@ void DebuggerKitInformation::fix(Kit *k)
 // Check the configuration errors and return a flag mask. Provide a quick check and
 // a verbose one with a list of errors.
 
-enum DebuggerConfigurationErrors {
-    NoDebugger = 0x1,
-    DebuggerNotFound = 0x2,
-    DebuggerNotExecutable = 0x4,
-    DebuggerNeedsAbsolutePath = 0x8
-};
-
-static unsigned debuggerConfigurationErrors(const Kit *k)
+DebuggerKitInformation::ConfigurationErrors DebuggerKitInformation::configurationErrors(const Kit *k)
 {
     QTC_ASSERT(k, return NoDebugger);
 
@@ -234,22 +202,30 @@ static unsigned debuggerConfigurationErrors(const Kit *k)
     if (item->command().isEmpty())
         return NoDebugger;
 
-    unsigned result = 0;
+    ConfigurationErrors result = NoConfigurationError;
     const QFileInfo fi = item->command().toFileInfo();
     if (!fi.exists() || fi.isDir())
         result |= DebuggerNotFound;
     else if (!fi.isExecutable())
         result |= DebuggerNotExecutable;
 
+    const Abi tcAbi = ToolChainKitInformation::targetAbi(k);
+    if (item->matchTarget(tcAbi) == DebuggerItem::DoesNotMatch) {
+        // currently restricting the check to desktop devices, may be extended to all device types
+        const IDevice::ConstPtr device = DeviceKitInformation::device(k);
+        if (device && device->type() == ProjectExplorer::Constants::DESKTOP_DEVICE_TYPE)
+            result |= DebuggerDoesNotMatch;
+    }
+
     if (!fi.exists() || fi.isDir()) {
         if (item->engineType() == NoEngineType)
             return NoDebugger;
 
         // We need an absolute path to be able to locate Python on Windows.
-        if (item->engineType() == GdbEngineType)
-            if (const ToolChain *tc = ToolChainKitInformation::toolChain(k))
-                if (tc->targetAbi().os() == Abi::WindowsOS && !fi.isAbsolute())
-                    result |= DebuggerNeedsAbsolutePath;
+        if (item->engineType() == GdbEngineType) {
+            if (tcAbi.os() == Abi::WindowsOS && !fi.isAbsolute())
+                result |= DebuggerNeedsAbsolutePath;
+        }
     }
     return result;
 }
@@ -261,17 +237,24 @@ const DebuggerItem *DebuggerKitInformation::debugger(const Kit *kit)
     return DebuggerItemManager::findById(id);
 }
 
-bool DebuggerKitInformation::isValidDebugger(const Kit *k)
+StandardRunnable DebuggerKitInformation::runnable(const Kit *kit)
 {
-    return debuggerConfigurationErrors(k) == 0;
+    StandardRunnable runnable;
+    if (const DebuggerItem *item = debugger(kit)) {
+        runnable.executable = item->command().toString();
+        runnable.workingDirectory = item->workingDirectory().toString();
+        runnable.environment = Utils::Environment::systemEnvironment();
+        runnable.environment.set("LC_NUMERIC", "C");
+    }
+    return runnable;
 }
 
 QList<Task> DebuggerKitInformation::validateDebugger(const Kit *k)
 {
     QList<Task> result;
 
-    const unsigned errors = debuggerConfigurationErrors(k);
-    if (!errors)
+    const ConfigurationErrors errors = configurationErrors(k);
+    if (errors == NoConfigurationError)
         return result;
 
     QString path;
@@ -293,6 +276,12 @@ QList<Task> DebuggerKitInformation::validateDebugger(const Kit *k)
                 tr("The debugger location must be given as an "
                    "absolute path (%1).").arg(path);
         result << Task(Task::Error, message, FileName(), -1, id);
+    }
+
+    if (errors & DebuggerDoesNotMatch) {
+        const QString message = tr("The ABI of the selected debugger does not "
+                                   "match the toolchain ABI.");
+        result << Task(Task::Warning, message, FileName(), -1, id);
     }
     return result;
 }
@@ -335,13 +324,6 @@ void DebuggerKitInformation::addToMacroExpander(Kit *kit, MacroExpander *expande
 KitInformation::ItemList DebuggerKitInformation::toUserOutput(const Kit *k) const
 {
     return ItemList() << qMakePair(tr("Debugger"), displayString(k));
-}
-
-FileName DebuggerKitInformation::debuggerCommand(const Kit *k)
-{
-    const DebuggerItem *item = debugger(k);
-    QTC_ASSERT(item, return FileName());
-    return item->command();
 }
 
 DebuggerEngineType DebuggerKitInformation::engineType(const Kit *k)

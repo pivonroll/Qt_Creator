@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -28,19 +28,23 @@ import QtQuick.Controls 1.0 as Controls
 import QtQuick.Layouts 1.0
 
 Rectangle {
+    id: panel
 
-    property bool roundLeft: false
-    property bool roundRight: false
+    property bool roundLeft: true
+    property bool roundRight: true
 
 
+    /*
     radius: roundLeft || roundRight ? 1 : 0
     gradient: Gradient {
         GradientStop {color: '#555' ; position: 0}
         GradientStop {color: '#444' ; position: 1}
     }
+    */
 
     border.width: roundLeft || roundRight ? 1 : 0
-    border.color: "#2e2e2e"
+    color: creatorTheme.QmlDesignerButtonColor
+    border.color: creatorTheme.QmlDesignerBorderColor
 
     Rectangle {
         anchors.fill: parent
@@ -48,8 +52,9 @@ Rectangle {
         anchors.leftMargin: 10
         anchors.topMargin: 1
         anchors.bottomMargin: 1
+        color: panel.color
         Component.onCompleted: {
-            gradient = parent.gradient
+            //gradient = parent.gradient
         }
     }
 
@@ -59,13 +64,14 @@ Rectangle {
         anchors.rightMargin: 10
         anchors.topMargin: 1
         anchors.bottomMargin: 1
+        color: panel.color
         Component.onCompleted: {
-            gradient = parent.gradient
+            //gradient = parent.gradient
         }
     }
 
     Rectangle {
-        color: "#2e2e2e"
+        color: creatorTheme.QmlDesignerBorderColor
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -75,7 +81,7 @@ Rectangle {
     }
 
     Rectangle {
-        color: "#2e2e2e"
+        color: creatorTheme.QmlDesignerBorderColor
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right

@@ -1,8 +1,8 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -10,22 +10,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -69,76 +64,33 @@ QmakeAndroidBuildApkStepFactory::QmakeAndroidBuildApkStepFactory(QObject *parent
 {
 }
 
-QList<Core::Id> QmakeAndroidBuildApkStepFactory::availableCreationIds(ProjectExplorer::BuildStepList *parent) const
+QList<ProjectExplorer::BuildStepInfo> QmakeAndroidBuildApkStepFactory::availableSteps(ProjectExplorer::BuildStepList *parent) const
 {
+    ProjectExplorer::Target *target = parent->target();
     if (parent->id() != ProjectExplorer::Constants::BUILDSTEPS_BUILD
-            || !canHandle(parent->target())
-            || parent->contains(ANDROID_BUILD_APK_ID)) {
-        return QList<Core::Id>();
-    }
+            || !target->project()->supportsKit(target->kit())
+            || !AndroidManager::supportsAndroid(target)
+            || !qobject_cast<QmakeProject *>(target->project())
+            || parent->contains(ANDROID_BUILD_APK_ID))
+        return {};
 
-    return QList<Core::Id>() << ANDROID_BUILD_APK_ID;
-}
-
-QString QmakeAndroidBuildApkStepFactory::displayNameForId(const Core::Id id) const
-{
-    if (id == ANDROID_BUILD_APK_ID)
-        return tr("Build Android APK");
-    return QString();
-}
-
-bool QmakeAndroidBuildApkStepFactory::canCreate(ProjectExplorer::BuildStepList *parent, const Core::Id id) const
-{
-    return availableCreationIds(parent).contains(id);
+    return {{ ANDROID_BUILD_APK_ID, tr("Build Android APK") }};
 }
 
 ProjectExplorer::BuildStep *QmakeAndroidBuildApkStepFactory::create(ProjectExplorer::BuildStepList *parent, const Core::Id id)
 {
-    Q_ASSERT(canCreate(parent, id));
     Q_UNUSED(id);
     return new QmakeAndroidBuildApkStep(parent);
 }
 
-bool QmakeAndroidBuildApkStepFactory::canRestore(ProjectExplorer::BuildStepList *parent, const QVariantMap &map) const
-{
-    return canCreate(parent, ProjectExplorer::idFromMap(map));
-}
-
-ProjectExplorer::BuildStep *QmakeAndroidBuildApkStepFactory::restore(ProjectExplorer::BuildStepList *parent, const QVariantMap &map)
-{
-    Q_ASSERT(canRestore(parent, map));
-    QmakeAndroidBuildApkStep * const step = new QmakeAndroidBuildApkStep(parent);
-    if (!step->fromMap(map)) {
-        delete step;
-        return 0;
-    }
-    return step;
-}
-
-bool QmakeAndroidBuildApkStepFactory::canClone(ProjectExplorer::BuildStepList *parent, ProjectExplorer::BuildStep *product) const
-{
-    return canCreate(parent, product->id());
-}
-
 ProjectExplorer::BuildStep *QmakeAndroidBuildApkStepFactory::clone(ProjectExplorer::BuildStepList *parent, ProjectExplorer::BuildStep *product)
 {
-    Q_ASSERT(canClone(parent, product));
     return new QmakeAndroidBuildApkStep(parent, static_cast<QmakeAndroidBuildApkStep *>(product));
 }
 
-bool QmakeAndroidBuildApkStepFactory::canHandle(ProjectExplorer::Target *t) const
-{
-    return t->project()->supportsKit(t->kit())
-            && AndroidManager::supportsAndroid(t)
-            && qobject_cast<QmakeProject *>(t->project());
-}
-
-
 QmakeAndroidBuildApkStep::QmakeAndroidBuildApkStep(ProjectExplorer::BuildStepList *bc)
     :AndroidBuildApkStep(bc, ANDROID_BUILD_APK_ID)
-{
-    ctor();
-}
+{ }
 
 Utils::FileName QmakeAndroidBuildApkStep::proFilePathForInputFile() const
 {
@@ -150,30 +102,26 @@ Utils::FileName QmakeAndroidBuildApkStep::proFilePathForInputFile() const
 
 QmakeAndroidBuildApkStep::QmakeAndroidBuildApkStep(ProjectExplorer::BuildStepList *bc, QmakeAndroidBuildApkStep *other)
     : AndroidBuildApkStep(bc, other)
-{
-    ctor();
-}
+{ }
 
 Utils::FileName QmakeAndroidBuildApkStep::androidPackageSourceDir() const
 {
     QmakeProjectManager::QmakeProject *pro = static_cast<QmakeProjectManager::QmakeProject *>(project());
     const QmakeProjectManager::QmakeProFileNode *node
-            = pro->rootQmakeProjectNode()->findProFileFor(proFilePathForInputFile());
+            = pro->rootProjectNode()->findProFileFor(proFilePathForInputFile());
     if (!node)
         return Utils::FileName();
-    return Utils::FileName::fromString(node->singleVariableValue(QmakeProjectManager::AndroidPackageSourceDir));
+
+    QFileInfo sourceDirInfo(node->singleVariableValue(QmakeProjectManager::Variable::AndroidPackageSourceDir));
+    return Utils::FileName::fromString(sourceDirInfo.canonicalFilePath());
 }
 
-void QmakeAndroidBuildApkStep::ctor()
-{
-}
-
-bool QmakeAndroidBuildApkStep::init()
+bool QmakeAndroidBuildApkStep::init(QList<const BuildStep *> &earlierSteps)
 {
     if (AndroidManager::checkForQt51Files(project()->projectDirectory()))
-        emit addOutput(tr("Found old folder \"android\" in source directory. Qt 5.2 does not use that folder by default."), ErrorOutput);
+        emit addOutput(tr("Found old folder \"android\" in source directory. Qt 5.2 does not use that folder by default."), OutputFormat::Stderr);
 
-    if (!AndroidBuildApkStep::init())
+    if (!AndroidBuildApkStep::init(earlierSteps))
         return false;
 
     QtSupport::BaseQtVersion *version = QtSupport::QtKitInformation::qtVersion(target()->kit());
@@ -199,12 +147,12 @@ bool QmakeAndroidBuildApkStep::init()
     QString outputDir = bc->buildDirectory().appendPath(QLatin1String(Constants::ANDROID_BUILDDIRECTORY)).toString();
 
     const auto *pro = static_cast<QmakeProjectManager::QmakeProject *>(project());
-    const QmakeProjectManager::QmakeProFileNode *node = pro->rootQmakeProjectNode()->findProFileFor(proFilePathForInputFile());
+    const QmakeProjectManager::QmakeProFileNode *node = pro->rootProjectNode()->findProFileFor(proFilePathForInputFile());
     m_skipBuilding = !node;
     if (m_skipBuilding)
         return true;
 
-    QString inputFile = node->singleVariableValue(QmakeProjectManager::AndroidDeploySettingsFile);
+    QString inputFile = node->singleVariableValue(QmakeProjectManager::Variable::AndroidDeploySettingsFile);
     if (inputFile.isEmpty()) {
         m_skipBuilding = true;
         return true;
@@ -273,9 +221,8 @@ bool QmakeAndroidBuildApkStep::init()
 void QmakeAndroidBuildApkStep::run(QFutureInterface<bool> &fi)
 {
     if (m_skipBuilding) {
-        emit addOutput(tr("No application .pro file found, not building an APK."), BuildStep::ErrorMessageOutput);
-        fi.reportResult(true);
-        emit finished();
+        emit addOutput(tr("No application .pro file found, not building an APK."), BuildStep::OutputFormat::ErrorMessage);
+        reportRunResult(fi, true);
         return;
     }
     AndroidBuildApkStep::run(fi);
@@ -300,7 +247,7 @@ void QmakeAndroidBuildApkStep::processStarted()
     emit addOutput(tr("Starting: \"%1\" %2")
                    .arg(QDir::toNativeSeparators(m_command),
                         m_argumentsPasswordConcealed),
-                   BuildStep::MessageOutput);
+                   BuildStep::OutputFormat::NormalMessage);
 }
 
 ProjectExplorer::BuildStepConfigWidget *QmakeAndroidBuildApkStep::createConfigWidget()

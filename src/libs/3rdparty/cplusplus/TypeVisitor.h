@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_TYPEVISITOR_H
-#define CPLUSPLUS_TYPEVISITOR_H
+#pragma once
 
 #include "CPlusPlusForwardDeclarations.h"
 
@@ -51,7 +50,6 @@ public:
     virtual void visit(Function *) {}
     virtual void visit(Namespace *) {}
     virtual void visit(Template *) {}
-    virtual void visit(ExplicitInstantiation *) {}
     virtual void visit(Class *) {}
     virtual void visit(Enum *) {}
     virtual void visit(ForwardClassDeclaration *) {}
@@ -63,6 +61,3 @@ public:
 };
 
 } // namespace CPlusPlus
-
-
-#endif // CPLUSPLUS_TYPEVISITOR_H

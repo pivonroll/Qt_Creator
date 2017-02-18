@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,34 +9,30 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "infobar.h"
 
-#include "coreconstants.h"
 #include "icore.h"
 
 #include <utils/theme/theme.h>
+#include <utils/utilsicons.h>
 
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QLabel>
 #include <QToolButton>
 
@@ -63,15 +59,28 @@ void InfoBarEntry::setCustomButtonInfo(const QString &_buttonText, CallBack call
 
 void InfoBarEntry::setCancelButtonInfo(CallBack callBack)
 {
+    m_useCancelButton = true;
     m_cancelButtonCallBack = callBack;
 }
 
 void InfoBarEntry::setCancelButtonInfo(const QString &_cancelButtonText, CallBack callBack)
 {
+    m_useCancelButton = true;
     cancelButtonText = _cancelButtonText;
     m_cancelButtonCallBack = callBack;
 }
 
+void InfoBarEntry::removeCancelButton()
+{
+    m_useCancelButton = false;
+    cancelButtonText.clear();
+    m_cancelButtonCallBack = nullptr;
+}
+
+void InfoBarEntry::setDetailsWidgetCreator(const InfoBarEntry::DetailsWidgetCreator &creator)
+{
+    m_detailsWidgetCreator = creator;
+}
 
 void InfoBar::addInfo(const InfoBarEntry &info)
 {
@@ -129,10 +138,13 @@ void InfoBar::clear()
 void InfoBar::globallySuppressInfo(Id id)
 {
     globallySuppressed.insert(id);
-    QStringList list;
-    foreach (Id i, globallySuppressed)
-        list << QLatin1String(i.name());
-    ICore::settings()->setValue(QLatin1String(C_SUPPRESSED_WARNINGS), list);
+    writeGloballySuppressedToSettings();
+}
+
+void InfoBar::globallyUnsuppressInfo(Id id)
+{
+    globallySuppressed.remove(id);
+    writeGloballySuppressedToSettings();
 }
 
 void InfoBar::initializeGloballySuppressed()
@@ -153,12 +165,17 @@ bool InfoBar::anyGloballySuppressed()
     return !globallySuppressed.isEmpty();
 }
 
+void InfoBar::writeGloballySuppressedToSettings()
+{
+    QStringList list;
+    foreach (Id i, globallySuppressed)
+        list << QLatin1String(i.name());
+    ICore::settings()->setValue(QLatin1String(C_SUPPRESSED_WARNINGS), list);
+}
+
 
 InfoBarDisplay::InfoBarDisplay(QObject *parent)
     : QObject(parent)
-    , m_infoBar(0)
-    , m_boxLayout(0)
-    , m_boxIndex(0)
 {
 }
 
@@ -177,8 +194,8 @@ void InfoBarDisplay::setInfoBar(InfoBar *infoBar)
         m_infoBar->disconnect(this);
     m_infoBar = infoBar;
     if (m_infoBar) {
-        connect(m_infoBar, SIGNAL(changed()), SLOT(update()));
-        connect(m_infoBar, SIGNAL(destroyed()), SLOT(infoBarDestroyed()));
+        connect(m_infoBar, &InfoBar::changed, this, &InfoBarDisplay::update);
+        connect(m_infoBar, &QObject::destroyed, this, &InfoBarDisplay::infoBarDestroyed);
     }
     update();
 }
@@ -214,12 +231,42 @@ void InfoBarDisplay::update()
         infoWidget->setLineWidth(1);
         infoWidget->setAutoFillBackground(true);
 
-        QHBoxLayout *hbox = new QHBoxLayout(infoWidget);
+        QHBoxLayout *hbox = new QHBoxLayout;
         hbox->setMargin(2);
+
+        auto *vbox = new QVBoxLayout(infoWidget);
+        vbox->setMargin(0);
+        vbox->addLayout(hbox);
 
         QLabel *infoWidgetLabel = new QLabel(info.infoText);
         infoWidgetLabel->setWordWrap(true);
         hbox->addWidget(infoWidgetLabel);
+
+        if (info.m_detailsWidgetCreator) {
+            if (m_isShowingDetailsWidget) {
+                QWidget *detailsWidget = info.m_detailsWidgetCreator();
+                vbox->addWidget(detailsWidget);
+            }
+
+            auto *showDetailsButton = new QToolButton;
+            showDetailsButton->setCheckable(true);
+            showDetailsButton->setChecked(m_isShowingDetailsWidget);
+            showDetailsButton->setText(tr("&Show Details"));
+            connect(showDetailsButton, &QToolButton::clicked, [this, vbox, info] (bool) {
+                QWidget *detailsWidget = vbox->count() == 2 ? vbox->itemAt(1)->widget() : nullptr;
+                if (!detailsWidget) {
+                    detailsWidget = info.m_detailsWidgetCreator();
+                    vbox->addWidget(detailsWidget);
+                }
+
+                m_isShowingDetailsWidget = !m_isShowingDetailsWidget;
+                detailsWidget->setVisible(m_isShowingDetailsWidget);
+            });
+
+            hbox->addWidget(showDetailsButton);
+        } else {
+            m_isShowingDetailsWidget = false;
+        }
 
         if (!info.buttonText.isEmpty()) {
             QToolButton *infoWidgetButton = new QToolButton;
@@ -240,22 +287,30 @@ void InfoBarDisplay::update()
             });
         }
 
-        QToolButton *infoWidgetCloseButton = new QToolButton;
-        // need to connect to cancelObjectbefore connecting to cancelButtonClicked,
-        // because the latter removes the button and with it any connect
-        if (info.m_cancelButtonCallBack)
-            connect(infoWidgetCloseButton, &QAbstractButton::clicked, info.m_cancelButtonCallBack);
-        connect(infoWidgetCloseButton, &QAbstractButton::clicked, this, [this, id] {
-            m_infoBar->suppressInfo(id);
-        });
+        QToolButton *infoWidgetCloseButton = nullptr;
+        if (info.m_useCancelButton) {
+            infoWidgetCloseButton = new QToolButton;
+            // need to connect to cancelObjectbefore connecting to cancelButtonClicked,
+            // because the latter removes the button and with it any connect
+            if (info.m_cancelButtonCallBack)
+                connect(infoWidgetCloseButton, &QAbstractButton::clicked, info.m_cancelButtonCallBack);
+            connect(infoWidgetCloseButton, &QAbstractButton::clicked, this, [this, id] {
+                m_infoBar->suppressInfo(id);
+            });
+        }
 
         if (info.cancelButtonText.isEmpty()) {
-            infoWidgetCloseButton->setAutoRaise(true);
-            infoWidgetCloseButton->setIcon(QIcon(QLatin1String(Constants::ICON_CLEAR)));
-            infoWidgetCloseButton->setToolTip(tr("Close"));
+            if (infoWidgetCloseButton) {
+                infoWidgetCloseButton->setAutoRaise(true);
+                infoWidgetCloseButton->setIcon(Utils::Icons::CLOSE_FOREGROUND.icon());
+                infoWidgetCloseButton->setToolTip(tr("Close"));
+            }
+
             if (infoWidgetSuppressButton)
                 hbox->addWidget(infoWidgetSuppressButton);
-            hbox->addWidget(infoWidgetCloseButton);
+
+            if (infoWidgetCloseButton)
+                hbox->addWidget(infoWidgetCloseButton);
         } else {
             infoWidgetCloseButton->setText(info.cancelButtonText);
             hbox->addWidget(infoWidgetCloseButton);
@@ -263,7 +318,7 @@ void InfoBarDisplay::update()
                 hbox->addWidget(infoWidgetSuppressButton);
         }
 
-        connect(infoWidget, SIGNAL(destroyed()), SLOT(widgetDestroyed()));
+        connect(infoWidget, &QObject::destroyed, this, &InfoBarDisplay::widgetDestroyed);
         m_boxLayout->insertWidget(m_boxIndex, infoWidget);
         m_infoWidgets << infoWidget;
     }

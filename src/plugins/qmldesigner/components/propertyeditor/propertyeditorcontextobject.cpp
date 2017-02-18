@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,21 +9,30 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "propertyeditorcontextobject.h"
+
+#include <abstractview.h>
+#include <nodemetainfo.h>
+#include <qmldesignerplugin.h>
+#include <qmlobjectnode.h>
+#include <rewritingexception.h>
+
+#include <coreplugin/messagebox.h>
+#include <utils/algorithm.h>
 
 #include <QQmlContext>
 
@@ -75,9 +84,6 @@ PropertyEditorContextObject::PropertyEditorContextObject(QObject *parent) :
     m_isBaseState(false),
     m_selectionChanged(false),
     m_backendValues(0),
-    m_majorVersion(-1),
-    m_minorVersion(-1),
-    m_majorQtQuickVersion(-1),
     m_qmlComponent(0),
     m_qmlContext(0)
 {
@@ -102,6 +108,106 @@ QColor PropertyEditorContextObject::colorFromString(const QString &colorString)
     return convertColorFromString(colorString);
 }
 
+QString PropertyEditorContextObject::translateFunction()
+{
+    if (QmlDesignerPlugin::instance()->settings().value(
+            DesignerSettingsKey::TYPE_OF_QSTR_FUNCTION).toInt())
+
+        switch (QmlDesignerPlugin::instance()->settings().value(
+                    DesignerSettingsKey::TYPE_OF_QSTR_FUNCTION).toInt()) {
+        case 0: return QLatin1String("qsTr");
+        case 1: return QLatin1String("qsTrId");
+        case 2: return QLatin1String("qsTranslate");
+        default:
+            break;
+        }
+    return QLatin1String("qsTr");
+}
+
+QStringList PropertyEditorContextObject::autoComplete(const QString &text, int pos, bool explicitComplete, bool filter)
+{
+    if (m_model && m_model->rewriterView())
+        return  Utils::filtered(m_model->rewriterView()->autoComplete(text, pos, explicitComplete), [filter](const QString &string) {
+            return !filter || (!string.isEmpty() && string.at(0).isUpper()); });
+
+    return QStringList();
+}
+
+void PropertyEditorContextObject::toogleExportAlias()
+{
+    if (!m_model || !m_model->rewriterView())
+        return;
+
+    /* Ideally we should not missuse the rewriterView
+     * If we add more code here we have to forward the property editor view */
+    RewriterView *rewriterView = m_model->rewriterView();
+
+    if (rewriterView->selectedModelNodes().isEmpty())
+        return;
+
+    ModelNode selectedNode = rewriterView->selectedModelNodes().first();
+
+    if (QmlObjectNode::isValidQmlObjectNode(selectedNode)) {
+        QmlObjectNode objectNode(selectedNode);
+
+        PropertyName modelNodeId = selectedNode.id().toUtf8();
+        ModelNode rootModelNode = rewriterView->rootModelNode();
+
+        try {
+            RewriterTransaction transaction =
+                    rewriterView->beginRewriterTransaction(QByteArrayLiteral("PropertyEditorContextObject:toogleExportAlias"));
+
+            if (!objectNode.isAliasExported())
+                objectNode.ensureAliasExport();
+            else
+                if (rootModelNode.hasProperty(modelNodeId))
+                    rootModelNode.removeProperty(modelNodeId);
+
+            transaction.commit();
+        }  catch (RewritingException &exception) { //better safe than sorry! There always might be cases where we fail
+            exception.showException();
+        }
+    }
+
+}
+
+void PropertyEditorContextObject::changeTypeName(const QString &typeName)
+{
+
+    if (!m_model || !m_model->rewriterView())
+        return;
+
+    /* Ideally we should not missuse the rewriterView
+     * If we add more code here we have to forward the property editor view */
+    RewriterView *rewriterView = m_model->rewriterView();
+
+    if (rewriterView->selectedModelNodes().isEmpty())
+        return;
+
+    ModelNode selectedNode = rewriterView->selectedModelNodes().first();
+
+    try {
+        RewriterTransaction transaction =
+                rewriterView->beginRewriterTransaction(QByteArrayLiteral("PropertyEditorContextObject:changeTypeName"));
+
+        NodeMetaInfo metaInfo = m_model->metaInfo(typeName.toLatin1());
+        if (!metaInfo.isValid()) {
+            Core::AsynchronousMessageBox::warning(tr("Invalid Type"),  tr("%1 is an invalid type.").arg(typeName));
+            return;
+        }
+        if (selectedNode.isRootNode())
+             rewriterView->changeRootNodeType(metaInfo.typeName(), metaInfo.majorVersion(), metaInfo.minorVersion());
+        else
+            selectedNode.changeType(metaInfo.typeName(), metaInfo.majorVersion(), metaInfo.minorVersion());
+
+        transaction.commit();
+    }  catch (RewritingException &exception) { //better safe than sorry! There always might be cases where we fail
+        exception.showException();
+    }
+
+
+}
+
 int PropertyEditorContextObject::majorVersion() const
 {
     return m_majorVersion;
@@ -110,7 +216,12 @@ int PropertyEditorContextObject::majorVersion() const
 
 int PropertyEditorContextObject::majorQtQuickVersion() const
 {
-      return m_majorQtQuickVersion;
+    return m_majorQtQuickVersion;
+}
+
+int PropertyEditorContextObject::minorQtQuickVersion() const
+{
+    return m_minorQtQuickVersion;
 }
 
 void PropertyEditorContextObject::setMajorVersion(int majorVersion)
@@ -132,6 +243,16 @@ void PropertyEditorContextObject::setMajorQtQuickVersion(int majorVersion)
 
     emit majorQtQuickVersionChanged();
 
+}
+
+void PropertyEditorContextObject::setMinorQtQuickVersion(int minorVersion)
+{
+    if (m_minorQtQuickVersion == minorVersion)
+        return;
+
+    m_minorQtQuickVersion = minorVersion;
+
+    emit minorQtQuickVersionChanged();
 }
 
 int PropertyEditorContextObject::minorVersion() const
@@ -235,9 +356,23 @@ void PropertyEditorContextObject::setBackendValues(QQmlPropertyMap *newBackendVa
     emit backendValuesChanged();
 }
 
+void PropertyEditorContextObject::setModel(Model *model)
+{
+    m_model = model;
+}
+
 void PropertyEditorContextObject::triggerSelectionChanged()
 {
     setSelectionChanged(!m_selectionChanged);
+}
+
+void PropertyEditorContextObject::setHasAliasExport(bool hasAliasExport)
+{
+    if (m_aliasExport == hasAliasExport)
+        return;
+
+    m_aliasExport = hasAliasExport;
+    emit hasAliasExportChanged();
 }
 
 } //QmlDesigner

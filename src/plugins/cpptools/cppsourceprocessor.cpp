@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -126,18 +121,23 @@ CppSourceProcessor::CppSourceProcessor(const Snapshot &snapshot, DocumentCallbac
 CppSourceProcessor::~CppSourceProcessor()
 { }
 
+void CppSourceProcessor::setCancelChecker(const CppSourceProcessor::CancelChecker &cancelChecker)
+{
+    m_preprocess.setCancelChecker(cancelChecker);
+}
+
 void CppSourceProcessor::setWorkingCopy(const WorkingCopy &workingCopy)
 { m_workingCopy = workingCopy; }
 
-void CppSourceProcessor::setHeaderPaths(const ProjectPart::HeaderPaths &headerPaths)
+void CppSourceProcessor::setHeaderPaths(const ProjectPartHeaderPaths &headerPaths)
 {
     m_headerPaths.clear();
 
     for (int i = 0, ei = headerPaths.size(); i < ei; ++i) {
-        const ProjectPart::HeaderPath &path = headerPaths.at(i);
+        const ProjectPartHeaderPath &path = headerPaths.at(i);
 
-        if (path.type == ProjectPart::HeaderPath::IncludePath)
-            m_headerPaths.append(ProjectPart::HeaderPath(cleanPath(path.path), path.type));
+        if (path.type == ProjectPartHeaderPath::IncludePath)
+            m_headerPaths.append(ProjectPartHeaderPath(cleanPath(path.path), path.type));
         else
             addFrameworkPath(path);
     }
@@ -155,28 +155,28 @@ void CppSourceProcessor::setLanguageFeatures(const LanguageFeatures languageFeat
 // has private frameworks in:
 //  <framework-path>/ApplicationServices.framework/Frameworks
 // if the "Frameworks" folder exists inside the top level framework.
-void CppSourceProcessor::addFrameworkPath(const ProjectPart::HeaderPath &frameworkPath)
+void CppSourceProcessor::addFrameworkPath(const ProjectPartHeaderPath &frameworkPath)
 {
     QTC_ASSERT(frameworkPath.isFrameworkPath(), return);
 
     // The algorithm below is a bit too eager, but that's because we're not getting
     // in the frameworks we're linking against. If we would have that, then we could
     // add only those private frameworks.
-    const ProjectPart::HeaderPath cleanFrameworkPath(cleanPath(frameworkPath.path),
-                                                     frameworkPath.type);
+    const ProjectPartHeaderPath cleanFrameworkPath(cleanPath(frameworkPath.path),
+                                                   frameworkPath.type);
     if (!m_headerPaths.contains(cleanFrameworkPath))
         m_headerPaths.append(cleanFrameworkPath);
 
     const QDir frameworkDir(cleanFrameworkPath.path);
-    const QStringList filter = QStringList() << QLatin1String("*.framework");
+    const QStringList filter = QStringList("*.framework");
     foreach (const QFileInfo &framework, frameworkDir.entryInfoList(filter)) {
         if (!framework.isDir())
             continue;
         const QFileInfo privateFrameworks(framework.absoluteFilePath(),
                                           QLatin1String("Frameworks"));
         if (privateFrameworks.exists() && privateFrameworks.isDir())
-            addFrameworkPath(ProjectPart::HeaderPath(privateFrameworks.absoluteFilePath(),
-                                                     frameworkPath.type));
+            addFrameworkPath(ProjectPartHeaderPath(privateFrameworks.absoluteFilePath(),
+                                                   frameworkPath.type));
     }
 }
 
@@ -242,22 +242,6 @@ bool CppSourceProcessor::checkFile(const QString &absoluteFilePath) const
     return fileInfo.isFile() && fileInfo.isReadable();
 }
 
-/// Resolve the given file name to its absolute path w.r.t. the include type.
-QString CppSourceProcessor::resolveFile(const QString &fileName, IncludeType type)
-{
-    if (type == IncludeGlobal) {
-        QHash<QString, QString>::ConstIterator it = m_fileNameCache.constFind(fileName);
-        if (it != m_fileNameCache.constEnd())
-            return it.value();
-        const QString fn = resolveFile_helper(fileName, type);
-        m_fileNameCache.insert(fileName, fn);
-        return fn;
-    }
-
-    // IncludeLocal, IncludeNext
-    return resolveFile_helper(fileName, type);
-}
-
 QString CppSourceProcessor::cleanPath(const QString &path)
 {
     QString result = QDir::cleanPath(path);
@@ -267,7 +251,8 @@ QString CppSourceProcessor::cleanPath(const QString &path)
     return result;
 }
 
-QString CppSourceProcessor::resolveFile_helper(const QString &fileName, IncludeType type)
+/// Resolve the given file name to its absolute path w.r.t. the include type.
+QString CppSourceProcessor::resolveFile(const QString &fileName, IncludeType type)
 {
     if (isInjectedFile(fileName))
         return fileName;
@@ -275,8 +260,6 @@ QString CppSourceProcessor::resolveFile_helper(const QString &fileName, IncludeT
     if (QFileInfo(fileName).isAbsolute())
         return checkFile(fileName) ? fileName : QString();
 
-    auto headerPathsIt = m_headerPaths.begin();
-    auto headerPathsEnd = m_headerPaths.end();
     if (m_currentDoc) {
         if (type == IncludeLocal) {
             const QFileInfo currentFileInfo(m_currentDoc->fileName());
@@ -289,34 +272,43 @@ QString CppSourceProcessor::resolveFile_helper(const QString &fileName, IncludeT
         } else if (type == IncludeNext) {
             const QFileInfo currentFileInfo(m_currentDoc->fileName());
             const QString currentDirPath = cleanPath(currentFileInfo.dir().path());
+            auto headerPathsEnd = m_headerPaths.end();
+            auto headerPathsIt = m_headerPaths.begin();
             for (; headerPathsIt != headerPathsEnd; ++headerPathsIt) {
                 if (headerPathsIt->path == currentDirPath) {
                     ++headerPathsIt;
-                    break;
+                    return resolveFile_helper(fileName, headerPathsIt);
                 }
             }
         }
     }
 
-    for (; headerPathsIt != headerPathsEnd; ++headerPathsIt) {
-        if (headerPathsIt->isFrameworkPath())
-            continue;
-        const QString path = headerPathsIt->path + fileName;
-        if (m_workingCopy.contains(path) || checkFile(path))
-            return path;
-    }
+    QHash<QString, QString>::ConstIterator it = m_fileNameCache.constFind(fileName);
+    if (it != m_fileNameCache.constEnd())
+        return it.value();
+    const QString fn = resolveFile_helper(fileName, m_headerPaths.begin());
+    if (!fn.isEmpty())
+        m_fileNameCache.insert(fileName, fn);
+    return fn;
+}
 
+QString CppSourceProcessor::resolveFile_helper(const QString &fileName,
+                                               ProjectPartHeaderPaths::Iterator headerPathsIt)
+{
+    auto headerPathsEnd = m_headerPaths.end();
     const int index = fileName.indexOf(QLatin1Char('/'));
-    if (index != -1) {
-        const QString frameworkName = fileName.left(index);
-        const QString name = frameworkName + QLatin1String(".framework/Headers/")
-            + fileName.mid(index + 1);
-
-        foreach (const ProjectPart::HeaderPath &headerPath, m_headerPaths) {
-            if (!headerPath.isFrameworkPath())
-                continue;
-            const QString path = headerPath.path + name;
-            if (checkFile(path))
+    for (; headerPathsIt != headerPathsEnd; ++headerPathsIt) {
+        if (headerPathsIt->isValid()) {
+            QString path;
+            if (headerPathsIt->isFrameworkPath()) {
+                if (index == -1)
+                    continue;
+                path = headerPathsIt->path + fileName.left(index)
+                       + QLatin1String(".framework/Headers/") + fileName.mid(index + 1);
+            } else {
+                path = headerPathsIt->path + fileName;
+            }
+            if (m_workingCopy.contains(path) || checkFile(path))
                 return path;
         }
     }
@@ -456,7 +448,7 @@ void CppSourceProcessor::sourceNeeded(unsigned line, const QString &fileName, In
     }
 
     const QFileInfo info(absoluteFileName);
-    if (skipFileDueToSizeLimit(info))
+    if (fileSizeExceedsLimit(info, m_fileSizeLimitInMb))
         return; // TODO: Add diagnostic message
 
     // Otherwise get file contents
@@ -511,6 +503,11 @@ void CppSourceProcessor::sourceNeeded(unsigned line, const QString &fileName, In
     m_snapshot.insert(document);
     m_todo.remove(absoluteFileName);
     switchCurrentDocument(previousDocument);
+}
+
+void CppSourceProcessor::setFileSizeLimitInMb(int fileSizeLimitInMb)
+{
+    m_fileSizeLimitInMb = fileSizeLimitInMb;
 }
 
 Document::Ptr CppSourceProcessor::switchCurrentDocument(Document::Ptr doc)

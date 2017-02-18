@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,6 +33,7 @@
 #include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <utils/styledbar.h>
+#include <utils/utilsicons.h>
 
 #include <QApplication>
 #include <QClipboard>
@@ -135,24 +131,24 @@ void SearchWidget::showEvent(QShowEvent *event)
 
         setFocusProxy(queryWidget);
 
-        connect(queryWidget, SIGNAL(search()), this, SLOT(search()));
+        connect(queryWidget, &QHelpSearchQueryWidget::search, this, &SearchWidget::search);
         connect(resultWidget, &QHelpSearchResultWidget::requestShowLink, this,
                 [this](const QUrl &url) {
                     emit linkActivated(url, currentSearchTerms(), false/*newPage*/);
                 });
 
-        connect(searchEngine, SIGNAL(searchingStarted()), this,
-            SLOT(searchingStarted()));
-        connect(searchEngine, SIGNAL(searchingFinished(int)), this,
-            SLOT(searchingFinished(int)));
+        connect(searchEngine, &QHelpSearchEngine::searchingStarted, this,
+            &SearchWidget::searchingStarted);
+        connect(searchEngine, &QHelpSearchEngine::searchingFinished, this,
+            &SearchWidget::searchingFinished);
 
         QTextBrowser* browser = resultWidget->findChild<QTextBrowser*>();
         browser->viewport()->installEventFilter(this);
 
-        connect(searchEngine, SIGNAL(indexingStarted()), this,
-            SLOT(indexingStarted()));
-        connect(searchEngine, SIGNAL(indexingFinished()), this,
-            SLOT(indexingFinished()));
+        connect(searchEngine, &QHelpSearchEngine::indexingStarted, this,
+            &SearchWidget::indexingStarted);
+        connect(searchEngine, &QHelpSearchEngine::indexingFinished, this,
+            &SearchWidget::indexingFinished);
 
         QMetaObject::invokeMethod(&LocalHelpManager::helpEngine(), "setupFinished",
             Qt::QueuedConnection);
@@ -161,17 +157,12 @@ void SearchWidget::showEvent(QShowEvent *event)
 
 void SearchWidget::search() const
 {
-    static QStringList charsToEscapeList;
-    if (charsToEscapeList.isEmpty()) {
-        charsToEscapeList << QLatin1String("\\") << QLatin1String("+")
-            << QLatin1String("-") << QLatin1String("!") << QLatin1String("(")
-            << QLatin1String(")") << QLatin1String(":") << QLatin1String("^")
-            << QLatin1String("[") << QLatin1String("]") << QLatin1String("{")
-            << QLatin1String("}") << QLatin1String("~");
-    }
+    static const QStringList charsToEscapeList({
+        "\\", "+", "-", "!", "(", ")", ":", "^", "[", "]", "{", "}", "~"
+    });
 
-    static QString escapeChar(QLatin1String("\\"));
-    static QRegExp regExp(QLatin1String("[\\+\\-\\!\\(\\)\\^\\[\\]\\{\\}~:]"));
+    static const QString escapeChar("\\");
+    static const QRegExp regExp("[\\+\\-\\!\\(\\)\\^\\[\\]\\{\\}~:]");
 
     QList<QHelpSearchQuery> escapedQueries;
     const QList<QHelpSearchQuery> queries = searchEngine->queryWidget()->query();
@@ -211,7 +202,8 @@ void SearchWidget::indexingStarted()
     m_progress->reportStarted();
 
     m_watcher.setFuture(m_progress->future());
-    connect(&m_watcher, SIGNAL(canceled()), searchEngine, SLOT(cancelIndexing()));
+    connect(&m_watcher, &QFutureWatcherBase::canceled,
+            searchEngine, &QHelpSearchEngine::cancelIndexing);
 }
 
 void SearchWidget::indexingFinished()
@@ -263,9 +255,9 @@ void SearchWidget::contextMenuEvent(QContextMenuEvent *contextMenuEvent)
         openLinkInNewTab = menu.addAction(tr("Open Link as New Page"));
         copyAnchorAction = menu.addAction(tr("Copy Link"));
     } else if (browser->textCursor().hasSelection()) {
-        menu.addAction(tr("Copy"), browser, SLOT(copy()));
+        connect(menu.addAction(tr("Copy")), &QAction::triggered, browser, &QTextEdit::copy);
     } else {
-        menu.addAction(tr("Reload"), browser, SLOT(reload()));
+        connect(menu.addAction(tr("Reload")), &QAction::triggered, browser, &QTextBrowser::reload);
     }
 
     QAction *usedAction = menu.exec(mapToGlobal(contextMenuEvent->pos()));
@@ -302,19 +294,19 @@ QStringList SearchWidget::currentSearchTerms() const
 // #pragma mark -- SearchSideBarItem
 
 SearchSideBarItem::SearchSideBarItem()
-    : SideBarItem(new SearchWidget, QLatin1String(Constants::HELP_SEARCH))
+    : SideBarItem(new SearchWidget, Constants::HELP_SEARCH)
 {
     widget()->setWindowTitle(HelpPlugin::tr(Constants::SB_SEARCH));
-    connect(widget(), SIGNAL(linkActivated(QUrl,QStringList,bool)),
-            this, SIGNAL(linkActivated(QUrl,QStringList,bool)));
+    connect(static_cast<SearchWidget *>(widget()), &SearchWidget::linkActivated,
+            this, &SearchSideBarItem::linkActivated);
 }
 
 QList<QToolButton *> SearchSideBarItem::createToolBarWidgets()
 {
     QToolButton *reindexButton = new QToolButton;
-    reindexButton->setIcon(QIcon(QLatin1String(Core::Constants::ICON_RELOAD_GRAY)));
+    reindexButton->setIcon(Utils::Icons::RELOAD.icon());
     reindexButton->setToolTip(tr("Regenerate Index"));
-    connect(reindexButton, SIGNAL(clicked()),
-            widget(), SLOT(reindexDocumentation()));
+    connect(reindexButton, &QAbstractButton::clicked,
+            static_cast<SearchWidget *>(widget()), &SearchWidget::reindexDocumentation);
     return QList<QToolButton *>() << reindexButton;
 }

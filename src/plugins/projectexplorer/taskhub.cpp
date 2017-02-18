@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,36 +9,31 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "taskhub.h"
 #include "projectexplorerconstants.h"
 
-#include <coreplugin/coreconstants.h>
+#include <coreplugin/coreicons.h>
 #include <coreplugin/ioutputpane.h>
 #include <utils/qtcassert.h>
 #include <utils/theme/theme.h>
 
 using namespace ProjectExplorer;
 
-TaskHub *m_instance = 0;
+static TaskHub *m_instance = nullptr;
 QVector<Core::Id> TaskHub::m_registeredCategories;
 
 static Core::Id categoryForType(Task::TaskType type)
@@ -56,9 +51,10 @@ static Core::Id categoryForType(Task::TaskType type)
 class TaskMark : public TextEditor::TextMark
 {
 public:
-    TaskMark(unsigned int id, const QString &fileName, int lineNumber, Task::TaskType type, bool visible)
-        : TextMark(fileName, lineNumber, categoryForType(type))
-        , m_id(id)
+    TaskMark(unsigned int id, const QString &fileName, int lineNumber,
+             Task::TaskType type, bool visible) :
+        TextMark(fileName, lineNumber, categoryForType(type)),
+        m_id(id)
     {
         setVisible(visible);
     }
@@ -101,8 +97,6 @@ void TaskMark::clicked()
 }
 
 TaskHub::TaskHub()
-    : m_errorIcon(QLatin1String(Core::Constants::ICON_ERROR)),
-      m_warningIcon(QLatin1String(Core::Constants::ICON_WARNING))
 {
     m_instance = this;
     qRegisterMetaType<ProjectExplorer::Task>("ProjectExplorer::Task");
@@ -111,11 +105,13 @@ TaskHub::TaskHub()
                                Utils::Theme::ProjectExplorer_TaskError_TextMarkColor);
     TaskMark::setCategoryColor(Constants::TASK_MARK_WARNING,
                                Utils::Theme::ProjectExplorer_TaskWarn_TextMarkColor);
+    TaskMark::setDefaultToolTip(Constants::TASK_MARK_ERROR, tr("Error"));
+    TaskMark::setDefaultToolTip(Constants::TASK_MARK_WARNING, tr("Warning"));
 }
 
 TaskHub::~TaskHub()
 {
-    m_instance = 0;
+    m_instance = nullptr;
 }
 
 void TaskHub::addCategory(Core::Id categoryId, const QString &displayName, bool visible)
@@ -126,7 +122,7 @@ void TaskHub::addCategory(Core::Id categoryId, const QString &displayName, bool 
     emit m_instance->categoryAdded(categoryId, displayName, visible);
 }
 
-QObject *TaskHub::instance()
+TaskHub *TaskHub::instance()
 {
     return m_instance;
 }
@@ -140,20 +136,19 @@ void TaskHub::addTask(Task task)
 {
     QTC_ASSERT(m_registeredCategories.contains(task.category), return);
     QTC_ASSERT(!task.description.isEmpty(), return);
+    QTC_ASSERT(!task.isNull(), return);
+    QTC_ASSERT(task.m_mark.isNull(), return);
 
-    if (task.file.isEmpty())
-        task.line = -1;
-
-    if (task.line <= 0)
+    if (task.file.isEmpty() || task.line <= 0)
         task.line = -1;
     task.movedLine = task.line;
 
-    if (task.line != -1 && !task.file.isEmpty()) {
-        TaskMark *mark = new TaskMark(task.taskId, task.file.toString(), task.line,
-                                      task.type, !task.icon.isNull());
+    if (task.line != -1) {
+        auto mark = new TaskMark(task.taskId, task.file.toString(), task.line, task.type, !task.icon.isNull());
         mark->setIcon(task.icon);
         mark->setPriority(TextEditor::TextMark::LowPriority);
-        task.addMark(mark);
+        mark->setToolTip(task.description);
+        task.setMark(mark);
     }
     emit m_instance->taskAdded(task);
 }
@@ -199,4 +194,3 @@ void TaskHub::requestPopup()
 {
     emit m_instance->popupRequested(Core::IOutputPane::NoModeSwitch);
 }
-

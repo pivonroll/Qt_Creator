@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -44,7 +39,9 @@ static const char SettingsApplication[] = "QtCreator";
 static const char SettingsKeySkipWarningAbortingBacktrace[]
     = "CrashHandler/SkipWarningAbortingBacktrace";
 
-CrashHandlerDialog::CrashHandlerDialog(CrashHandler *handler, const QString &signalName,
+CrashHandlerDialog::CrashHandlerDialog(CrashHandler *handler,
+                                       const QString &signalName,
+                                       const QString &appName,
                                        QWidget *parent) :
     QDialog(parent),
     m_crashHandler(handler),
@@ -56,6 +53,7 @@ CrashHandlerDialog::CrashHandlerDialog(CrashHandler *handler, const QString &sig
     m_ui->debugInfoEdit->setReadOnly(true);
     m_ui->progressBar->setMinimum(0);
     m_ui->progressBar->setMaximum(0);
+    m_ui->restartAppCheckBox->setText(tr("&Restart %1 on close").arg(appName));
 
     const QStyle * const style = QApplication::style();
     m_ui->closeButton->setIcon(style->standardIcon(QStyle::SP_DialogCloseButton));
@@ -64,12 +62,15 @@ CrashHandlerDialog::CrashHandlerDialog(CrashHandler *handler, const QString &sig
     QIcon icon = style->standardIcon(QStyle::SP_MessageBoxCritical);
     m_ui->iconLabel->setPixmap(icon.pixmap(iconSize, iconSize));
 
-    connect(m_ui->copyToClipBoardButton, SIGNAL(clicked()), this, SLOT(copyToClipboardClicked()));
-    connect(m_ui->reportBugButton, SIGNAL(clicked()), m_crashHandler, SLOT(openBugTracker()));
-    connect(m_ui->debugAppButton, SIGNAL(clicked()), m_crashHandler, SLOT(debugApplication()));
-    connect(m_ui->closeButton, SIGNAL(clicked()), this, SLOT(close()));
+    connect(m_ui->copyToClipBoardButton, &QAbstractButton::clicked,
+            this, &CrashHandlerDialog::copyToClipboardClicked);
+    connect(m_ui->reportBugButton, &QAbstractButton::clicked,
+            m_crashHandler, &CrashHandler::openBugTracker);
+    connect(m_ui->debugAppButton, &QAbstractButton::clicked,
+            m_crashHandler, &CrashHandler::debugApplication);
+    connect(m_ui->closeButton, &QAbstractButton::clicked, this, &CrashHandlerDialog::close);
 
-    setApplicationInfo(signalName);
+    setApplicationInfo(signalName, appName);
 }
 
 CrashHandlerDialog::~CrashHandlerDialog()
@@ -122,10 +123,9 @@ void CrashHandlerDialog::disableDebugAppButton()
     m_ui->debugAppButton->setDisabled(true);
 }
 
-void CrashHandlerDialog::setApplicationInfo(const QString &signalName)
+void CrashHandlerDialog::setApplicationInfo(const QString &signalName, const QString &appName)
 {
-    const QString ideName = QLatin1String("Qt Creator");
-    const QString title = tr("%1 has closed unexpectedly (Signal \"%2\")").arg(ideName, signalName);
+    const QString title = tr("%1 has closed unexpectedly (Signal \"%2\")").arg(appName, signalName);
     const QString introLabelContents = tr(
         "<p><b>%1.</b></p>"
         "<p>Please file a <a href='%2'>bug report</a> with the debug information provided below.</p>")
@@ -139,7 +139,7 @@ void CrashHandlerDialog::setApplicationInfo(const QString &signalName)
 #endif
     const QString versionInformation = tr(
         "%1 %2%3, based on Qt %4 (%5 bit)\n")
-            .arg(ideName, QLatin1String(Core::Constants::IDE_VERSION_LONG), revision,
+            .arg(appName, QLatin1String(Core::Constants::IDE_VERSION_LONG), revision,
                  QLatin1String(QT_VERSION_STR),
                  QString::number(QSysInfo::WordSize));
     m_ui->debugInfoEdit->append(versionInformation);

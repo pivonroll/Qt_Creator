@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Brian McGillion and Hugues Delorme
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Brian McGillion and Hugues Delorme
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,25 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef UTILS_SHELLCOMMAND_H
-#define UTILS_SHELLCOMMAND_H
+#pragma once
 
 #include "utils_global.h"
+
+#include "synchronousprocess.h"
 
 #include <QObject>
 
@@ -49,13 +45,8 @@ class QFuture;
 QT_END_NAMESPACE
 
 namespace Utils {
-struct SynchronousProcessResponse;
-class ExitCodeInterpreter;
+
 class FileName;
-}
-
-namespace Utils {
-
 namespace Internal { class ShellCommandPrivate; }
 
 class QTCREATOR_UTILS_EXPORT ProgressParser
@@ -121,10 +112,10 @@ public:
     void setDisplayName(const QString &name);
 
     void addJob(const FileName &binary, const QStringList &arguments,
-                const QString &workingDirectory = QString(), ExitCodeInterpreter *interpreter = 0);
+                const QString &workingDirectory = QString(), const ExitCodeInterpreter &interpreter = defaultExitCodeInterpreter);
     void addJob(const FileName &binary, const QStringList &arguments, int timeoutS,
-                const QString &workingDirectory = QString(), ExitCodeInterpreter *interpreter = 0);
-    void execute();
+                const QString &workingDirectory = QString(), const ExitCodeInterpreter &interpreter = defaultExitCodeInterpreter);
+    void execute(); // Execute tasks asynchronously!
     void abort();
     bool lastExecutionSuccess() const;
     int lastExecutionExitCode() const;
@@ -149,16 +140,14 @@ public:
 
     void setOutputProxyFactory(const std::function<OutputProxy *()> &factory);
 
+    // This is called once per job in a thread.
+    // When called from the UI thread it will execute fully synchronously, so no signals will
+    // be triggered!
     virtual SynchronousProcessResponse runCommand(const FileName &binary, const QStringList &arguments,
                                                   int timeoutS,
                                                   const QString &workingDirectory = QString(),
-                                                  ExitCodeInterpreter *interpreter = 0);
-    // Make sure to not pass through the event loop at all:
-    virtual bool runFullySynchronous(const FileName &binary, const QStringList &arguments,
-                                     int timeoutS, QByteArray *outputData, QByteArray *errorData,
-                                     const QString &workingDirectory = QString());
+                                                  const ExitCodeInterpreter &interpreter = defaultExitCodeInterpreter);
 
-public slots:
     void cancel();
 
 signals:
@@ -176,13 +165,19 @@ protected:
 
 private:
     void run(QFutureInterface<void> &future);
+
+    // Run without a event loop in fully blocking mode. No signals will be delivered.
+    SynchronousProcessResponse runFullySynchronous(const FileName &binary, const QStringList &arguments,
+                                                   QSharedPointer<OutputProxy> proxy,
+                                                   int timeoutS, const QString &workingDirectory,
+                                                   const ExitCodeInterpreter &interpreter = defaultExitCodeInterpreter);
+    // Run with an event loop. Signals will be delivered.
     SynchronousProcessResponse runSynchronous(const FileName &binary, const QStringList &arguments,
+                                              QSharedPointer<OutputProxy> proxy,
                                               int timeoutS, const QString &workingDirectory,
-                                              ExitCodeInterpreter *interpreter = 0);
+                                              const ExitCodeInterpreter &interpreter = defaultExitCodeInterpreter);
 
     class Internal::ShellCommandPrivate *const d;
 };
 
 } // namespace Utils
-
-#endif // UTILS_SHELLCOMMAND_H

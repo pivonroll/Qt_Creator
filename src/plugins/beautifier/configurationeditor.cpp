@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Lorenz Haas
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Lorenz Haas
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -51,7 +46,7 @@ ConfigurationSyntaxHighlighter::ConfigurationSyntaxHighlighter(QTextDocument *pa
     m_formatKeyword = fs.toTextCharFormat(TextEditor::C_FIELD);
     m_formatComment = fs.toTextCharFormat(TextEditor::C_COMMENT);
 
-    m_expressionComment.setPattern(QLatin1String("#[^\\n]*"));
+    m_expressionComment.setPattern("#[^\\n]*");
     m_expressionComment.setMinimal(false);
 }
 
@@ -62,13 +57,12 @@ void ConfigurationSyntaxHighlighter::setKeywords(const QStringList &keywords)
 
     // Check for empty keywords since they can cause an endless loop in highlightBlock().
     QStringList pattern;
-    foreach (const QString &word, keywords) {
+    for (const QString &word : keywords) {
         if (!word.isEmpty())
             pattern << QRegExp::escape(word);
     }
 
-    m_expressionKeyword.setPattern(QLatin1String("(?:\\s|^)(") + pattern.join(QLatin1Char('|'))
-                                   + QLatin1String(")(?=\\s|\\:|\\=|\\,|$)"));
+    m_expressionKeyword.setPattern("(?:\\s|^)(" + pattern.join('|') + ")(?=\\s|\\:|\\=|\\,|$)");
 }
 
 void ConfigurationSyntaxHighlighter::setCommentExpression(const QRegExp &rx)
@@ -97,12 +91,11 @@ void ConfigurationSyntaxHighlighter::highlightBlock(const QString &text)
     }
 }
 
-ConfigurationEditor::ConfigurationEditor(QWidget *parent)
-    : QPlainTextEdit(parent)
-    , m_settings(0)
-    , m_completer(new QCompleter(this))
-    , m_model(new QStringListModel(QStringList(), m_completer))
-    , m_highlighter(new ConfigurationSyntaxHighlighter(document()))
+ConfigurationEditor::ConfigurationEditor(QWidget *parent) :
+    QPlainTextEdit(parent),
+    m_completer(new QCompleter(this)),
+    m_model(new QStringListModel(QStringList(), m_completer)),
+    m_highlighter(new ConfigurationSyntaxHighlighter(document()))
 {
     m_completer->setModel(m_model);
     m_completer->setModelSorting(QCompleter::CaseInsensitivelySortedModel);
@@ -171,7 +164,7 @@ void ConfigurationEditor::keyPressEvent(QKeyEvent *event)
         }
     }
 
-    const bool isShortcut = ((event->modifiers() & Qt::ControlModifier) && key == Qt::Key_Space);
+    const bool isShortcut = (event->modifiers() & Qt::ControlModifier) && key == Qt::Key_Space;
     if (!isShortcut)
         QPlainTextEdit::keyPressEvent(event);
 
@@ -208,13 +201,13 @@ QTextCursor ConfigurationEditor::cursorForTextUnderCursor(QTextCursor tc) const
 
     tc.movePosition(QTextCursor::StartOfWord, QTextCursor::MoveAnchor);
     QChar ch = document()->characterAt(tc.position() - 1);
-    while (!(ch.isNull() || ch.isSpace() || ch == QLatin1Char(':') || ch == QLatin1Char(','))) {
+    while (!(ch.isNull() || ch.isSpace() || ch == ':' || ch == ',')) {
         tc.movePosition(QTextCursor::PreviousCharacter, QTextCursor::MoveAnchor);
         ch = document()->characterAt(tc.position() - 1);
     }
     tc.movePosition(QTextCursor::EndOfWord, QTextCursor::KeepAnchor);
     ch = document()->characterAt(tc.position());
-    while (!(ch.isNull() || ch.isSpace() || ch == QLatin1Char(':') || ch == QLatin1Char(','))) {
+    while (!(ch.isNull() || ch.isSpace() || ch == ':' || ch == ',')) {
         tc.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
         ch = document()->characterAt(tc.position());
     }
@@ -223,12 +216,12 @@ QTextCursor ConfigurationEditor::cursorForTextUnderCursor(QTextCursor tc) const
 
 void ConfigurationEditor::insertCompleterText(const QString &text)
 {
-   QTextCursor tc = textCursor();
-   // Replace entire word to get case sensitivity right.
-   tc.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor,
-                   m_completer->completionPrefix().length());
-   tc.insertText(text);
-   setTextCursor(tc);
+    QTextCursor tc = textCursor();
+    // Replace entire word to get case sensitivity right.
+    tc.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor,
+                    m_completer->completionPrefix().length());
+    tc.insertText(text);
+    setTextCursor(tc);
 }
 
 void ConfigurationEditor::updateDocumentation()
@@ -251,7 +244,7 @@ void ConfigurationEditor::updateDocumentation()
     // in front of a colon for providing a documentation.
     cursor.movePosition(QTextCursor::PreviousWord);
     cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::KeepAnchor);
-    const int pos = cursor.selectedText().lastIndexOf(QLatin1Char(','));
+    const int pos = cursor.selectedText().lastIndexOf(',');
     if (-1 != pos) {
         cursor.setPosition(cursor.position() + pos);
         cursor.movePosition(QTextCursor::NextWord);

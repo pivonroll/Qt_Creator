@@ -5,7 +5,17 @@ QT += network qml quick quickwidgets
 include(../../qtcreatorplugin.pri)
 
 SOURCES += \
+    debugmessagesmodel.cpp \
+    flamegraphmodel.cpp \
+    flamegraphview.cpp \
+    inputeventsmodel.cpp \
     localqmlprofilerrunner.cpp \
+    memoryusagemodel.cpp \
+    pixmapcachemodel.cpp \
+    qmlevent.cpp \
+    qmleventlocation.cpp \
+    qmleventtype.cpp \
+    qmlnote.cpp \
     qmlprofileranimationsmodel.cpp \
     qmlprofilerattachdialog.cpp \
     qmlprofilerbindingloopsrenderpass.cpp \
@@ -13,8 +23,6 @@ SOURCES += \
     qmlprofilerconfigwidget.cpp \
     qmlprofilerdatamodel.cpp \
     qmlprofilerdetailsrewriter.cpp \
-    qmlprofilereventsmodelproxy.cpp \
-    qmlprofilereventview.cpp \
     qmlprofilermodelmanager.cpp \
     qmlprofilernotesmodel.cpp \
     qmlprofileroptionspage.cpp \
@@ -26,15 +34,29 @@ SOURCES += \
     qmlprofilersettings.cpp \
     qmlprofilerstatemanager.cpp \
     qmlprofilerstatewidget.cpp \
+    qmlprofilerstatisticsmodel.cpp \
+    qmlprofilerstatisticsview.cpp \
     qmlprofilertimelinemodel.cpp \
-    qmlprofilertimelinemodelfactory.cpp \
     qmlprofilertool.cpp \
+    qmlprofilertraceclient.cpp \
     qmlprofilertracefile.cpp \
     qmlprofilertraceview.cpp \
-    qmlprofilerviewmanager.cpp
+    qmlprofilerviewmanager.cpp \
+    qmltypedevent.cpp \
+    scenegraphtimelinemodel.cpp
 
 HEADERS += \
+    debugmessagesmodel.h \
+    flamegraphmodel.h \
+    flamegraphview.h \
+    inputeventsmodel.h \
     localqmlprofilerrunner.h \
+    memoryusagemodel.h \
+    pixmapcachemodel.h \
+    qmlevent.h \
+    qmleventlocation.h \
+    qmleventtype.h \
+    qmlnote.h \
     qmlprofiler_global.h \
     qmlprofileranimationsmodel.h \
     qmlprofilerattachdialog.h \
@@ -44,8 +66,8 @@ HEADERS += \
     qmlprofilerconstants.h \
     qmlprofilerdatamodel.h \
     qmlprofilerdetailsrewriter.h \
-    qmlprofilereventsmodelproxy.h \
-    qmlprofilereventview.h \
+    qmlprofilereventsview.h \
+    qmlprofilereventtypes.h \
     qmlprofilermodelmanager.h \
     qmlprofilernotesmodel.h \
     qmlprofileroptionspage.h \
@@ -57,19 +79,23 @@ HEADERS += \
     qmlprofilersettings.h \
     qmlprofilerstatemanager.h \
     qmlprofilerstatewidget.h \
+    qmlprofilerstatisticsmodel.h \
+    qmlprofilerstatisticsview.h \
     qmlprofilertimelinemodel.h \
-    qmlprofilertimelinemodelfactory.h \
     qmlprofilertool.h \
+    qmlprofilertraceclient.h \
     qmlprofilertracefile.h \
     qmlprofilertraceview.h \
-    qmlprofilerviewmanager.h
+    qmlprofilerviewmanager.h \
+    qmltypedevent.h \
+    scenegraphtimelinemodel.h
 
 RESOURCES += \
     qml/qmlprofiler.qrc
 
-DISTFILES += \
-    qml/bindingloops.frag \
-    qml/bindingloops.vert
-
 FORMS += \
     qmlprofilerconfigwidget.ui
+
+equals(TEST, 1) {
+include(tests/tests.pri)
+}

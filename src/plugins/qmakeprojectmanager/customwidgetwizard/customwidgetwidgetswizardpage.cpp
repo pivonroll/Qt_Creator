@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,8 +27,7 @@
 #include "ui_customwidgetwidgetswizardpage.h"
 #include "classdefinition.h"
 
-#include <coreplugin/coreconstants.h>
-
+#include <utils/utilsicons.h>
 #include <utils/wizard.h>
 
 #include <QTimer>
@@ -52,10 +46,10 @@ CustomWidgetWidgetsWizardPage::CustomWidgetWidgetsWizardPage(QWidget *parent) :
 {
     m_ui->setupUi(this);
     m_ui->tabStackWidget->setLayout(m_tabStackLayout);
-    m_ui->addButton->setIcon(QIcon(QLatin1String(Core::Constants::ICON_PLUS)));
-    connect(m_ui->addButton, SIGNAL(clicked()), m_ui->classList, SLOT(startEditingNewClassItem()));
-    m_ui->deleteButton->setIcon(QIcon(QLatin1String(Core::Constants::ICON_MINUS)));
-    connect(m_ui->deleteButton, SIGNAL(clicked()), m_ui->classList, SLOT(removeCurrentClass()));
+    m_ui->addButton->setIcon(Utils::Icons::PLUS_TOOLBAR.icon());
+    connect(m_ui->addButton, &QAbstractButton::clicked, m_ui->classList, &ClassList::startEditingNewClassItem);
+    m_ui->deleteButton->setIcon(Utils::Icons::MINUS.icon());
+    connect(m_ui->deleteButton, &QAbstractButton::clicked, m_ui->classList, &ClassList::removeCurrentClass);
     m_ui->deleteButton->setEnabled(false);
 
     // Disabled dummy for <new class> column>.
@@ -64,8 +58,8 @@ CustomWidgetWidgetsWizardPage::CustomWidgetWidgetsWizardPage(QWidget *parent) :
     dummy->setEnabled(false);
     m_tabStackLayout->addWidget(dummy);
 
-    connect(m_ui->classList, SIGNAL(currentRowChanged(int)),
-            this, SLOT(slotCurrentRowChanged(int)));
+    connect(m_ui->classList, &ClassList::currentRowChanged,
+            this, &CustomWidgetWidgetsWizardPage::slotCurrentRowChanged);
 
     setProperty(Utils::SHORT_TITLE_PROPERTY, tr("Custom Widgets"));
 }
@@ -83,7 +77,7 @@ bool CustomWidgetWidgetsWizardPage::isComplete() const
 void CustomWidgetWidgetsWizardPage::initializePage()
 {
     // Takes effect only if visible.
-    QTimer::singleShot(0, m_ui->classList, SLOT(startEditingNewClassItem()));
+    QTimer::singleShot(0, m_ui->classList, &ClassList::startEditingNewClassItem);
 }
 
 void CustomWidgetWidgetsWizardPage::slotCurrentRowChanged(int row)

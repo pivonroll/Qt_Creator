@@ -7,7 +7,6 @@ HEADERS += vcsbase_global.h \
     wizard/vcscommandpage.h \
     wizard/vcsjsextension.h \
     vcsplugin.h \
-    corelistener.h \
     vcsbaseplugin.h \
     baseannotationhighlighter.h \
     diffandloghighlighter.h \
@@ -26,7 +25,7 @@ HEADERS += vcsbase_global.h \
     vcscommand.h \
     vcsbaseclient.h \
     vcsbaseclientsettings.h \
-    vcsbaseeditorparameterwidget.h \
+    vcsbaseeditorconfig.h \
     submitfieldwidget.h \
     submiteditorwidget.h
 
@@ -36,7 +35,6 @@ SOURCES += vcsplugin.cpp \
     wizard/vcsconfigurationpage.cpp \
     wizard/vcscommandpage.cpp \
     wizard/vcsjsextension.cpp \
-    corelistener.cpp \
     baseannotationhighlighter.cpp \
     diffandloghighlighter.cpp \
     vcsbaseeditor.cpp \
@@ -54,7 +52,7 @@ SOURCES += vcsplugin.cpp \
     vcscommand.cpp \
     vcsbaseclient.cpp \
     vcsbaseclientsettings.cpp \
-    vcsbaseeditorparameterwidget.cpp \
+    vcsbaseeditorconfig.cpp \
     submitfieldwidget.cpp \
     submiteditorwidget.cpp
 
@@ -64,3 +62,5 @@ FORMS += commonsettingspage.ui \
     nicknamedialog.ui \
     cleandialog.ui \
     submiteditorwidget.ui
+
+equals(TEST, 1): DEFINES += "SRC_DIR=\\\"$$IDE_SOURCE_TREE\\\""

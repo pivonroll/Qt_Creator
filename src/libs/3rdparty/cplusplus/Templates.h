@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_TEMPLATES_H
-#define CPLUSPLUS_TEMPLATES_H
+#pragma once
 
 #include "CPlusPlusForwardDeclarations.h"
 #include "TypeVisitor.h"
@@ -85,7 +84,6 @@ protected:
     virtual void visit(Function *type);
     virtual void visit(Namespace *type);
     virtual void visit(Template *type);
-    virtual void visit(ExplicitInstantiation *type);
     virtual void visit(Class *type);
     virtual void visit(Enum *type);
     virtual void visit(ForwardClassDeclaration *type);
@@ -153,7 +151,6 @@ protected:
     virtual bool visit(Function *symbol);
     virtual bool visit(Namespace *symbol);
     virtual bool visit(Template *symbol);
-    virtual bool visit(ExplicitInstantiation *symbol);
     virtual bool visit(Class *symbol);
     virtual bool visit(Block *symbol);
     virtual bool visit(ForwardClassDeclaration *symbol);
@@ -209,5 +206,3 @@ private:
 };
 
 } // end of namespace CPlusPlus
-
-#endif // CPLUSPLUS_TEMPLATES_H

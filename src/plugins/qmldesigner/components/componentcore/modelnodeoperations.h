@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef MODELNODEOPERATIONS_H
-#define MODELNODEOPERATIONS_H
+#pragma once
 
 #include "selectioncontext.h"
 
@@ -32,8 +31,6 @@ namespace QmlDesigner {
 namespace ModelNodeOperations {
 
 void goIntoComponent(const ModelNode &modelNode);
-
-typedef void (*SelectionAction)(const SelectionContext &);
 
 void select(const SelectionContext &selectionState);
 void deSelect(const SelectionContext &selectionState);
@@ -52,7 +49,7 @@ void setFillWidth(const SelectionContext &selectionState);
 void setFillHeight(const SelectionContext &selectionState);
 void resetSize(const SelectionContext &selectionState);
 void resetPosition(const SelectionContext &selectionState);
-void goIntoComponent(const SelectionContext &selectionState);
+void goIntoComponentOperation(const SelectionContext &selectionState);
 void setId(const SelectionContext &selectionState);
 void resetZ(const SelectionContext &selectionState);
 void anchorsFill(const SelectionContext &selectionState);
@@ -64,12 +61,18 @@ void layoutFlowPositioner(const SelectionContext &selectionState);
 void layoutRowLayout(const SelectionContext &selectionState);
 void layoutColumnLayout(const SelectionContext &selectionState);
 void layoutGridLayout(const SelectionContext &selectionState);
-void gotoImplementation(const SelectionContext &selectionState);
+void goImplementation(const SelectionContext &selectionState);
+void addNewSignalHandler(const SelectionContext &selectionState);
+void addSignalHandlerOrGotoImplementation(const SelectionContext &selectionState, bool addAlwaysNewSlot);
 void removeLayout(const SelectionContext &selectionContext);
 void removePositioner(const SelectionContext &selectionContext);
+void moveToComponent(const SelectionContext &selectionContext);
+PropertyName getIndexPropertyName(const ModelNode &modelNode);
+void addItemToStackedContainer(const SelectionContext &selectionContext);
+void increaseIndexOfStackedContainer(const SelectionContext &selectionContext);
+void decreaseIndexOfStackedContainer(const SelectionContext &selectionContext);
+void addTabBarToStackedContainer(const SelectionContext &selectionContext);
 
 
 } // namespace ModelNodeOperationso
 } //QmlDesigner
-
-#endif //MODELNODEOPERATIONS_H

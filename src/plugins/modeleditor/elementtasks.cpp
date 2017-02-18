@@ -1,7 +1,7 @@
-/***************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Jochen Becher
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Jochen Becher
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -89,7 +84,7 @@ void ElementTasks::openElement(const qmt::DElement *element, const qmt::MDiagram
     Q_UNUSED(diagram);
 
     OpenDiagramElementVisitor visitor;
-    visitor.setModelController(d->documentController->getModelController());
+    visitor.setModelController(d->documentController->modelController());
     visitor.setElementTasks(this);
     element->accept(&visitor);
 }
@@ -97,9 +92,9 @@ void ElementTasks::openElement(const qmt::DElement *element, const qmt::MDiagram
 bool ElementTasks::hasClassDefinition(const qmt::MElement *element) const
 {
     if (auto klass = dynamic_cast<const qmt::MClass *>(element)) {
-        QString qualifiedClassName = klass->getNamespace().isEmpty()
-                ? klass->getName()
-                : klass->getNamespace() + QStringLiteral("::") + klass->getName();
+        QString qualifiedClassName = klass->umlNamespace().isEmpty()
+                ? klass->name()
+                : klass->umlNamespace() + QStringLiteral("::") + klass->name();
 
         CppTools::CppClassesFilter *classesFilter = ExtensionSystem::PluginManager::getObject<CppTools::CppClassesFilter>();
         if (!classesFilter)
@@ -123,8 +118,8 @@ bool ElementTasks::hasClassDefinition(const qmt::DElement *element,
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(
-                element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(
+                element->modelUid());
     if (!melement)
         return false;
     return hasClassDefinition(melement);
@@ -133,9 +128,9 @@ bool ElementTasks::hasClassDefinition(const qmt::DElement *element,
 void ElementTasks::openClassDefinition(const qmt::MElement *element)
 {
     if (auto klass = dynamic_cast<const qmt::MClass *>(element)) {
-        QString qualifiedClassName = klass->getNamespace().isEmpty()
-                ? klass->getName()
-                : klass->getNamespace() + QStringLiteral("::") + klass->getName();
+        QString qualifiedClassName = klass->umlNamespace().isEmpty()
+                ? klass->name()
+                : klass->umlNamespace() + QStringLiteral("::") + klass->name();
 
         CppTools::CppClassesFilter *classesFilter = ExtensionSystem::PluginManager::getObject<CppTools::CppClassesFilter>();
         if (!classesFilter)
@@ -157,7 +152,7 @@ void ElementTasks::openClassDefinition(const qmt::DElement *element, const qmt::
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return;
     openClassDefinition(melement);
@@ -174,7 +169,7 @@ bool ElementTasks::hasHeaderFile(const qmt::DElement *element, const qmt::MDiagr
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return false;
     return hasHeaderFile(melement);
@@ -191,7 +186,7 @@ bool ElementTasks::hasSourceFile(const qmt::DElement *element, const qmt::MDiagr
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return false;
     return hasSourceFile(melement);
@@ -207,7 +202,7 @@ void ElementTasks::openHeaderFile(const qmt::DElement *element, const qmt::MDiag
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return;
     openHeaderFile(melement);
@@ -223,7 +218,7 @@ void ElementTasks::openSourceFile(const qmt::DElement *element, const qmt::MDiag
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return;
     openSourceFile(melement);
@@ -240,7 +235,7 @@ bool ElementTasks::hasFolder(const qmt::DElement *element, const qmt::MDiagram *
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return false;
     return hasFolder(melement);
@@ -256,7 +251,7 @@ void ElementTasks::showFolder(const qmt::DElement *element, const qmt::MDiagram 
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return;
     showFolder(melement);
@@ -266,7 +261,7 @@ bool ElementTasks::hasDiagram(const qmt::MElement *element) const
 {
     qmt::FindDiagramVisitor visitor;
     element->accept(&visitor);
-    const qmt::MDiagram *diagram = visitor.getDiagram();
+    const qmt::MDiagram *diagram = visitor.diagram();
     return diagram != 0;
 }
 
@@ -274,7 +269,7 @@ bool ElementTasks::hasDiagram(const qmt::DElement *element, const qmt::MDiagram 
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return false;
     return hasDiagram(melement);
@@ -284,11 +279,11 @@ void ElementTasks::openDiagram(const qmt::MElement *element)
 {
     qmt::FindDiagramVisitor visitor;
     element->accept(&visitor);
-    const qmt::MDiagram *diagram = visitor.getDiagram();
+    const qmt::MDiagram *diagram = visitor.diagram();
     if (diagram) {
         ModelEditorPlugin::modelsManager()->openDiagram(
-                    d->documentController->getProjectController()->getProject()->getUid(),
-                    diagram->getUid());
+                    d->documentController->projectController()->project()->uid(),
+                    diagram->uid());
     }
 }
 
@@ -296,7 +291,7 @@ void ElementTasks::openDiagram(const qmt::DElement *element, const qmt::MDiagram
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return;
     openDiagram(melement);
@@ -304,16 +299,17 @@ void ElementTasks::openDiagram(const qmt::DElement *element, const qmt::MDiagram
 
 bool ElementTasks::hasParentDiagram(const qmt::MElement *element) const
 {
-    if (element && element->getOwner()) {
-        qmt::MObject *parentObject = element->getOwner()->getOwner();
+    while (element && element->owner()) {
+        qmt::MObject *parentObject = element->owner()->owner();
         if (parentObject) {
             qmt::FindDiagramVisitor visitor;
             parentObject->accept(&visitor);
-            const qmt::MDiagram *parentDiagram = visitor.getDiagram();
+            const qmt::MDiagram *parentDiagram = visitor.diagram();
             if (parentDiagram) {
                 return true;
             }
         }
+        element = element->owner();
     }
     return false;
 }
@@ -325,7 +321,7 @@ bool ElementTasks::hasParentDiagram(const qmt::DElement *element, const qmt::MDi
     if (!element)
         return false;
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return false;
     return hasParentDiagram(melement);
@@ -333,19 +329,20 @@ bool ElementTasks::hasParentDiagram(const qmt::DElement *element, const qmt::MDi
 
 void ElementTasks::openParentDiagram(const qmt::MElement *element)
 {
-    if (element && element->getOwner()) {
-        qmt::MObject *parentObject = element->getOwner()->getOwner();
+    while (element && element->owner()) {
+        qmt::MObject *parentObject = element->owner()->owner();
         if (parentObject) {
             qmt::FindDiagramVisitor visitor;
             parentObject->accept(&visitor);
-            const qmt::MDiagram *parentDiagram = visitor.getDiagram();
+            const qmt::MDiagram *parentDiagram = visitor.diagram();
             if (parentDiagram) {
                 ModelEditorPlugin::modelsManager()->openDiagram(
-                            d->documentController->getProjectController()->getProject()->getUid(),
-                            parentDiagram->getUid());
+                            d->documentController->projectController()->project()->uid(),
+                            parentDiagram->uid());
                 return;
             }
         }
+        element = element->owner();
     }
 }
 
@@ -356,7 +353,7 @@ void ElementTasks::openParentDiagram(const qmt::DElement *element, const qmt::ME
     if (!element)
         return;
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return;
     openParentDiagram(melement);
@@ -372,7 +369,7 @@ bool ElementTasks::mayCreateDiagram(const qmt::DElement *element,
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return false;
     return mayCreateDiagram(melement);
@@ -383,20 +380,20 @@ void ElementTasks::createAndOpenDiagram(const qmt::MElement *element)
     if (auto package = dynamic_cast<const qmt::MPackage *>(element)) {
         qmt::FindDiagramVisitor visitor;
         element->accept(&visitor);
-        const qmt::MDiagram *diagram = visitor.getDiagram();
+        const qmt::MDiagram *diagram = visitor.diagram();
         if (diagram) {
             ModelEditorPlugin::modelsManager()->openDiagram(
-                        d->documentController->getProjectController()->getProject()->getUid(),
-                        diagram->getUid());
+                        d->documentController->projectController()->project()->uid(),
+                        diagram->uid());
         } else {
             auto newDiagram = new qmt::MCanvasDiagram();
-            newDiagram->setName(package->getName());
-            qmt::MPackage *parentPackage = d->documentController->getModelController()->findObject<qmt::MPackage>(package->getUid());
+            newDiagram->setName(package->name());
+            qmt::MPackage *parentPackage = d->documentController->modelController()->findObject<qmt::MPackage>(package->uid());
             QTC_ASSERT(parentPackage, delete newDiagram; return);
-            d->documentController->getModelController()->addObject(parentPackage, newDiagram);
+            d->documentController->modelController()->addObject(parentPackage, newDiagram);
             ModelEditorPlugin::modelsManager()->openDiagram(
-                        d->documentController->getProjectController()->getProject()->getUid(),
-                        newDiagram->getUid());
+                        d->documentController->projectController()->project()->uid(),
+                        newDiagram->uid());
         }
     }
 }
@@ -405,7 +402,7 @@ void ElementTasks::createAndOpenDiagram(const qmt::DElement *element, const qmt:
 {
     Q_UNUSED(diagram);
 
-    qmt::MElement *melement = d->documentController->getModelController()->findElement(element->getModelUid());
+    qmt::MElement *melement = d->documentController->modelController()->findElement(element->modelUid());
     if (!melement)
         return;
     createAndOpenDiagram(melement);

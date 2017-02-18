@@ -1,5 +1,9 @@
 #! /bin/sh
 
+# Use this script if you add paths to LD_LIBRARY_PATH
+# that contain libraries that conflict with the
+# libraries that Qt Creator depends on.
+
 makeAbsolute() {
     case $1 in
         /*)
@@ -15,21 +19,26 @@ makeAbsolute() {
 
 me=`which "$0"` # Search $PATH if necessary
 if test -L "$me"; then
-    # Try readlink(1)
-    readlink=`type readlink 2>/dev/null` || readlink=
-    if test -n "$readlink"; then
-        # We have readlink(1), so we can use it. Assuming GNU readlink (for -f).
-        me=`readlink -nf "$me"`
+    # Try GNU readlink(1)
+    nme=`readlink -nf "$me" 2>/dev/null`
+    if test -n "$nme"; then
+        me=$nme
     else
-        # No readlink(1), so let's try ls -l
-        me=`ls -l "$me" | sed 's/^.*-> //'`
+        # No GNU readlink(1), so let's try ls -l
         base=`dirname "$me"`
+        me=`ls -l "$me" | sed 's/^.*-> //'`
         me=`makeAbsolute "$me" "$base"`
     fi
 fi
 
 bindir=`dirname "$me"`
 libdir=`cd "$bindir/../lib" ; pwd`
-LD_LIBRARY_PATH=$libdir:$libdir/qtcreator${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+# Add path to deployed Qt libraries in package
+qtlibdir=$libdir/Qt/lib
+if test -d "$qtlibdir"; then
+    qtlibpath=:$qtlibdir
+fi
+# Add Qt Creator library path
+LD_LIBRARY_PATH=$libdir:$libdir/qtcreator$qtlibpath${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 export LD_LIBRARY_PATH
 exec "$bindir/qtcreator" ${1+"$@"}

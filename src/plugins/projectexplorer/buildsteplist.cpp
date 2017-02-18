@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -44,50 +39,25 @@ using namespace ProjectExplorer;
 
 namespace {
 
-IBuildStepFactory *findCloneFactory(BuildStepList *parent, BuildStep *source)
-{
-    return ExtensionSystem::PluginManager::getObject<IBuildStepFactory>(
-        [&parent, &source](IBuildStepFactory *factory) {
-            return factory->canClone(parent, source);
-        });
-}
-
-IBuildStepFactory *findRestoreFactory(BuildStepList *parent, const QVariantMap &map)
-{
-    return ExtensionSystem::PluginManager::getObject<IBuildStepFactory>(
-        [&parent, &map](IBuildStepFactory *factory) {
-            return factory->canRestore(parent, map);
-        });
-}
-
 const char STEPS_COUNT_KEY[] = "ProjectExplorer.BuildStepList.StepsCount";
 const char STEPS_PREFIX[] = "ProjectExplorer.BuildStepList.Step.";
 
 } // namespace
 
 BuildStepList::BuildStepList(QObject *parent, Core::Id id) :
-    ProjectConfiguration(parent, id),
-    m_isNull(false)
+    ProjectConfiguration(parent, id)
 {
     Q_ASSERT(parent);
 }
 
 BuildStepList::BuildStepList(QObject *parent, BuildStepList *source) :
-    ProjectConfiguration(parent, source),
-    m_isNull(source->m_isNull)
+    ProjectConfiguration(parent, source)
 {
     setDisplayName(source->displayName());
     Q_ASSERT(parent);
     // do not clone the steps here:
     // The BC is not fully set up yet and thus some of the buildstepfactories
     // will fail to clone the buildsteps!
-}
-
-BuildStepList::BuildStepList(QObject *parent, const QVariantMap &data) :
-    ProjectConfiguration(parent, Core::Id())
-{
-    Q_ASSERT(parent);
-    m_isNull = !fromMap(data);
 }
 
 BuildStepList::~BuildStepList()
@@ -104,11 +74,6 @@ QVariantMap BuildStepList::toMap() const
         map.insert(QString::fromLatin1(STEPS_PREFIX) + QString::number(i), m_steps.at(i)->toMap());
 
     return map;
-}
-
-bool BuildStepList::isNull() const
-{
-    return m_isNull;
 }
 
 int BuildStepList::count() const
@@ -131,13 +96,23 @@ bool BuildStepList::contains(Core::Id id) const
 void BuildStepList::cloneSteps(BuildStepList *source)
 {
     Q_ASSERT(source);
+    const QList<IBuildStepFactory *> factories
+            = ExtensionSystem::PluginManager::getObjects<IBuildStepFactory>();
     foreach (BuildStep *originalbs, source->steps()) {
-        IBuildStepFactory *factory(findCloneFactory(this, originalbs));
-        if (!factory)
-            continue;
-        BuildStep *clonebs(factory->clone(this, originalbs));
-        if (clonebs)
-            m_steps.append(clonebs);
+        foreach (IBuildStepFactory *factory, factories) {
+            const QList<BuildStepInfo> steps = factory->availableSteps(source);
+            const Core::Id sourceId = originalbs->id();
+            const auto canClone = [sourceId](const BuildStepInfo &info) {
+                return (info.flags & BuildStepInfo::Unclonable) == 0 && info.id == sourceId;
+            };
+            if (Utils::contains(steps, canClone)) {
+                if (BuildStep *clonebs = factory->clone(this, originalbs)) {
+                    m_steps.append(clonebs);
+                    break;
+                }
+                qWarning() << "Cloning of step " << originalbs->displayName() << " failed (continuing).";
+            }
+        }
     }
 }
 
@@ -147,6 +122,9 @@ bool BuildStepList::fromMap(const QVariantMap &map)
     if (!ProjectConfiguration::fromMap(map))
         return false;
 
+    const QList<IBuildStepFactory *> factories
+            = ExtensionSystem::PluginManager::getObjects<IBuildStepFactory>();
+
     int maxSteps = map.value(QString::fromLatin1(STEPS_COUNT_KEY), 0).toInt();
     for (int i = 0; i < maxSteps; ++i) {
         QVariantMap bsData(map.value(QString::fromLatin1(STEPS_PREFIX) + QString::number(i)).toMap());
@@ -154,17 +132,17 @@ bool BuildStepList::fromMap(const QVariantMap &map)
             qWarning() << "No step data found for" << i << "(continuing).";
             continue;
         }
-        IBuildStepFactory *factory = findRestoreFactory(this, bsData);
-        if (!factory) {
-            qWarning() << "No factory for step" << i << "in list" << displayName() << "found (continuing).";
-            continue;
+        foreach (IBuildStepFactory *factory, factories) {
+            const QList<BuildStepInfo> steps = factory->availableSteps(this);
+            const Core::Id id = ProjectExplorer::idFromMap(bsData);
+            if (Utils::contains(steps, Utils::equal(&BuildStepInfo::id, id))) {
+                if (BuildStep *bs = factory->restore(this, bsData)) {
+                    appendStep(bs);
+                    break;
+                }
+                qWarning() << "Restoration of step" << i << "failed (continuing).";
+            }
         }
-        BuildStep *bs(factory->restore(this, bsData));
-        if (!bs) {
-            qWarning() << "Restoration of step" << i << "failed (continuing).";
-            continue;
-        }
-        insertStep(m_steps.count(), bs);
     }
     return true;
 }
@@ -172,6 +150,11 @@ bool BuildStepList::fromMap(const QVariantMap &map)
 QList<BuildStep *> BuildStepList::steps() const
 {
     return m_steps;
+}
+
+QList<BuildStep *> BuildStepList::steps(const std::function<bool (const BuildStep *)> &filter) const
+{
+    return Utils::filtered(steps(), filter);
 }
 
 void BuildStepList::insertStep(int position, BuildStep *step)
@@ -207,10 +190,10 @@ BuildStep *BuildStepList::at(int position)
 Target *BuildStepList::target() const
 {
     Q_ASSERT(parent());
-    BuildConfiguration *bc = qobject_cast<BuildConfiguration *>(parent());
+    auto bc = qobject_cast<BuildConfiguration *>(parent());
     if (bc)
         return bc->target();
-    DeployConfiguration *dc = qobject_cast<DeployConfiguration *>(parent());
+    auto dc = qobject_cast<DeployConfiguration *>(parent());
     if (dc)
         return dc->target();
     return 0;

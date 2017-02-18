@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,20 +9,19 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-
 
 import QtQuick 2.2
 import QtQuick.Controls 1.1 as Controls
@@ -51,9 +50,22 @@ Controls.TextField {
 
     signal commitData
 
+    property string context
+
+    function setTranslateExpression()
+    {
+        if (translateFunction() === "qsTranslate") {
+            backendValue.expression = translateFunction()
+                    + "(\"" + backendValue.getTranslationContext()
+                    + "\", " + "\"" + trCheckbox.escapeString(text) + "\")"
+        } else {
+            backendValue.expression = translateFunction() + "(\"" + trCheckbox.escapeString(text) + "\")"
+        }
+    }
+
     ExtendedFunctionButton {
         x: 2
-        y: 4
+        anchors.verticalCenter: parent.verticalCenter
         backendValue: lineEdit.backendValue
         visible: lineEdit.enabled && showExtendedFunctionButton
     }
@@ -97,7 +109,7 @@ Controls.TextField {
             return
 
         if (backendValue.isTranslated) {
-            backendValue.expression = "qsTr(\"" + trCheckbox.escapeString(text) + "\")"
+           setTranslateExpression()
         } else {
             if (lineEdit.backendValue.value !== text)
                 lineEdit.backendValue.value = text;
@@ -106,32 +118,21 @@ Controls.TextField {
     }
 
     style: TextFieldStyle {
-        selectionColor: lineEdit.textColor
-        selectedTextColor: "black"
+
+        selectionColor: creatorTheme.PanelTextColorLight
+        selectedTextColor: creatorTheme.PanelTextColorMid
         textColor: lineEdit.textColor
+        placeholderTextColor: creatorTheme.PanelTextColorMid
+
         padding.top: 3
-        padding.bottom: 1
+        padding.bottom: 3
         padding.left: 16
         padding.right: lineEdit.showTranslateCheckBox ? 16 : 1
-        placeholderTextColor: "gray"
         background: Rectangle {
             implicitWidth: 100
-            implicitHeight: 23
-            border.color: borderColor
-            gradient: Gradient {
-                GradientStop {color: "#2c2c2c" ; position: 0}
-                GradientStop {color: "#343434" ; position: 0.15}
-                GradientStop {color: "#373737" ; position: 1.0}
-            }
-            Rectangle {
-                border.color: highlightColor
-                anchors.fill: parent
-                anchors.margins: -1
-                color: "transparent"
-                radius: 4
-                opacity: 0.3
-                visible: control.activeFocus
-            }
+            implicitHeight: 24
+            color: creatorTheme.QmlDesignerBackgroundColorDarker
+            border.color: creatorTheme.QmlDesignerBorderColor
         }
     }
 
@@ -154,7 +155,7 @@ Controls.TextField {
 
         onClicked: {
             if (trCheckbox.checked) {
-                lineEdit.backendValue.expression = "qsTr(\"" + escapeString(lineEdit.text) + "\")"
+                setTranslateExpression()
             } else {
                 var textValue = lineEdit.text
                 lineEdit.backendValue.value = textValue
@@ -177,14 +178,26 @@ Controls.TextField {
 
         style: CheckBoxStyle {
             spacing: 8
-            indicator:  Item {
-                implicitWidth: 16
-                implicitHeight: 16
-                Image { source: "qrc:qmldesigner/images/checkbox_tr_" +
-                                (control.checked ? "checked": "unchecked") +
-                                (control.pressed ? "_pressed": "") + ".png" }
+            indicator: Item {
+                implicitWidth: 15
+                implicitHeight: 15
+                x: 7
+                y: 1
+                Rectangle {
+                    anchors.fill: parent
+                    border.color: creatorTheme.QmlDesignerBorderColor
+                    color: creatorTheme.QmlDesignerBackgroundColorDarker
+                    opacity: control.hovered || control.pressed ? 1 : 0.75
+                }
+                Image {
+                    x: 1
+                    y: 1
+                    width: 13
+                    height: 13
+                    source: "image://icons/tr"
+                    opacity: control.checked ? 1 : 0.3;
+                }
             }
-        }                                          //control.pressed ? "qrc:qmldesigner/images/checkbox_unchecked_pressed.png" :
-
+        }
     }
 }

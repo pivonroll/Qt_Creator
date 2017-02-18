@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,6 +28,7 @@
 #include "effects.h"
 #include "reuse.h"
 
+#include <utils/faketooltip.h>
 #include <utils/hostosinfo.h>
 #include <utils/qtcassert.h>
 
@@ -88,6 +84,17 @@ void ToolTip::show(const QPoint &pos, QWidget *content, QWidget *w, const QStrin
         instance()->hideTipWithDelay();
     else
         instance()->showInternal(pos, QVariant::fromValue(content), WidgetContent, w, helpId, rect);
+}
+
+void ToolTip::show(const QPoint &pos, QLayout *content, QWidget *w, const QString &helpId, const QRect &rect)
+{
+    if (content && content->count()) {
+        auto tooltipWidget = new FakeToolTip;
+        tooltipWidget->setLayout(content);
+        instance()->showInternal(pos, QVariant::fromValue(tooltipWidget), WidgetContent, w, helpId, rect);
+    } else {
+        instance()->hideTipWithDelay();
+    }
 }
 
 void ToolTip::move(const QPoint &pos, QWidget *w)
@@ -211,6 +218,11 @@ void ToolTip::hide()
     instance()->hideTipWithDelay();
 }
 
+void ToolTip::hideImmediately()
+{
+    instance()->hideTipImmediately();
+}
+
 void ToolTip::hideTipWithDelay()
 {
     if (!m_hideDelayTimer.isActive())
@@ -283,22 +295,26 @@ void ToolTip::placeTip(const QPoint &pos, QWidget *w)
 
 bool ToolTip::eventFilter(QObject *o, QEvent *event)
 {
+    if (m_tip && event->type() == QEvent::ApplicationStateChange
+            && qApp->applicationState() != Qt::ApplicationActive) {
+        hideTipImmediately();
+    }
+
     if (!o->isWidgetType())
         return false;
 
     switch (event->type()) {
-#ifdef Q_OS_MAC
     case QEvent::KeyPress:
-    case QEvent::KeyRelease: {
-        int key = static_cast<QKeyEvent *>(event)->key();
-        Qt::KeyboardModifiers mody = static_cast<QKeyEvent *>(event)->modifiers();
-        if (!(mody & Qt::KeyboardModifierMask)
-            && key != Qt::Key_Shift && key != Qt::Key_Control
-            && key != Qt::Key_Alt && key != Qt::Key_Meta)
-            hideTipWithDelay();
+    case QEvent::KeyRelease:
+        if (HostOsInfo::isMacHost()) {
+            int key = static_cast<QKeyEvent *>(event)->key();
+            Qt::KeyboardModifiers mody = static_cast<QKeyEvent *>(event)->modifiers();
+            if (!(mody & Qt::KeyboardModifierMask)
+                && key != Qt::Key_Shift && key != Qt::Key_Control
+                && key != Qt::Key_Alt && key != Qt::Key_Meta)
+                hideTipWithDelay();
+        }
         break;
-    }
-#endif
     case QEvent::Leave:
         if (o == m_tip && !m_tip->isAncestorOf(qApp->focusWidget()))
             hideTipWithDelay();

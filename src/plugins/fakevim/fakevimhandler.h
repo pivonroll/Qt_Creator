@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef FAKEVIM_HANDLER_H
-#define FAKEVIM_HANDLER_H
+#pragma once
 
 #include <QObject>
 #include <QTextEdit>
@@ -101,7 +95,7 @@ public:
 
     static void updateGlobalMarksFilenames(const QString &oldFileName, const QString &newFileName);
 
-public slots:
+public:
     void setCurrentFileName(const QString &fileName);
     QString currentFileName() const;
 
@@ -112,6 +106,7 @@ public slots:
     void handleCommand(const QString &cmd);
     void handleReplay(const QString &keys);
     void handleInput(const QString &keys);
+    void enterCommandMode();
 
     void installEventFilter();
 
@@ -137,31 +132,31 @@ public slots:
     bool eventFilter(QObject *ob, QEvent *ev);
 
 signals:
-    void commandBufferChanged(const QString &msg, int cursorPos,
-        int anchorPos, int messageLevel, QObject *eventFilter);
-    void statusDataChanged(const QString &msg);
-    void extraInformationChanged(const QString &msg);
-    void selectionChanged(const QList<QTextEdit::ExtraSelection> &selection);
-    void highlightMatches(const QString &needle);
-    void writeAllRequested(QString *error);
-    void moveToMatchingParenthesis(bool *moved, bool *forward, QTextCursor *cursor);
-    void checkForElectricCharacter(bool *result, QChar c);
-    void indentRegion(int beginLine, int endLine, QChar typedChar);
-    void completionRequested();
-    void simpleCompletionRequested(const QString &needle, bool forward);
-    void windowCommandRequested(const QString &key, int count);
-    void findRequested(bool reverse);
-    void findNextRequested(bool reverse);
-    void handleExCommandRequested(bool *handled, const ExCommand &cmd);
-    void requestDisableBlockSelection();
-    void requestSetBlockSelection(const QTextCursor&);
-    void requestBlockSelection(QTextCursor*);
-    void requestHasBlockSelection(bool *on);
-    void foldToggle(int depth);
-    void foldAll(bool fold);
-    void fold(int depth, bool fold);
-    void foldGoTo(int count, bool current);
-    void jumpToGlobalMark(QChar mark, bool backTickMode, const QString &fileName);
+    void commandBufferChanged(FakeVimHandler *self, const QString &msg, int cursorPos, int anchorPos,
+                              int messageLevel);
+    void statusDataChanged(FakeVimHandler *self, const QString &msg);
+    void extraInformationChanged(FakeVimHandler *self, const QString &msg);
+    void selectionChanged(FakeVimHandler *self, const QList<QTextEdit::ExtraSelection> &selection);
+    void highlightMatches(FakeVimHandler *self, const QString &needle);
+    void writeAllRequested(FakeVimHandler *self, QString *error);
+    void moveToMatchingParenthesis(FakeVimHandler *self, bool *moved, bool *forward, QTextCursor *cursor);
+    void checkForElectricCharacter(FakeVimHandler *self, bool *result, QChar c);
+    void indentRegion(FakeVimHandler *self, int beginLine, int endLine, QChar typedChar);
+    void completionRequested(FakeVimHandler *self);
+    void simpleCompletionRequested(FakeVimHandler *self, const QString &needle, bool forward);
+    void windowCommandRequested(FakeVimHandler *self, const QString &key, int count);
+    void findRequested(FakeVimHandler *self, bool reverse);
+    void findNextRequested(FakeVimHandler *self, bool reverse);
+    void handleExCommandRequested(FakeVimHandler *self, bool *handled, const ExCommand &cmd);
+    void requestDisableBlockSelection(FakeVimHandler *self);
+    void requestSetBlockSelection(FakeVimHandler *self, const QTextCursor &cursor);
+    void requestBlockSelection(FakeVimHandler *self, QTextCursor *cursor);
+    void requestHasBlockSelection(FakeVimHandler *self, bool *on);
+    void foldToggle(FakeVimHandler *self, int depth);
+    void foldAll(FakeVimHandler *self, bool fold);
+    void fold(FakeVimHandler *self, int depth, bool fold);
+    void foldGoTo(FakeVimHandler *self, int count, bool current);
+    void jumpToGlobalMark(FakeVimHandler *handler, QChar mark, bool backTickMode, const QString &fileName);
 
 public:
     class Private;
@@ -174,6 +169,3 @@ private:
 } // namespace FakeVim
 
 Q_DECLARE_METATYPE(FakeVim::Internal::ExCommand)
-
-
-#endif // FAKEVIM_HANDLER_H

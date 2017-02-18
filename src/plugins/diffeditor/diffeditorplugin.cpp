@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,97 +33,414 @@
 
 #include <QAction>
 #include <QFileDialog>
+#include <QFutureWatcher>
+#include <QMenu>
 #include <QTextCodec>
 #include <QtPlugin>
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/coreconstants.h>
+#include <coreplugin/editormanager/documentmodel.h>
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/icore.h>
+#include <coreplugin/progressmanager/progressmanager.h>
 
+#include <texteditor/textdocument.h>
+#include <texteditor/texteditor.h>
+
+#include <utils/algorithm.h>
+#include <utils/mapreduce.h>
 #include <utils/qtcassert.h>
+
+using namespace Core;
 
 namespace DiffEditor {
 namespace Internal {
 
-class FileDiffController : public DiffEditorController
+class ReloadInput {
+public:
+    QString leftText;
+    QString rightText;
+    DiffFileInfo leftFileInfo;
+    DiffFileInfo rightFileInfo;
+    FileData::FileOperation fileOperation = FileData::ChangeFile;
+};
+
+class DiffFile
+{
+public:
+    DiffFile(bool ignoreWhitespace, int contextLineCount)
+        : m_ignoreWhitespace(ignoreWhitespace),
+          m_contextLineCount(contextLineCount)
+    {}
+
+    void operator()(QFutureInterface<FileData> &futureInterface,
+                    const ReloadInput &reloadInfo) const
+    {
+        Differ differ(&futureInterface);
+        const QList<Diff> diffList = differ.cleanupSemantics(
+                    differ.diff(reloadInfo.leftText, reloadInfo.rightText));
+
+        QList<Diff> leftDiffList;
+        QList<Diff> rightDiffList;
+        Differ::splitDiffList(diffList, &leftDiffList, &rightDiffList);
+        QList<Diff> outputLeftDiffList;
+        QList<Diff> outputRightDiffList;
+
+        if (m_ignoreWhitespace) {
+            const QList<Diff> leftIntermediate
+                    = Differ::moveWhitespaceIntoEqualities(leftDiffList);
+            const QList<Diff> rightIntermediate
+                    = Differ::moveWhitespaceIntoEqualities(rightDiffList);
+            Differ::ignoreWhitespaceBetweenEqualities(leftIntermediate, rightIntermediate,
+                                                      &outputLeftDiffList, &outputRightDiffList);
+        } else {
+            outputLeftDiffList = leftDiffList;
+            outputRightDiffList = rightDiffList;
+        }
+
+        const ChunkData chunkData = DiffUtils::calculateOriginalData(
+                    outputLeftDiffList, outputRightDiffList);
+        FileData fileData = DiffUtils::calculateContextData(chunkData, m_contextLineCount, 0);
+        fileData.leftFileInfo = reloadInfo.leftFileInfo;
+        fileData.rightFileInfo = reloadInfo.rightFileInfo;
+        fileData.fileOperation = reloadInfo.fileOperation;
+        futureInterface.reportResult(fileData);
+    }
+
+private:
+    const bool m_ignoreWhitespace;
+    const int m_contextLineCount;
+};
+
+class DiffFilesController : public DiffEditorController
 {
     Q_OBJECT
 public:
-    FileDiffController(Core::IDocument *document, const QString &leftFileName,
-                       const QString &rightFileName);
+    DiffFilesController(IDocument *document);
+    ~DiffFilesController();
 
 protected:
-    void reload();
-
+    void reload() final;
+    virtual QList<ReloadInput> reloadInputList() const = 0;
 private:
-    QString m_leftFileName;
-    QString m_rightFileName;
+    void reloaded();
+    void cancelReload();
+
+    QFutureWatcher<FileData> m_futureWatcher;
 };
 
-FileDiffController::FileDiffController(Core::IDocument *document, const QString &leftFileName,
-                                       const QString &rightFileName) :
-    DiffEditorController(document), m_leftFileName(leftFileName), m_rightFileName(rightFileName)
-{ }
-
-void FileDiffController::reload()
+DiffFilesController::DiffFilesController(IDocument *document)
+    : DiffEditorController(document)
 {
-    QString errorString;
-    Utils::TextFileFormat format;
-    format.codec = Core::EditorManager::defaultTextCodec();
+    connect(&m_futureWatcher, &QFutureWatcher<FileData>::finished,
+            this, &DiffFilesController::reloaded);
+}
 
-    QString leftText;
-    if (Utils::TextFileFormat::readFile(m_leftFileName,
-                                    format.codec,
-                                    &leftText, &format, &errorString)
-            != Utils::TextFileFormat::ReadSuccess) {
-        return;
-    }
+DiffFilesController::~DiffFilesController()
+{
+    cancelReload();
+}
 
-    QString rightText;
-    if (Utils::TextFileFormat::readFile(m_rightFileName,
-                                    format.codec,
-                                    &rightText, &format, &errorString)
-            != Utils::TextFileFormat::ReadSuccess) {
-        return;
-    }
+void DiffFilesController::reload()
+{
+    cancelReload();
+    m_futureWatcher.setFuture(Utils::map(reloadInputList(),
+                                         DiffFile(ignoreWhitespace(),
+                                                  contextLineCount())));
 
-    Differ differ;
-    QList<Diff> diffList = differ.cleanupSemantics(differ.diff(leftText, rightText));
+    Core::ProgressManager::addTask(m_futureWatcher.future(),
+                                   tr("Calculating diff"), "DiffEditor");
+}
 
-    QList<Diff> leftDiffList;
-    QList<Diff> rightDiffList;
-    Differ::splitDiffList(diffList, &leftDiffList, &rightDiffList);
-    QList<Diff> outputLeftDiffList;
-    QList<Diff> outputRightDiffList;
-
-    if (ignoreWhitespace()) {
-        const QList<Diff> leftIntermediate
-                = Differ::moveWhitespaceIntoEqualities(leftDiffList);
-        const QList<Diff> rightIntermediate
-                = Differ::moveWhitespaceIntoEqualities(rightDiffList);
-        Differ::ignoreWhitespaceBetweenEqualities(leftIntermediate, rightIntermediate,
-                                                  &outputLeftDiffList, &outputRightDiffList);
-    } else {
-        outputLeftDiffList = leftDiffList;
-        outputRightDiffList = rightDiffList;
-    }
-
-    const ChunkData chunkData = DiffUtils::calculateOriginalData(
-                outputLeftDiffList, outputRightDiffList);
-    FileData fileData = DiffUtils::calculateContextData(chunkData, contextLineCount(), 0);
-    fileData.leftFileInfo.fileName = m_leftFileName;
-    fileData.rightFileInfo.fileName = m_rightFileName;
-
-    QList<FileData> fileDataList;
-    fileDataList << fileData;
+void DiffFilesController::reloaded()
+{
+    const QList<FileData> fileDataList = m_futureWatcher.future().results();
 
     setDiffFiles(fileDataList);
     reloadFinished(true);
 }
 
+void DiffFilesController::cancelReload()
+{
+    if (m_futureWatcher.future().isRunning()) {
+        m_futureWatcher.future().cancel();
+        m_futureWatcher.setFuture(QFuture<FileData>());
+    }
+}
+
+class DiffCurrentFileController : public DiffFilesController
+{
+    Q_OBJECT
+public:
+    DiffCurrentFileController(IDocument *document, const QString &fileName);
+
+protected:
+    QList<ReloadInput> reloadInputList() const final;
+
+private:
+    const QString m_fileName;
+};
+
+DiffCurrentFileController::DiffCurrentFileController(IDocument *document, const QString &fileName) :
+    DiffFilesController(document), m_fileName(fileName)
+{ }
+
+QList<ReloadInput> DiffCurrentFileController::reloadInputList() const
+{
+    QList<ReloadInput> result;
+
+    TextEditor::TextDocument *textDocument = qobject_cast<TextEditor::TextDocument *>(
+                DocumentModel::documentForFilePath(m_fileName));
+
+    if (textDocument && textDocument->isModified()) {
+        QString errorString;
+        Utils::TextFileFormat format = textDocument->format();
+
+        QString leftText;
+        bool leftFileExists = true;
+        if (Utils::TextFileFormat::readFile(m_fileName,
+                                            format.codec,
+                                            &leftText, &format, &errorString)
+                != Utils::TextFileFormat::ReadSuccess) {
+            leftFileExists = false;
+        }
+
+        const QString rightText = textDocument->plainText();
+
+        ReloadInput reloadInput;
+        reloadInput.leftText = leftText;
+        reloadInput.rightText = rightText;
+        reloadInput.leftFileInfo.fileName = m_fileName;
+        reloadInput.rightFileInfo.fileName = m_fileName;
+        reloadInput.leftFileInfo.typeInfo = tr("Saved");
+        reloadInput.rightFileInfo.typeInfo = tr("Modified");
+        reloadInput.rightFileInfo.patchBehaviour = DiffFileInfo::PatchEditor;
+
+        if (!leftFileExists)
+            reloadInput.fileOperation = FileData::NewFile;
+
+        result << reloadInput;
+    }
+
+    return result;
+}
+
 /////////////////
+
+class DiffOpenFilesController : public DiffFilesController
+{
+    Q_OBJECT
+public:
+    DiffOpenFilesController(IDocument *document);
+
+protected:
+    QList<ReloadInput> reloadInputList() const final;
+};
+
+DiffOpenFilesController::DiffOpenFilesController(IDocument *document) :
+    DiffFilesController(document)
+{ }
+
+QList<ReloadInput> DiffOpenFilesController::reloadInputList() const
+{
+    QList<ReloadInput> result;
+
+    const QList<IDocument *> openedDocuments = DocumentModel::openedDocuments();
+
+    foreach (IDocument *doc, openedDocuments) {
+        TextEditor::TextDocument *textDocument = qobject_cast<TextEditor::TextDocument *>(doc);
+
+        if (textDocument && textDocument->isModified()) {
+            QString errorString;
+            Utils::TextFileFormat format = textDocument->format();
+
+            QString leftText;
+            bool leftFileExists = true;
+            const QString fileName = textDocument->filePath().toString();
+            if (Utils::TextFileFormat::readFile(fileName,
+                                                format.codec,
+                                                &leftText, &format, &errorString)
+                    != Utils::TextFileFormat::ReadSuccess) {
+                leftFileExists = false;
+            }
+
+            const QString rightText = textDocument->plainText();
+
+            ReloadInput reloadInput;
+            reloadInput.leftText = leftText;
+            reloadInput.rightText = rightText;
+            reloadInput.leftFileInfo.fileName = fileName;
+            reloadInput.rightFileInfo.fileName = fileName;
+            reloadInput.leftFileInfo.typeInfo = tr("Saved");
+            reloadInput.rightFileInfo.typeInfo = tr("Modified");
+            reloadInput.rightFileInfo.patchBehaviour = DiffFileInfo::PatchEditor;
+
+            if (!leftFileExists)
+                reloadInput.fileOperation = FileData::NewFile;
+
+            result << reloadInput;
+        }
+    }
+
+    return result;
+}
+
+/////////////////
+
+class DiffModifiedFilesController : public DiffFilesController
+{
+    Q_OBJECT
+public:
+    DiffModifiedFilesController(IDocument *document, const QStringList &fileNames);
+
+protected:
+    QList<ReloadInput> reloadInputList() const final;
+
+private:
+    const QStringList m_fileNames;
+};
+
+DiffModifiedFilesController::DiffModifiedFilesController(IDocument *document, const QStringList &fileNames) :
+    DiffFilesController(document), m_fileNames(fileNames)
+{ }
+
+QList<ReloadInput> DiffModifiedFilesController::reloadInputList() const
+{
+    QList<ReloadInput> result;
+
+    foreach (const QString fileName, m_fileNames) {
+        TextEditor::TextDocument *textDocument = qobject_cast<TextEditor::TextDocument *>(
+                    DocumentModel::documentForFilePath(fileName));
+
+        if (textDocument && textDocument->isModified()) {
+            QString errorString;
+            Utils::TextFileFormat format = textDocument->format();
+
+            QString leftText;
+            bool leftFileExists = true;
+            const QString fileName = textDocument->filePath().toString();
+            if (Utils::TextFileFormat::readFile(fileName,
+                                                format.codec,
+                                                &leftText, &format, &errorString)
+                    != Utils::TextFileFormat::ReadSuccess) {
+                leftFileExists = false;
+            }
+
+            const QString rightText = textDocument->plainText();
+
+            ReloadInput reloadInput;
+            reloadInput.leftText = leftText;
+            reloadInput.rightText = rightText;
+            reloadInput.leftFileInfo.fileName = fileName;
+            reloadInput.rightFileInfo.fileName = fileName;
+            reloadInput.leftFileInfo.typeInfo = tr("Saved");
+            reloadInput.rightFileInfo.typeInfo = tr("Modified");
+            reloadInput.rightFileInfo.patchBehaviour = DiffFileInfo::PatchEditor;
+
+            if (!leftFileExists)
+                reloadInput.fileOperation = FileData::NewFile;
+
+            result << reloadInput;
+        }
+    }
+
+    return result;
+}
+
+/////////////////
+
+class DiffExternalFilesController : public DiffFilesController
+{
+    Q_OBJECT
+public:
+    DiffExternalFilesController(IDocument *document, const QString &leftFileName,
+                       const QString &rightFileName);
+
+protected:
+    QList<ReloadInput> reloadInputList() const final;
+
+private:
+    const QString m_leftFileName;
+    const QString m_rightFileName;
+};
+
+DiffExternalFilesController::DiffExternalFilesController(IDocument *document, const QString &leftFileName,
+                                       const QString &rightFileName) :
+    DiffFilesController(document), m_leftFileName(leftFileName), m_rightFileName(rightFileName)
+{ }
+
+QList<ReloadInput> DiffExternalFilesController::reloadInputList() const
+{
+    QString errorString;
+    Utils::TextFileFormat format;
+    format.codec = EditorManager::defaultTextCodec();
+
+    QString leftText;
+    bool leftFileExists = true;
+    if (Utils::TextFileFormat::readFile(m_leftFileName,
+                                    format.codec,
+                                    &leftText, &format, &errorString)
+            != Utils::TextFileFormat::ReadSuccess) {
+        leftFileExists = false;
+    }
+
+    QString rightText;
+    bool rightFileExists = true;
+    if (Utils::TextFileFormat::readFile(m_rightFileName,
+                                    format.codec,
+                                    &rightText, &format, &errorString)
+            != Utils::TextFileFormat::ReadSuccess) {
+        rightFileExists = false;
+    }
+
+    ReloadInput reloadInput;
+    reloadInput.leftText = leftText;
+    reloadInput.rightText = rightText;
+    reloadInput.leftFileInfo.fileName = m_leftFileName;
+    reloadInput.rightFileInfo.fileName = m_rightFileName;
+    if (!leftFileExists && rightFileExists)
+        reloadInput.fileOperation = FileData::NewFile;
+    else if (leftFileExists && !rightFileExists)
+        reloadInput.fileOperation = FileData::DeleteFile;
+
+    QList<ReloadInput> result;
+    if (leftFileExists || rightFileExists)
+        result << reloadInput;
+
+    return result;
+}
+
+/////////////////
+
+
+static TextEditor::TextDocument *currentTextDocument()
+{
+    return qobject_cast<TextEditor::TextDocument *>(
+                EditorManager::currentDocument());
+}
+
+DiffEditorServiceImpl::DiffEditorServiceImpl(QObject *parent) :
+    QObject(parent)
+{
+}
+
+void DiffEditorServiceImpl::diffModifiedFiles(const QStringList &fileNames)
+{
+    const QString documentId = Constants::DIFF_EDITOR_PLUGIN
+            + QLatin1String(".DiffModifiedFiles");
+    const QString title = tr("Diff Modified Files");
+    auto const document = qobject_cast<DiffEditorDocument *>(
+                DiffEditorController::findOrCreateDocument(documentId, title));
+    if (!document)
+        return;
+
+    if (!DiffEditorController::controller(document))
+        new DiffModifiedFilesController(document, fileNames);
+    EditorManager::activateEditorForDocument(document);
+    document->reload();
+}
 
 bool DiffEditorPlugin::initialize(const QStringList &arguments, QString *errorMessage)
 {
@@ -136,16 +448,46 @@ bool DiffEditorPlugin::initialize(const QStringList &arguments, QString *errorMe
     Q_UNUSED(errorMessage)
 
     //register actions
-    Core::ActionContainer *toolsContainer
-            = Core::ActionManager::actionContainer(Core::Constants::M_TOOLS);
+    ActionContainer *toolsContainer
+            = ActionManager::actionContainer(Core::Constants::M_TOOLS);
     toolsContainer->insertGroup(Core::Constants::G_TOOLS_OPTIONS, Constants::G_TOOLS_DIFF);
+    ActionContainer *diffContainer = ActionManager::createMenu("Diff");
+    diffContainer->menu()->setTitle(tr("&Diff"));
+    toolsContainer->addMenu(diffContainer, Constants::G_TOOLS_DIFF);
 
-    QAction *diffAction = new QAction(tr("Diff..."), this);
-    Core::Command *diffCommand = Core::ActionManager::registerAction(diffAction, "DiffEditor.Diff");
-    connect(diffAction, &QAction::triggered, this, &DiffEditorPlugin::diff);
-    toolsContainer->addAction(diffCommand, Constants::G_TOOLS_DIFF);
+    m_diffCurrentFileAction = new QAction(tr("Diff Current File"), this);
+    Command *diffCurrentFileCommand = ActionManager::registerAction(m_diffCurrentFileAction, "DiffEditor.DiffCurrentFile");
+    diffCurrentFileCommand->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+H") : tr("Ctrl+H")));
+    connect(m_diffCurrentFileAction, &QAction::triggered, this, &DiffEditorPlugin::diffCurrentFile);
+    diffContainer->addAction(diffCurrentFileCommand);
+
+    m_diffOpenFilesAction = new QAction(tr("Diff Open Files"), this);
+    Command *diffOpenFilesCommand = ActionManager::registerAction(m_diffOpenFilesAction, "DiffEditor.DiffOpenFiles");
+    diffOpenFilesCommand->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+Shift+H") : tr("Ctrl+Shift+H")));
+    connect(m_diffOpenFilesAction, &QAction::triggered, this, &DiffEditorPlugin::diffOpenFiles);
+    diffContainer->addAction(diffOpenFilesCommand);
+
+    QAction *diffExternalFilesAction = new QAction(tr("Diff External Files..."), this);
+    Command *diffExternalFilesCommand = ActionManager::registerAction(diffExternalFilesAction, "DiffEditor.DiffExternalFiles");
+    connect(diffExternalFilesAction, &QAction::triggered, this, &DiffEditorPlugin::diffExternalFiles);
+    diffContainer->addAction(diffExternalFilesCommand);
+
+    connect(EditorManager::instance(), &EditorManager::currentEditorChanged,
+        this, &DiffEditorPlugin::updateDiffCurrentFileAction);
+    connect(EditorManager::instance(), &EditorManager::currentDocumentStateChanged,
+        this, &DiffEditorPlugin::updateDiffCurrentFileAction);
+    connect(EditorManager::instance(), &EditorManager::editorOpened,
+        this, &DiffEditorPlugin::updateDiffOpenFilesAction);
+    connect(EditorManager::instance(), &EditorManager::editorsClosed,
+        this, &DiffEditorPlugin::updateDiffOpenFilesAction);
+    connect(EditorManager::instance(), &EditorManager::documentStateChanged,
+        this, &DiffEditorPlugin::updateDiffOpenFilesAction);
+
+    updateDiffCurrentFileAction();
+    updateDiffOpenFilesAction();
 
     addAutoReleasedObject(new DiffEditorFactory(this));
+    addAutoReleasedObject(new DiffEditorServiceImpl(this));
 
     return true;
 }
@@ -153,31 +495,91 @@ bool DiffEditorPlugin::initialize(const QStringList &arguments, QString *errorMe
 void DiffEditorPlugin::extensionsInitialized()
 { }
 
-void DiffEditorPlugin::diff()
+void DiffEditorPlugin::updateDiffCurrentFileAction()
 {
-    QString fileName1 = QFileDialog::getOpenFileName(Core::ICore::dialogParent(),
-                                                     tr("Select First File for Diff"),
-                                                     QString());
-    if (fileName1.isNull())
+    auto textDocument = currentTextDocument();
+    const bool enabled = textDocument && textDocument->isModified();
+    m_diffCurrentFileAction->setEnabled(enabled);
+}
+
+void DiffEditorPlugin::updateDiffOpenFilesAction()
+{
+    const bool enabled = Utils::anyOf(DocumentModel::openedDocuments(), [](IDocument *doc) {
+            return doc->isModified() && qobject_cast<TextEditor::TextDocument *>(doc);
+        });
+    m_diffOpenFilesAction->setEnabled(enabled);
+}
+
+void DiffEditorPlugin::diffCurrentFile()
+{
+    auto textDocument = currentTextDocument();
+    if (!textDocument)
         return;
 
-    QString fileName2 = QFileDialog::getOpenFileName(Core::ICore::dialogParent(),
-                                                     tr("Select Second File for Diff"),
-                                                     QString());
-    if (fileName2.isNull())
+    const QString fileName = textDocument->filePath().toString();
+
+    if (fileName.isEmpty())
         return;
 
-
-    const QString documentId = QLatin1String("Diff ") + fileName1 + QLatin1String(", ") + fileName2;
-    QString title = tr("Diff \"%1\", \"%2\"").arg(fileName1).arg(fileName2);
+    const QString documentId = Constants::DIFF_EDITOR_PLUGIN
+            + QLatin1String(".Diff.") + fileName;
+    const QString title = tr("Diff \"%1\"").arg(fileName);
     auto const document = qobject_cast<DiffEditorDocument *>(
                 DiffEditorController::findOrCreateDocument(documentId, title));
     if (!document)
         return;
 
     if (!DiffEditorController::controller(document))
-        new FileDiffController(document, fileName1, fileName2);
-    Core::EditorManager::activateEditorForDocument(document);
+        new DiffCurrentFileController(document, fileName);
+    EditorManager::activateEditorForDocument(document);
+    document->reload();
+}
+
+void DiffEditorPlugin::diffOpenFiles()
+{
+    const QString documentId = Constants::DIFF_EDITOR_PLUGIN
+            + QLatin1String(".DiffOpenFiles");
+    const QString title = tr("Diff Open Files");
+    auto const document = qobject_cast<DiffEditorDocument *>(
+                DiffEditorController::findOrCreateDocument(documentId, title));
+    if (!document)
+        return;
+
+    if (!DiffEditorController::controller(document))
+        new DiffOpenFilesController(document);
+    EditorManager::activateEditorForDocument(document);
+    document->reload();
+}
+
+void DiffEditorPlugin::diffExternalFiles()
+{
+    const QString fileName1 = QFileDialog::getOpenFileName(ICore::dialogParent(),
+                                                     tr("Select First File for Diff"),
+                                                     QString());
+    if (fileName1.isNull())
+        return;
+    if (EditorManager::skipOpeningBigTextFile(fileName1))
+        return;
+
+    const QString fileName2 = QFileDialog::getOpenFileName(ICore::dialogParent(),
+                                                     tr("Select Second File for Diff"),
+                                                     QString());
+    if (fileName2.isNull())
+        return;
+    if (EditorManager::skipOpeningBigTextFile(fileName2))
+        return;
+
+    const QString documentId = Constants::DIFF_EDITOR_PLUGIN
+            + QLatin1String(".DiffExternalFiles.") + fileName1 + QLatin1Char('.') + fileName2;
+    const QString title = tr("Diff \"%1\", \"%2\"").arg(fileName1, fileName2);
+    auto const document = qobject_cast<DiffEditorDocument *>(
+                DiffEditorController::findOrCreateDocument(documentId, title));
+    if (!document)
+        return;
+
+    if (!DiffEditorController::controller(document))
+        new DiffExternalFilesController(document, fileName1, fileName2);
+    EditorManager::activateEditorForDocument(document);
     document->reload();
 }
 

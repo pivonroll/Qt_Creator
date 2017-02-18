@@ -17,7 +17,7 @@ HEADERS += \
     qmloutlinemodel.h \
     qmltaskmanager.h \
     qmljsoutlinetreeview.h \
-    quicktoolbarsettingspage.h \
+    qmljseditingsettingspage.h \
     quicktoolbar.h \
     qmljscomponentnamedialog.h \
     qmljsfindreferences.h \
@@ -46,7 +46,7 @@ SOURCES += \
     qmltaskmanager.cpp \
     qmljsquickfixes.cpp \
     qmljsoutlinetreeview.cpp \
-    quicktoolbarsettingspage.cpp \
+    qmljseditingsettingspage.cpp \
     quicktoolbar.cpp \
     qmljscomponentnamedialog.cpp \
     qmljsfindreferences.cpp \
@@ -61,8 +61,6 @@ SOURCES += \
     qmljswrapinloader.cpp \
     qmljseditordocument.cpp
 
-RESOURCES += qmljseditor.qrc
-
 FORMS += \
-    quicktoolbarsettingspage.ui \
+    qmljseditingsettingspage.ui \
     qmljscomponentnamedialog.ui

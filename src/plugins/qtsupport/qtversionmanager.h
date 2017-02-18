@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QTVERSIONMANAGER_H
-#define QTVERSIONMANAGER_H
+#pragma once
 
 #include "qtsupport_global.h"
 #include "baseqtversion.h"
@@ -47,22 +41,22 @@ public:
     QtVersionManager();
     ~QtVersionManager();
     static void initialized();
-    static bool delayedInitialize();
 
     static bool isLoaded();
 
     // This will *always* return at least one (Qt in Path), even if that is
-    // unconfigured.
-    static QList<BaseQtVersion *> versions();
-    static QList<BaseQtVersion *> validVersions();
-
-    // Sorting is slow due to needing to potentially run qmake --query for each version
-    static QList<BaseQtVersion *> unsortedVersions();
-
-    // Note: DO NOT STORE THIS POINTER!
-    //       The QtVersionManager will delete it at random times and you will
+    // unconfigured. The lists here are in load-time order! Use sortVersions(...) if you
+    // need a list sorted by Qt Version number.
+    //
+    // Note: DO NOT STORE THESE POINTERS!
+    //       The QtVersionManager may delete them at random times and you will
     //       need to get a new pointer by calling this function again!
+    static QList<BaseQtVersion *> versions(const BaseQtVersion::Predicate &predicate = BaseQtVersion::Predicate());
     static BaseQtVersion *version(int id);
+    static BaseQtVersion *version(const BaseQtVersion::Predicate &predicate);
+
+    // Sorting is potentially expensive since it might require qmake --query to run for each version!
+    static QList<BaseQtVersion *> sortVersions(const QList<BaseQtVersion *> &input);
 
     static BaseQtVersion *qtVersionForQMakeBinary(const Utils::FileName &qmakePath);
 
@@ -80,11 +74,10 @@ signals:
 public slots:
     void updateDumpFor(const Utils::FileName &qmakeCommand);
 
-private slots:
+private:
     void updateFromInstaller(bool emitSignal = true);
     void triggerQtVersionRestore();
 
-private:
     // Used by QtOptionsPage
     static void setNewQtVersions(QList<BaseQtVersion *> newVersions);
     // Used by QtVersion
@@ -92,5 +85,3 @@ private:
 };
 
 } // namespace QtSupport
-
-#endif // QTVERSIONMANAGER_H

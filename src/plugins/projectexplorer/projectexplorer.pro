@@ -1,4 +1,4 @@
-QT += quick qml
+QT += qml
 
 include(../../qtcreatorplugin.pri)
 include(customwizard/customwizard.pri)
@@ -14,7 +14,7 @@ HEADERS += projectexplorer.h \
     environmentaspectwidget.h \
     gcctoolchain.h \
     importwidget.h \
-    localapplicationrunconfiguration.h \
+    runnables.h \
     localenvironmentaspect.h \
     osparser.h \
     projectexplorer_export.h \
@@ -23,7 +23,6 @@ HEADERS += projectexplorer.h \
     removetaskhandler.h \
     targetsetuppage.h \
     targetsetupwidget.h \
-    unconfiguredprojectpanel.h \
     kit.h \
     kitchooser.h \
     kitconfigwidget.h \
@@ -59,7 +58,6 @@ HEADERS += projectexplorer.h \
     gnumakeparser.h \
     projectexplorerconstants.h \
     projectexplorersettings.h \
-    corelistenercheckingforrunningbuild.h \
     project.h \
     iprojectmanager.h \
     currentprojectfilter.h \
@@ -79,6 +77,7 @@ HEADERS += projectexplorer.h \
     buildprogress.h \
     projectnodes.h \
     sessiondialog.h \
+    sessionview.h \
     projectwizardpage.h \
     buildstepspage.h \
     nodesvisitor.h \
@@ -93,9 +92,6 @@ HEADERS += projectexplorer.h \
     projectexplorersettingspage.h \
     baseprojectwizarddialog.h \
     miniprojecttargetselector.h \
-    targetselector.h \
-    targetsettingswidget.h \
-    doubletabwidget.h \
     buildenvironmentwidget.h \
     ldparser.h \
     linuxiccparser.h \
@@ -106,13 +102,11 @@ HEADERS += projectexplorer.h \
     abstractprocessstep.h \
     taskhub.h \
     localapplicationruncontrol.h \
-    metatypedeclarations.h \
     headerpath.h \
     gcctoolchainfactories.h \
     appoutputpane.h \
     codestylesettingspropertiespage.h \
     settingsaccessor.h \
-    environmentitemswidget.h \
     deployablefile.h \
     devicesupport/idevice.h \
     devicesupport/desktopdevice.h \
@@ -148,13 +142,18 @@ HEADERS += projectexplorer.h \
     ipotentialkit.h \
     selectablefilesmodel.h \
     xcodebuildparser.h \
-    propertiespanel.h \
     panelswidget.h \
     projectwelcomepage.h \
+    sessionmodel.h \
     projectpanelfactory.h \
     projecttree.h \
     expanddata.h \
-    waitforstopdialog.h
+    waitforstopdialog.h \
+    projectexplorericons.h \
+    projectexplorer_global.h \
+    extracompiler.h \
+    customexecutableconfigurationwidget.h \
+    customexecutablerunconfiguration.h
 
 SOURCES += projectexplorer.cpp \
     abi.cpp \
@@ -167,7 +166,7 @@ SOURCES += projectexplorer.cpp \
     environmentaspectwidget.cpp \
     gcctoolchain.cpp \
     importwidget.cpp \
-    localapplicationrunconfiguration.cpp \
+    runnables.cpp \
     localenvironmentaspect.cpp \
     osparser.cpp \
     projectimporter.cpp \
@@ -175,7 +174,6 @@ SOURCES += projectexplorer.cpp \
     removetaskhandler.cpp \
     targetsetuppage.cpp \
     targetsetupwidget.cpp \
-    unconfiguredprojectpanel.cpp \
     kit.cpp \
     kitchooser.cpp \
     kitconfigwidget.cpp \
@@ -226,6 +224,7 @@ SOURCES += projectexplorer.cpp \
     buildprogress.cpp \
     projectnodes.cpp \
     sessiondialog.cpp \
+    sessionview.cpp \
     projectwizardpage.cpp \
     buildstepspage.cpp \
     nodesvisitor.cpp \
@@ -238,12 +237,8 @@ SOURCES += projectexplorer.cpp \
     cesdkhandler.cpp \
     gccparser.cpp \
     projectexplorersettingspage.cpp \
-    corelistenercheckingforrunningbuild.cpp \
     baseprojectwizarddialog.cpp \
     miniprojecttargetselector.cpp \
-    targetselector.cpp \
-    targetsettingswidget.cpp \
-    doubletabwidget.cpp \
     buildenvironmentwidget.cpp \
     ldparser.cpp \
     linuxiccparser.cpp \
@@ -256,7 +251,6 @@ SOURCES += projectexplorer.cpp \
     appoutputpane.cpp \
     codestylesettingspropertiespage.cpp \
     settingsaccessor.cpp \
-    environmentitemswidget.cpp \
     devicesupport/idevice.cpp \
     devicesupport/desktopdevice.cpp \
     devicesupport/desktopdevicefactory.cpp \
@@ -286,24 +280,25 @@ SOURCES += projectexplorer.cpp \
     projectmacroexpander.cpp \
     customparser.cpp \
     customparserconfigdialog.cpp \
-    ipotentialkit.cpp \
     selectablefilesmodel.cpp \
     xcodebuildparser.cpp \
-    propertiespanel.cpp \
     panelswidget.cpp \
     projectwelcomepage.cpp \
+    sessionmodel.cpp \
     projectpanelfactory.cpp \
     projecttree.cpp \
     expanddata.cpp \
-    waitforstopdialog.cpp
+    waitforstopdialog.cpp \
+    projectexplorericons.cpp \
+    extracompiler.cpp \
+    customexecutableconfigurationwidget.cpp \
+    customexecutablerunconfiguration.cpp
 
 FORMS += processstep.ui \
     editorsettingspropertiespage.ui \
     sessiondialog.ui \
     projectwizardpage.ui \
     projectexplorersettingspage.ui \
-    targetsettingswidget.ui \
-    doubletabwidget.ui \
     deploymentdataview.ui \
     codestylesettingspropertiespage.ui \
     devicesupport/devicefactoryselectiondialog.ui \

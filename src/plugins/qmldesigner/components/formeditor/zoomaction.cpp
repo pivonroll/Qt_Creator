@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,7 +33,7 @@ namespace QmlDesigner {
 ZoomAction::ZoomAction(QObject *parent)
     :  QWidgetAction(parent),
     m_zoomLevel(1.0),
-    m_currentComboBoxIndex(3)
+    m_currentComboBoxIndex(8)
 {
 
 }
@@ -57,16 +57,9 @@ void ZoomAction::zoomOut()
 
 void ZoomAction::setZoomLevel(double zoomLevel)
 {
-    if (zoomLevel < .1)
-        m_zoomLevel = 0.1;
-    else if (zoomLevel > 16.0)
-        m_zoomLevel = 16.0;
-    else
-        m_zoomLevel = zoomLevel;
-
+    m_zoomLevel = qBound(0.1, zoomLevel, 16.0);
     emit zoomLevelChanged(m_zoomLevel);
 }
-
 
 QWidget *ZoomAction::createWidget(QWidget *parent)
 {
@@ -82,7 +75,7 @@ QWidget *ZoomAction::createWidget(QWidget *parent)
         comboBox->addItem(QLatin1String("66 %"), 0.66);
         comboBox->addItem(QLatin1String("75 %"), 0.75);
         comboBox->addItem(QLatin1String("90 %"), 0.90);
-        comboBox->addItem(QLatin1String("100 %"), 1.0);
+        comboBox->addItem(QLatin1String("100 %"), 1.0); // initial m_zoomLevel and m_currentComboBoxIndex
         comboBox->addItem(QLatin1String("125 %"), 1.25);
         comboBox->addItem(QLatin1String("150 %"), 1.5);
         comboBox->addItem(QLatin1String("175 %"), 1.75);

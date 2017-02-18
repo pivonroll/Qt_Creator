@@ -1,22 +1,31 @@
 ----------------------------------------------------------------------------
 --
 -- Copyright (C) 2015 The Qt Company Ltd.
--- Contact: http://www.qt.io/licensing
+-- Contact: http://www.qt.io/licensing/
 --
 -- This file is part of the QtQml module of the Qt Toolkit.
 --
--- $QT_BEGIN_LICENSE:LGPL-ONLY$
+-- $QT_BEGIN_LICENSE:LGPL21$
+-- Commercial License Usage
+-- Licensees holding valid commercial Qt licenses may use this file in
+-- accordance with the commercial license agreement provided with the
+-- Software or, alternatively, in accordance with the terms contained in
+-- a written agreement between you and The Qt Company. For licensing terms
+-- and conditions see http://www.qt.io/terms-conditions. For further
+-- information use the contact form at http://www.qt.io/contact-us.
+--
 -- GNU Lesser General Public License Usage
--- This file may be used under the terms of the GNU Lesser
+-- Alternatively, this file may be used under the terms of the GNU Lesser
 -- General Public License version 2.1 or version 3 as published by the Free
 -- Software Foundation and appearing in the file LICENSE.LGPLv21 and
--- LICENSE.LGPLv3 included in the packaging of this file.  Please review the
+-- LICENSE.LGPLv3 included in the packaging of this file. Please review the
 -- following information to ensure the GNU Lesser General Public License
 -- requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 -- http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 --
--- If you have questions regarding the use of this file, please contact
--- us via http://www.qt.io/contact-us.
+-- As a special exception, The Qt Company gives you certain additional
+-- rights. These rights are described in The Qt Company LGPL Exception
+-- version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 --
 -- $QT_END_LICENSE$
 --
@@ -91,40 +100,31 @@
 /./****************************************************************************
 **
 ** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtQml module of the Qt Toolkit.
 **
-** $QT_BEGIN_LICENSE:LGPL$
+** $QT_BEGIN_LICENSE:LGPL21$
 ** Commercial License Usage
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
 ** General Public License version 2.1 or version 3 as published by the Free
 ** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
 ** following information to ensure the GNU Lesser General Public License
 ** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 ** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-**
-** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPL included in the
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -145,40 +145,31 @@
 /:/****************************************************************************
 **
 ** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the QtQml module of the Qt Toolkit.
 **
-** $QT_BEGIN_LICENSE:LGPL$
+** $QT_BEGIN_LICENSE:LGPL21$
 ** Commercial License Usage
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see http://www.qt.io/terms-conditions. For further
+** information use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
 ** General Public License version 2.1 or version 3 as published by the Free
 ** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
+** LICENSE.LGPLv3 included in the packaging of this file. Please review the
 ** following information to ensure the GNU Lesser General Public License
 ** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 ** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
+** As a special exception, The Qt Company gives you certain additional
+** rights. These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-**
-** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPL included in the
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
-**
 **
 ** $QT_END_LICENSE$
 **
@@ -208,8 +199,7 @@
 //    qlalr --no-debug --no-lines --qt qmljs.g
 //
 
-#ifndef QMLJSPARSER_P_H
-#define QMLJSPARSER_P_H
+#prama once
 
 #include "qmljsglobal_p.h"
 #include "qmljsgrammar_p.h"
@@ -515,7 +505,24 @@ bool Parser::parse(int startToken)
 
     token_buffer[0].token = startToken;
     first_token = &token_buffer[0];
-    last_token = &token_buffer[1];
+    if (startToken == T_FEED_JS_PROGRAM && !lexer->qmlMode()) {
+        Directives ignoreDirectives;
+        Directives *directives = driver->directives();
+        if (!directives)
+            directives = &ignoreDirectives;
+        DiagnosticMessage error;
+        if (!lexer->scanDirectives(directives, &error)) {
+            diagnostic_messages.append(error);
+            return false;
+        }
+        token_buffer[1].token = lexer->tokenKind();
+        token_buffer[1].dval = lexer->tokenValue();
+        token_buffer[1].loc = location(lexer);
+        token_buffer[1].spell = lexer->tokenSpell();
+        last_token = &token_buffer[2];
+    } else {
+        last_token = &token_buffer[1];
+    }
 
     tos = -1;
     program = 0;
@@ -1086,6 +1093,31 @@ case $rule_number: {
     AST::UiObjectBinding *binding = new (pool) AST::UiObjectBinding(
       propertyName, sym(5).UiQualifiedId, sym(6).UiObjectInitializer);
     binding->colonToken = loc(4);
+
+    node->binding = binding;
+
+    sym(1).Node = node;
+}   break;
+./
+
+UiObjectMember: T_READONLY T_PROPERTY UiPropertyType JsIdentifier T_COLON UiQualifiedId UiObjectInitializer ;
+/.
+case $rule_number: {
+    AST::UiPublicMember *node = new (pool) AST::UiPublicMember(stringRef(3), stringRef(4));
+    node->isReadonlyMember = true;
+    node->readonlyToken = loc(1);
+    node->propertyToken = loc(2);
+    node->typeToken = loc(3);
+    node->identifierToken = loc(4);
+    node->semicolonToken = loc(5); // insert a fake ';' before ':'
+
+    AST::UiQualifiedId *propertyName = new (pool) AST::UiQualifiedId(stringRef(4));
+    propertyName->identifierToken = loc(4);
+    propertyName->next = 0;
+
+    AST::UiObjectBinding *binding = new (pool) AST::UiObjectBinding(
+      propertyName, sym(6).UiQualifiedId, sym(7).UiObjectInitializer);
+    binding->colonToken = loc(5);
 
     node->binding = binding;
 
@@ -3039,9 +3071,9 @@ PropertyAssignmentListOpt: PropertyAssignmentList ;
             QString msg;
             int token = token_buffer[0].token;
             if (token < 0 || token >= TERMINAL_COUNT)
-                msg = qApp->translate("QmlParser", "Syntax error");
+                msg = QCoreApplication::translate("QmlParser", "Syntax error");
             else
-                msg = qApp->translate("QmlParser", "Unexpected token `%1'").arg(QLatin1String(spell[token]));
+                msg = QCoreApplication::translate("QmlParser", "Unexpected token `%1'").arg(QLatin1String(spell[token]));
             diagnostic_messages.append(DiagnosticMessage(DiagnosticMessage::Error, token_buffer[0].loc, msg));
 
             action = errorState;
@@ -3069,7 +3101,7 @@ PropertyAssignmentListOpt: PropertyAssignmentList ;
         for (int *tk = tokens; *tk != EOF_SYMBOL; ++tk) {
             int a = t_action(errorState, *tk);
             if (a > 0 && t_action(a, yytoken)) {
-                const QString msg = qApp->translate("QmlParser", "Expected token `%1'").arg(QLatin1String(spell[*tk]));
+                const QString msg = QCoreApplication::translate("QmlParser", "Expected token `%1'").arg(QLatin1String(spell[*tk]));
                 diagnostic_messages.append(DiagnosticMessage(DiagnosticMessage::Error, token_buffer[0].loc, msg));
 
                 yytoken = *tk;
@@ -3093,7 +3125,7 @@ PropertyAssignmentListOpt: PropertyAssignmentList ;
 
             int a = t_action(errorState, tk);
             if (a > 0 && t_action(a, yytoken)) {
-                const QString msg = qApp->translate("QmlParser", "Expected token `%1'").arg(QLatin1String(spell[tk]));
+                const QString msg = QCoreApplication::translate("QmlParser", "Expected token `%1'").arg(QLatin1String(spell[tk]));
                 diagnostic_messages.append(DiagnosticMessage(DiagnosticMessage::Error, token_buffer[0].loc, msg));
 
                 yytoken = tk;
@@ -3106,7 +3138,7 @@ PropertyAssignmentListOpt: PropertyAssignmentList ;
             }
         }
 
-        const QString msg = qApp->translate("QmlParser", "Syntax error");
+        const QString msg = QCoreApplication::translate("QmlParser", "Syntax error");
         diagnostic_messages.append(DiagnosticMessage(DiagnosticMessage::Error, token_buffer[0].loc, msg));
     }
 
@@ -3121,6 +3153,4 @@ QT_QML_END_NAMESPACE
 QT_QML_END_NAMESPACE
 
 
-
-#endif // QMLJSPARSER_P_H
 :/

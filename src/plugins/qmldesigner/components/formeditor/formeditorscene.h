@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,27 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+#pragma once
 
-#ifndef FORMEDITORSCENE_H
-#define FORMEDITORSCENE_H
-
+#include <qmlitemnode.h>
+#include "abstractformeditortool.h"
 
 #include <QGraphicsScene>
 #include <QPointer>
 #include <QHash>
-#include <qmlitemnode.h>
-#include "abstractformeditortool.h"
 
 QT_BEGIN_NAMESPACE
 class QGraphicsSceneMouseEvent;
@@ -69,12 +67,9 @@ public:
     double canvasWidth() const;
     double canvasHeight() const;
 
-    bool hasItemForQmlItemNode(const QmlItemNode &qmlItemNode) const;
-
-    void synchronizeTransformation(const QmlItemNode &qmlItemNode);
+    void synchronizeTransformation(FormEditorItem *item);
     void synchronizeParent(const QmlItemNode &qmlItemNode);
-    void synchronizeOtherProperty(const QmlItemNode &qmlItemNode, const QString &propertyName);
-    void synchronizeState(const QmlItemNode &qmlItemNode);
+    void synchronizeOtherProperty(FormEditorItem *item, const QByteArray &propertyName);
 
     FormEditorItem* calulateNewParent(FormEditorItem *widget);
     LayerItem* manipulatorLayerItem() const;
@@ -94,25 +89,28 @@ public slots:
     bool showBoundingRects() const;
 
 protected:
-    bool event(QEvent *event);
-    void dropEvent(QGraphicsSceneDragDropEvent * event);
-    void dragEnterEvent(QGraphicsSceneDragDropEvent * event);
-    void dragLeaveEvent(QGraphicsSceneDragDropEvent * event);
-    void dragMoveEvent(QGraphicsSceneDragDropEvent * event);
-    void mousePressEvent(QGraphicsSceneMouseEvent *event);
-    void mouseMoveEvent(QGraphicsSceneMouseEvent *event);
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event);
+    bool event(QEvent *event) override;
+    void dropEvent(QGraphicsSceneDragDropEvent * event) override;
+    void dragEnterEvent(QGraphicsSceneDragDropEvent * event) override;
+    void dragLeaveEvent(QGraphicsSceneDragDropEvent * event) override;
+    void dragMoveEvent(QGraphicsSceneDragDropEvent * event) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
 
     void hoverEnterEvent(QGraphicsSceneHoverEvent *event);
     void hoverMoveEvent(QGraphicsSceneHoverEvent *event);
     void hoverLeaveEvent(QGraphicsSceneHoverEvent *event);
 
-    void keyPressEvent(QKeyEvent *keyEvent);
-    void keyReleaseEvent(QKeyEvent *keyEvent);
+    void keyPressEvent(QKeyEvent *keyEvent) override;
+    void keyReleaseEvent(QKeyEvent *keyEvent) override;
+
+    void focusOutEvent(QFocusEvent *focusEvent) override;
 
 private:
     QList<QGraphicsItem *> removeLayerItems(const QList<QGraphicsItem *> &itemList);
+    QList<QGraphicsItem *> itemsAt(const QPointF &pos);
 
     AbstractFormEditorTool* currentTool() const;
     void removeItemFromHash(FormEditorItem*);
@@ -126,9 +124,4 @@ private:
     bool m_showBoundingRects;
 };
 
-
-
-
-}
-#endif //FORMEDITORSCENE_H
-
+} // namespace QmlDesigner

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef EXTERNALTOOLCONFIG_H
-#define EXTERNALTOOLCONFIG_H
+#pragma once
 
 #include "coreplugin/externaltool.h"
 
@@ -38,6 +32,8 @@
 #include <QDialog>
 
 QT_FORWARD_DECLARE_CLASS(QPlainTextEdit)
+
+namespace Utils { class EnvironmentItem; }
 
 namespace Core {
 namespace Internal {
@@ -52,21 +48,21 @@ public:
     explicit ExternalToolModel(QObject *parent);
     ~ExternalToolModel();
 
-    int columnCount(const QModelIndex &parent = QModelIndex()) const;
-    QVariant data(const QModelIndex &modelIndex, int role = Qt::DisplayRole) const;
-    QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const;
-    QModelIndex parent(const QModelIndex &child) const;
-    int rowCount(const QModelIndex &parent = QModelIndex()) const;
-    Qt::ItemFlags flags(const QModelIndex &modelIndex) const;
-    bool setData(const QModelIndex &modelIndex, const QVariant &value, int role = Qt::EditRole);
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex &modelIndex, int role = Qt::DisplayRole) const override;
+    QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
+    QModelIndex parent(const QModelIndex &child) const override;
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    Qt::ItemFlags flags(const QModelIndex &modelIndex) const override;
+    bool setData(const QModelIndex &modelIndex, const QVariant &value, int role = Qt::EditRole) override;
 
-    QMimeData *mimeData(const QModelIndexList &indexes) const;
+    QMimeData *mimeData(const QModelIndexList &indexes) const override;
     bool dropMimeData(const QMimeData *data,
                       Qt::DropAction action,
                       int row,
                       int column,
-                      const QModelIndex &parent);
-    QStringList mimeTypes() const;
+                      const QModelIndex &parent) override;
+    QStringList mimeTypes() const override;
 
     void setTools(const QMap<QString, QList<ExternalTool *> > &tools);
     QMap<QString, QList<ExternalTool *> > tools() const;
@@ -77,24 +73,12 @@ public:
     QModelIndex addCategory();
     QModelIndex addTool(const QModelIndex &atIndex);
     void removeTool(const QModelIndex &modelIndex);
-    Qt::DropActions supportedDropActions() const;
+    Qt::DropActions supportedDropActions() const override;
 private:
     QVariant data(ExternalTool *tool, int role = Qt::DisplayRole) const;
     QVariant data(const QString &category, int role = Qt::DisplayRole) const;
 
     QMap<QString, QList<ExternalTool *> > m_tools;
-};
-
-class EnvironmentChangesDialog : public QDialog
-{
-    Q_OBJECT
-public:
-    explicit EnvironmentChangesDialog(QWidget *parent = 0);
-
-    QStringList changes() const;
-    void setChanges(const QStringList &changes);
-private:
-    QPlainTextEdit *m_editor;
 };
 
 class ExternalToolConfig : public QWidget
@@ -109,7 +93,7 @@ public:
     QMap<QString, QList<ExternalTool *> > tools() const;
     void apply();
 
-private slots:
+private:
     void handleCurrentChanged(const QModelIndex &now, const QModelIndex &previous);
     void showInfoForItem(const QModelIndex &index);
     void updateItem(const QModelIndex &index);
@@ -123,14 +107,10 @@ private slots:
     void editEnvironmentChanges();
     void updateEnvironmentLabel();
 
-private:
     Ui::ExternalToolConfig *ui;
-    QStringList m_environment;
+    QList<Utils::EnvironmentItem> m_environment;
     ExternalToolModel *m_model;
 };
 
 } // Internal
 } // Core
-
-
-#endif // EXTERNALTOOLCONFIG_H

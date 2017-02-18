@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef GITVERSIONCONTROL_H
-#define GITVERSIONCONTROL_H
+#pragma once
 
 #include <coreplugin/iversioncontrol.h>
 
@@ -45,29 +39,31 @@ class GitVersionControl : public Core::IVersionControl
 public:
     explicit GitVersionControl(GitClient *client);
 
-    QString displayName() const override;
-    Core::Id id() const override;
+    QString displayName() const final;
+    Core::Id id() const final;
 
-    bool managesDirectory(const QString &directory, QString *topLevel) const override;
-    bool managesFile(const QString &workingDirectory, const QString &fileName) const override;
+    bool isVcsFileOrDirectory(const Utils::FileName &fileName) const final;
 
-    bool isConfigured() const override;
-    bool supportsOperation(Operation operation) const override;
-    bool vcsOpen(const QString &fileName) override;
-    bool vcsAdd(const QString &fileName) override;
-    bool vcsDelete(const QString &filename) override;
-    bool vcsMove(const QString &from, const QString &to) override;
-    bool vcsCreateRepository(const QString &directory) override;
+    bool managesDirectory(const QString &directory, QString *topLevel) const final;
+    bool managesFile(const QString &workingDirectory, const QString &fileName) const final;
 
-    bool vcsAnnotate(const QString &file, int line) override;
-    QString vcsTopic(const QString &directory) override;
+    bool isConfigured() const final;
+    bool supportsOperation(Operation operation) const final;
+    bool vcsOpen(const QString &fileName) final;
+    bool vcsAdd(const QString &fileName) final;
+    bool vcsDelete(const QString &filename) final;
+    bool vcsMove(const QString &from, const QString &to) final;
+    bool vcsCreateRepository(const QString &directory) final;
+
+    bool vcsAnnotate(const QString &file, int line) final;
+    QString vcsTopic(const QString &directory) final;
 
     Core::ShellCommand *createInitialCheckoutCommand(const QString &url,
                                                      const Utils::FileName &baseDirectory,
                                                      const QString &localName,
-                                                     const QStringList &extraArgs) override;
+                                                     const QStringList &extraArgs) final;
 
-    QStringList additionalToolsPath() const override;
+    QStringList additionalToolsPath() const final;
 
     void emitFilesChanged(const QStringList &);
     void emitRepositoryChanged(const QString &);
@@ -78,5 +74,3 @@ private:
 
 } // Internal
 } // Git
-
-#endif // GITVERSIONCONTROL_H

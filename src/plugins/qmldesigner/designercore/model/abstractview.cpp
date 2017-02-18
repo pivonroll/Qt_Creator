@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -122,7 +122,8 @@ WidgetInfo AbstractView::createWidgetInfo(QWidget *widget,
                                           const QString &uniqueId,
                                           WidgetInfo::PlacementHint placementHint,
                                           int placementPriority,
-                                          const QString &tabName)
+                                          const QString &tabName,
+                                          DesignerWidgetFlags widgetFlags)
 {
     WidgetInfo widgetInfo;
 
@@ -132,6 +133,7 @@ WidgetInfo AbstractView::createWidgetInfo(QWidget *widget,
     widgetInfo.placementHint = placementHint;
     widgetInfo.placementPriority = placementPriority;
     widgetInfo.tabName = tabName;
+    widgetInfo.widgetFlags = widgetFlags;
 
     return widgetInfo;
 }
@@ -188,11 +190,11 @@ void AbstractView::modelAboutToBeDetached(Model *)
             Empty properties were removed.
 */
 
-void AbstractView::instancePropertyChange(const QList<QPair<ModelNode, PropertyName> > &/*propertyList*/)
+void AbstractView::instancePropertyChanged(const QList<QPair<ModelNode, PropertyName> > &/*propertyList*/)
 {
 }
 
-void AbstractView::instanceInformationsChange(const QMultiHash<ModelNode, InformationName> &/*informationChangeHash*/)
+void AbstractView::instanceInformationsChanged(const QMultiHash<ModelNode, InformationName> &/*informationChangeHash*/)
 {
 }
 
@@ -224,7 +226,7 @@ void AbstractView::rewriterEndTransaction()
 {
 }
 
-void AbstractView::instanceErrorChange(const QVector<ModelNode> &/*errorNodeList*/)
+void AbstractView::instanceErrorChanged(const QVector<ModelNode> &/*errorNodeList*/)
 {
 }
 
@@ -325,6 +327,11 @@ void AbstractView::rootNodeTypeChanged(const QString &/*type*/, int /*majorVersi
 {
 }
 
+void AbstractView::nodeTypeChanged(const ModelNode & /*node*/, const TypeName & /*type*/, int /*majorVersion*/, int /*minorVersion*/)
+{
+
+}
+
 void AbstractView::importsChanged(const QList<Import> &/*addedImports*/, const QList<Import> &/*removedImports*/)
 {
 }
@@ -338,6 +345,10 @@ void AbstractView::customNotification(const AbstractView * /*view*/, const QStri
 }
 
 void AbstractView::scriptFunctionsChanged(const ModelNode &/*node*/, const QStringList &/*scriptFunctionList*/)
+{
+}
+
+void AbstractView::documentMessagesChanged(const QList<DocumentMessage> &/*errors*/, const QList<DocumentMessage> &/*warnings*/)
 {
 }
 
@@ -467,12 +478,19 @@ QString AbstractView::generateNewId(const QString &prefixName) const
 {
     int counter = 1;
 
-    QString newId = QString("%1%2").arg(firstCharToLower(prefixName)).arg(counter);
+    /* First try just the prefixName without number as postfix, then continue with 2 and further as postfix
+     * until id does not already exist.
+     * Properties of the root node are not allowed for ids, because they are available in the complete context
+     * without qualification.
+     * The id "item" is explicitly not allowed, because it is too likely to clash.
+    */
+
+    QString newId = QString(QStringLiteral("%1")).arg(firstCharToLower(prefixName));
     newId.remove(QRegExp(QStringLiteral("[^a-zA-Z0-9_]")));
 
-    while (hasId(newId)) {
+    while (!ModelNode::isValidId(newId) || hasId(newId) || rootModelNode().hasProperty(newId.toUtf8()) || newId == "item") {
         counter += 1;
-        newId = QString("%1%2").arg(firstCharToLower(prefixName)).arg(counter);
+        newId = QString(QStringLiteral("%1%2")).arg(firstCharToLower(prefixName)).arg(counter - 1);
         newId.remove(QRegExp(QStringLiteral("[^a-zA-Z0-9_]")));
     }
 
@@ -554,7 +572,17 @@ QString AbstractView::contextHelpId() const
 
 QList<ModelNode> AbstractView::allModelNodes() const
 {
-   return toModelNodeList(model()->d->allNodes());
+    return toModelNodeList(model()->d->allNodes());
+}
+
+void AbstractView::emitDocumentMessage(const QString &error)
+{
+    emitDocumentMessage( { DocumentMessage(error) } );
+}
+
+void AbstractView::emitDocumentMessage(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings)
+{
+    model()->d->setDocumentMessages(errors, warnings);
 }
 
 void AbstractView::emitCustomNotification(const QString &identifier)
@@ -665,6 +693,21 @@ QmlModelState AbstractView::currentState() const
     return QmlModelState(currentStateNode());
 }
 
+static int getMinorVersionFromImport(const Model *model)
+{
+    foreach (const Import &import, model->imports()) {
+        if (import.isLibraryImport() && import.url() == "QtQuick") {
+            const QString versionString = import.version();
+            if (versionString.contains(".")) {
+                const QString minorVersionString = versionString.split(".").last();
+                return minorVersionString.toInt();
+            }
+        }
+    }
+
+    return -1;
+}
+
 static int getMajorVersionFromImport(const Model *model)
 {
     foreach (const Import &import, model->imports()) {
@@ -695,6 +738,21 @@ static int getMajorVersionFromNode(const ModelNode &modelNode)
     return 1; //default
 }
 
+static int getMinorVersionFromNode(const ModelNode &modelNode)
+{
+    if (modelNode.metaInfo().isValid()) {
+        if (modelNode.type() == "QtQuick.QtObject" || modelNode.type() == "QtQuick.Item")
+            return modelNode.minorVersion();
+
+        foreach (const NodeMetaInfo &superClass,  modelNode.metaInfo().superClasses()) {
+            if (modelNode.type() == "QtQuick.QtObject" || modelNode.type() == "QtQuick.Item")
+                return superClass.minorVersion();
+        }
+    }
+
+    return 1; //default
+}
+
 int AbstractView::majorQtQuickVersion() const
 {
     int majorVersionFromImport = getMajorVersionFromImport(model());
@@ -703,5 +761,15 @@ int AbstractView::majorQtQuickVersion() const
 
     return getMajorVersionFromNode(rootModelNode());
 }
+
+int AbstractView::minorQtQuickVersion() const
+{
+    int minorVersionFromImport = getMinorVersionFromImport(model());
+    if (minorVersionFromImport >= 0)
+        return minorVersionFromImport;
+
+    return getMinorVersionFromNode(rootModelNode());
+}
+
 
 } // namespace QmlDesigner

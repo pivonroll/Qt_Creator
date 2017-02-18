@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Lorenz Haas
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Lorenz Haas
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,12 +38,13 @@
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
 #include <coreplugin/coreconstants.h>
+#include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/editormanager/ieditor.h>
-#include <coreplugin/icontext.h>
-#include <coreplugin/icore.h>
 #include <coreplugin/idocument.h>
 #include <cppeditor/cppeditorconstants.h>
 #include <texteditor/texteditor.h>
+#include <utils/algorithm.h>
+#include <utils/fileutils.h>
 
 #include <QAction>
 #include <QMenu>
@@ -69,10 +65,15 @@ ClangFormat::~ClangFormat()
     delete m_settings;
 }
 
+QString ClangFormat::id() const
+{
+    return QLatin1String(Constants::ClangFormat::DISPLAY_NAME);
+}
+
 bool ClangFormat::initialize()
 {
     Core::ActionContainer *menu = Core::ActionManager::createMenu(Constants::ClangFormat::MENU_ID);
-    menu->menu()->setTitle(QLatin1String(Constants::ClangFormat::DISPLAY_NAME));
+    menu->menu()->setTitle(tr(Constants::ClangFormat::DISPLAY_NAME));
 
     m_formatFile = new QAction(BeautifierPlugin::msgFormatCurrentFile(), this);
     Core::Command *cmd
@@ -89,20 +90,22 @@ bool ClangFormat::initialize()
 
     Core::ActionManager::actionContainer(Constants::MENU_ID)->addMenu(menu);
 
+    connect(m_settings, &ClangFormatSettings::supportedMimeTypesChanged,
+            [this] { updateActions(Core::EditorManager::currentEditor()); });
+
     return true;
 }
 
 void ClangFormat::updateActions(Core::IEditor *editor)
 {
-    const bool enabled = (editor && editor->document()->id() == CppEditor::Constants::CPPEDITOR_ID);
+    const bool enabled = editor && m_settings->isApplicable(editor->document());
     m_formatFile->setEnabled(enabled);
     m_formatRange->setEnabled(enabled);
 }
 
 QList<QObject *> ClangFormat::autoReleaseObjects()
 {
-    ClangFormatOptionsPage *optionsPage = new ClangFormatOptionsPage(m_settings, this);
-    return QList<QObject *>() << optionsPage;
+    return {new ClangFormatOptionsPage(m_settings, this)};
 }
 
 void ClangFormat::formatFile()
@@ -127,27 +130,36 @@ void ClangFormat::formatSelectedText()
     }
 }
 
-Command ClangFormat::command(int offset, int length) const
+Command ClangFormat::command() const
 {
     Command command;
     command.setExecutable(m_settings->command());
     command.setProcessing(Command::PipeProcessing);
 
     if (m_settings->usePredefinedStyle()) {
-        command.addOption(QLatin1String("-style=") + m_settings->predefinedStyle());
+        command.addOption("-style=" + m_settings->predefinedStyle());
+        command.addOption("-assume-filename=%file");
     } else {
-        command.addOption(QLatin1String("-style={")
-                          + m_settings->style(m_settings->customStyle()).remove(QLatin1Char('\n'))
-                          + QLatin1Char('}'));
+        command.addOption("-style=file");
+        const QString path =
+                QFileInfo(m_settings->styleFileName(m_settings->customStyle())).absolutePath();
+        command.addOption("-assume-filename=" + path + QDir::separator() + "%filename");
     }
-
-    if (offset != -1) {
-        command.addOption(QLatin1String("-offset=") + QString::number(offset));
-        command.addOption(QLatin1String("-length=") + QString::number(length));
-    }
-    command.addOption(QLatin1String("-assume-filename=%file"));
 
     return command;
+}
+
+bool ClangFormat::isApplicable(const Core::IDocument *document) const
+{
+    return m_settings->isApplicable(document);
+}
+
+Command ClangFormat::command(int offset, int length) const
+{
+    Command c = command();
+    c.addOption("-offset=" + QString::number(offset));
+    c.addOption("-length=" + QString::number(length));
+    return c;
 }
 
 } // namespace ClangFormat

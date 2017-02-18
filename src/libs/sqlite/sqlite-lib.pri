@@ -1,4 +1,4 @@
-contains(CONFIG, dll) {
+shared {
     DEFINES += BUILD_SQLITE_LIBRARY
 } else {
     DEFINES += BUILD_SQLITE_STATIC_LIBRARY
@@ -6,7 +6,7 @@ contains(CONFIG, dll) {
 
 INCLUDEPATH += $$PWD
 
-unix:LIBS += -ldl
+unix:!bsd: LIBS += -ldl
 
 include(../3rdparty/sqlite/sqlite.pri)
 

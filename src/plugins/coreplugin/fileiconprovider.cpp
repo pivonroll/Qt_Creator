@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -76,8 +71,16 @@ public:
         : m_unknownFileIcon(qApp->style()->standardIcon(QStyle::SP_FileIcon))
     {}
 
-    QIcon icon(const QFileInfo &info);
+    QIcon icon(const QFileInfo &info) const override;
     using QFileIconProvider::icon;
+
+    void registerIconOverlayForFilename(const QIcon &icon, const QString &filename)
+    {
+        QTC_ASSERT(!icon.isNull() && !filename.isEmpty(), return);
+
+        const QPixmap fileIconPixmap = FileIconProvider::overlayIcon(QStyle::SP_FileIcon, icon, QSize(16, 16));
+        m_filenameCache.insert(filename, fileIconPixmap);
+    }
 
     void registerIconOverlayForSuffix(const QIcon &icon, const QString &suffix)
     {
@@ -88,7 +91,7 @@ public:
 
         const QPixmap fileIconPixmap = FileIconProvider::overlayIcon(QStyle::SP_FileIcon, icon, QSize(16, 16));
         // replace old icon, if it exists
-        m_cache.insert(suffix, fileIconPixmap);
+        m_suffixCache.insert(suffix, fileIconPixmap);
     }
 
     void registerIconOverlayForMimeType(const QIcon &icon, const Utils::MimeType &mimeType)
@@ -98,7 +101,8 @@ public:
     }
 
     // Mapping of file suffix to icon.
-    QHash<QString, QIcon> m_cache;
+    mutable QHash<QString, QIcon> m_suffixCache;
+    QHash<QString, QIcon> m_filenameCache;
 
     QIcon m_unknownFileIcon;
 };
@@ -114,25 +118,33 @@ QFileIconProvider *iconProvider()
     return instance();
 }
 
-QIcon FileIconProviderImplementation::icon(const QFileInfo &fileInfo)
+QIcon FileIconProviderImplementation::icon(const QFileInfo &fileInfo) const
 {
     if (debug)
         qDebug() << "FileIconProvider::icon" << fileInfo.absoluteFilePath();
     // Check for cached overlay icons by file suffix.
     bool isDir = fileInfo.isDir();
-    QString suffix = !isDir ? fileInfo.suffix() : QString();
-    if (!m_cache.isEmpty() && !isDir && !suffix.isEmpty()) {
-        if (m_cache.contains(suffix))
-            return m_cache.value(suffix);
+    const QString filename = !isDir ? fileInfo.fileName() : QString();
+    if (!filename.isEmpty()) {
+        auto it = m_filenameCache.constFind(filename);
+        if (it != m_filenameCache.constEnd())
+            return it.value();
     }
-    // Get icon from OS.
+    const QString suffix = !isDir ? fileInfo.suffix() : QString();
+    if (!suffix.isEmpty()) {
+        auto it = m_suffixCache.constFind(suffix);
+        if (it != m_suffixCache.constEnd())
+            return it.value();
+    }
+
+    // Get icon from OS (and cache it based on suffix!)
     QIcon icon;
     if (HostOsInfo::isWindowsHost() || HostOsInfo::isMacHost())
         icon = QFileIconProvider::icon(fileInfo);
     else // File icons are unknown on linux systems.
         icon = isDir ? QFileIconProvider::icon(fileInfo) : m_unknownFileIcon;
     if (!isDir && !suffix.isEmpty())
-        m_cache.insert(suffix, icon);
+        m_suffixCache.insert(suffix, icon);
     return icon;
 }
 
@@ -155,45 +167,56 @@ QIcon icon(QFileIconProvider::IconType type)
 }
 
 /*!
+  Creates a pixmap with baseicon and overlays overlayIcon over it.
+  See platform note in class documentation about recommended usage.
+  */
+QPixmap overlayIcon(const QPixmap &baseIcon, const QIcon &overlayIcon)
+{
+    QPixmap result = baseIcon;
+    QPainter painter(&result);
+    overlayIcon.paint(&painter, QRect(QPoint(), result.size() / result.devicePixelRatio()));
+    return result;
+}
+
+/*!
   Creates a pixmap with baseicon at size and overlays overlayIcon over it.
   See platform note in class documentation about recommended usage.
   */
-QPixmap overlayIcon(QStyle::StandardPixmap baseIcon, const QIcon &overlayIcon, const QSize &size)
+QPixmap overlayIcon(QStyle::StandardPixmap baseIcon, const QIcon &overlay, const QSize &size)
 {
-    QPixmap iconPixmap = qApp->style()->standardIcon(baseIcon).pixmap(size);
-    QPainter painter(&iconPixmap);
-    painter.drawPixmap(0, 0, overlayIcon.pixmap(size));
-    painter.end();
-    return iconPixmap;
+    return overlayIcon(qApp->style()->standardIcon(baseIcon).pixmap(size), overlay);
 }
 
 /*!
   Registers an icon for a given suffix, overlaying the system file icon.
   See platform note in class documentation about recommended usage.
   */
-void registerIconOverlayForSuffix(const char *path, const char *suffix)
+void registerIconOverlayForSuffix(const QString &path, const QString &suffix)
 {
-    instance()->registerIconOverlayForSuffix(QIcon(QLatin1String(path)), QLatin1String(suffix));
+    instance()->registerIconOverlayForSuffix(QIcon(path), suffix);
 }
 
 /*!
   Registers an icon for all the suffixes of a given mime type, overlaying the system file icon.
   */
-void registerIconOverlayForMimeType(const QIcon &icon, const char *mimeType)
+void registerIconOverlayForMimeType(const QIcon &icon, const QString &mimeType)
 {
     Utils::MimeDatabase mdb;
-    instance()->registerIconOverlayForMimeType(icon,
-                                               mdb.mimeTypeForName(QString::fromLatin1(mimeType)));
+    instance()->registerIconOverlayForMimeType(icon, mdb.mimeTypeForName(mimeType));
 }
 
 /*!
  * \overload
  */
-void registerIconOverlayForMimeType(const char *path, const char *mimeType)
+void registerIconOverlayForMimeType(const QString &path, const QString &mimeType)
 {
     Utils::MimeDatabase mdb;
-    instance()->registerIconOverlayForMimeType(QIcon(QLatin1String(path)),
-                                               mdb.mimeTypeForName(QString::fromLatin1(mimeType)));
+    instance()->registerIconOverlayForMimeType(QIcon(path), mdb.mimeTypeForName(mimeType));
+}
+
+void registerIconOverlayForFilename(const QString &path, const QString &filename)
+{
+    instance()->registerIconOverlayForFilename(QIcon(path), filename);
 }
 
 } // namespace FileIconProvider

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef ALGORITHM_H
-#define ALGORITHM_H
+#pragma once
 
 #include <qcompilerdetection.h> // for Q_REQUIRED_RESULT
 
 #include <algorithm>
 #include <functional>
+#include <tuple>
+
 #include <QStringList>
 
 namespace Utils
@@ -144,8 +140,7 @@ typename T::value_type findOrDefault(const T &container, R (S::*function)() cons
 // find helpers
 //////////////////
 template<typename R, typename S, typename T>
-auto equal(R (S::*function)() const, T value)
-    -> decltype(std::bind<bool>(std::equal_to<T>(), value, std::bind(function, std::placeholders::_1)))
+decltype(auto) equal(R (S::*function)() const, T value)
 {
     // This should use std::equal_to<> instead of std::eqaul_to<T>,
     // but that's not supported everywhere yet, since it is C++14
@@ -153,8 +148,7 @@ auto equal(R (S::*function)() const, T value)
 }
 
 template<typename R, typename S, typename T>
-auto equal(R S::*member, T value)
-    -> decltype(std::bind<bool>(std::equal_to<T>(), value, std::bind(member, std::placeholders::_1)))
+decltype(auto) equal(R S::*member, T value)
 {
     return std::bind<bool>(std::equal_to<T>(), value, std::bind(member, std::placeholders::_1));
 }
@@ -211,10 +205,6 @@ inserter(QSet<X> &container)
     return QSetInsertIterator<QSet<X>>(container);
 }
 
-// decay_t is C++14, so provide it here, remove once we require C++14
-template<typename T>
-using decay_t = typename std::decay<T>::type;
-
 // abstraction to treat Container<T> and QStringList similarly
 template<typename T>
 struct ContainerType
@@ -224,26 +214,13 @@ struct ContainerType
 
 // specialization for qt container T_Container<T_Type>
 template<template<typename> class T_Container, typename T_Type>
-struct ContainerType<T_Container<T_Type>> {
-    typedef T_Type ElementType;
-
-    template<class NewElementType>
-    struct WithElementType
-    {
-        typedef T_Container<NewElementType> type;
-    };
-
+struct ContainerType<T_Container<T_Type>>
+{
     template<class F, template<typename> class C = T_Container>
-    struct ResultOfTransform
-    {
-        typedef C<decay_t<typename std::result_of<F (ElementType)>::type>> type;
-    };
+    using ResultOfTransform = C<std::decay_t<std::result_of_t<F (T_Type)>>>;
 
     template<class R>
-    struct ResultOfTransformPMF
-    {
-        typedef typename WithElementType<decay_t<R>>::type type;
-    };
+    using ResultOfTransformPMF = T_Container<std::decay_t<R>>;
 };
 
 // specialization for QStringList
@@ -284,11 +261,10 @@ struct TransformImpl {
 template<typename C, // container
          typename F>
 Q_REQUIRED_RESULT
-auto transform(const C &container, F function)
--> typename ContainerType<C>::template ResultOfTransform<F>::type
+decltype(auto) transform(const C &container, F function)
 {
     return TransformImpl<
-                typename ContainerType<C>::template ResultOfTransform<F>::type,
+                typename ContainerType<C>::template ResultOfTransform<F>,
                 C
             >::call(container, function);
 }
@@ -298,11 +274,10 @@ template<typename C,
         typename R,
         typename S>
 Q_REQUIRED_RESULT
-auto transform(const C &container, R (S::*p)() const)
-    ->typename ContainerType<C>::template ResultOfTransformPMF<R>::type
+decltype(auto) transform(const C &container, R (S::*p)() const)
 {
     return TransformImpl<
-                typename ContainerType<C>::template ResultOfTransformPMF<R>::type,
+                typename ContainerType<C>::template ResultOfTransformPMF<R>,
                 C
             >::call(container, p);
 }
@@ -312,11 +287,10 @@ template<template<typename> class C, // result container type
          typename SC, // input container type
          typename F> // function type
 Q_REQUIRED_RESULT
-auto transform(const SC &container, F function)
-     -> typename ContainerType<SC>::template ResultOfTransform<F, C>::type
+decltype(auto) transform(const SC &container, F function)
 {
     return TransformImpl<
-                typename ContainerType<SC>::template ResultOfTransform<F, C>::type,
+                typename ContainerType<SC>::template ResultOfTransform<F, C>,
                 SC
             >::call(container, function);
 }
@@ -328,13 +302,93 @@ template<template<typename> class C, // result container type
          typename R,
          typename S>
 Q_REQUIRED_RESULT
-auto transform(const SC &container, R (S::*p)() const)
-     -> C<decay_t<R>>
+decltype(auto) transform(const SC &container, R (S::*p)() const)
 {
     return TransformImpl<
-                C<decay_t<R>>,
+                C<std::decay_t<R>>,
                 SC
             >::call(container, p);
+}
+
+//////////////////
+// filtered
+/////////////////
+template<typename C, typename F>
+Q_REQUIRED_RESULT
+C filtered(const C &container, F predicate)
+{
+    C out;
+    std::copy_if(container.begin(), container.end(),
+                 inserter(out), predicate);
+    return out;
+}
+
+template<typename C, typename R, typename S>
+Q_REQUIRED_RESULT
+C filtered(const C &container, R (S::*predicate)() const)
+{
+    C out;
+    std::copy_if(container.begin(), container.end(),
+                 inserter(out), std::mem_fn(predicate));
+    return out;
+}
+
+//////////////////
+// partition
+/////////////////
+
+// Recommended usage:
+// C hit;
+// C miss;
+// std::tie(hit, miss) = Utils::partition(container, predicate);
+
+template<typename C, typename F>
+Q_REQUIRED_RESULT
+std::tuple<C, C> partition(const C &container, F predicate)
+{
+    C hit;
+    C miss;
+    auto hitIns = inserter(hit);
+    auto missIns = inserter(miss);
+    for (auto i : container) {
+        if (predicate(i))
+            hitIns = i;
+        else
+            missIns = i;
+    }
+    return std::make_tuple(hit, miss);
+}
+
+template<typename C, typename R, typename S>
+Q_REQUIRED_RESULT
+std::tuple<C, C> partition(const C &container, R (S::*predicate)() const)
+{
+    return partition(container, std::mem_fn(predicate));
+}
+
+//////////////////
+// filteredUnique
+/////////////////
+
+template<typename C>
+Q_REQUIRED_RESULT
+C filteredUnique(const C &container)
+{
+    C result;
+    auto ins = inserter(result);
+
+    QSet<typename C::value_type> seen;
+    int setSize = 0;
+
+    auto endIt = container.end();
+    for (auto it = container.begin(); it != endIt; ++it) {
+        seen.insert(*it);
+        if (setSize == seen.size()) // unchanged size => was already seen
+            continue;
+        ++setSize;
+        ins = *it;
+    }
+    return result;
 }
 
 //////////////////
@@ -352,6 +406,37 @@ inline void sort(Container &c, Predicate p)
     std::sort(c.begin(), c.end(), p);
 }
 
+// pointer to member
+template <typename Container, typename R, typename S>
+inline void sort(Container &c, R S::*member)
+{
+    auto f = std::mem_fn(member);
+    using const_ref = typename Container::const_reference;
+    std::sort(c.begin(), c.end(), [&f](const_ref a, const_ref b) {
+        return f(a) < f(b);
+    });
 }
 
-#endif // ALGORITHM_H
+// pointer to member function
+template <typename Container, typename R, typename S>
+inline void sort(Container &c, R (S::*function)() const)
+{
+    auto f = std::mem_fn(function);
+    using const_ref = typename Container::const_reference;
+    std::sort(c.begin(), c.end(), [&f](const_ref a, const_ref b) {
+        return f(a) < f(b);
+    });
+}
+
+//////////////////
+// reverseForeach
+/////////////////
+template <typename Container, typename Op>
+inline void reverseForeach(const Container &c, const Op &operation)
+{
+    auto rend = c.rend();
+    for (auto it = c.rbegin(); it != rend; ++it)
+        operation(*it);
+}
+
+}

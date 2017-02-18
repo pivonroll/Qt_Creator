@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,7 @@
 #include "task.h"
 
 #include <utils/qtcassert.h>
+#include <utils/temporarydirectory.h>
 
 #include <QDir>
 #include <QFile>
@@ -46,9 +42,7 @@ namespace {
     const char * const MAKEFILE_PATTERN("^((.*?[/\\\\])?[Mm]akefile(\\.[a-zA-Z]+)?):(\\d+):\\s");
 }
 
-GnuMakeParser::GnuMakeParser() :
-    m_suppressIssues(false),
-    m_fatalErrorCount(0)
+GnuMakeParser::GnuMakeParser()
 {
     setObjectName(QLatin1String("GnuMakeParser"));
     m_makeDir.setPattern(QLatin1String(MAKEEXEC_PATTERN) +
@@ -209,8 +203,6 @@ QStringList GnuMakeParser::searchDirectories() const
 #   include "projectexplorer.h"
 #   include "projectexplorerconstants.h"
 
-#   include "metatypedeclarations.h"
-
 GnuMakeParserTester::GnuMakeParserTester(GnuMakeParser *p, QObject *parent) :
     QObject(parent),
     parser(p)
@@ -266,24 +258,23 @@ void ProjectExplorerPlugin::testGnuMakeParserParsing_data()
 
     // make sure adding directories works (once;-)
     QTest::newRow("entering directory")
-            << (QStringList() << QString::fromLatin1("/test/dir") )
+            << QStringList("/test/dir")
             << QString::fromLatin1("make[4]: Entering directory `/home/code/build/qt/examples/opengl/grabber'\n"
                                    "make[4]: Entering directory `/home/code/build/qt/examples/opengl/grabber'")
             << OutputParserTester::STDOUT
             << QString() << QString()
             << QList<Task>()
             << QString()
-            << (QStringList() << QString::fromLatin1("/home/code/build/qt/examples/opengl/grabber")
-                              << QString::fromLatin1("/home/code/build/qt/examples/opengl/grabber")
-                              << QString::fromLatin1("/test/dir"));
+            << QStringList({ "/home/code/build/qt/examples/opengl/grabber",
+                             "/home/code/build/qt/examples/opengl/grabber", "/test/dir" });
     QTest::newRow("leaving directory")
-            << (QStringList()  << QString::fromLatin1("/home/code/build/qt/examples/opengl/grabber") << QString::fromLatin1("/test/dir"))
+            << QStringList({ "/home/code/build/qt/examples/opengl/grabber", "/test/dir" })
             << QString::fromLatin1("make[4]: Leaving directory `/home/code/build/qt/examples/opengl/grabber'")
             << OutputParserTester::STDOUT
             << QString() << QString()
             << QList<Task>()
             << QString()
-            << (QStringList() << QString::fromLatin1("/test/dir"));
+            << QStringList("/test/dir");
     QTest::newRow("make error")
             << QStringList()
             << QString::fromLatin1("make: *** No rule to make target `hello.c', needed by `hello.o'.  Stop.")
@@ -410,8 +401,8 @@ void ProjectExplorerPlugin::testGnuMakeParserParsing()
     OutputParserTester testbench;
     GnuMakeParser *childParser = new GnuMakeParser;
     GnuMakeParserTester *tester = new GnuMakeParserTester(childParser);
-    connect(&testbench, SIGNAL(aboutToDeleteParser()),
-            tester, SLOT(parserIsAboutToBeDeleted()));
+    connect(&testbench, &OutputParserTester::aboutToDeleteParser,
+            tester, &GnuMakeParserTester::parserIsAboutToBeDeleted);
 
     testbench.appendOutputParser(childParser);
     QFETCH(QStringList, extraSearchDirs);
@@ -484,8 +475,8 @@ void ProjectExplorerPlugin::testGnuMakeParserTaskMangling_data()
                     -1,
                     Constants::TASK_CATEGORY_COMPILE);
     QTest::newRow("find file")
-            << (QStringList(QLatin1String("test/file.cpp")))
-            << (QStringList(QLatin1String("test")))
+            << QStringList("test/file.cpp")
+            << QStringList("test")
             << Task(Task::Error,
                     QLatin1String("mangling"),
                     Utils::FileName::fromUserInput(QLatin1String("file.cpp")),
@@ -510,18 +501,14 @@ void ProjectExplorerPlugin::testGnuMakeParserTaskMangling()
     QFETCH(Task, outputTask);
 
     // setup files:
-    QString tempdir = QDir::tempPath();
-    const QChar slash = QLatin1Char('/');
-    tempdir.append(slash);
-    tempdir.append(QUuid::createUuid().toString());
-    tempdir.append(slash);
-
+    const QString tempdir
+            = Utils::TemporaryDirectory::masterDirectoryPath() + '/' + QUuid::createUuid().toString() + '/';
     QDir filedir(tempdir);
     foreach (const QString &file, files) {
-        Q_ASSERT(!file.startsWith(slash));
-        Q_ASSERT(!file.contains(QLatin1String("../")));
+        Q_ASSERT(!file.startsWith('/'));
+        Q_ASSERT(!file.contains("../"));
 
-        filedir.mkpath(file.left(file.lastIndexOf(slash)));
+        filedir.mkpath(file.left(file.lastIndexOf('/')));
 
         QFile tempfile(tempdir + file);
         if (!tempfile.open(QIODevice::WriteOnly))

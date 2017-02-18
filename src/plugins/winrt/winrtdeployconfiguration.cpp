@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -144,59 +139,22 @@ DeployConfiguration *WinRtDeployConfigurationFactory::clone(Target *parent,
     return 0;
 }
 
-QList<Core::Id> WinRtDeployStepFactory::availableCreationIds(BuildStepList *parent) const
+QList<BuildStepInfo> WinRtDeployStepFactory::availableSteps(BuildStepList *parent) const
 {
-    QList<Core::Id> ids;
-    if (parent->id() != ProjectExplorer::Constants::BUILDSTEPS_DEPLOY)
-        return ids;
-    if (!parent->target()->project()->supportsKit(parent->target()->kit()))
-        return ids;
-    if (!parent->contains(Constants::WINRT_BUILD_STEP_DEPLOY))
-        ids << Constants::WINRT_BUILD_STEP_DEPLOY;
-    return ids;
-}
+    if (parent->id() != ProjectExplorer::Constants::BUILDSTEPS_DEPLOY
+            || !parent->target()->project()->supportsKit(parent->target()->kit())
+            || parent->contains(Constants::WINRT_BUILD_STEP_DEPLOY))
+        return {};
 
-QString WinRtDeployStepFactory::displayNameForId(Core::Id id) const
-{
-    if (id == Constants::WINRT_BUILD_STEP_DEPLOY) {
-        return QCoreApplication::translate("WinRt::Internal::WinRtDeployStepFactory",
-                                           "Run windeployqt");
-    }
-    return QString();
-}
-
-bool WinRtDeployStepFactory::canCreate(BuildStepList *parent, Core::Id id) const
-{
-    return availableCreationIds(parent).contains(id);
+    return {{ Constants::WINRT_BUILD_STEP_DEPLOY,
+              QCoreApplication::translate("WinRt::Internal::WinRtDeployStepFactory", "Run windeployqt"),
+              BuildStepInfo::Unclonable }};
 }
 
 BuildStep *WinRtDeployStepFactory::create(BuildStepList *parent, Core::Id id)
 {
-    if (id == Constants::WINRT_BUILD_STEP_DEPLOY)
-        return new WinRtPackageDeploymentStep(parent);
-    return 0;
-}
-
-bool WinRtDeployStepFactory::canRestore(BuildStepList *parent, const QVariantMap &map) const
-{
-    return canCreate(parent, idFromMap(map));
-}
-
-BuildStep *WinRtDeployStepFactory::restore(BuildStepList *parent, const QVariantMap &map)
-{
-    BuildStep *bs = create(parent, idFromMap(map));
-    if (!bs->fromMap(map)) {
-        delete bs;
-        bs = 0;
-    }
-    return bs;
-}
-
-bool WinRtDeployStepFactory::canClone(BuildStepList *parent, BuildStep *source) const
-{
-    Q_UNUSED(parent);
-    Q_UNUSED(source);
-    return false;
+    Q_UNUSED(id)
+    return new WinRtPackageDeploymentStep(parent);
 }
 
 BuildStep *WinRtDeployStepFactory::clone(BuildStepList *parent, BuildStep *source)

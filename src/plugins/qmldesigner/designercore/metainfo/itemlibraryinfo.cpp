@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -50,6 +50,7 @@ public:
     QString qml;
     QString qmlSource;
     QString requiredImport;
+    QHash<QString, QString> hints;
 };
 
 } // namespace Internal
@@ -84,6 +85,11 @@ void ItemLibraryEntry::addProperty(const Property &property)
 QList<ItemLibraryEntry::Property> ItemLibraryEntry::properties() const
 {
     return m_data->properties;
+}
+
+QHash<QString, QString> ItemLibraryEntry::hints() const
+{
+    return m_data->hints;
 }
 
 ItemLibraryEntry::ItemLibraryEntry() : m_data(new Internal::ItemLibraryEntryData)
@@ -147,9 +153,6 @@ QIcon ItemLibraryEntry::typeIcon() const
 
 QString ItemLibraryEntry::libraryEntryIconPath() const
 {
-    if (m_data->libraryEntryIconPath.isEmpty())
-        return QStringLiteral(":/ItemLibrary/images/item-default-icon.png");
-
     return m_data->libraryEntryIconPath;
 }
 
@@ -170,7 +173,7 @@ void ItemLibraryEntry::setLibraryEntryIconPath(const QString &iconPath)
     m_data->libraryEntryIconPath = iconPath;
 }
 
-static QString getSourceForUrl(const QString &fileURl)
+static QByteArray getSourceForUrl(const QString &fileURl)
 {
     Utils::FileReader fileReader;
 
@@ -184,12 +187,17 @@ void ItemLibraryEntry::setQmlPath(const QString &qml)
 {
     m_data->qml = qml;
 
-    m_data->qmlSource = getSourceForUrl(qml);
+    m_data->qmlSource = QString::fromUtf8(getSourceForUrl(qml));
 }
 
 void ItemLibraryEntry::setRequiredImport(const QString &requiredImport)
 {
     m_data->requiredImport = requiredImport;
+}
+
+void ItemLibraryEntry::addHints(const QHash<QString, QString> &hints)
+{
+    m_data->hints.unite(hints);
 }
 
 void ItemLibraryEntry::addProperty(PropertyName &name, QString &type, QVariant &value)
@@ -209,6 +217,7 @@ QDataStream& operator<<(QDataStream& stream, const ItemLibraryEntry &itemLibrary
     stream << itemLibraryEntry.libraryEntryIconPath();
     stream << itemLibraryEntry.category();
     stream << itemLibraryEntry.requiredImport();
+    stream << itemLibraryEntry.hints();
 
     stream << itemLibraryEntry.m_data->properties;
     stream << itemLibraryEntry.m_data->qml;
@@ -227,6 +236,7 @@ QDataStream& operator>>(QDataStream& stream, ItemLibraryEntry &itemLibraryEntry)
     stream >> itemLibraryEntry.m_data->libraryEntryIconPath;
     stream >> itemLibraryEntry.m_data->category;
     stream >> itemLibraryEntry.m_data->requiredImport;
+    stream >> itemLibraryEntry.m_data->hints;
 
     stream >> itemLibraryEntry.m_data->properties;
     stream >> itemLibraryEntry.m_data->qml;
@@ -245,6 +255,7 @@ QDebug operator<<(QDebug debug, const ItemLibraryEntry &itemLibraryEntry)
     debug << itemLibraryEntry.m_data->libraryEntryIconPath;
     debug << itemLibraryEntry.m_data->category;
     debug << itemLibraryEntry.m_data->requiredImport;
+    debug << itemLibraryEntry.m_data->hints;
 
     debug << itemLibraryEntry.m_data->properties;
     debug << itemLibraryEntry.m_data->qml;
@@ -264,7 +275,7 @@ ItemLibraryInfo::ItemLibraryInfo(QObject *parent)
 
 
 
-QList<ItemLibraryEntry> ItemLibraryInfo::entriesForType(const QString &typeName, int majorVersion, int minorVersion) const
+QList<ItemLibraryEntry> ItemLibraryInfo::entriesForType(const QByteArray &typeName, int majorVersion, int minorVersion) const
 {
     QList<ItemLibraryEntry> entries;
 
@@ -303,13 +314,14 @@ static inline QString keyForEntry(const ItemLibraryEntry &entry)
     return entry.name() + entry.category() + QString::number(entry.majorVersion());
 }
 
-void ItemLibraryInfo::addEntry(const ItemLibraryEntry &entry, bool overwriteDuplicate)
+void ItemLibraryInfo::addEntries(const QList<ItemLibraryEntry> &entries, bool overwriteDuplicate)
 {
-    const QString key = keyForEntry(entry);
-    if (!overwriteDuplicate && m_nameToEntryHash.contains(key))
-        throw InvalidMetaInfoException(__LINE__, __FUNCTION__, __FILE__);
-    m_nameToEntryHash.insert(key, entry);
-
+    foreach (const ItemLibraryEntry &entry, entries) {
+        const QString key = keyForEntry(entry);
+        if (!overwriteDuplicate && m_nameToEntryHash.contains(key))
+            throw InvalidMetaInfoException(__LINE__, __FUNCTION__, __FILE__);
+        m_nameToEntryHash.insert(key, entry);
+    }
     emit entriesChanged();
 }
 

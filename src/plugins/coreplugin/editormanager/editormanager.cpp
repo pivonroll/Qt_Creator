@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,14 +31,15 @@
 #include "openeditorswindow.h"
 #include "openeditorsview.h"
 #include "documentmodel.h"
+#include "documentmodel_p.h"
 #include "ieditor.h"
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
-#include <coreplugin/coreconstants.h>
 #include <coreplugin/dialogs/openwithdialog.h>
 #include <coreplugin/dialogs/readonlyfilesdialog.h>
+#include <coreplugin/diffservice.h>
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/editormanager/ieditorfactory.h>
 #include <coreplugin/editormanager/iexternaleditor.h>
@@ -51,7 +47,6 @@
 #include <coreplugin/fileutils.h>
 #include <coreplugin/findplaceholder.h>
 #include <coreplugin/icore.h>
-#include <coreplugin/icorelistener.h>
 #include <coreplugin/imode.h>
 #include <coreplugin/infobar.h>
 #include <coreplugin/iversioncontrol.h>
@@ -74,12 +69,15 @@
 #include <utils/mimetypes/mimetype.h>
 #include <utils/qtcassert.h>
 #include <utils/overridecursor.h>
+#include <utils/utilsicons.h>
 
 #include <QClipboard>
 #include <QDateTime>
 #include <QDebug>
 #include <QFileInfo>
 #include <QMap>
+#include <QRegularExpression>
+#include <QRegularExpressionMatch>
 #include <QSet>
 #include <QSettings>
 #include <QTextCodec>
@@ -95,6 +93,11 @@
 
 #include <algorithm>
 
+#if defined(WITH_TESTS)
+#include <coreplugin/coreplugin.h>
+#include <QTest>
+#endif
+
 using namespace Utils;
 
 enum { debugEditorManager=0 };
@@ -108,31 +111,13 @@ static const char documentStatesKey[] = "EditorManager/DocumentStates";
 static const char reloadBehaviorKey[] = "EditorManager/ReloadBehavior";
 static const char autoSaveEnabledKey[] = "EditorManager/AutoSaveEnabled";
 static const char autoSaveIntervalKey[] = "EditorManager/AutoSaveInterval";
+static const char autoSuspendEnabledKey[] = "EditorManager/AutoSuspendEnabled";
+static const char autoSuspendMinDocumentCountKey[] = "EditorManager/AutoSuspendMinDocuments";
 static const char warnBeforeOpeningBigTextFilesKey[] = "EditorManager/WarnBeforeOpeningBigTextFiles";
 static const char bigTextFileSizeLimitKey[] = "EditorManager/BigTextFileSizeLimitInMB";
 static const char fileSystemCaseSensitivityKey[] = "Core/FileSystemCaseSensitivity";
 
 static const char scratchBufferKey[] = "_q_emScratchBuffer";
-
-//===================EditorClosingCoreListener======================
-
-namespace Core {
-namespace Internal {
-
-class EditorClosingCoreListener : public ICoreListener
-{
-public:
-    bool editorAboutToClose(IEditor *) { return true; }
-    bool coreAboutToClose()
-    {
-        // Do not ask for files to save.
-        // MainWindow::closeEvent has already done that.
-        return EditorManager::closeAllEditors(false);
-    }
-};
-
-} // namespace Internal
-} // namespace Core
 
 using namespace Core;
 using namespace Core::Internal;
@@ -140,16 +125,12 @@ using namespace Utils;
 
 //===================EditorManager=====================
 
-EditorManagerPlaceHolder::EditorManagerPlaceHolder(IMode *mode, QWidget *parent)
-    : QWidget(parent), m_mode(mode)
+EditorManagerPlaceHolder::EditorManagerPlaceHolder(QWidget *parent)
+    : QWidget(parent)
 {
     setLayout(new QVBoxLayout);
     layout()->setMargin(0);
     setFocusProxy(EditorManagerPrivate::mainEditorArea());
-    connect(ModeManager::instance(), &ModeManager::currentModeChanged,
-            this, &EditorManagerPlaceHolder::currentModeChanged);
-
-    currentModeChanged(ModeManager::currentMode());
 }
 
 EditorManagerPlaceHolder::~EditorManagerPlaceHolder()
@@ -162,18 +143,16 @@ EditorManagerPlaceHolder::~EditorManagerPlaceHolder()
     }
 }
 
-void EditorManagerPlaceHolder::currentModeChanged(IMode *mode)
+void EditorManagerPlaceHolder::showEvent(QShowEvent *)
 {
-    if (m_mode == mode) {
-        QWidget *previousFocus = 0;
-        QWidget *em = EditorManagerPrivate::mainEditorArea();
-        if (em->focusWidget() && em->focusWidget()->hasFocus())
-            previousFocus = em->focusWidget();
-        layout()->addWidget(em);
-        em->show();
-        if (previousFocus)
-            previousFocus->setFocus();
-    }
+    QWidget *previousFocus = 0;
+    QWidget *em = EditorManagerPrivate::mainEditorArea();
+    if (em->focusWidget() && em->focusWidget()->hasFocus())
+        previousFocus = em->focusWidget();
+    layout()->addWidget(em);
+    em->show();
+    if (previousFocus)
+        previousFocus->setFocus();
 }
 
 // ---------------- EditorManager
@@ -181,49 +160,9 @@ void EditorManagerPlaceHolder::currentModeChanged(IMode *mode)
 static EditorManager *m_instance = 0;
 static EditorManagerPrivate *d;
 
-static int extractNumericSuffix(QString *fileName, QString *postfix = 0)
-{
-    int i = fileName->length() - 1;
-    for (; i >= 0; --i) {
-        if (!fileName->at(i).isNumber())
-            break;
-    }
-    if (i == -1)
-        return -1;
-    const QChar c = fileName->at(i);
-    if (c == QLatin1Char(':') || c == QLatin1Char('+')) {
-        bool ok;
-        const QString suffix = fileName->mid(i + 1);
-        const int result = suffix.toInt(&ok);
-        if (suffix.isEmpty() || ok) {
-            if (postfix)
-                *postfix = fileName->mid(i);
-            fileName->truncate(i);
-            return result;
-        }
-    }
-    return -1;
-}
-
-static void extractLineAndColumnNumbers(QString *fileName, int *lineNumber, int *columnNumber)
-{
-    *lineNumber = -1;
-    *columnNumber = -1;
-    int lastSuffix = extractNumericSuffix(fileName);
-    if (lastSuffix == -1)
-        return;
-    int secondToLastSuffix = extractNumericSuffix(fileName);
-    if (secondToLastSuffix == -1) {
-        *lineNumber = lastSuffix;
-        return;
-    }
-    *lineNumber = secondToLastSuffix;
-    *columnNumber = lastSuffix - 1; //column is 0 based, despite line being 1 based
-}
-
 static QString autoSaveName(const QString &fileName)
 {
-    return fileName + QLatin1String(".autosave");
+    return fileName + ".autosave";
 }
 
 static void setFocusToEditorViewAndUnmaximizePanes(EditorView *view)
@@ -240,7 +179,7 @@ static void setFocusToEditorViewAndUnmaximizePanes(EditorView *view)
     if (holder && holder->window() == view->window()) {
         // unmaximize output pane if necessary
         if (holder->isVisible() && holder->isMaximized())
-            holder->unmaximize();
+            holder->setMaximized(false);
     }
 }
 
@@ -257,7 +196,6 @@ EditorFactoryLike *findById(Id id)
 
 EditorManagerPrivate::EditorManagerPrivate(QObject *parent) :
     QObject(parent),
-    m_autoSaveTimer(0),
     m_revertToSavedAction(new QAction(EditorManager::tr("Revert to Saved"), this)),
     m_saveAction(new QAction(this)),
     m_saveAsAction(new QAction(this)),
@@ -267,8 +205,8 @@ EditorManagerPrivate::EditorManagerPrivate(QObject *parent) :
     m_closeAllEditorsExceptVisibleAction(new QAction(EditorManager::tr("Close All Except Visible"), this)),
     m_gotoNextDocHistoryAction(new QAction(EditorManager::tr("Next Open Document in History"), this)),
     m_gotoPreviousDocHistoryAction(new QAction(EditorManager::tr("Previous Open Document in History"), this)),
-    m_goBackAction(new QAction(QIcon(QLatin1String(Constants::ICON_PREV)), EditorManager::tr("Go Back"), this)),
-    m_goForwardAction(new QAction(QIcon(QLatin1String(Constants::ICON_NEXT)), EditorManager::tr("Go Forward"), this)),
+    m_goBackAction(new QAction(Utils::Icons::PREV.icon(), EditorManager::tr("Go Back"), this)),
+    m_goForwardAction(new QAction(Utils::Icons::NEXT.icon(), EditorManager::tr("Go Forward"), this)),
     m_copyFilePathContextAction(new QAction(EditorManager::tr("Copy Full Path"), this)),
     m_copyLocationContextAction(new QAction(EditorManager::tr("Copy Path and Line Number"), this)),
     m_copyFileNameContextAction(new QAction(EditorManager::tr("Copy File Name"), this)),
@@ -281,14 +219,7 @@ EditorManagerPrivate::EditorManagerPrivate(QObject *parent) :
     m_closeAllEditorsExceptVisibleContextAction(new QAction(EditorManager::tr("Close All Except Visible"), this)),
     m_openGraphicalShellAction(new QAction(FileUtils::msgGraphicalShellAction(), this)),
     m_openTerminalAction(new QAction(FileUtils::msgTerminalAction(), this)),
-    m_findInDirectoryAction(new QAction(FileUtils::msgFindInDirectory(), this)),
-    m_windowPopup(0),
-    m_coreListener(0),
-    m_reloadSetting(IDocument::AlwaysAsk),
-    m_autoSaveEnabled(true),
-    m_autoSaveInterval(5),
-    m_warnBeforeOpeningBigFilesEnabled(true),
-    m_bigFileSizeLimitInMB(5)
+    m_findInDirectoryAction(new QAction(FileUtils::msgFindInDirectory(), this))
 {
     d = this;
 }
@@ -296,10 +227,6 @@ EditorManagerPrivate::EditorManagerPrivate(QObject *parent) :
 EditorManagerPrivate::~EditorManagerPrivate()
 {
     if (ICore::instance()) {
-        if (m_coreListener) {
-            ExtensionSystem::PluginManager::removeObject(m_coreListener);
-            delete m_coreListener;
-        }
         ExtensionSystem::PluginManager::removeObject(m_openEditorsFactory);
         delete m_openEditorsFactory;
     }
@@ -307,7 +234,7 @@ EditorManagerPrivate::~EditorManagerPrivate()
     // close all extra windows
     for (int i = 0; i < m_editorAreas.size(); ++i) {
         EditorArea *area = m_editorAreas.at(i);
-        disconnect(area, SIGNAL(destroyed(QObject*)), this, SLOT(editorAreaDestroyed(QObject*)));
+        disconnect(area, &QObject::destroyed, this, &EditorManagerPrivate::editorAreaDestroyed);
         delete area;
     }
     m_editorAreas.clear();
@@ -329,21 +256,21 @@ void EditorManagerPrivate::init()
     ActionContainer *mfile = ActionManager::actionContainer(Constants::M_FILE);
 
     // Revert to saved
-    m_revertToSavedAction->setIcon(QIcon::fromTheme(QLatin1String("document-revert")));
+    m_revertToSavedAction->setIcon(QIcon::fromTheme("document-revert"));
     Command *cmd = ActionManager::registerAction(m_revertToSavedAction,
                                        Constants::REVERTTOSAVED, editManagerContext);
     cmd->setAttribute(Command::CA_UpdateText);
     cmd->setDescription(tr("Revert File to Saved"));
     mfile->addAction(cmd, Constants::G_FILE_SAVE);
-    connect(m_revertToSavedAction, SIGNAL(triggered()), m_instance, SLOT(revertToSaved()));
+    connect(m_revertToSavedAction, &QAction::triggered, m_instance, &EditorManager::revertToSaved);
 
     // Save Action
     ActionManager::registerAction(m_saveAction, Constants::SAVE, editManagerContext);
-    connect(m_saveAction, SIGNAL(triggered()), m_instance, SLOT(saveDocument()));
+    connect(m_saveAction, &QAction::triggered, m_instance, []() { EditorManager::saveDocument(); });
 
     // Save As Action
     ActionManager::registerAction(m_saveAsAction, Constants::SAVEAS, editManagerContext);
-    connect(m_saveAsAction, SIGNAL(triggered()), m_instance, SLOT(saveDocumentAs()));
+    connect(m_saveAsAction, &QAction::triggered, m_instance, &EditorManager::saveDocumentAs);
 
     // Window Menu
     ActionContainer *mwindow = ActionManager::actionContainer(Constants::M_WINDOW);
@@ -358,8 +285,8 @@ void EditorManagerPrivate::init()
     cmd->setAttribute(Command::CA_UpdateText);
     cmd->setDescription(m_closeCurrentEditorAction->text());
     mfile->addAction(cmd, Constants::G_FILE_CLOSE);
-    connect(m_closeCurrentEditorAction, SIGNAL(triggered()),
-            m_instance, SLOT(slotCloseCurrentEditorOrDocument()));
+    connect(m_closeCurrentEditorAction, &QAction::triggered,
+            m_instance, &EditorManager::slotCloseCurrentEditorOrDocument);
 
     if (HostOsInfo::isWindowsHost()) {
         // workaround for QTCREATORBUG-72
@@ -367,115 +294,134 @@ void EditorManagerPrivate::init()
         cmd = ActionManager::registerAction(action, Constants::CLOSE_ALTERNATIVE, editManagerContext);
         cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+F4")));
         cmd->setDescription(EditorManager::tr("Close"));
-        connect(action, SIGNAL(triggered()), m_instance, SLOT(slotCloseCurrentEditorOrDocument()));
+        connect(action, &QAction::triggered,
+                m_instance, &EditorManager::slotCloseCurrentEditorOrDocument);
     }
 
     // Close All Action
     cmd = ActionManager::registerAction(m_closeAllEditorsAction, Constants::CLOSEALL, editManagerContext, true);
     cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+Shift+W")));
     mfile->addAction(cmd, Constants::G_FILE_CLOSE);
-    connect(m_closeAllEditorsAction, SIGNAL(triggered()), m_instance, SLOT(closeAllEditors()));
+    connect(m_closeAllEditorsAction, &QAction::triggered,
+            m_instance, []() { EditorManager::closeAllEditors(); });
 
     // Close All Others Action
     cmd = ActionManager::registerAction(m_closeOtherDocumentsAction, Constants::CLOSEOTHERS, editManagerContext, true);
     mfile->addAction(cmd, Constants::G_FILE_CLOSE);
     cmd->setAttribute(Command::CA_UpdateText);
-    connect(m_closeOtherDocumentsAction, SIGNAL(triggered()), m_instance, SLOT(closeOtherDocuments()));
+    connect(m_closeOtherDocumentsAction, &QAction::triggered,
+            m_instance, []() { EditorManager::closeOtherDocuments(); });
 
     // Close All Others Except Visible Action
     cmd = ActionManager::registerAction(m_closeAllEditorsExceptVisibleAction, Constants::CLOSEALLEXCEPTVISIBLE, editManagerContext, true);
     mfile->addAction(cmd, Constants::G_FILE_CLOSE);
-    connect(m_closeAllEditorsExceptVisibleAction, SIGNAL(triggered()),
-            this, SLOT(closeAllEditorsExceptVisible()));
+    connect(m_closeAllEditorsExceptVisibleAction, &QAction::triggered,
+            this, &EditorManagerPrivate::closeAllEditorsExceptVisible);
 
     //Save XXX Context Actions
-    connect(m_copyFilePathContextAction, SIGNAL(triggered()),
-            this, SLOT(copyFilePathFromContextMenu()));
-    connect(m_copyLocationContextAction, SIGNAL(triggered()),
-            this, SLOT(copyLocationFromContextMenu()));
-    connect(m_copyFileNameContextAction, SIGNAL(triggered()),
-            this, SLOT(copyFileNameFromContextMenu()));
-    connect(m_saveCurrentEditorContextAction, SIGNAL(triggered()),
-            this, SLOT(saveDocumentFromContextMenu()));
-    connect(m_saveAsCurrentEditorContextAction, SIGNAL(triggered()),
-            this, SLOT(saveDocumentAsFromContextMenu()));
-    connect(m_revertToSavedCurrentEditorContextAction, SIGNAL(triggered()),
-            this, SLOT(revertToSavedFromContextMenu()));
+    connect(m_copyFilePathContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::copyFilePathFromContextMenu);
+    connect(m_copyLocationContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::copyLocationFromContextMenu);
+    connect(m_copyFileNameContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::copyFileNameFromContextMenu);
+    connect(m_saveCurrentEditorContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::saveDocumentFromContextMenu);
+    connect(m_saveAsCurrentEditorContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::saveDocumentAsFromContextMenu);
+    connect(m_revertToSavedCurrentEditorContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::revertToSavedFromContextMenu);
 
     // Close XXX Context Actions
-    connect(m_closeAllEditorsContextAction, SIGNAL(triggered()),
-            m_instance, SLOT(closeAllEditors()));
-    connect(m_closeCurrentEditorContextAction, SIGNAL(triggered()),
-            this, SLOT(closeEditorFromContextMenu()));
-    connect(m_closeOtherDocumentsContextAction, SIGNAL(triggered()),
-            this, SLOT(closeOtherDocumentsFromContextMenu()));
-    connect(m_closeAllEditorsExceptVisibleContextAction, SIGNAL(triggered()),
-            this, SLOT(closeAllEditorsExceptVisible()));
+    connect(m_closeAllEditorsContextAction, &QAction::triggered,
+            m_instance, []() { EditorManager::closeAllEditors(); });
+    connect(m_closeCurrentEditorContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::closeEditorFromContextMenu);
+    connect(m_closeOtherDocumentsContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::closeOtherDocumentsFromContextMenu);
+    connect(m_closeAllEditorsExceptVisibleContextAction, &QAction::triggered,
+            this, &EditorManagerPrivate::closeAllEditorsExceptVisible);
 
-    connect(m_openGraphicalShellAction, SIGNAL(triggered()), this, SLOT(showInGraphicalShell()));
-    connect(m_openTerminalAction, SIGNAL(triggered()), this, SLOT(openTerminal()));
-    connect(m_findInDirectoryAction, SIGNAL(triggered()), this, SLOT(findInDirectory()));
+    connect(m_openGraphicalShellAction, &QAction::triggered,
+            this, &EditorManagerPrivate::showInGraphicalShell);
+    connect(m_openTerminalAction, &QAction::triggered, this, &EditorManagerPrivate::openTerminal);
+    connect(m_findInDirectoryAction, &QAction::triggered,
+            this, &EditorManagerPrivate::findInDirectory);
 
     // Goto Previous In History Action
     cmd = ActionManager::registerAction(m_gotoPreviousDocHistoryAction, Constants::GOTOPREVINHISTORY, editDesignContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Alt+Tab") : tr("Ctrl+Tab")));
     mwindow->addAction(cmd, Constants::G_WINDOW_NAVIGATE);
-    connect(m_gotoPreviousDocHistoryAction, SIGNAL(triggered()),
-            this, SLOT(gotoPreviousDocHistory()));
+    connect(m_gotoPreviousDocHistoryAction, &QAction::triggered,
+            this, &EditorManagerPrivate::gotoPreviousDocHistory);
 
     // Goto Next In History Action
     cmd = ActionManager::registerAction(m_gotoNextDocHistoryAction, Constants::GOTONEXTINHISTORY, editDesignContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Alt+Shift+Tab") : tr("Ctrl+Shift+Tab")));
     mwindow->addAction(cmd, Constants::G_WINDOW_NAVIGATE);
-    connect(m_gotoNextDocHistoryAction, SIGNAL(triggered()), this, SLOT(gotoNextDocHistory()));
+    connect(m_gotoNextDocHistoryAction, &QAction::triggered,
+            this, &EditorManagerPrivate::gotoNextDocHistory);
 
     // Go back in navigation history
     cmd = ActionManager::registerAction(m_goBackAction, Constants::GO_BACK, editDesignContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Ctrl+Alt+Left") : tr("Alt+Left")));
     mwindow->addAction(cmd, Constants::G_WINDOW_NAVIGATE);
-    connect(m_goBackAction, SIGNAL(triggered()), m_instance, SLOT(goBackInNavigationHistory()));
+    connect(m_goBackAction, &QAction::triggered,
+            m_instance, &EditorManager::goBackInNavigationHistory);
 
     // Go forward in navigation history
     cmd = ActionManager::registerAction(m_goForwardAction, Constants::GO_FORWARD, editDesignContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Ctrl+Alt+Right") : tr("Alt+Right")));
     mwindow->addAction(cmd, Constants::G_WINDOW_NAVIGATE);
-    connect(m_goForwardAction, SIGNAL(triggered()), m_instance, SLOT(goForwardInNavigationHistory()));
+    connect(m_goForwardAction, &QAction::triggered,
+            m_instance, &EditorManager::goForwardInNavigationHistory);
 
-    m_splitAction = new QAction(tr("Split"), this);
+    m_splitAction = new QAction(Utils::Icons::SPLIT_HORIZONTAL.icon(), tr("Split"), this);
     cmd = ActionManager::registerAction(m_splitAction, Constants::SPLIT, editManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,2") : tr("Ctrl+E,2")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
-    connect(m_splitAction, SIGNAL(triggered()), this, SLOT(split()));
+    connect(m_splitAction, &QAction::triggered, this, [this]() { split(Qt::Vertical); });
 
-    m_splitSideBySideAction = new QAction(tr("Split Side by Side"), this);
+    m_splitSideBySideAction = new QAction(Utils::Icons::SPLIT_VERTICAL.icon(),
+                                          tr("Split Side by Side"), this);
     cmd = ActionManager::registerAction(m_splitSideBySideAction, Constants::SPLIT_SIDE_BY_SIDE, editManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,3") : tr("Ctrl+E,3")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
-    connect(m_splitSideBySideAction, SIGNAL(triggered()), m_instance, SLOT(splitSideBySide()));
+    connect(m_splitSideBySideAction, &QAction::triggered, m_instance, &EditorManager::splitSideBySide);
 
     m_splitNewWindowAction = new QAction(tr("Open in New Window"), this);
     cmd = ActionManager::registerAction(m_splitNewWindowAction, Constants::SPLIT_NEW_WINDOW, editManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,4") : tr("Ctrl+E,4")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
-    connect(m_splitNewWindowAction, SIGNAL(triggered()), this, SLOT(splitNewWindow()));
+    connect(m_splitNewWindowAction, &QAction::triggered,
+            this, [this]() { splitNewWindow(currentEditorView()); });
 
     m_removeCurrentSplitAction = new QAction(tr("Remove Current Split"), this);
     cmd = ActionManager::registerAction(m_removeCurrentSplitAction, Constants::REMOVE_CURRENT_SPLIT, editManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,0") : tr("Ctrl+E,0")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
-    connect(m_removeCurrentSplitAction, SIGNAL(triggered()), this, SLOT(removeCurrentSplit()));
+    connect(m_removeCurrentSplitAction, &QAction::triggered,
+            this, &EditorManagerPrivate::removeCurrentSplit);
 
     m_removeAllSplitsAction = new QAction(tr("Remove All Splits"), this);
     cmd = ActionManager::registerAction(m_removeAllSplitsAction, Constants::REMOVE_ALL_SPLITS, editManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,1") : tr("Ctrl+E,1")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
-    connect(m_removeAllSplitsAction, SIGNAL(triggered()), this, SLOT(removeAllSplits()));
+    connect(m_removeAllSplitsAction, &QAction::triggered,
+            this, &EditorManagerPrivate::removeAllSplits);
+
+    m_gotoPreviousSplitAction = new QAction(tr("Go to Previous Split or Window"), this);
+    cmd = ActionManager::registerAction(m_gotoPreviousSplitAction, Constants::GOTO_PREV_SPLIT, editManagerContext);
+    cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,i") : tr("Ctrl+E,i")));
+    mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
+    connect(m_gotoPreviousSplitAction, &QAction::triggered,
+            this, &EditorManagerPrivate::gotoPreviousSplit);
 
     m_gotoNextSplitAction = new QAction(tr("Go to Next Split or Window"), this);
     cmd = ActionManager::registerAction(m_gotoNextSplitAction, Constants::GOTO_NEXT_SPLIT, editManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,o") : tr("Ctrl+E,o")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
-    connect(m_gotoNextSplitAction, SIGNAL(triggered()), this, SLOT(gotoNextSplit()));
+    connect(m_gotoNextSplitAction, &QAction::triggered, this, &EditorManagerPrivate::gotoNextSplit);
 
     ActionContainer *medit = ActionManager::actionContainer(Constants::M_EDIT);
     ActionContainer *advancedMenu = ActionManager::createMenu(Constants::M_EDIT_ADVANCED);
@@ -497,10 +443,12 @@ void EditorManagerPrivate::init()
 
     // other setup
     auto mainEditorArea = new EditorArea();
+    // assign parent to avoid failing updates (e.g. windowTitle) before it is displayed first time
+    mainEditorArea->setParent(ICore::mainWindow());
     mainEditorArea->hide();
     connect(mainEditorArea, &EditorArea::windowTitleNeedsUpdate,
             this, &EditorManagerPrivate::updateWindowTitle);
-    connect(mainEditorArea, SIGNAL(destroyed(QObject*)), this, SLOT(editorAreaDestroyed(QObject*)));
+    connect(mainEditorArea, &QObject::destroyed, this, &EditorManagerPrivate::editorAreaDestroyed);
     d->m_editorAreas.append(mainEditorArea);
     d->m_currentView = mainEditorArea->view();
 
@@ -511,12 +459,9 @@ void EditorManagerPrivate::init()
     m_windowPopup->hide();
 
     m_autoSaveTimer = new QTimer(this);
-    m_autoSaveTimer->setObjectName(QLatin1String("EditorManager::m_autoSaveTimer"));
-    connect(m_autoSaveTimer, SIGNAL(timeout()), SLOT(autoSave()));
+    m_autoSaveTimer->setObjectName("EditorManager::m_autoSaveTimer");
+    connect(m_autoSaveTimer, &QTimer::timeout, this, &EditorManagerPrivate::autoSave);
     updateAutoSave();
-
-    d->m_coreListener = new EditorClosingCoreListener();
-    ExtensionSystem::PluginManager::addObject(d->m_coreListener);
 
     d->m_openEditorsFactory = new OpenEditorsViewFactory();
     ExtensionSystem::PluginManager::addObject(d->m_openEditorsFactory);
@@ -539,7 +484,14 @@ void EditorManagerPrivate::init()
         []() -> int {
             IEditor *editor = EditorManager::currentEditor();
             return editor ? editor->widget()->mapToGlobal(QPoint(0, 0)).y() : 0;
-        });
+                                               });
+}
+
+void EditorManagerPrivate::extensionsInitialized()
+{
+    // Do not ask for files to save.
+    // MainWindow::closeEvent has already done that.
+    ICore::addPreCloseListener([]() -> bool { return EditorManager::closeAllEditors(false); });
 }
 
 EditorManagerPrivate *EditorManagerPrivate::instance()
@@ -563,7 +515,7 @@ bool EditorManagerPrivate::skipOpeningBigTextFile(const QString &filePath)
 
     Utils::MimeDatabase mdb;
     Utils::MimeType mimeType = mdb.mimeTypeForFile(filePath);
-    if (!mimeType.inherits(QLatin1String("text/plain")))
+    if (!mimeType.inherits("text/plain"))
         return false;
 
     const double fileSizeInMB = fileInfo.size() / 1000.0 / 1000.0;
@@ -604,13 +556,18 @@ IEditor *EditorManagerPrivate::openEditor(EditorView *view, const QString &fileN
     int lineNumber = -1;
     int columnNumber = -1;
     if ((flags & EditorManager::CanContainLineAndColumnNumber) && !fi.exists()) {
-        extractLineAndColumnNumbers(&fn, &lineNumber, &columnNumber);
-        if (lineNumber != -1)
-            fi.setFile(fn);
+        const EditorManager::FilePathInfo fp = EditorManager::splitLineAndColumnNumber(fn);
+        fn = Utils::FileUtils::normalizePathName(fp.filePath);
+        lineNumber = fp.lineNumber;
+        columnNumber = fp.columnNumber;
+    } else {
+        fn = Utils::FileUtils::normalizePathName(fn);
     }
 
     if (fn.isEmpty())
         return 0;
+    if (fn != fileName)
+        fi.setFile(fn);
 
     if (newEditor)
         *newEditor = false;
@@ -967,7 +924,7 @@ Id EditorManagerPrivate::getOpenWithEditorId(const QString &fileName, bool *isEx
     Utils::MimeType mt = mdb.mimeTypeForFile(fileName);
     //Unable to determine mime type of fileName. Falling back to text/plain",
     if (!mt.isValid())
-        mt = mdb.mimeTypeForName(QLatin1String("text/plain"));
+        mt = mdb.mimeTypeForName("text/plain");
     QList<Id> allEditorIds;
     QStringList allEditorDisplayNames;
     QList<Id> externalEditorIds;
@@ -1003,51 +960,42 @@ Id EditorManagerPrivate::getOpenWithEditorId(const QString &fileName, bool *isEx
 
 void EditorManagerPrivate::saveSettings()
 {
-    SettingsDatabase *settings = ICore::settingsDatabase();
-    settings->beginTransaction();
-    settings->setValue(QLatin1String(documentStatesKey), d->m_editorStates);
-    settings->setValue(QLatin1String(reloadBehaviorKey), d->m_reloadSetting);
-    settings->setValue(QLatin1String(autoSaveEnabledKey), d->m_autoSaveEnabled);
-    settings->setValue(QLatin1String(autoSaveIntervalKey), d->m_autoSaveInterval);
-    settings->endTransaction();
+    ICore::settingsDatabase()->setValue(documentStatesKey, d->m_editorStates);
 
     QSettings *qsettings = ICore::settings();
-    qsettings->setValue(QLatin1String(warnBeforeOpeningBigTextFilesKey),
+    qsettings->setValue(reloadBehaviorKey, d->m_reloadSetting);
+    qsettings->setValue(autoSaveEnabledKey, d->m_autoSaveEnabled);
+    qsettings->setValue(autoSaveIntervalKey, d->m_autoSaveInterval);
+    qsettings->setValue(autoSuspendEnabledKey, d->m_autoSuspendEnabled);
+    qsettings->setValue(autoSuspendMinDocumentCountKey, d->m_autoSuspendMinDocumentCount);
+    qsettings->setValue(warnBeforeOpeningBigTextFilesKey,
                         d->m_warnBeforeOpeningBigFilesEnabled);
-    qsettings->setValue(QLatin1String(bigTextFileSizeLimitKey), d->m_bigFileSizeLimitInMB);
+    qsettings->setValue(bigTextFileSizeLimitKey, d->m_bigFileSizeLimitInMB);
 
     Qt::CaseSensitivity defaultSensitivity
             = OsSpecificAspects(HostOsInfo::hostOs()).fileNameCaseSensitivity();
     Qt::CaseSensitivity sensitivity = HostOsInfo::fileNameCaseSensitivity();
     if (defaultSensitivity == sensitivity)
-        qsettings->remove(QLatin1String(fileSystemCaseSensitivityKey));
+        qsettings->remove(fileSystemCaseSensitivityKey);
     else
-        qsettings->setValue(QLatin1String(fileSystemCaseSensitivityKey), sensitivity);
+        qsettings->setValue(fileSystemCaseSensitivityKey, sensitivity);
 }
 
 void EditorManagerPrivate::readSettings()
 {
-    // TODO remove
-    // Backward compatibility to old locations for these settings
     QSettings *qs = ICore::settings();
-    if (qs->contains(QLatin1String(documentStatesKey))) {
-        d->m_editorStates = qs->value(QLatin1String(documentStatesKey))
-            .value<QMap<QString, QVariant> >();
-        qs->remove(QLatin1String(documentStatesKey));
-    }
-
-    if (qs->contains(QLatin1String(warnBeforeOpeningBigTextFilesKey))) {
+    if (qs->contains(warnBeforeOpeningBigTextFilesKey)) {
         d->m_warnBeforeOpeningBigFilesEnabled
-                = qs->value(QLatin1String(warnBeforeOpeningBigTextFilesKey)).toBool();
-        d->m_bigFileSizeLimitInMB = qs->value(QLatin1String(bigTextFileSizeLimitKey)).toInt();
+                = qs->value(warnBeforeOpeningBigTextFilesKey).toBool();
+        d->m_bigFileSizeLimitInMB = qs->value(bigTextFileSizeLimitKey).toInt();
     }
 
-    if (qs->contains(QLatin1String(fileSystemCaseSensitivityKey))) {
+    if (qs->contains(fileSystemCaseSensitivityKey)) {
         Qt::CaseSensitivity defaultSensitivity
                 = OsSpecificAspects(HostOsInfo::hostOs()).fileNameCaseSensitivity();
         bool ok = false;
         Qt::CaseSensitivity sensitivity = defaultSensitivity;
-        int sensitivitySetting = qs->value(QLatin1String(fileSystemCaseSensitivityKey)).toInt(&ok);
+        int sensitivitySetting = qs->value(fileSystemCaseSensitivityKey).toInt(&ok);
         if (ok) {
             switch (Qt::CaseSensitivity(sensitivitySetting)) {
             case Qt::CaseSensitive:
@@ -1064,16 +1012,29 @@ void EditorManagerPrivate::readSettings()
     }
 
     SettingsDatabase *settings = ICore::settingsDatabase();
-    if (settings->contains(QLatin1String(documentStatesKey)))
-        d->m_editorStates = settings->value(QLatin1String(documentStatesKey))
+    if (settings->contains(documentStatesKey)) {
+        d->m_editorStates = settings->value(documentStatesKey)
             .value<QMap<QString, QVariant> >();
+    }
 
-    if (settings->contains(QLatin1String(reloadBehaviorKey)))
-        d->m_reloadSetting = (IDocument::ReloadSetting)settings->value(QLatin1String(reloadBehaviorKey)).toInt();
+    if (settings->contains(reloadBehaviorKey)) {
+        d->m_reloadSetting = (IDocument::ReloadSetting)settings->value(reloadBehaviorKey).toInt();
+        settings->remove(reloadBehaviorKey);
+    }
 
-    if (settings->contains(QLatin1String(autoSaveEnabledKey))) {
-        d->m_autoSaveEnabled = settings->value(QLatin1String(autoSaveEnabledKey)).toBool();
-        d->m_autoSaveInterval = settings->value(QLatin1String(autoSaveIntervalKey)).toInt();
+    if (settings->contains(autoSaveEnabledKey)) {
+        d->m_autoSaveEnabled = settings->value(autoSaveEnabledKey).toBool();
+        d->m_autoSaveInterval = settings->value(autoSaveIntervalKey).toInt();
+        settings->remove(autoSaveEnabledKey);
+        settings->remove(autoSaveIntervalKey);
+    }
+
+    if (qs->contains(reloadBehaviorKey))
+        d->m_reloadSetting = (IDocument::ReloadSetting)qs->value(reloadBehaviorKey).toInt();
+
+    if (qs->contains(autoSaveEnabledKey)) {
+        d->m_autoSaveEnabled = qs->value(autoSaveEnabledKey).toBool();
+        d->m_autoSaveInterval = qs->value(autoSaveIntervalKey).toInt();
     }
     updateAutoSave();
 }
@@ -1098,6 +1059,26 @@ void EditorManagerPrivate::setAutoSaveInterval(int interval)
 int EditorManagerPrivate::autoSaveInterval()
 {
     return d->m_autoSaveInterval;
+}
+
+void EditorManagerPrivate::setAutoSuspendEnabled(bool enabled)
+{
+    d->m_autoSuspendEnabled = enabled;
+}
+
+bool EditorManagerPrivate::autoSuspendEnabled()
+{
+    return d->m_autoSuspendEnabled;
+}
+
+void EditorManagerPrivate::setAutoSuspendMinDocumentCount(int count)
+{
+    d->m_autoSuspendMinDocumentCount = count;
+}
+
+int EditorManagerPrivate::autoSuspendMinDocumentCount()
+{
+    return d->m_autoSuspendMinDocumentCount;
 }
 
 bool EditorManagerPrivate::warnBeforeOpeningBigFilesEnabled()
@@ -1134,12 +1115,12 @@ EditorManager::EditorFactoryList EditorManagerPrivate::findFactories(Id editorId
         if (!mimeType.isValid()) {
             qWarning("%s unable to determine mime type of %s/%s. Falling back to text/plain",
                      Q_FUNC_INFO, fileName.toUtf8().constData(), editorId.name().constData());
-            mimeType = mdb.mimeTypeForName(QLatin1String("text/plain"));
+            mimeType = mdb.mimeTypeForName("text/plain");
         }
         // open text files > 48 MB in binary editor
         if (fileInfo.size() > EditorManager::maxTextFileSize()
-                && mimeType.name().startsWith(QLatin1String("text"))) {
-            mimeType = mdb.mimeTypeForName(QLatin1String("application/octet-stream"));
+                && mimeType.name().startsWith("text")) {
+            mimeType = mdb.mimeTypeForName("application/octet-stream");
         }
         factories = EditorManager::editorFactories(mimeType, false);
     } else {
@@ -1163,7 +1144,7 @@ IEditor *EditorManagerPrivate::createEditor(IEditorFactory *factory, const QStri
     IEditor *editor = factory->createEditor();
     if (editor) {
         QTC_CHECK(editor->document()->id().isValid()); // sanity check that the editor has an id set
-        connect(editor->document(), SIGNAL(changed()), d, SLOT(handleDocumentStateChange()));
+        connect(editor->document(), &IDocument::changed, d, &EditorManagerPrivate::handleDocumentStateChange);
         emit m_instance->editorCreated(editor, fileName);
     }
 
@@ -1177,7 +1158,7 @@ void EditorManagerPrivate::addEditor(IEditor *editor)
     ICore::addContextObject(editor);
 
     bool isNewDocument = false;
-    DocumentModel::addEditor(editor, &isNewDocument);
+    DocumentModelPrivate::addEditor(editor, &isNewDocument);
     if (isNewDocument) {
         const bool isTemporary = editor->document()->isTemporary();
         const bool addWatcher = !isTemporary;
@@ -1187,14 +1168,18 @@ void EditorManagerPrivate::addEditor(IEditor *editor)
                                               editor->document()->id());
     }
     emit m_instance->editorOpened(editor);
+    QTimer::singleShot(0, d, &EditorManagerPrivate::autoSuspendDocuments);
 }
 
-void EditorManagerPrivate::removeEditor(IEditor *editor)
+void EditorManagerPrivate::removeEditor(IEditor *editor, bool removeSuspendedEntry)
 {
-    bool lastOneForDocument = false;
-    DocumentModel::removeEditor(editor, &lastOneForDocument);
-    if (lastOneForDocument)
+    DocumentModel::Entry *entry = DocumentModelPrivate::removeEditor(editor);
+    QTC_ASSERT(entry, return);
+    if (entry->isSuspended) {
         DocumentManager::removeDocument(editor->document());
+        if (removeSuspendedEntry)
+            DocumentModelPrivate::removeEntry(entry);
+    }
     ICore::removeContextObject(editor);
 }
 
@@ -1267,11 +1252,13 @@ IEditor *EditorManagerPrivate::activateEditor(EditorView *view, IEditor *editor,
                 ModeManager::activateMode(Constants::MODE_DESIGN);
                 ModeManager::setFocusToCurrentMode();
             } else {
-                int index;
-                findEditorArea(view, &index);
-                if (index == 0) // main window --> we might need to switch mode
-                    if (!editor->widget()->isVisible())
-                        ModeManager::activateMode(Constants::MODE_EDIT);
+                if (!(flags & EditorManager::DoNotSwitchToEditMode)) {
+                    int index;
+                    findEditorArea(view, &index);
+                    if (index == 0) // main window --> we might need to switch mode
+                        if (!editor->widget()->isVisible())
+                            ModeManager::activateMode(Constants::MODE_EDIT);
+                }
                 editor->widget()->setFocus();
                 ICore::raiseWindow(editor->widget());
             }
@@ -1282,23 +1269,27 @@ IEditor *EditorManagerPrivate::activateEditor(EditorView *view, IEditor *editor,
     return editor;
 }
 
-void EditorManagerPrivate::activateEditorForEntry(EditorView *view, DocumentModel::Entry *entry, EditorManager::OpenEditorFlags flags)
+bool EditorManagerPrivate::activateEditorForEntry(EditorView *view, DocumentModel::Entry *entry,
+                                                  EditorManager::OpenEditorFlags flags)
 {
-    QTC_ASSERT(view, return);
+    QTC_ASSERT(view, return false);
     if (!entry) { // no document
         view->setCurrentEditor(0);
         setCurrentView(view);
         setCurrentEditor(0);
-        return;
+        return false;
     }
     IDocument *document = entry->document;
-    if (!entry->isRestored)  {
-        activateEditorForDocument(view, document, flags);
-        return;
+    if (!entry->isSuspended)  {
+        IEditor *editor = activateEditorForDocument(view, document, flags);
+        return editor != nullptr;
     }
 
-    if (!openEditor(view, entry->fileName().toString(), entry->id(), flags))
-        DocumentModel::removeEntry(entry);
+    if (!openEditor(view, entry->fileName().toString(), entry->id(), flags)) {
+        DocumentModelPrivate::removeEntry(entry);
+        return false;
+    }
+    return true;
 }
 
 void EditorManagerPrivate::closeEditorOrDocument(IEditor *editor)
@@ -1313,6 +1304,144 @@ void EditorManagerPrivate::closeEditorOrDocument(IEditor *editor)
     } else {
         EditorManager::closeDocument(editor->document());
     }
+}
+
+bool EditorManagerPrivate::closeEditors(const QList<IEditor*> &editors, CloseFlag flag)
+{
+    if (editors.isEmpty())
+        return true;
+    bool closingFailed = false;
+    // close Editor History list
+    windowPopup()->setVisible(false);
+
+
+    EditorView *currentView = currentEditorView();
+
+    // go through all editors to close and
+    // 1. ask all core listeners to check whether the editor can be closed
+    // 2. keep track of the document and all the editors that might remain open for it
+    QSet<IEditor*> acceptedEditors;
+    QMap<IDocument *, QList<IEditor *> > documentMap;
+    foreach (IEditor *editor, editors) {
+        bool editorAccepted = true;
+        foreach (const std::function<bool(IEditor*)> listener, d->m_closeEditorListeners) {
+            if (!listener(editor)) {
+                editorAccepted = false;
+                closingFailed = true;
+                break;
+            }
+        }
+        if (editorAccepted) {
+            acceptedEditors.insert(editor);
+            IDocument *document = editor->document();
+            if (!documentMap.contains(document)) // insert the document to track
+                documentMap.insert(document, DocumentModel::editorsForDocument(document));
+            // keep track that we'll close this editor for the document
+            documentMap[document].removeAll(editor);
+        }
+    }
+    if (acceptedEditors.isEmpty())
+        return false;
+
+    //ask whether to save modified documents that we are about to close
+    if (flag == CloseFlag::CloseWithAsking) {
+        // Check for which documents we will close all editors, and therefore might have to ask the user
+        QList<IDocument *> documentsToClose;
+        for (auto i = documentMap.constBegin(); i != documentMap.constEnd(); ++i) {
+            if (i.value().isEmpty())
+                documentsToClose.append(i.key());
+        }
+
+        bool cancelled = false;
+        QList<IDocument *> rejectedList;
+        DocumentManager::saveModifiedDocuments(documentsToClose, QString(), &cancelled,
+                                               QString(), 0, &rejectedList);
+        if (cancelled)
+            return false;
+        if (!rejectedList.isEmpty()) {
+            closingFailed = true;
+            QSet<IEditor*> skipSet = DocumentModel::editorsForDocuments(rejectedList).toSet();
+            acceptedEditors = acceptedEditors.subtract(skipSet);
+        }
+    }
+    if (acceptedEditors.isEmpty())
+        return false;
+
+    QList<EditorView*> closedViews;
+    EditorView *focusView = 0;
+
+    // remove the editors
+    foreach (IEditor *editor, acceptedEditors) {
+        emit m_instance->editorAboutToClose(editor);
+        if (!editor->document()->filePath().isEmpty()
+                && !editor->document()->isTemporary()) {
+            QByteArray state = editor->saveState();
+            if (!state.isEmpty())
+                d->m_editorStates.insert(editor->document()->filePath().toString(), QVariant(state));
+        }
+
+        removeEditor(editor, flag != CloseFlag::Suspend);
+        if (EditorView *view = viewForEditor(editor)) {
+            if (qApp->focusWidget() && qApp->focusWidget() == editor->widget()->focusWidget())
+                focusView = view;
+            if (editor == view->currentEditor())
+                closedViews += view;
+            if (d->m_currentEditor == editor) {
+                // avoid having a current editor without view
+                setCurrentView(view);
+                setCurrentEditor(0);
+            }
+            view->removeEditor(editor);
+        }
+    }
+
+    // TODO doesn't work as expected with multiple areas in main window and some other cases
+    // instead each view should have its own file history and handle solely themselves
+    // which editor is shown if their current editor closes
+    EditorView *forceViewToShowEditor = 0;
+    if (!closedViews.isEmpty() && EditorManager::visibleEditors().isEmpty()) {
+        if (closedViews.contains(currentView))
+            forceViewToShowEditor = currentView;
+        else
+            forceViewToShowEditor = closedViews.first();
+    }
+    foreach (EditorView *view, closedViews) {
+        IEditor *newCurrent = view->currentEditor();
+        if (!newCurrent && forceViewToShowEditor == view)
+            newCurrent = pickUnusedEditor();
+        if (newCurrent) {
+            activateEditor(view, newCurrent, EditorManager::DoNotChangeCurrentEditor);
+        } else if (forceViewToShowEditor == view) {
+            DocumentModel::Entry *entry = DocumentModelPrivate::firstSuspendedEntry();
+            if (entry) {
+                activateEditorForEntry(view, entry, EditorManager::DoNotChangeCurrentEditor);
+            } else { // no "suspended" ones, so any entry left should have a document
+                const QList<DocumentModel::Entry *> documents = DocumentModel::entries();
+                if (!documents.isEmpty()) {
+                    if (IDocument *document = documents.last()->document) {
+                        activateEditorForDocument(view, document, EditorManager::DoNotChangeCurrentEditor);
+                    }
+                }
+            }
+        }
+    }
+
+    emit m_instance->editorsClosed(acceptedEditors.toList());
+
+    foreach (IEditor *editor, acceptedEditors)
+        delete editor;
+
+    if (focusView)
+        activateView(focusView);
+    else
+        setCurrentEditor(currentView->currentEditor());
+
+    if (!EditorManager::currentEditor()) {
+        emit m_instance->currentEditorChanged(0);
+        updateActions();
+    }
+
+    return !closingFailed;
 }
 
 void EditorManagerPrivate::activateView(EditorView *view)
@@ -1359,6 +1488,9 @@ void EditorManagerPrivate::setCurrentEditor(IEditor *editor, bool ignoreNavigati
 
     if (d->m_currentEditor == editor)
         return;
+
+    emit m_instance->currentEditorAboutToChange(d->m_currentEditor);
+
     if (d->m_currentEditor && !ignoreNavigationHistory)
         EditorManager::addCurrentPositionToNavigationHistory();
 
@@ -1446,7 +1578,7 @@ void EditorManagerPrivate::emptyView(EditorView *view)
             continue; // don't close the editor
         }
         emit m_instance->editorAboutToClose(editor);
-        removeEditor(editor);
+        removeEditor(editor, true /*=removeSuspendedEntry, but doesn't matter since it's not the last editor anyhow*/);
         view->removeEditor(editor);
     }
     if (!editors.isEmpty()) {
@@ -1469,7 +1601,7 @@ void EditorManagerPrivate::splitNewWindow(EditorView *view)
     auto win = new EditorWindow;
     EditorArea *area = win->editorArea();
     d->m_editorAreas.append(area);
-    connect(area, SIGNAL(destroyed(QObject*)), d, SLOT(editorAreaDestroyed(QObject*)));
+    connect(area, &QObject::destroyed, d, &EditorManagerPrivate::editorAreaDestroyed);
     win->show();
     ICore::raiseWindow(win);
     if (newEditor)
@@ -1561,16 +1693,17 @@ void EditorManagerPrivate::setupSaveActions(IDocument *document, QAction *saveAc
     saveAsAction->setEnabled(document != 0 && document->isSaveAsAllowed());
     revertToSavedAction->setEnabled(hasFile);
 
-    const QString documentName = document ? document->displayName() : QString();
-    QString quotedName;
-
-    if (!documentName.isEmpty()) {
-        quotedName = QLatin1Char('"') + documentName + QLatin1Char('"');
+    if (document && !document->displayName().isEmpty()) {
+        const QString quotedName = QLatin1Char('"') + document->displayName() + QLatin1Char('"');
         saveAction->setText(tr("&Save %1").arg(quotedName));
         saveAsAction->setText(tr("Save %1 &As...").arg(quotedName));
         revertToSavedAction->setText(document->isModified()
                                      ? tr("Revert %1 to Saved").arg(quotedName)
                                      : tr("Reload %1").arg(quotedName));
+    } else {
+        saveAction->setText(EditorManager::tr("&Save"));
+        saveAsAction->setText(EditorManager::tr("Save &As..."));
+        revertToSavedAction->setText(EditorManager::tr("Revert to Saved"));
     }
 }
 
@@ -1613,32 +1746,43 @@ void EditorManagerPrivate::updateWindowTitleForDocument(IDocument *document, QWi
 {
     QTC_ASSERT(window, return);
     QString windowTitle;
-    const QString dashSep = QLatin1String(" - ");
+    const QString dashSep(" - ");
+
+    const QString documentName = document ? document->displayName() : QString();
+    if (!documentName.isEmpty())
+        windowTitle.append(documentName);
 
     QString filePath = document ? document->filePath().toFileInfo().absoluteFilePath()
                               : QString();
-
     const QString windowTitleAddition = d->m_titleAdditionHandler
             ? d->m_titleAdditionHandler(filePath)
             : QString();
-
-    QString windowTitleVcsTopic;
-    if (d->m_titleVcsTopicHandler)
-        windowTitleVcsTopic = d->m_titleVcsTopicHandler(filePath);
-    if (!windowTitleVcsTopic.isEmpty())
-        windowTitleVcsTopic = QStringLiteral(" [") + windowTitleVcsTopic + QStringLiteral("]");
-
-    const QString documentName = document ? document->displayName() : QString();
-
-    if (!documentName.isEmpty())
-        windowTitle.append(documentName + windowTitleVcsTopic + dashSep);
     if (!windowTitleAddition.isEmpty()) {
+        if (!windowTitle.isEmpty())
+            windowTitle.append(" ");
         windowTitle.append(windowTitleAddition);
-        if (documentName.isEmpty()) // vcs topic not already added
-            windowTitle.append(windowTitleVcsTopic);
-        windowTitle.append(dashSep);
     }
 
+    const QString windowTitleVcsTopic = d->m_titleVcsTopicHandler
+           ? d->m_titleVcsTopicHandler(filePath)
+           : QString();
+    if (!windowTitleVcsTopic.isEmpty()) {
+        if (!windowTitle.isEmpty())
+            windowTitle.append(" ");
+        windowTitle.append(QStringLiteral("[") + windowTitleVcsTopic + QStringLiteral("]"));
+    }
+
+    const QString sessionTitle = d->m_sessionTitleHandler
+           ? d->m_sessionTitleHandler(filePath)
+           : QString();
+    if (!sessionTitle.isEmpty()) {
+        if (!windowTitle.isEmpty())
+            windowTitle.append(dashSep);
+        windowTitle.append(sessionTitle);
+    }
+
+    if (!windowTitle.isEmpty())
+        windowTitle.append(dashSep);
     windowTitle.append(tr("Qt Creator"));
     window->window()->setWindowTitle(windowTitle);
     window->window()->setWindowFilePath(filePath);
@@ -1701,11 +1845,33 @@ void EditorManagerPrivate::gotoNextSplit()
         if (nextIndex >= d->m_editorAreas.size())
             nextIndex = 0;
         nextView = d->m_editorAreas.at(nextIndex)->findFirstView();
-        QTC_CHECK(nextView);
     }
 
-    if (nextView)
+    if (QTC_GUARD(nextView))
         activateView(nextView);
+}
+
+void EditorManagerPrivate::gotoPreviousSplit()
+{
+    EditorView *view = currentEditorView();
+    if (!view)
+        return;
+    EditorView *prevView = view->findPreviousView();
+    if (!prevView) {
+        // we are in the "first" view in this editor area
+        int index = -1;
+        EditorArea *area = findEditorArea(view, &index);
+        QTC_ASSERT(area, return);
+        QTC_ASSERT(index >= 0 && index < d->m_editorAreas.size(), return);
+        // find previous editor area. this might be the same editor area if there's only one.
+        int nextIndex = index - 1;
+        if (nextIndex < 0)
+            nextIndex = d->m_editorAreas.count() - 1;
+        prevView = d->m_editorAreas.at(nextIndex)->findLastView();
+    }
+
+    if (QTC_GUARD(prevView))
+        activateView(prevView);
 }
 
 void EditorManagerPrivate::makeCurrentEditorWritable()
@@ -1751,9 +1917,9 @@ void EditorManagerPrivate::handleDocumentStateChange()
     IDocument *document = qobject_cast<IDocument *>(sender());
     if (!document->isModified())
         document->removeAutoSaveFile();
-    if (EditorManager::currentDocument() == document) {
+    if (EditorManager::currentDocument() == document)
         emit m_instance->currentDocumentStateChanged();
-    }
+    emit m_instance->documentStateChanged(document);
 }
 
 void EditorManagerPrivate::editorAreaDestroyed(QObject *area)
@@ -1816,6 +1982,7 @@ void EditorManagerPrivate::autoSave()
     if (!errors.isEmpty())
         QMessageBox::critical(ICore::mainWindow(), tr("File Error"),
                               errors.join(QLatin1Char('\n')));
+    emit m_instance->autoSaved();
 }
 
 void EditorManagerPrivate::handleContextChange(const QList<IContext *> &context)
@@ -1834,7 +2001,7 @@ void EditorManagerPrivate::handleContextChange(const QList<IContext *> &context)
         // the locator line edit) first activates the window and sets focus to its focus widget.
         // Only afterwards the focus is shifted to the widget that received the click.
         d->m_scheduledCurrentEditor = editor;
-        QTimer::singleShot(0, d, SLOT(setCurrentEditorFromContextChange()));
+        QTimer::singleShot(0, d, &EditorManagerPrivate::setCurrentEditorFromContextChange);
     } else {
         updateActions();
     }
@@ -1917,6 +2084,7 @@ bool EditorManagerPrivate::saveDocument(IDocument *document)
     bool success = false;
     bool isReadOnly;
 
+    emit m_instance->aboutToSave(document);
     // try saving, no matter what isReadOnly tells us
     success = DocumentManager::saveDocument(document, QString(), &isReadOnly);
 
@@ -1943,18 +2111,8 @@ bool EditorManagerPrivate::saveDocumentAs(IDocument *document)
     if (!document)
         return false;
 
-    Utils::MimeDatabase mdb;
-    const QString filter = Utils::MimeDatabase::allFiltersString();
-    QString selectedFilter;
-    QString filePath = document->filePath().toString();
-    if (filePath.isEmpty())
-        filePath = document->defaultPath() + QLatin1Char('/') + document->suggestedFileName();
-    if (!filePath.isEmpty())
-        selectedFilter = mdb.mimeTypeForFile(filePath).filterString();
-    if (selectedFilter.isEmpty())
-        selectedFilter = mdb.mimeTypeForName(document->mimeType()).filterString();
     const QString &absoluteFilePath =
-        DocumentManager::getSaveAsFileName(document, filter, &selectedFilter);
+        DocumentManager::getSaveAsFileName(document);
 
     if (absoluteFilePath.isEmpty())
         return false;
@@ -1966,6 +2124,7 @@ bool EditorManagerPrivate::saveDocumentAs(IDocument *document)
             EditorManager::closeDocuments(QList<IDocument *>() << otherDocument, false);
     }
 
+    emit m_instance->aboutToSave(document);
     const bool success = DocumentManager::saveDocument(document, absoluteFilePath);
     document->checkPermissions();
 
@@ -1984,7 +2143,7 @@ bool EditorManagerPrivate::saveDocumentAs(IDocument *document)
 
 void EditorManagerPrivate::closeAllEditorsExceptVisible()
 {
-    DocumentModel::removeAllRestoredEntries();
+    DocumentModelPrivate::removeAllSuspendedEntries();
     QList<IDocument *> documentsToClose = DocumentModel::openedDocuments();
     foreach (IEditor *editor, EditorManager::visibleEditors())
         documentsToClose.removeAll(editor->document());
@@ -2005,15 +2164,48 @@ void EditorManagerPrivate::revertToSaved(IDocument *document)
                            QMessageBox::Yes|QMessageBox::No, ICore::mainWindow());
         msgBox.button(QMessageBox::Yes)->setText(tr("Proceed"));
         msgBox.button(QMessageBox::No)->setText(tr("Cancel"));
+
+        QPushButton *diffButton = nullptr;
+        auto diffService = ExtensionSystem::PluginManager::getObject<DiffService>();
+        if (diffService)
+            diffButton = msgBox.addButton(tr("Cancel && &Diff"), QMessageBox::RejectRole);
+
         msgBox.setDefaultButton(QMessageBox::No);
         msgBox.setEscapeButton(QMessageBox::No);
         if (msgBox.exec() == QMessageBox::No)
             return;
 
+        if (diffService && msgBox.clickedButton() == diffButton) {
+            diffService->diffModifiedFiles(QStringList(fileName));
+            return;
+        }
     }
     QString errorString;
     if (!document->reload(&errorString, IDocument::FlagReload, IDocument::TypeContents))
         QMessageBox::critical(ICore::mainWindow(), tr("File Error"), errorString);
+}
+
+void EditorManagerPrivate::autoSuspendDocuments()
+{
+    if (!d->m_autoSuspendEnabled)
+        return;
+
+    auto visibleDocuments = Utils::transform<QSet>(EditorManager::visibleEditors(),
+                                                   [](IEditor *editor) { return editor->document(); });
+    int keptEditorCount = 0;
+    QList<IDocument *> documentsToSuspend;
+    foreach (const EditLocation &editLocation, d->m_globalHistory) {
+        IDocument *document = editLocation.document;
+        if (!document || !document->isSuspendAllowed() || document->isModified()
+                || document->isTemporary() || document->filePath().isEmpty()
+                || visibleDocuments.contains(document))
+            continue;
+        if (keptEditorCount >= d->m_autoSuspendMinDocumentCount)
+            documentsToSuspend.append(document);
+        else
+            ++keptEditorCount;
+    }
+    closeEditors(DocumentModel::editorsForDocuments(documentsToSuspend), CloseFlag::Suspend);
 }
 
 void EditorManagerPrivate::showInGraphicalShell()
@@ -2045,16 +2237,6 @@ void EditorManagerPrivate::split(Qt::Orientation orientation)
         view->parentSplitterOrView()->split(orientation);
 
     updateActions();
-}
-
-void EditorManagerPrivate::split()
-{
-    split(Qt::Vertical);
-}
-
-void EditorManagerPrivate::splitNewWindow()
-{
-    splitNewWindow(currentEditorView());
 }
 
 void EditorManagerPrivate::removeCurrentSplit()
@@ -2137,7 +2319,7 @@ IEditor *EditorManager::currentEditor()
 
 bool EditorManager::closeAllEditors(bool askAboutModifiedEditors)
 {
-    DocumentModel::removeAllRestoredEntries();
+    DocumentModelPrivate::removeAllSuspendedEntries();
     if (closeDocuments(DocumentModel::openedDocuments(), askAboutModifiedEditors))
         return true;
     return false;
@@ -2145,7 +2327,7 @@ bool EditorManager::closeAllEditors(bool askAboutModifiedEditors)
 
 void EditorManager::closeOtherDocuments(IDocument *document)
 {
-    DocumentModel::removeAllRestoredEntries();
+    DocumentModelPrivate::removeAllSuspendedEntries();
     QList<IDocument *> documentsToClose = DocumentModel::openedDocuments();
     documentsToClose.removeAll(document);
     closeDocuments(documentsToClose, true);
@@ -2328,151 +2510,17 @@ void EditorManager::closeDocument(DocumentModel::Entry *entry)
 {
     if (!entry)
         return;
-    if (entry->isRestored)
-        DocumentModel::removeEntry(entry);
+    if (entry->isSuspended)
+        DocumentModelPrivate::removeEntry(entry);
     else
         closeDocuments(QList<IDocument *>() << entry->document);
 }
 
 bool EditorManager::closeEditors(const QList<IEditor*> &editorsToClose, bool askAboutModifiedEditors)
 {
-    if (editorsToClose.isEmpty())
-        return true;
-    bool closingFailed = false;
-    // close Editor History list
-    EditorManagerPrivate::windowPopup()->setVisible(false);
-
-
-    EditorView *currentView = EditorManagerPrivate::currentEditorView();
-
-    // go through all editors to close and
-    // 1. ask all core listeners to check whether the editor can be closed
-    // 2. keep track of the document and all the editors that might remain open for it
-    QSet<IEditor*> acceptedEditors;
-    QMap<IDocument *, QList<IEditor *> > documentMap;
-    const QList<ICoreListener *> listeners =
-        ExtensionSystem::PluginManager::getObjects<ICoreListener>();
-    foreach (IEditor *editor, editorsToClose) {
-        bool editorAccepted = true;
-        foreach (ICoreListener *listener, listeners) {
-            if (!listener->editorAboutToClose(editor)) {
-                editorAccepted = false;
-                closingFailed = true;
-                break;
-            }
-        }
-        if (editorAccepted) {
-            acceptedEditors.insert(editor);
-            IDocument *document = editor->document();
-            if (!documentMap.contains(document)) // insert the document to track
-                documentMap.insert(document, DocumentModel::editorsForDocument(document));
-            // keep track that we'll close this editor for the document
-            documentMap[document].removeAll(editor);
-        }
-    }
-    if (acceptedEditors.isEmpty())
-        return false;
-
-    //ask whether to save modified documents that we are about to close
-    if (askAboutModifiedEditors) {
-        // Check for which documents we will close all editors, and therefore might have to ask the user
-        QList<IDocument *> documentsToClose;
-        for (auto i = documentMap.constBegin(); i != documentMap.constEnd(); ++i) {
-            if (i.value().isEmpty())
-                documentsToClose.append(i.key());
-        }
-
-        bool cancelled = false;
-        QList<IDocument *> rejectedList;
-        DocumentManager::saveModifiedDocuments(documentsToClose, QString(), &cancelled,
-                                               QString(), 0, &rejectedList);
-        if (cancelled)
-            return false;
-        if (!rejectedList.isEmpty()) {
-            closingFailed = true;
-            QSet<IEditor*> skipSet = DocumentModel::editorsForDocuments(rejectedList).toSet();
-            acceptedEditors = acceptedEditors.subtract(skipSet);
-        }
-    }
-    if (acceptedEditors.isEmpty())
-        return false;
-
-    QList<EditorView*> closedViews;
-    EditorView *focusView = 0;
-
-    // remove the editors
-    foreach (IEditor *editor, acceptedEditors) {
-        emit m_instance->editorAboutToClose(editor);
-        if (!editor->document()->filePath().isEmpty()
-                && !editor->document()->isTemporary()) {
-            QByteArray state = editor->saveState();
-            if (!state.isEmpty())
-                d->m_editorStates.insert(editor->document()->filePath().toString(), QVariant(state));
-        }
-
-        EditorManagerPrivate::removeEditor(editor);
-        if (EditorView *view = EditorManagerPrivate::viewForEditor(editor)) {
-            if (qApp->focusWidget() && qApp->focusWidget() == editor->widget()->focusWidget())
-                focusView = view;
-            if (editor == view->currentEditor())
-                closedViews += view;
-            if (d->m_currentEditor == editor) {
-                // avoid having a current editor without view
-                EditorManagerPrivate::setCurrentView(view);
-                EditorManagerPrivate::setCurrentEditor(0);
-            }
-            view->removeEditor(editor);
-        }
-    }
-
-    // TODO doesn't work as expected with multiple areas in main window and some other cases
-    // instead each view should have its own file history and handle solely themselves
-    // which editor is shown if their current editor closes
-    EditorView *forceViewToShowEditor = 0;
-    if (!closedViews.isEmpty() && visibleEditors().isEmpty()) {
-        if (closedViews.contains(currentView))
-            forceViewToShowEditor = currentView;
-        else
-            forceViewToShowEditor = closedViews.first();
-    }
-    foreach (EditorView *view, closedViews) {
-        IEditor *newCurrent = view->currentEditor();
-        if (!newCurrent && forceViewToShowEditor == view)
-            newCurrent = EditorManagerPrivate::pickUnusedEditor();
-        if (newCurrent) {
-            EditorManagerPrivate::activateEditor(view, newCurrent, DoNotChangeCurrentEditor);
-        } else if (forceViewToShowEditor == view) {
-            DocumentModel::Entry *entry = DocumentModel::firstRestoredEntry();
-            if (entry) {
-                EditorManagerPrivate::activateEditorForEntry(view, entry, DoNotChangeCurrentEditor);
-            } else { // no "restored" ones, so any entry left should have a document
-                const QList<DocumentModel::Entry *> documents = DocumentModel::entries();
-                if (!documents.isEmpty()) {
-                    if (IDocument *document = documents.last()->document) {
-                        EditorManagerPrivate::activateEditorForDocument(
-                                    view, document, DoNotChangeCurrentEditor);
-                    }
-                }
-            }
-        }
-    }
-
-    emit m_instance->editorsClosed(acceptedEditors.toList());
-
-    foreach (IEditor *editor, acceptedEditors)
-        delete editor;
-
-    if (focusView)
-        EditorManagerPrivate::activateView(focusView);
-    else
-        EditorManagerPrivate::setCurrentEditor(currentView->currentEditor());
-
-    if (!currentEditor()) {
-        emit m_instance->currentEditorChanged(0);
-        EditorManagerPrivate::updateActions();
-    }
-
-    return !closingFailed;
+    return EditorManagerPrivate::closeEditors(editorsToClose,
+                                              askAboutModifiedEditors ? EditorManagerPrivate::CloseFlag::CloseWithAsking
+                                                                      : EditorManagerPrivate::CloseFlag::CloseWithoutAsking);
 }
 
 void EditorManager::activateEditorForEntry(DocumentModel::Entry *entry, OpenEditorFlags flags)
@@ -2513,7 +2561,9 @@ static void mimeTypeFactoryLookup(const Utils::MimeType &mimeType,
     //         * application/octet-stream
     //     * text/plain
     QList<Utils::MimeType> queue;
+    QSet<QString> seen;
     queue.append(mimeType);
+    seen.insert(mimeType.name());
     while (!queue.isEmpty()) {
         Utils::MimeType mt = queue.takeFirst();
         // check for matching factories
@@ -2533,8 +2583,12 @@ static void mimeTypeFactoryLookup(const Utils::MimeType &mimeType,
         QStringList parentNames = mt.parentMimeTypes();
         foreach (const QString &parentName, parentNames) {
             const Utils::MimeType parent = mdb.mimeTypeForName(parentName);
-            if (parent.isValid())
-                queue.append(parent);
+            if (parent.isValid()) {
+                int seenSize = seen.size();
+                seen.insert(parent.name());
+                if (seen.size() != seenSize) // not seen before, so add
+                    queue.append(parent);
+            }
         }
     }
 }
@@ -2587,22 +2641,39 @@ IEditor *EditorManager::openEditorAt(const QString &fileName, int line, int colu
                                               fileName, line, column, editorId, flags, newEditor);
 }
 
-// Extract line and column number suffix. Return the suffix (e.g. ":132") and truncates the filename accordingly.
-QString EditorManager::splitLineAndColumnNumber(QString *fileName)
+EditorManager::FilePathInfo EditorManager::splitLineAndColumnNumber(const QString &fullFilePath)
 {
+    // :10:2 GCC/Clang-style
+    static const auto regexp = QRegularExpression("[:+](\\d+)?([:+](\\d+)?)?$");
+    // (10) MSVC-style
+    static const auto vsRegexp = QRegularExpression("[(]((\\d+)[)]?)?$");
+    const QRegularExpressionMatch match = regexp.match(fullFilePath);
     QString postfix;
-    if (extractNumericSuffix(fileName, &postfix)) {
-        QString previousPostfix;
-        if (extractNumericSuffix(fileName, &previousPostfix))
-            postfix.prepend(previousPostfix);
-        return postfix;
+    QString filePath = fullFilePath;
+    int line = -1;
+    int column = -1;
+    if (match.hasMatch()) {
+        postfix = match.captured(0);
+        filePath = fullFilePath.left(match.capturedStart(0));
+        line = 0; // for the case that there's only a : at the end
+        if (match.lastCapturedIndex() > 0) {
+            line = match.captured(1).toInt();
+            if (match.lastCapturedIndex() > 2) // index 2 includes the + or : for the column number
+                column = match.captured(3).toInt() - 1; //column is 0 based, despite line being 1 based
+        }
+    } else {
+        const QRegularExpressionMatch vsMatch = vsRegexp.match(fullFilePath);
+        postfix = vsMatch.captured(0);
+        filePath = fullFilePath.left(vsMatch.capturedStart(0));
+        if (vsMatch.lastCapturedIndex() > 1) // index 1 includes closing )
+            line = vsMatch.captured(2).toInt();
     }
-    return QString();
+    return {filePath, postfix, line, column};
 }
 
 bool EditorManager::isAutoSaveFile(const QString &fileName)
 {
-    return fileName.endsWith(QLatin1String(".autosave"));
+    return fileName.endsWith(".autosave");
 }
 
 bool EditorManager::openExternalEditor(const QString &fileName, Id editorId)
@@ -2617,6 +2688,22 @@ bool EditorManager::openExternalEditor(const QString &fileName, Id editorId)
     if (!ok)
         QMessageBox::critical(ICore::mainWindow(), tr("Opening File"), errorMessage);
     return ok;
+}
+
+/*!
+    \fn EditorManager::addCloseEditorListener
+
+    \brief The \c EditorManager::addCloseEditorListener function provides
+    a hook for plugins to veto on closing editors.
+
+    When an editor requests a close, all listeners are called. If one of these
+    calls returns \c false, the process is aborted and the event is ignored.
+    If all calls return \c true, \c EditorManager::editorAboutToClose()
+    is emitted and the event is accepted.
+*/
+void EditorManager::addCloseEditorListener(const std::function<bool (IEditor *)> &listener)
+{
+    d->m_closeEditorListeners.append(listener);
 }
 
 QStringList EditorManager::getOpenFileNames()
@@ -2634,7 +2721,7 @@ static QString makeTitleUnique(QString *titlePattern)
 
         QString base = *titlePattern;
         if (base.isEmpty())
-            base = QLatin1String("unnamed$");
+            base = "unnamed$";
         if (base.contains(dollar)) {
             int i = 1;
             QSet<QString> docnames;
@@ -2715,6 +2802,16 @@ IEditor *EditorManager::openEditorWithContents(Id editorId,
     EditorManagerPrivate::addEditor(edt);
     activateEditor(edt, flags);
     return edt;
+}
+
+bool EditorManager::skipOpeningBigTextFile(const QString &filePath)
+{
+    return EditorManagerPrivate::skipOpeningBigTextFile(filePath);
+}
+
+void EditorManager::clearUniqueId(IDocument *document)
+{
+    document->setProperty(scratchBufferKey, QVariant());
 }
 
 bool EditorManager::saveDocument(IDocument *document)
@@ -2868,7 +2965,7 @@ bool EditorManager::restoreState(const QByteArray &state)
             if (rfi.exists() && fi.lastModified() < rfi.lastModified())
                 openEditor(fileName, id, DoNotMakeVisible);
             else
-                DocumentModel::addRestoredDocument(fileName, displayName, id);
+                DocumentModelPrivate::addSuspendedDocument(fileName, displayName, id);
         }
     }
 
@@ -2910,7 +3007,7 @@ QTextCodec *EditorManager::defaultTextCodec()
 {
     QSettings *settings = ICore::settings();
     if (QTextCodec *candidate = QTextCodec::codecForName(
-            settings->value(QLatin1String(Constants::SETTINGS_DEFAULTTEXTENCODING)).toByteArray()))
+            settings->value(Constants::SETTINGS_DEFAULTTEXTENCODING).toByteArray()))
         return candidate;
     if (QTextCodec *defaultUTF8 = QTextCodec::codecForName("UTF-8"))
         return defaultUTF8;
@@ -2978,6 +3075,11 @@ void EditorManager::setWindowTitleAdditionHandler(WindowTitleHandler handler)
     d->m_titleAdditionHandler = handler;
 }
 
+void EditorManager::setSessionTitleHandler(WindowTitleHandler handler)
+{
+    d->m_sessionTitleHandler = handler;
+}
+
 void EditorManager::updateWindowTitles()
 {
     foreach (EditorArea *area, d->m_editorAreas)
@@ -2988,3 +3090,79 @@ void EditorManager::setWindowTitleVcsTopicHandler(WindowTitleHandler handler)
 {
     d->m_titleVcsTopicHandler = handler;
 }
+
+#if defined(WITH_TESTS)
+
+void CorePlugin::testSplitLineAndColumnNumber()
+{
+    QFETCH(QString, testFile);
+    QFETCH(QString, filePath);
+    QFETCH(QString, postfix);
+    QFETCH(int, line);
+    QFETCH(int, column);
+    const EditorManager::FilePathInfo fp = EditorManager::splitLineAndColumnNumber(testFile);
+    QCOMPARE(fp.filePath, filePath);
+    QCOMPARE(fp.postfix, postfix);
+    QCOMPARE(fp.lineNumber, line);
+    QCOMPARE(fp.columnNumber, column);
+}
+
+void CorePlugin::testSplitLineAndColumnNumber_data()
+{
+    QTest::addColumn<QString>("testFile");
+    QTest::addColumn<QString>("filePath");
+    QTest::addColumn<QString>("postfix");
+    QTest::addColumn<int>("line");
+    QTest::addColumn<int>("column");
+
+    QTest::newRow("no-line-no-column") << QString::fromLatin1("someFile.txt")
+                                       << QString::fromLatin1("someFile.txt")
+                                       << QString() << -1 << -1;
+    QTest::newRow(": at end") << QString::fromLatin1("someFile.txt:")
+                                       << QString::fromLatin1("someFile.txt")
+                                       << QString::fromLatin1(":") << 0 << -1;
+    QTest::newRow("+ at end") << QString::fromLatin1("someFile.txt+")
+                                       << QString::fromLatin1("someFile.txt")
+                                       << QString::fromLatin1("+") << 0 << -1;
+    QTest::newRow(": for column") << QString::fromLatin1("someFile.txt:10:")
+                                       << QString::fromLatin1("someFile.txt")
+                                       << QString::fromLatin1(":10:") << 10 << -1;
+    QTest::newRow("+ for column") << QString::fromLatin1("someFile.txt:10+")
+                                       << QString::fromLatin1("someFile.txt")
+                                       << QString::fromLatin1(":10+") << 10 << -1;
+    QTest::newRow(": and + at end") << QString::fromLatin1("someFile.txt:+")
+                                       << QString::fromLatin1("someFile.txt")
+                                       << QString::fromLatin1(":+") << 0 << -1;
+    QTest::newRow("empty line") << QString::fromLatin1("someFile.txt:+10")
+                                       << QString::fromLatin1("someFile.txt")
+                                       << QString::fromLatin1(":+10") << 0 << 9;
+    QTest::newRow(":line-no-column") << QString::fromLatin1("/some/path/file.txt:42")
+                                     << QString::fromLatin1("/some/path/file.txt")
+                                     << QString::fromLatin1(":42") << 42 << -1;
+    QTest::newRow("+line-no-column") << QString::fromLatin1("/some/path/file.txt+42")
+                                     << QString::fromLatin1("/some/path/file.txt")
+                                     << QString::fromLatin1("+42") << 42 << -1;
+    QTest::newRow(":line-:column") << QString::fromLatin1("/some/path/file.txt:42:3")
+                                     << QString::fromLatin1("/some/path/file.txt")
+                                     << QString::fromLatin1(":42:3") << 42 << 2;
+    QTest::newRow(":line-+column") << QString::fromLatin1("/some/path/file.txt:42+33")
+                                     << QString::fromLatin1("/some/path/file.txt")
+                                     << QString::fromLatin1(":42+33") << 42 << 32;
+    QTest::newRow("+line-:column") << QString::fromLatin1("/some/path/file.txt+142:30")
+                                     << QString::fromLatin1("/some/path/file.txt")
+                                     << QString::fromLatin1("+142:30") << 142 << 29;
+    QTest::newRow("+line-+column") << QString::fromLatin1("/some/path/file.txt+142+33")
+                                     << QString::fromLatin1("/some/path/file.txt")
+                                     << QString::fromLatin1("+142+33") << 142 << 32;
+    QTest::newRow("( at end") << QString::fromLatin1("/some/path/file.txt(")
+                              << QString::fromLatin1("/some/path/file.txt")
+                              << QString::fromLatin1("(") << -1 << -1;
+    QTest::newRow("(42 at end") << QString::fromLatin1("/some/path/file.txt(42")
+                              << QString::fromLatin1("/some/path/file.txt")
+                              << QString::fromLatin1("(42") << 42 << -1;
+    QTest::newRow("(42) at end") << QString::fromLatin1("/some/path/file.txt(42)")
+                              << QString::fromLatin1("/some/path/file.txt")
+                              << QString::fromLatin1("(42)") << 42 << -1;
+}
+
+#endif // WITH_TESTS

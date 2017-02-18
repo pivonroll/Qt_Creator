@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -53,13 +53,14 @@ namespace QmlDesigner {
 
 Q_LOGGING_CATEGORY(documentManagerLog, "qtc.qtquickdesigner.documentmanager")
 
-static inline DesignDocument* currentDesignDocument()
+static inline QmlDesigner::DesignDocument* designDocument()
 {
-    return QmlDesignerPlugin::instance()->documentManager().currentDesignDocument();
+    return QmlDesigner::QmlDesignerPlugin::instance()->documentManager().currentDesignDocument();
 }
 
-static inline void getProperties(const ModelNode &node, QHash<PropertyName, QVariant> &propertyHash)
+static inline QHash<PropertyName, QVariant> getProperties(const ModelNode &node)
 {
+    QHash<PropertyName, QVariant> propertyHash;
     if (QmlObjectNode::isValidQmlObjectNode(node)) {
         foreach (const AbstractProperty &abstractProperty, node.properties()) {
             if (abstractProperty.isVariantProperty()
@@ -79,6 +80,7 @@ static inline void getProperties(const ModelNode &node, QHash<PropertyName, QVar
             propertyHash.remove("opacity");
         }
     }
+    return propertyHash;
 }
 
 static inline void applyProperties(ModelNode &node, const QHash<PropertyName, QVariant> &propertyHash)
@@ -111,14 +113,8 @@ static inline void applyProperties(ModelNode &node, const QHash<PropertyName, QV
 static void openFileComponent(const ModelNode &modelNode)
 {
     QmlDesignerPlugin::instance()->viewManager().nextFileIsCalledInternally();
-
-    QHash<PropertyName, QVariant> propertyHash;
-
-    getProperties(modelNode, propertyHash);
-    Core::EditorManager::openEditor(modelNode.metaInfo().componentFileName(), Core::Id(), Core::EditorManager::DoNotMakeVisible);
-
-    ModelNode rootModelNode = currentDesignDocument()->rewriterView()->rootModelNode();
-    applyProperties(rootModelNode, propertyHash);
+    Core::EditorManager::openEditor(modelNode.metaInfo().componentFileName(),
+        Core::Id(), Core::EditorManager::DoNotMakeVisible);
 }
 
 static void openFileComponentForDelegate(const ModelNode &modelNode)
@@ -129,10 +125,6 @@ static void openFileComponentForDelegate(const ModelNode &modelNode)
 static void openComponentSourcePropertyOfLoader(const ModelNode &modelNode)
 {
     QmlDesignerPlugin::instance()->viewManager().nextFileIsCalledInternally();
-
-    QHash<PropertyName, QVariant> propertyHash;
-
-    getProperties(modelNode, propertyHash);
 
     ModelNode componentModelNode;
 
@@ -149,32 +141,23 @@ static void openComponentSourcePropertyOfLoader(const ModelNode &modelNode)
     }
 
     Core::EditorManager::openEditor(componentModelNode.metaInfo().componentFileName(), Core::Id(), Core::EditorManager::DoNotMakeVisible);
-
-    ModelNode rootModelNode = currentDesignDocument()->rewriterView()->rootModelNode();
-    applyProperties(rootModelNode, propertyHash);
 }
 
 static void openSourcePropertyOfLoader(const ModelNode &modelNode)
 {
     QmlDesignerPlugin::instance()->viewManager().nextFileIsCalledInternally();
 
-    QHash<PropertyName, QVariant> propertyHash;
-
     QString componentFileName = modelNode.variantProperty("source").value().toString();
     QString componentFilePath = modelNode.model()->fileUrl().resolved(QUrl::fromLocalFile(componentFileName)).toLocalFile();
 
-    getProperties(modelNode, propertyHash);
     Core::EditorManager::openEditor(componentFilePath, Core::Id(), Core::EditorManager::DoNotMakeVisible);
-
-    ModelNode rootModelNode = currentDesignDocument()->rewriterView()->rootModelNode();
-    applyProperties(rootModelNode, propertyHash);
 }
 
 
 static void handleComponent(const ModelNode &modelNode)
 {
     if (modelNode.nodeSourceType() == ModelNode::NodeWithComponentSource)
-        currentDesignDocument()->changeToSubComponent(modelNode);
+        designDocument()->changeToSubComponent(modelNode);
 }
 
 static void handleDelegate(const ModelNode &modelNode)
@@ -182,36 +165,25 @@ static void handleDelegate(const ModelNode &modelNode)
     if (modelNode.metaInfo().isView()
             && modelNode.hasNodeProperty("delegate")
             && modelNode.nodeProperty("delegate").modelNode().nodeSourceType() == ModelNode::NodeWithComponentSource)
-        currentDesignDocument()->changeToSubComponent(modelNode.nodeProperty("delegate").modelNode());
+        designDocument()->changeToSubComponent(modelNode.nodeProperty("delegate").modelNode());
 }
 
 static void handleTabComponent(const ModelNode &modelNode)
 {
     if (modelNode.hasNodeProperty("component")
             && modelNode.nodeProperty("component").modelNode().nodeSourceType() == ModelNode::NodeWithComponentSource) {
-        currentDesignDocument()->changeToSubComponent(modelNode.nodeProperty("component").modelNode());
+        designDocument()->changeToSubComponent(modelNode.nodeProperty("component").modelNode());
     }
 }
 
 static inline void openInlineComponent(const ModelNode &modelNode)
 {
-
-    if (!modelNode.isValid() || !modelNode.metaInfo().isValid())
+    if (!modelNode.metaInfo().isValid())
         return;
-
-    if (!currentDesignDocument())
-        return;
-
-    QHash<PropertyName, QVariant> propertyHash;
-
-    getProperties(modelNode, propertyHash);
 
     handleComponent(modelNode);
     handleDelegate(modelNode);
     handleTabComponent(modelNode);
-
-    ModelNode rootModelNode = currentDesignDocument()->rewriterView()->rootModelNode();
-    applyProperties(rootModelNode, propertyHash);
 }
 
 static bool isFileComponent(const ModelNode &node)
@@ -240,7 +212,7 @@ static bool isLoaderWithSourceComponent(const ModelNode &modelNode)
 {
     if (modelNode.isValid()
             && modelNode.metaInfo().isValid()
-            && modelNode.metaInfo().isSubclassOf("QtQuick.Loader", -1, -1)) {
+            && modelNode.metaInfo().isSubclassOf("QtQuick.Loader")) {
 
         if (modelNode.hasNodeProperty("sourceComponent"))
             return true;
@@ -249,14 +221,13 @@ static bool isLoaderWithSourceComponent(const ModelNode &modelNode)
     }
 
     return false;
-
 }
 
 static bool hasSourceWithFileComponent(const ModelNode &modelNode)
 {
     if (modelNode.isValid()
             && modelNode.metaInfo().isValid()
-            && modelNode.metaInfo().isSubclassOf("QtQuick.Loader", -1, -1)
+            && modelNode.metaInfo().isSubclassOf("QtQuick.Loader")
             && modelNode.hasVariantProperty("source"))
         return true;
 
@@ -270,20 +241,19 @@ DocumentManager::DocumentManager()
 
 DocumentManager::~DocumentManager()
 {
-    foreach (const QPointer<DesignDocument> &designDocument, m_designDocumentHash)
-        delete designDocument.data();
+    qDeleteAll(m_designDocumentHash);
 }
 
 void DocumentManager::setCurrentDesignDocument(Core::IEditor *editor)
 {
     if (editor) {
         m_currentDesignDocument = m_designDocumentHash.value(editor);
-        if (m_currentDesignDocument == 0) {
+        if (m_currentDesignDocument == nullptr) {
             m_currentDesignDocument = new DesignDocument;
             m_designDocumentHash.insert(editor, m_currentDesignDocument);
             m_currentDesignDocument->setEditor(editor);
         }
-    } else {
+    } else if (!m_currentDesignDocument.isNull()) {
         m_currentDesignDocument->resetToDocumentModel();
         m_currentDesignDocument.clear();
     }
@@ -296,10 +266,10 @@ DesignDocument *DocumentManager::currentDesignDocument() const
 
 bool DocumentManager::hasCurrentDesignDocument() const
 {
-    return m_currentDesignDocument.data();
+    return !m_currentDesignDocument.isNull();
 }
 
-void DocumentManager::removeEditors(QList<Core::IEditor *> editors)
+void DocumentManager::removeEditors(const QList<Core::IEditor *> &editors)
 {
     foreach (Core::IEditor *editor, editors)
         delete m_designDocumentHash.take(editor).data();
@@ -307,8 +277,9 @@ void DocumentManager::removeEditors(QList<Core::IEditor *> editors)
 
 void DocumentManager::goIntoComponent(const ModelNode &modelNode)
 {
-    if (modelNode.isValid() && modelNode.isComponent()) {
+    if (modelNode.isValid() && modelNode.isComponent() && designDocument()) {
         QmlDesignerPlugin::instance()->viewManager().setComponentNode(modelNode);
+        QHash<PropertyName, QVariant> oldProperties = getProperties(modelNode);
         if (isFileComponent(modelNode))
             openFileComponent(modelNode);
         else if (hasDelegateWithFileComponent(modelNode))
@@ -319,6 +290,8 @@ void DocumentManager::goIntoComponent(const ModelNode &modelNode)
             openComponentSourcePropertyOfLoader(modelNode);
         else
             openInlineComponent(modelNode);
+        ModelNode rootModelNode = designDocument()->rewriterView()->rootModelNode();
+        applyProperties(rootModelNode, oldProperties);
     }
 }
 
@@ -372,7 +345,7 @@ QStringList DocumentManager::isoIconsQmakeVariableValue(const QString &proPath)
         return QStringList();
     }
 
-    return proNode->variableValue(QmakeProjectManager::IsoIconsVar);
+    return proNode->variableValue(QmakeProjectManager::Variable::IsoIcons);
 }
 
 bool DocumentManager::setIsoIconsQmakeVariableValue(const QString &proPath, const QStringList &value)
@@ -405,26 +378,28 @@ void DocumentManager::findPathToIsoProFile(bool *iconResourceFileAlreadyExists, 
     Utils::FileName qmlFileName = QmlDesignerPlugin::instance()->currentDesignDocument()->fileName();
     ProjectExplorer::Project *project = ProjectExplorer::SessionManager::projectForFile(qmlFileName);
     ProjectExplorer::Node *node = ProjectExplorer::SessionManager::nodeForFile(qmlFileName)->parentFolderNode();
-    ProjectExplorer::Node *iconQrcFileNode = 0;
+    ProjectExplorer::Node *iconQrcFileNode = nullptr;
 
     while (node && !iconQrcFileNode) {
-        qCDebug(documentManagerLog) << "Checking" << node->displayName() << "(" << node << node->nodeType() << ")";
+        qCDebug(documentManagerLog) << "Checking" << node->displayName()
+                                    << "(" << node << static_cast<int>(node->nodeType()) << ")";
 
-        if (node->nodeType() == ProjectExplorer::VirtualFolderNodeType && node->displayName() == "Resources") {
+        if (node->nodeType() == ProjectExplorer::NodeType::VirtualFolder && node->displayName() == "Resources") {
             ProjectExplorer::VirtualFolderNode *virtualFolderNode = dynamic_cast<ProjectExplorer::VirtualFolderNode*>(node);
 
-            for (int subFolderIndex = 0; subFolderIndex < virtualFolderNode->subFolderNodes().size() && !iconQrcFileNode; ++subFolderIndex) {
-                ProjectExplorer::FolderNode *subFolderNode = virtualFolderNode->subFolderNodes().at(subFolderIndex);
+            for (int subFolderIndex = 0; subFolderIndex < virtualFolderNode->folderNodes().size() && !iconQrcFileNode; ++subFolderIndex) {
+                ProjectExplorer::FolderNode *subFolderNode = virtualFolderNode->folderNodes().at(subFolderIndex);
 
                 qCDebug(documentManagerLog) << "Checking if" << subFolderNode->displayName() << "("
-                    << subFolderNode << subFolderNode->nodeType() << ") is" << isoIconsQrcFile;
+                    << subFolderNode << static_cast<int>(subFolderNode->nodeType())
+                    << ") is" << isoIconsQrcFile;
 
-                if (subFolderNode->nodeType() == ProjectExplorer::FolderNodeType
+                if (subFolderNode->nodeType() == ProjectExplorer::NodeType::Folder
                     && subFolderNode->displayName() == isoIconsQrcFile) {
-                    qCDebug(documentManagerLog) << "Found" << isoIconsQrcFile << "in" << virtualFolderNode->path();
+                    qCDebug(documentManagerLog) << "Found" << isoIconsQrcFile << "in" << virtualFolderNode->filePath();
 
                     iconQrcFileNode = subFolderNode;
-                    *resourceFileProPath = iconQrcFileNode->projectNode()->path().toString();
+                    *resourceFileProPath = iconQrcFileNode->parentProjectNode()->filePath().toString();
                 }
             }
         }
@@ -441,8 +416,8 @@ void DocumentManager::findPathToIsoProFile(bool *iconResourceFileAlreadyExists, 
         *resourceFilePath = project->projectDirectory().toString() + "/" + isoIconsQrcFile;
 
         // We assume that the .pro containing the QML file is an acceptable place to add the .qrc file.
-        ProjectExplorer::ProjectNode *projectNode = ProjectExplorer::SessionManager::nodeForFile(qmlFileName)->projectNode();
-        *resourceFileProPath = projectNode->path().toString();
+        ProjectExplorer::ProjectNode *projectNode = ProjectExplorer::SessionManager::nodeForFile(qmlFileName)->parentProjectNode();
+        *resourceFileProPath = projectNode->filePath().toString();
     } else {
         // We found the QRC file that we want.
         QString projectDirectory = ProjectExplorer::SessionManager::projectForNode(iconQrcFileNode)->projectDirectory().toString();
@@ -455,9 +430,10 @@ void DocumentManager::findPathToIsoProFile(bool *iconResourceFileAlreadyExists, 
 bool DocumentManager::isoProFileSupportsAddingExistingFiles(const QString &resourceFileProPath)
 {
     ProjectExplorer::Node *node = ProjectExplorer::SessionManager::nodeForFile(Utils::FileName::fromString(resourceFileProPath));
-    ProjectExplorer::ProjectNode *projectNode = dynamic_cast<ProjectExplorer::ProjectNode*>(node->parentFolderNode());
-
-    if (!projectNode->supportedActions(projectNode).contains(ProjectExplorer::AddExistingFile)) {
+    if (!node || !node->parentFolderNode())
+        return false;
+    ProjectExplorer::ProjectNode *projectNode = node->parentFolderNode()->asProjectNode();
+    if (!projectNode || !projectNode->supportedActions(projectNode).contains(ProjectExplorer::AddExistingFile)) {
         qCWarning(documentManagerLog) << "Project" << projectNode->displayName() << "does not support adding existing files";
         return false;
     }
@@ -468,7 +444,11 @@ bool DocumentManager::isoProFileSupportsAddingExistingFiles(const QString &resou
 bool DocumentManager::addResourceFileToIsoProject(const QString &resourceFileProPath, const QString &resourceFilePath)
 {
     ProjectExplorer::Node *node = ProjectExplorer::SessionManager::nodeForFile(Utils::FileName::fromString(resourceFileProPath));
-    ProjectExplorer::ProjectNode *projectNode = dynamic_cast<ProjectExplorer::ProjectNode*>(node->parentFolderNode());
+    if (!node || !node->parentFolderNode())
+        return false;
+    ProjectExplorer::ProjectNode *projectNode = node->parentFolderNode()->asProjectNode();
+    if (!projectNode)
+        return false;
 
     if (!projectNode->addFiles(QStringList() << resourceFilePath)) {
         qCWarning(documentManagerLog) << "Failed to add resource file to" << projectNode->displayName();

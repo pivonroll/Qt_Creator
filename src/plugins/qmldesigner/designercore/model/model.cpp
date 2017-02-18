@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -174,6 +174,12 @@ QUrl ModelPrivate::fileUrl() const
     return m_fileUrl;
 }
 
+void ModelPrivate::setDocumentMessages(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings)
+{
+    foreach (const QPointer<AbstractView> &view, m_viewList)
+        view->documentMessagesChanged(errors, warnings);
+}
+
 void ModelPrivate::setFileUrl(const QUrl &fileUrl)
 {
     QUrl oldPath = m_fileUrl;
@@ -184,6 +190,22 @@ void ModelPrivate::setFileUrl(const QUrl &fileUrl)
         foreach (const QPointer<AbstractView> &view, m_viewList)
             view->fileUrlChanged(oldPath, fileUrl);
     }
+}
+
+void ModelPrivate::changeNodeType(const InternalNodePointer &internalNodePointer, const TypeName &typeName, int majorVersion, int minorVersion)
+{
+    internalNodePointer->setType(typeName);
+    internalNodePointer->setMajorVersion(majorVersion);
+    internalNodePointer->setMinorVersion(minorVersion);
+
+    try {
+        notifyNodeTypeChanged(internalNodePointer, typeName, majorVersion, minorVersion);
+
+    } catch (const RewritingException &e) {
+        throw InvalidArgumentException(__LINE__, __FUNCTION__, __FILE__, e.description().toUtf8());
+
+    }
+
 }
 
 InternalNode::Pointer ModelPrivate::createNode(const TypeName &typeName,
@@ -311,16 +333,16 @@ void ModelPrivate::changeNodeId(const InternalNode::Pointer& internalNodePointer
     }
 }
 
-void ModelPrivate::checkPropertyName(const QString &propertyName)
+void ModelPrivate::checkPropertyName(const PropertyName &propertyName)
 {
     if (propertyName.isEmpty()) {
         Q_ASSERT_X(propertyName.isEmpty(), Q_FUNC_INFO, "empty property name");
         throw InvalidPropertyException(__LINE__, __FUNCTION__, __FILE__, "<empty property name>");
     }
 
-    if (propertyName == QLatin1String("id")) {
-        Q_ASSERT_X(propertyName != QLatin1String("id"), Q_FUNC_INFO, "cannot add property id");
-        throw InvalidPropertyException(__LINE__, __FUNCTION__, __FILE__, propertyName.toUtf8());
+    if (propertyName == "id") {
+        Q_ASSERT_X(propertyName != "id", Q_FUNC_INFO, "cannot add property id");
+        throw InvalidPropertyException(__LINE__, __FUNCTION__, __FILE__, propertyName);
     }
 }
 
@@ -426,7 +448,7 @@ void ModelPrivate::notifyInstancePropertyChange(const QList<QPair<ModelNode, Pro
             adaptedPropertyList.append(newPair);
         }
 
-        view->instancePropertyChange(adaptedPropertyList);
+        view->instancePropertyChanged(adaptedPropertyList);
     }
 }
 
@@ -439,7 +461,7 @@ void ModelPrivate::notifyInstanceErrorChange(const QVector<qint32> &instanceIds)
         Q_ASSERT(view != 0);
         foreach (qint32 instanceId, instanceIds)
             errorNodeList.append(ModelNode(model()->d->nodeForInternalId(instanceId), model(), view));
-        view->instanceErrorChange(errorNodeList);
+        view->instanceErrorChanged(errorNodeList);
     }
 }
 
@@ -490,7 +512,7 @@ void ModelPrivate::notifyInstancesInformationsChange(const QMultiHash<ModelNode,
 
     try {
         if (rewriterView())
-            rewriterView()->instanceInformationsChange(convertModelNodeInformationHash(informationChangeHash, rewriterView()));
+            rewriterView()->instanceInformationsChanged(convertModelNodeInformationHash(informationChangeHash, rewriterView()));
     } catch (const RewritingException &e) {
         description = e.description();
         resetModel = true;
@@ -498,11 +520,11 @@ void ModelPrivate::notifyInstancesInformationsChange(const QMultiHash<ModelNode,
 
     foreach (const QPointer<AbstractView> &view, m_viewList) {
         Q_ASSERT(view != 0);
-        view->instanceInformationsChange(convertModelNodeInformationHash(informationChangeHash, view.data()));
+        view->instanceInformationsChanged(convertModelNodeInformationHash(informationChangeHash, view.data()));
     }
 
     if (nodeInstanceView())
-        nodeInstanceView()->instanceInformationsChange(convertModelNodeInformationHash(informationChangeHash, nodeInstanceView()));
+        nodeInstanceView()->instanceInformationsChanged(convertModelNodeInformationHash(informationChangeHash, nodeInstanceView()));
 
     if (resetModel)
         resetModelByRewriter(description);
@@ -951,6 +973,37 @@ void ModelPrivate::notifyNodeRemoved(const InternalNodePointer &internalNodePoin
 
     if (resetModel)
         resetModelByRewriter(description);
+}
+
+void ModelPrivate::notifyNodeTypeChanged(const InternalNodePointer &internalNodePointer, const TypeName &type, int majorVersion, int minorVersion)
+{
+    bool resetModel = false;
+    QString description;
+
+    try {
+        if (rewriterView()) {
+            ModelNode modelNode(internalNodePointer, model(), rewriterView());
+            rewriterView()->nodeTypeChanged(modelNode, type, majorVersion, minorVersion);
+        }
+    } catch (const RewritingException &e) {
+        description = e.description();
+        resetModel = true;
+    }
+
+    foreach (const QPointer<AbstractView> &view, m_viewList) {
+        Q_ASSERT(view != 0);
+        ModelNode modelNode(internalNodePointer, model(), view.data());
+        view->nodeTypeChanged(modelNode, type, majorVersion, minorVersion);
+    }
+
+    if (nodeInstanceView()) {
+        ModelNode modelNode(internalNodePointer, model(), nodeInstanceView());
+        nodeInstanceView()->nodeTypeChanged(modelNode, type, majorVersion, minorVersion);
+    }
+
+    if (resetModel)
+        resetModelByRewriter(description);
+
 }
 
 void ModelPrivate::notifyNodeIdChanged(const InternalNode::Pointer& internalNodePointer, const QString& newId, const QString& oldId)
@@ -1488,7 +1541,7 @@ void ModelPrivate::setVariantProperty(const InternalNode::Pointer &internalNodeP
 
     internalNodePointer->variantProperty(name)->setValue(value);
     internalNodePointer->variantProperty(name)->resetDynamicTypeName();
-    notifyVariantPropertiesChanged(internalNodePointer, PropertyNameList() << name, propertyChange);
+    notifyVariantPropertiesChanged(internalNodePointer, PropertyNameList({name}), propertyChange);
 }
 
 void ModelPrivate::setDynamicVariantProperty(const InternalNodePointer &internalNodePointer,
@@ -1503,7 +1556,7 @@ void ModelPrivate::setDynamicVariantProperty(const InternalNodePointer &internal
     }
 
     internalNodePointer->variantProperty(name)->setDynamicValue(dynamicPropertyType, value);
-    notifyVariantPropertiesChanged(internalNodePointer, PropertyNameList() << name, propertyChange);
+    notifyVariantPropertiesChanged(internalNodePointer, PropertyNameList({name}), propertyChange);
 }
 
 void ModelPrivate::setDynamicBindingProperty(const InternalNodePointer &internalNodePointer,
@@ -1522,14 +1575,18 @@ void ModelPrivate::setDynamicBindingProperty(const InternalNodePointer &internal
     notifyBindingPropertiesChanged(QList<InternalBindingPropertyPointer>() << bindingProperty, propertyChange);
 }
 
-void ModelPrivate::reparentNode(const InternalNode::Pointer &newParentNode, const PropertyName &name, const InternalNode::Pointer &internalNodePointer, bool list)
+void ModelPrivate::reparentNode(const InternalNode::Pointer &newParentNode,
+                                const PropertyName &name,
+                                const InternalNode::Pointer &internalNodePointer,
+                                bool list,
+                                const TypeName &dynamicTypeName)
 {
     AbstractView::PropertyChangeFlags propertyChange = AbstractView::NoAdditionalChanges;
     if (!newParentNode->hasProperty(name)) {
         if (list)
             newParentNode->addNodeListProperty(name);
         else
-            newParentNode->addNodeProperty(name);
+            newParentNode->addNodeProperty(name, dynamicTypeName);
         propertyChange |= AbstractView::PropertiesAdded;
     }
 
@@ -1891,6 +1948,11 @@ void Model::setTextModifier(TextModifier *textModifier)
     d->m_textModifier = textModifier;
 }
 
+void Model::setDocumentMessages(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings)
+{
+    d->setDocumentMessages(errors, warnings);
+}
+
 /*!
   \brief Returns the URL against which relative URLs within the model should be resolved.
   \return The base URL.
@@ -1958,9 +2020,14 @@ The view is informed that it has been registered within the model by a call to A
 void Model::attachView(AbstractView *view)
 {
 //    Internal::WriteLocker locker(d);
-    RewriterView *rewriterView = qobject_cast<RewriterView*>(view);
-    if (rewriterView)
+    RewriterView *castedRewriterView = qobject_cast<RewriterView*>(view);
+    if (castedRewriterView) {
+        if (rewriterView() == castedRewriterView)
+            return;
+        setRewriterView(castedRewriterView);
+
         return;
+    }
 
     NodeInstanceView *nodeInstanceView = qobject_cast<NodeInstanceView*>(view);
     if (nodeInstanceView)

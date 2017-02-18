@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,44 +9,35 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECT_H
-#define CMAKEPROJECT_H
+#pragma once
 
 #include "cmake_global.h"
-#include "cmakeprojectnodes.h"
+#include "cmakeprojectimporter.h"
+#include "treescanner.h"
 
+#include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
-#include <projectexplorer/buildconfiguration.h>
-#include <projectexplorer/namedwidget.h>
-#include <coreplugin/idocument.h>
-#include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/editormanager/ieditor.h>
 
 #include <utils/fileutils.h>
 
 #include <QFuture>
-#include <QXmlStreamReader>
-#include <QPushButton>
-#include <QLineEdit>
+#include <QHash>
+
+#include <memory>
 
 QT_BEGIN_NAMESPACE
 class QFileSystemWatcher;
@@ -55,34 +46,33 @@ QT_END_NAMESPACE
 namespace CMakeProjectManager {
 
 namespace Internal {
-class CMakeFile;
-class CMakeBuildSettingsWidget;
 class CMakeBuildConfiguration;
-class CMakeProjectNode;
+class CMakeBuildSettingsWidget;
 class CMakeManager;
-}
+} // namespace Internal
 
 enum TargetType {
     ExecutableType = 0,
     StaticLibraryType = 2,
-    DynamicLibraryType = 3
+    DynamicLibraryType = 3,
+    UtilityType = 64
 };
 
-struct CMAKE_EXPORT CMakeBuildTarget
+class CMAKE_EXPORT CMakeBuildTarget
 {
+public:
     QString title;
-    QString executable; // TODO: rename to output?
-    TargetType targetType;
-    QString workingDirectory;
-    QString sourceDirectory;
-    QString makeCommand;
-    QString makeCleanCommand;
+    Utils::FileName executable; // TODO: rename to output?
+    TargetType targetType = UtilityType;
+    Utils::FileName workingDirectory;
+    Utils::FileName sourceDirectory;
+    Utils::FileName makeCommand;
 
     // code model
-    QStringList includeFiles;
+    QList<Utils::FileName> includeFiles;
     QStringList compilerOptions;
     QByteArray defines;
-    QStringList files;
+    QList<Utils::FileName> files;
 
     void clear();
 };
@@ -90,76 +80,70 @@ struct CMAKE_EXPORT CMakeBuildTarget
 class CMAKE_EXPORT CMakeProject : public ProjectExplorer::Project
 {
     Q_OBJECT
-    // for changeBuildDirectory
-    friend class Internal::CMakeBuildSettingsWidget;
+
 public:
     CMakeProject(Internal::CMakeManager *manager, const Utils::FileName &filename);
-    ~CMakeProject();
+    ~CMakeProject() final;
 
-    QString displayName() const;
-    Core::IDocument *document() const;
-    ProjectExplorer::IProjectManager *projectManager() const;
+    QString displayName() const final;
 
-    ProjectExplorer::ProjectNode *rootProjectNode() const;
-
-    QStringList files(FilesMode fileMode) const;
+    QStringList files(FilesMode fileMode) const final;
     QStringList buildTargetTitles(bool runnable = false) const;
-    QList<CMakeBuildTarget> buildTargets() const;
     bool hasBuildTarget(const QString &title) const;
 
     CMakeBuildTarget buildTargetForTitle(const QString &title);
 
-    bool isProjectFile(const Utils::FileName &fileName);
+    bool needsConfiguration() const final;
+    bool requiresTargetPanel() const final;
+    bool knowsAllBuildExecutables() const final;
 
-    bool parseCMakeLists();
+    bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const final;
 
-    bool needsConfiguration() const;
+    void runCMake();
+    void scanProjectTree();
 
-    bool requiresTargetPanel() const;
+    // Context menu actions:
+    void buildCMakeTarget(const QString &buildTarget);
+
+    ProjectExplorer::ProjectImporter *projectImporter() const final;
 
 signals:
-    /// emitted after parsing
-    void buildTargetsChanged();
+    /// emitted when cmake is running:
+    void parsingStarted();
 
 protected:
-    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage);
-    bool setupTarget(ProjectExplorer::Target *t);
-
-    // called by CMakeBuildSettingsWidget
-    void changeBuildDirectory(Internal::CMakeBuildConfiguration *bc, const QString &newBuildDirectory);
-
-private slots:
-    void fileChanged(const QString &fileName);
-    void activeTargetWasChanged(ProjectExplorer::Target *target);
-    void changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*);
-
-    void updateRunConfigurations();
+    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) final;
+    bool setupTarget(ProjectExplorer::Target *t) final;
 
 private:
-    void buildTree(Internal::CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> list);
-    void gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<ProjectExplorer::FileNode *> &list);
-    ProjectExplorer::FolderNode *findOrCreateFolder(Internal::CMakeProjectNode *rootNode, QString directory);
-    void createUiCodeModelSupport();
-    QString uiHeaderFile(const QString &uiFile);
-    void updateRunConfigurations(ProjectExplorer::Target *t);
-    void updateApplicationAndDeploymentTargets();
-    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QByteArray *cachedBuildNinja);
+    QList<CMakeBuildTarget> buildTargets() const;
 
-    Internal::CMakeManager *m_manager;
-    ProjectExplorer::Target *m_activeTarget;
-    Utils::FileName m_fileName;
-    Internal::CMakeFile *m_file;
-    QString m_projectName;
+    void handleActiveTargetChanged();
+    void handleActiveBuildConfigurationChanged();
+    void handleParsingStarted();
+    void handleTreeScanningFinished();
+    void updateProjectData(Internal::CMakeBuildConfiguration *cmakeBc);
+    void updateQmlJSCodeModel();
+
+    void createGeneratedCodeModelSupport();
+    QStringList filesGeneratedFrom(const QString &sourceFile) const final;
+    void updateTargetRunConfigurations(ProjectExplorer::Target *t);
+    void updateApplicationAndDeploymentTargets();
+
+    ProjectExplorer::Target *m_connectedTarget = nullptr;
 
     // TODO probably need a CMake specific node structure
-    Internal::CMakeProjectNode *m_rootNode;
-    QStringList m_files;
     QList<CMakeBuildTarget> m_buildTargets;
-    QFileSystemWatcher *m_watcher;
-    QSet<Utils::FileName> m_watchedFiles;
     QFuture<void> m_codeModelFuture;
+    QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
+
+    Internal::TreeScanner m_treeScanner;
+    QHash<QString, bool> m_mimeBinaryCache;
+    QList<const ProjectExplorer::FileNode *> m_allFiles;
+    mutable std::unique_ptr<Internal::CMakeProjectImporter> m_projectImporter;
+
+    friend class Internal::CMakeBuildConfiguration;
+    friend class Internal::CMakeBuildSettingsWidget;
 };
 
 } // namespace CMakeProjectManager
-
-#endif // CMAKEPROJECT_H

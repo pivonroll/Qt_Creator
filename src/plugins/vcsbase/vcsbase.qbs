@@ -32,8 +32,6 @@ QtcPlugin {
         "commonsettingspage.ui",
         "commonvcssettings.cpp",
         "commonvcssettings.h",
-        "corelistener.cpp",
-        "corelistener.h",
         "diffandloghighlighter.cpp",
         "diffandloghighlighter.h",
         "nicknamedialog.cpp",
@@ -57,8 +55,8 @@ QtcPlugin {
         "vcsbaseconstants.h",
         "vcsbaseeditor.cpp",
         "vcsbaseeditor.h",
-        "vcsbaseeditorparameterwidget.cpp",
-        "vcsbaseeditorparameterwidget.h",
+        "vcsbaseeditorconfig.cpp",
+        "vcsbaseeditorconfig.h",
         "vcsbaseoptionspage.cpp",
         "vcsbaseoptionspage.h",
         "vcsbaseplugin.cpp",
@@ -83,4 +81,6 @@ QtcPlugin {
         "wizard/vcsjsextension.cpp",
         "wizard/vcsjsextension.h",
     ]
+
+    cpp.defines: base.concat(qtc.testsEnabled ? ['SRC_DIR="' + qtc.ide_source_tree + '"'] : [])
 }

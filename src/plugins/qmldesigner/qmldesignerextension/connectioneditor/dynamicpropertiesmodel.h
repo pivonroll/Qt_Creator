@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,37 +9,29 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DYNCAMICPROPERTIESMODEL_H
-#define DYNCAMICPROPERTIESMODEL_H
+#pragma once
 
 #include <modelnode.h>
-#include <nodemetainfo.h>
 #include <bindingproperty.h>
 #include <variantproperty.h>
 
-#include <QStandardItem>
-#include <QStyledItemDelegate>
 #include <QStandardItemModel>
-#include <QComboBox>
 
 namespace QmlDesigner {
-
-class Model;
-class ModelNode;
 
 namespace Internal {
 
@@ -50,6 +42,12 @@ class DynamicPropertiesModel : public QStandardItemModel
     Q_OBJECT
 
 public:
+    enum ColumnRoles {
+        TargetModelNodeRow = 0,
+        PropertyNameRow = 1,
+        PropertyTypeRow = 2,
+        PropertyValueRow = 3
+    };
     DynamicPropertiesModel(ConnectionView *parent = 0);
     void bindingPropertyChanged(const BindingProperty &bindingProperty);
     void variantPropertyChanged(const VariantProperty &variantProperty);
@@ -65,8 +63,9 @@ public:
 
     void updateDisplayRoleFromVariant(int row, int columns, const QVariant &variant);
     void addDynamicPropertyForCurrentNode();
-protected:
     void resetModel();
+
+protected:
     void addProperty(const QVariant &propertyValue,
                      const QString &propertyType,
                      const AbstractProperty &abstractProperty);
@@ -95,42 +94,11 @@ private slots:
 private:
     QList<ModelNode> m_selectedModelNodes;
     ConnectionView *m_connectionView;
-    bool m_lock;
-    bool m_handleDataChanged;
+    bool m_lock = false;
+    bool m_handleDataChanged = false;
     QString m_exceptionError;
 
 };
 
-class DynamicPropertiesDelegate : public QStyledItemDelegate
-{
-    Q_OBJECT
-
-public:
-    DynamicPropertiesDelegate(QWidget *parent = 0);
-
-    virtual QWidget *createEditor(QWidget *parent,
-                                    const QStyleOptionViewItem &option,
-                                    const QModelIndex &index) const override;
-
-    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
-
-private slots:
-    void emitCommitData(const QString &text);
-};
-
-class DynamicPropertiesComboBox : public QComboBox
-{
-    Q_OBJECT
-    Q_PROPERTY(QString text READ text WRITE setText USER true)
-public:
-    DynamicPropertiesComboBox(QWidget *parent = 0);
-
-    QString text() const;
-    void setText(const QString &text);
-};
-
 } // namespace Internal
-
 } // namespace QmlDesigner
-
-#endif // DYNCAMICPROPERTIESMODEL_Hs

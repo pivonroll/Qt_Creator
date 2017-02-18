@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,333 +9,160 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cmakeproject.h"
 
 #include "cmakebuildconfiguration.h"
+#include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectnodes.h"
 #include "cmakerunconfiguration.h"
-#include "makestep.h"
-#include "cmakeopenprojectwizard.h"
-#include "cmakecbpparser.h"
-#include "cmakefile.h"
 #include "cmakeprojectmanager.h"
 
-#include <projectexplorer/projectexplorerconstants.h>
-#include <projectexplorer/headerpath.h>
-#include <projectexplorer/buildsteplist.h>
-#include <projectexplorer/buildmanager.h>
+#include <coreplugin/progressmanager/progressmanager.h>
+#include <cpptools/cppmodelmanager.h>
+#include <cpptools/generatedcodemodelsupport.h>
+#include <cpptools/projectinfo.h>
+#include <cpptools/cpptoolsconstants.h>
+#include <cpptools/projectpartbuilder.h>
 #include <projectexplorer/buildtargetinfo.h>
-#include <projectexplorer/kitinformation.h>
-#include <projectexplorer/kitmanager.h>
-#include <projectexplorer/toolchain.h>
-
-#include <projectexplorer/deployconfiguration.h>
 #include <projectexplorer/deploymentdata.h>
-#include <qtsupport/customexecutablerunconfiguration.h>
+#include <projectexplorer/headerpath.h>
+#include <projectexplorer/kitinformation.h>
+#include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/target.h>
+#include <projectexplorer/toolchain.h>
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
-#include <qtsupport/uicodemodelsupport.h>
-#include <cpptools/cppmodelmanager.h>
-#include <extensionsystem/pluginmanager.h>
+#include <texteditor/textdocument.h>
+#include <qmljs/qmljsmodelmanagerinterface.h>
+
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
 #include <utils/hostosinfo.h>
-#include <coreplugin/icore.h>
-#include <coreplugin/infobar.h>
-#include <coreplugin/editormanager/editormanager.h>
 
-#include <QDebug>
 #include <QDir>
-#include <QFileSystemWatcher>
+#include <QSet>
 
-using namespace CMakeProjectManager;
-using namespace CMakeProjectManager::Internal;
 using namespace ProjectExplorer;
 using namespace Utils;
 
+namespace CMakeProjectManager {
+
+using namespace Internal;
+
 // QtCreator CMake Generator wishlist:
 // Which make targets we need to build to get all executables
-// What is the make we need to call
 // What is the actual compiler executable
 // DEFINES
-
-// Open Questions
-// Who sets up the environment for cl.exe ? INCLUDEPATH and so on
 
 /*!
   \class CMakeProject
 */
 CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
-    : m_manager(manager),
-      m_activeTarget(0),
-      m_fileName(fileName),
-      m_rootNode(new CMakeProjectNode(fileName)),
-      m_watcher(new QFileSystemWatcher(this))
 {
-    setId(Constants::CMAKEPROJECT_ID);
+    setId(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
+    setProjectManager(manager);
+    setDocument(new TextEditor::TextDocument);
+    document()->setFilePath(fileName);
+
+    setRootProjectNode(new CMakeListsNode(fileName));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
-    setProjectLanguages(Core::Context(ProjectExplorer::Constants::LANG_CXX));
+    setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
 
-    m_projectName = fileName.parentDir().fileName();
+    rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
 
-    m_file = new CMakeFile(this, fileName);
+    connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
 
-    connect(this, SIGNAL(buildTargetsChanged()),
-            this, SLOT(updateRunConfigurations()));
+    connect(&m_treeScanner, &TreeScanner::finished, this, &CMakeProject::handleTreeScanningFinished);
 
-    connect(m_watcher, SIGNAL(fileChanged(QString)), this, SLOT(fileChanged(QString)));
+    m_treeScanner.setFilter([this](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
+        // Mime checks requires more resources, so keep it last in check list
+        auto isIgnored =
+                fn.toString().startsWith(projectFilePath().toString() + ".user") ||
+                TreeScanner::isWellKnownBinary(mimeType, fn);
+
+        // Cache mime check result for speed up
+        if (!isIgnored) {
+            auto it = m_mimeBinaryCache.find(mimeType.name());
+            if (it != m_mimeBinaryCache.end()) {
+                isIgnored = *it;
+            } else {
+                isIgnored = TreeScanner::isMimeBinary(mimeType, fn);
+                m_mimeBinaryCache[mimeType.name()] = isIgnored;
+            }
+        }
+
+        return isIgnored;
+    });
+
+    m_treeScanner.setTypeFactory([](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
+        auto type = TreeScanner::genericFileType(mimeType, fn);
+        if (type == FileType::Unknown) {
+            if (mimeType.isValid()) {
+                const QString mt = mimeType.name();
+                if (mt == CMakeProjectManager::Constants::CMAKEPROJECTMIMETYPE
+                    || mt == CMakeProjectManager::Constants::CMAKEMIMETYPE)
+                    type = FileType::Project;
+            }
+        }
+        return type;
+    });
+
+    scanProjectTree();
 }
 
 CMakeProject::~CMakeProject()
 {
+    if (!m_treeScanner.isFinished()) {
+        auto future = m_treeScanner.future();
+        future.cancel();
+        future.waitForFinished();
+    }
+    setRootProjectNode(nullptr);
     m_codeModelFuture.cancel();
-    delete m_rootNode;
+    qDeleteAll(m_extraCompilers);
+    qDeleteAll(m_allFiles);
 }
 
-void CMakeProject::fileChanged(const QString &fileName)
+void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 {
-    Q_UNUSED(fileName)
+    QTC_ASSERT(bc, return);
 
-    parseCMakeLists();
-}
-
-void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration *bc)
-{
-    if (!bc)
+    Target *t = activeTarget();
+    if (!t || t->activeBuildConfiguration() != bc)
         return;
 
-    CMakeBuildConfiguration *cmakebc = static_cast<CMakeBuildConfiguration *>(bc);
-
-    // Pop up a dialog asking the user to rerun cmake
-    QString cbpFile = CMakeManager::findCbpFile(QDir(bc->buildDirectory().toString()));
-    QFileInfo cbpFileFi(cbpFile);
-    CMakeOpenProjectWizard::Mode mode = CMakeOpenProjectWizard::Nothing;
-    if (!cbpFileFi.exists()) {
-        mode = CMakeOpenProjectWizard::NeedToCreate;
-    } else {
-        foreach (const FileName &file, m_watchedFiles) {
-            if (file.toFileInfo().lastModified() > cbpFileFi.lastModified()) {
-                mode = CMakeOpenProjectWizard::NeedToUpdate;
-                break;
-            }
-        }
-    }
-
-    if (mode != CMakeOpenProjectWizard::Nothing) {
-        CMakeBuildInfo info(cmakebc);
-        CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info,
-                                    bc->target()->displayName(), bc->displayName());
-        if (copw.exec() == QDialog::Accepted) {
-            cmakebc->setUseNinja(copw.useNinja()); // NeedToCreate can change the Ninja setting
-            cmakebc->setInitialArguments(QString());
-        }
-    }
-
-    // reparse
-    parseCMakeLists();
-}
-
-void CMakeProject::activeTargetWasChanged(Target *target)
-{
-    if (m_activeTarget) {
-        disconnect(m_activeTarget, SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-                   this, SLOT(changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*)));
-    }
-
-    m_activeTarget = target;
-
-    if (!m_activeTarget)
+    if (!m_treeScanner.isFinished() || bc->isParsing())
         return;
 
-    connect(m_activeTarget, SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-            this, SLOT(changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*)));
+    Kit *k = t->kit();
 
-    changeActiveBuildConfiguration(m_activeTarget->activeBuildConfiguration());
-}
-
-void CMakeProject::changeBuildDirectory(CMakeBuildConfiguration *bc, const QString &newBuildDirectory)
-{
-    bc->setBuildDirectory(FileName::fromString(newBuildDirectory));
-    parseCMakeLists();
-}
-
-QStringList CMakeProject::getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QByteArray *cachedBuildNinja)
-{
-    QString makeCommand = QDir::fromNativeSeparators(buildTarget.makeCommand);
-    int startIndex = makeCommand.indexOf(QLatin1Char('\"'));
-    int endIndex = makeCommand.indexOf(QLatin1Char('\"'), startIndex + 1);
-    if (startIndex != -1 && endIndex != -1) {
-        startIndex += 1;
-        QString makefile = makeCommand.mid(startIndex, endIndex - startIndex);
-        int slashIndex = makefile.lastIndexOf(QLatin1Char('/'));
-        makefile.truncate(slashIndex);
-        makefile.append(QLatin1String("/CMakeFiles/") + buildTarget.title + QLatin1String(".dir/flags.make"));
-        QFile file(makefile);
-        if (file.exists()) {
-            file.open(QIODevice::ReadOnly | QIODevice::Text);
-            QTextStream stream(&file);
-            while (!stream.atEnd()) {
-                QString line = stream.readLine().trimmed();
-                if (line.startsWith(QLatin1String("CXX_FLAGS ="))) {
-                    // Skip past =
-                    return line.mid(11).trimmed().split(QLatin1Char(' '), QString::SkipEmptyParts);
-                }
-            }
-        }
-    }
-
-    // Attempt to find build.ninja file and obtain FLAGS (CXX_FLAGS) from there if no suitable flags.make were
-    // found
-    // Get "all" target's working directory
-    if (!buildTargets().empty()) {
-        if (cachedBuildNinja->isNull()) {
-            QString buildNinjaFile = QDir::fromNativeSeparators(buildTargets().at(0).workingDirectory);
-            buildNinjaFile += QLatin1String("/build.ninja");
-            QFile buildNinja(buildNinjaFile);
-            if (buildNinja.exists()) {
-                buildNinja.open(QIODevice::ReadOnly | QIODevice::Text);
-                *cachedBuildNinja = buildNinja.readAll();
-                buildNinja.close();
-            } else {
-                *cachedBuildNinja = QByteArray();
-            }
-        }
-
-        if (cachedBuildNinja->isEmpty())
-            return QStringList();
-
-        QTextStream stream(cachedBuildNinja);
-        bool targetFound = false;
-        bool cxxFound = false;
-        QString targetSearchPattern = QString::fromLatin1("target %1").arg(buildTarget.title);
-
-        while (!stream.atEnd()) {
-            // 1. Look for a block that refers to the current target
-            // 2. Look for a build rule which invokes CXX_COMPILER
-            // 3. Return the FLAGS definition
-            QString line = stream.readLine().trimmed();
-            if (line.startsWith(QLatin1String("#"))) {
-                if (!line.startsWith(QLatin1String("# Object build statements for"))) continue;
-                targetFound = line.endsWith(targetSearchPattern);
-            } else if (targetFound && line.startsWith(QLatin1String("build"))) {
-                cxxFound = line.indexOf(QLatin1String("CXX_COMPILER")) != -1;
-            } else if (cxxFound && line.startsWith(QLatin1String("FLAGS ="))) {
-                // Skip past =
-                return line.mid(7).trimmed().split(QLatin1Char(' '), QString::SkipEmptyParts);
-            }
-        }
-
-    }
-    return QStringList();
-}
-
-bool CMakeProject::parseCMakeLists()
-{
-    if (!activeTarget() ||
-        !activeTarget()->activeBuildConfiguration()) {
-        return false;
-    }
-
-    CMakeBuildConfiguration *activeBC = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
-    foreach (Core::IDocument *document, Core::DocumentModel::openedDocuments())
-        if (isProjectFile(document->filePath()))
-            document->infoBar()->removeInfo("CMakeEditor.RunCMake");
-
-    // Find cbp file
-    QString cbpFile = CMakeManager::findCbpFile(activeBC->buildDirectory().toString());
-
-    if (cbpFile.isEmpty()) {
-        emit buildTargetsChanged();
-        return false;
-    }
-
-    Kit *k = activeTarget()->kit();
-
-    // setFolderName
-    m_rootNode->setDisplayName(QFileInfo(cbpFile).completeBaseName());
-    CMakeCbpParser cbpparser;
-    // Parsing
-    //qDebug()<<"Parsing file "<<cbpFile;
-    if (!cbpparser.parseCbpFile(k,cbpFile, projectDirectory().toString())) {
-        // TODO report error
-        emit buildTargetsChanged();
-        return false;
-    }
-
-    foreach (const QString &file, m_watcher->files())
-        if (file != cbpFile)
-            m_watcher->removePath(file);
-
-    // how can we ensure that it is completely written?
-    m_watcher->addPath(cbpFile);
-
-    m_projectName = cbpparser.projectName();
-    m_rootNode->setDisplayName(cbpparser.projectName());
-
-    //qDebug()<<"Building Tree";
-    QList<ProjectExplorer::FileNode *> fileList = cbpparser.fileList();
-    QSet<FileName> projectFiles;
-    if (cbpparser.hasCMakeFiles()) {
-        fileList.append(cbpparser.cmakeFileList());
-        foreach (const ProjectExplorer::FileNode *node, cbpparser.cmakeFileList())
-            projectFiles.insert(node->path());
-    } else {
-        // Manually add the CMakeLists.txt file
-        FileName cmakeListTxt = projectDirectory().appendPath(QLatin1String("CMakeLists.txt"));
-        bool generated = false;
-        fileList.append(new ProjectExplorer::FileNode(cmakeListTxt, ProjectExplorer::ProjectFileType, generated));
-        projectFiles.insert(cmakeListTxt);
-    }
-
-    m_watchedFiles = projectFiles;
-
-    m_files.clear();
-    foreach (ProjectExplorer::FileNode *fn, fileList)
-        m_files.append(fn->path().toString());
-    m_files.sort();
-
-    buildTree(m_rootNode, fileList);
-
-    //qDebug()<<"Adding Targets";
-    m_buildTargets = cbpparser.buildTargets();
-//        qDebug()<<"Printing targets";
-//        foreach (CMakeBuildTarget ct, m_buildTargets) {
-//            qDebug()<<ct.title<<" with executable:"<<ct.executable;
-//            qDebug()<<"WD:"<<ct.workingDirectory;
-//            qDebug()<<ct.makeCommand<<ct.makeCleanCommand;
-//            qDebug()<<"";
-//        }
+    bc->generateProjectTree(static_cast<CMakeListsNode *>(rootProjectNode()), m_allFiles);
 
     updateApplicationAndDeploymentTargets();
+    updateTargetRunConfigurations(t);
 
-    createUiCodeModelSupport();
+    createGeneratedCodeModelSupport();
 
-    ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k);
+    ToolChain *tc = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (!tc) {
-        emit buildTargetsChanged();
         emit fileListChanged();
-        return true;
+        return;
     }
 
     CppTools::CppModelManager *modelmanager = CppTools::CppModelManager::instance();
@@ -352,34 +179,53 @@ bool CMakeProject::parseCMakeLists()
 
     ppBuilder.setQtVersion(activeQtVersion);
 
-    QByteArray cachedBuildNinja;
-    foreach (const CMakeBuildTarget &cbt, m_buildTargets) {
-        // This explicitly adds -I. to the include paths
-        QStringList includePaths = cbt.includeFiles;
-        includePaths += projectDirectory().toString();
-        ppBuilder.setIncludePaths(includePaths);
-        QStringList cxxflags = getCXXFlagsFor(cbt, &cachedBuildNinja);
-        ppBuilder.setCFlags(cxxflags);
-        ppBuilder.setCxxFlags(cxxflags);
-        ppBuilder.setDefines(cbt.defines);
-        ppBuilder.setDisplayName(cbt.title);
-
-        const QList<Core::Id> languages = ppBuilder.createProjectPartsForFiles(cbt.files);
-        foreach (Core::Id language, languages)
-            setProjectLanguage(language, true);
-    }
+    const QSet<Core::Id> languages = bc->updateCodeModel(ppBuilder);
+    for (const auto &lid : languages)
+        setProjectLanguage(lid, true);
 
     m_codeModelFuture.cancel();
-    pinfo.finish();
     m_codeModelFuture = modelmanager->updateProjectInfo(pinfo);
 
+    updateQmlJSCodeModel();
+
     emit displayNameChanged();
-    emit buildTargetsChanged();
     emit fileListChanged();
 
-    emit activeBC->emitBuildTypeChanged();
+    emit bc->emitBuildTypeChanged();
 
-    return true;
+    emit parsingFinished();
+}
+
+void CMakeProject::updateQmlJSCodeModel()
+{
+    QmlJS::ModelManagerInterface *modelManager = QmlJS::ModelManagerInterface::instance();
+    QTC_ASSERT(modelManager, return);
+
+    if (!activeTarget() || !activeTarget()->activeBuildConfiguration())
+        return;
+
+    QmlJS::ModelManagerInterface::ProjectInfo projectInfo =
+            modelManager->defaultProjectInfoForProject(this);
+
+    projectInfo.importPaths.clear();
+
+    QString cmakeImports;
+    CMakeBuildConfiguration *bc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
+    if (!bc)
+        return;
+
+    const QList<ConfigModel::DataItem> &cm = bc->completeCMakeConfiguration();
+    foreach (const ConfigModel::DataItem &di, cm) {
+        if (di.key.contains(QStringLiteral("QML_IMPORT_PATH"))) {
+            cmakeImports = di.value;
+            break;
+        }
+    }
+
+    foreach (const QString &cmakeImport, CMakeConfigItem::cmakeSplitValue(cmakeImports))
+        projectInfo.importPaths.maybeInsert(FileName::fromString(cmakeImport),QmlJS::Dialect::Qml);
+
+    modelManager->updateProjectInfo(projectInfo, this);
 }
 
 bool CMakeProject::needsConfiguration() const
@@ -392,146 +238,94 @@ bool CMakeProject::requiresTargetPanel() const
     return !targets().isEmpty();
 }
 
-bool CMakeProject::isProjectFile(const FileName &fileName)
+bool CMakeProject::knowsAllBuildExecutables() const
 {
-    return m_watchedFiles.contains(fileName);
+    return false;
+}
+
+bool CMakeProject::supportsKit(Kit *k, QString *errorMessage) const
+{
+    if (!CMakeKitInformation::cmakeTool(k)) {
+        if (errorMessage)
+            *errorMessage = tr("No cmake tool set.");
+        return false;
+    }
+    return true;
+}
+
+void CMakeProject::runCMake()
+{
+    CMakeBuildConfiguration *bc = nullptr;
+    if (activeTarget())
+        bc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
+
+    if (bc)
+        bc->runCMake();
+}
+
+void CMakeProject::buildCMakeTarget(const QString &buildTarget)
+{
+    QTC_ASSERT(!buildTarget.isEmpty(), return);
+    Target *t = activeTarget();
+    auto bc = qobject_cast<CMakeBuildConfiguration *>(t ? t->activeBuildConfiguration() : nullptr);
+    if (bc)
+        bc->buildTarget(buildTarget);
+}
+
+ProjectImporter *CMakeProject::projectImporter() const
+{
+    if (!m_projectImporter)
+        m_projectImporter = std::make_unique<CMakeProjectImporter>(projectFilePath());
+    return m_projectImporter.get();
 }
 
 QList<CMakeBuildTarget> CMakeProject::buildTargets() const
 {
-    return m_buildTargets;
+    CMakeBuildConfiguration *bc = nullptr;
+    if (activeTarget())
+        bc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
+
+    return bc ? bc->buildTargets() : QList<CMakeBuildTarget>();
 }
 
 QStringList CMakeProject::buildTargetTitles(bool runnable) const
 {
-    QStringList results;
-    foreach (const CMakeBuildTarget &ct, m_buildTargets) {
-        if (runnable && (ct.executable.isEmpty() || ct.targetType != ExecutableType))
-            continue;
-        results << ct.title;
-    }
-    return results;
+    const QList<CMakeBuildTarget> targets
+            = runnable ? filtered(buildTargets(),
+                                  [](const CMakeBuildTarget &ct) {
+                                      return !ct.executable.isEmpty() && ct.targetType == ExecutableType;
+                                  })
+                       : buildTargets();
+    return transform(targets, [](const CMakeBuildTarget &ct) { return ct.title; });
 }
 
 bool CMakeProject::hasBuildTarget(const QString &title) const
 {
-    foreach (const CMakeBuildTarget &ct, m_buildTargets) {
-        if (ct.title == title)
-            return true;
-    }
-    return false;
-}
-
-void CMakeProject::gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<ProjectExplorer::FileNode *> &list)
-{
-    foreach (ProjectExplorer::FolderNode *folder, parent->subFolderNodes())
-        gatherFileNodes(folder, list);
-    foreach (ProjectExplorer::FileNode *file, parent->fileNodes())
-        list.append(file);
-}
-
-bool sortNodesByPath(Node *a, Node *b)
-{
-    return a->path() < b->path();
-}
-
-void CMakeProject::buildTree(CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> newList)
-{
-    // Gather old list
-    QList<ProjectExplorer::FileNode *> oldList;
-    gatherFileNodes(rootNode, oldList);
-    Utils::sort(oldList, sortNodesByPath);
-    Utils::sort(newList, sortNodesByPath);
-
-    QList<ProjectExplorer::FileNode *> added;
-    QList<ProjectExplorer::FileNode *> deleted;
-
-    ProjectExplorer::compareSortedLists(oldList, newList, deleted, added, sortNodesByPath);
-
-    qDeleteAll(ProjectExplorer::subtractSortedList(newList, added, sortNodesByPath));
-
-    // add added nodes
-    foreach (ProjectExplorer::FileNode *fn, added) {
-//        qDebug()<<"added"<<fn->path();
-        // Get relative path to rootNode
-        QString parentDir = fn->path().toFileInfo().absolutePath();
-        ProjectExplorer::FolderNode *folder = findOrCreateFolder(rootNode, parentDir);
-        folder->addFileNodes(QList<ProjectExplorer::FileNode *>()<< fn);
-    }
-
-    // remove old file nodes and check whether folder nodes can be removed
-    foreach (ProjectExplorer::FileNode *fn, deleted) {
-        ProjectExplorer::FolderNode *parent = fn->parentFolderNode();
-//        qDebug()<<"removed"<<fn->path();
-        parent->removeFileNodes(QList<ProjectExplorer::FileNode *>() << fn);
-        // Check for empty parent
-        while (parent->subFolderNodes().isEmpty() && parent->fileNodes().isEmpty()) {
-            ProjectExplorer::FolderNode *grandparent = parent->parentFolderNode();
-            grandparent->removeFolderNodes(QList<ProjectExplorer::FolderNode *>() << parent);
-            parent = grandparent;
-            if (parent == rootNode)
-                break;
-        }
-    }
-}
-
-ProjectExplorer::FolderNode *CMakeProject::findOrCreateFolder(CMakeProjectNode *rootNode, QString directory)
-{
-    FileName path = rootNode->path().parentDir();
-    QDir rootParentDir(path.toString());
-    QString relativePath = rootParentDir.relativeFilePath(directory);
-    if (relativePath == QLatin1String("."))
-        relativePath.clear();
-    QStringList parts = relativePath.split(QLatin1Char('/'), QString::SkipEmptyParts);
-    ProjectExplorer::FolderNode *parent = rootNode;
-    foreach (const QString &part, parts) {
-        path.appendPath(part);
-        // Find folder in subFolders
-        bool found = false;
-        foreach (ProjectExplorer::FolderNode *folder, parent->subFolderNodes()) {
-            if (folder->path() == path) {
-                // yeah found something :)
-                parent = folder;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            // No FolderNode yet, so create it
-            ProjectExplorer::FolderNode *tmp = new ProjectExplorer::FolderNode(path);
-            tmp->setDisplayName(part);
-            parent->addFolderNodes(QList<ProjectExplorer::FolderNode *>() << tmp);
-            parent = tmp;
-        }
-    }
-    return parent;
+    return anyOf(buildTargets(), [title](const CMakeBuildTarget &ct) { return ct.title == title; });
 }
 
 QString CMakeProject::displayName() const
 {
-    return m_projectName;
+    return rootProjectNode()->displayName();
 }
-
-Core::IDocument *CMakeProject::document() const
-{
-    return m_file;
-}
-
-IProjectManager *CMakeProject::projectManager() const
-{
-    return m_manager;
-}
-
-ProjectExplorer::ProjectNode *CMakeProject::rootProjectNode() const
-{
-    return m_rootNode;
-}
-
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
-    Q_UNUSED(fileMode)
-    return m_files;
+    const QList<FileNode *> nodes = filtered(rootProjectNode()->recursiveFileNodes(),
+                                             [fileMode](const FileNode *fn) {
+        const bool isGenerated = fn->isGenerated();
+        switch (fileMode)
+        {
+        case Project::SourceFiles:
+            return !isGenerated;
+        case Project::GeneratedFiles:
+            return isGenerated;
+        case Project::AllFiles:
+        default:
+            return true;
+        }
+    });
+    return transform(nodes, [fileMode](const FileNode* fn) { return fn->filePath().toString(); });
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
@@ -539,50 +333,6 @@ Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *er
     RestoreResult result = Project::fromMap(map, errorMessage);
     if (result != RestoreResult::Ok)
         return result;
-
-    bool hasUserFile = activeTarget();
-    if (!hasUserFile) {
-        // Nothing to do, the target setup page will show up
-    } else {
-        // We have a user file, but we could still be missing the cbp file
-        // or simply run createXml with the saved settings
-        CMakeBuildConfiguration *activeBC = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
-        if (!activeBC) {
-            *errorMessage = tr("Internal Error: No build configuration found in settings file.");
-            return RestoreResult::Error;
-        }
-        QString cbpFile = CMakeManager::findCbpFile(QDir(activeBC->buildDirectory().toString()));
-        QFileInfo cbpFileFi(cbpFile);
-
-        CMakeOpenProjectWizard::Mode mode = CMakeOpenProjectWizard::Nothing;
-        if (!cbpFileFi.exists())
-            mode = CMakeOpenProjectWizard::NeedToCreate;
-        else if (cbpFileFi.lastModified() < m_fileName.toFileInfo().lastModified())
-            mode = CMakeOpenProjectWizard::NeedToUpdate;
-
-        if (mode != CMakeOpenProjectWizard::Nothing) {
-            CMakeBuildInfo info(activeBC);
-            CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info,
-                                        activeBC->target()->displayName(), activeBC->displayName());
-            if (copw.exec() != QDialog::Accepted) {
-                return RestoreResult::UserAbort;
-            } else {
-                activeBC->setUseNinja(copw.useNinja());
-                activeBC->setInitialArguments(QString());
-            }
-        }
-    }
-
-    parseCMakeLists();
-
-    m_activeTarget = activeTarget();
-    if (m_activeTarget)
-        connect(m_activeTarget, SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-                this, SLOT(changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*)));
-
-    connect(this, SIGNAL(activeTargetChanged(ProjectExplorer::Target*)),
-            this, SLOT(activeTargetWasChanged(ProjectExplorer::Target*)));
-
     return RestoreResult::Ok;
 }
 
@@ -596,25 +346,96 @@ bool CMakeProject::setupTarget(Target *t)
     return true;
 }
 
+void CMakeProject::scanProjectTree()
+{
+    if (!m_treeScanner.isFinished())
+        return;
+    m_treeScanner.asyncScanForFiles(projectDirectory());
+    Core::ProgressManager::addTask(m_treeScanner.future(),
+                                   tr("Scan \"%1\" project tree").arg(displayName()),
+                                   "CMake.Scan.Tree");
+}
+
+void CMakeProject::handleActiveTargetChanged()
+{
+    if (m_connectedTarget) {
+        disconnect(m_connectedTarget, &Target::activeBuildConfigurationChanged,
+                   this, &CMakeProject::handleActiveBuildConfigurationChanged);
+        disconnect(m_connectedTarget, &Target::kitChanged,
+                   this, &CMakeProject::handleActiveBuildConfigurationChanged);
+    }
+
+    m_connectedTarget = activeTarget();
+
+    if (m_connectedTarget) {
+        connect(m_connectedTarget, &Target::activeBuildConfigurationChanged,
+                this, &CMakeProject::handleActiveBuildConfigurationChanged);
+        connect(m_connectedTarget, &Target::kitChanged,
+                this, &CMakeProject::handleActiveBuildConfigurationChanged);
+    }
+
+    handleActiveBuildConfigurationChanged();
+}
+
+void CMakeProject::handleActiveBuildConfigurationChanged()
+{
+    if (!activeTarget() || !activeTarget()->activeBuildConfiguration())
+        return;
+    auto activeBc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
+
+    foreach (Target *t, targets()) {
+        foreach (BuildConfiguration *bc, t->buildConfigurations()) {
+            auto i = qobject_cast<CMakeBuildConfiguration *>(bc);
+            QTC_ASSERT(i, continue);
+            if (i == activeBc)
+                i->maybeForceReparse();
+            else
+                i->resetData();
+        }
+    }
+}
+
+void CMakeProject::handleParsingStarted()
+{
+    if (activeTarget() && activeTarget()->activeBuildConfiguration() == sender())
+        emit parsingStarted();
+}
+
+void CMakeProject::handleTreeScanningFinished()
+{
+    qDeleteAll(m_allFiles);
+    m_allFiles = Utils::transform(m_treeScanner.release(), [](const FileNode *fn) { return fn; });
+
+    auto t = activeTarget();
+    if (!t)
+        return;
+
+    auto bc = qobject_cast<CMakeBuildConfiguration*>(t->activeBuildConfiguration());
+    if (!bc)
+        return;
+
+    updateProjectData(bc);
+}
+
 CMakeBuildTarget CMakeProject::buildTargetForTitle(const QString &title)
 {
-    foreach (const CMakeBuildTarget &ct, m_buildTargets)
+    foreach (const CMakeBuildTarget &ct, buildTargets())
         if (ct.title == title)
             return ct;
     return CMakeBuildTarget();
 }
 
-QString CMakeProject::uiHeaderFile(const QString &uiFile)
+QStringList CMakeProject::filesGeneratedFrom(const QString &sourceFile) const
 {
     if (!activeTarget())
-        return QString();
-    QFileInfo fi(uiFile);
+        return QStringList();
+    QFileInfo fi(sourceFile);
     FileName project = projectDirectory();
     FileName baseDirectory = FileName::fromString(fi.absolutePath());
 
     while (baseDirectory.isChildOf(project)) {
         FileName cmakeListsTxt = baseDirectory;
-        cmakeListsTxt.appendPath(QLatin1String("CMakeLists.txt"));
+        cmakeListsTxt.appendPath("CMakeLists.txt");
         if (cmakeListsTxt.exists())
             break;
         QDir dir(baseDirectory.toString());
@@ -625,54 +446,51 @@ QString CMakeProject::uiHeaderFile(const QString &uiFile)
     QDir srcDirRoot = QDir(project.toString());
     QString relativePath = srcDirRoot.relativeFilePath(baseDirectory.toString());
     QDir buildDir = QDir(activeTarget()->activeBuildConfiguration()->buildDirectory().toString());
-    QString uiHeaderFilePath = buildDir.absoluteFilePath(relativePath);
-    uiHeaderFilePath += QLatin1String("/ui_");
-    uiHeaderFilePath += fi.completeBaseName();
-    uiHeaderFilePath += QLatin1String(".h");
+    QString generatedFilePath = buildDir.absoluteFilePath(relativePath);
 
-    return QDir::cleanPath(uiHeaderFilePath);
+    if (fi.suffix() == "ui") {
+        generatedFilePath += "/ui_";
+        generatedFilePath += fi.completeBaseName();
+        generatedFilePath += ".h";
+        return QStringList(QDir::cleanPath(generatedFilePath));
+    } else if (fi.suffix() == "scxml") {
+        generatedFilePath += "/";
+        generatedFilePath += QDir::cleanPath(fi.completeBaseName());
+        return QStringList({ generatedFilePath + ".h",
+                             generatedFilePath + ".cpp" });
+    } else {
+        // TODO: Other types will be added when adapters for their compilers become available.
+        return QStringList();
+    }
 }
 
-void CMakeProject::updateRunConfigurations()
+void CMakeProject::updateTargetRunConfigurations(Target *t)
 {
-    foreach (Target *t, targets())
-        updateRunConfigurations(t);
-}
+    // *Update* existing runconfigurations (no need to update new ones!):
+    QHash<QString, const CMakeBuildTarget *> buildTargetHash;
+    const QList<CMakeBuildTarget> buildTargetList = buildTargets();
+    foreach (const CMakeBuildTarget &bt, buildTargetList) {
+        if (bt.targetType != ExecutableType || bt.executable.isEmpty())
+            continue;
 
-// TODO Compare with updateDefaultRunConfigurations();
-void CMakeProject::updateRunConfigurations(Target *t)
-{
-    // create new and remove obsolete RCs using the factories
-    t->updateDefaultRunConfigurations();
-
-    // *Update* runconfigurations:
-    QMultiMap<QString, CMakeRunConfiguration*> existingRunConfigurations;
-    foreach (ProjectExplorer::RunConfiguration *rc, t->runConfigurations()) {
-        if (CMakeRunConfiguration* cmakeRC = qobject_cast<CMakeRunConfiguration *>(rc))
-            existingRunConfigurations.insert(cmakeRC->title(), cmakeRC);
+        buildTargetHash.insert(bt.title, &bt);
     }
 
-    foreach (const CMakeBuildTarget &ct, buildTargets()) {
-        if (ct.targetType != ExecutableType)
+    foreach (RunConfiguration *rc, t->runConfigurations()) {
+        auto cmakeRc = qobject_cast<CMakeRunConfiguration *>(rc);
+        if (!cmakeRc)
             continue;
-        if (ct.executable.isEmpty())
-            continue;
-        QList<CMakeRunConfiguration *> list = existingRunConfigurations.values(ct.title);
-        if (!list.isEmpty()) {
-            // Already exists, so override the settings...
-            foreach (CMakeRunConfiguration *rc, list) {
-                rc->setExecutable(ct.executable);
-                rc->setBaseWorkingDirectory(ct.workingDirectory);
-                rc->setEnabled(true);
-            }
+
+        auto btIt = buildTargetHash.constFind(cmakeRc->title());
+        cmakeRc->setEnabled(btIt != buildTargetHash.constEnd());
+        if (btIt != buildTargetHash.constEnd()) {
+            cmakeRc->setExecutable(btIt.value()->executable.toString());
+            cmakeRc->setBaseWorkingDirectory(btIt.value()->workingDirectory);
         }
     }
 
-    if (t->runConfigurations().isEmpty()) {
-        // Oh no, no run configuration,
-        // create a custom executable run configuration
-        t->addRunConfiguration(new QtSupport::CustomExecutableRunConfiguration(t));
-    }
+    // create new and remove obsolete RCs using the factories
+    t->updateDefaultRunConfigurations();
 }
 
 void CMakeProject::updateApplicationAndDeploymentTargets()
@@ -688,43 +506,41 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
     QDir sourceDir(t->project()->projectDirectory().toString());
     QDir buildDir(t->activeBuildConfiguration()->buildDirectory().toString());
 
-    deploymentFile.setFileName(sourceDir.filePath(QLatin1String("QtCreatorDeployment.txt")));
+    deploymentFile.setFileName(sourceDir.filePath("QtCreatorDeployment.txt"));
     // If we don't have a global QtCreatorDeployment.txt check for one created by the active build configuration
     if (!deploymentFile.exists())
-        deploymentFile.setFileName(buildDir.filePath(QLatin1String("QtCreatorDeployment.txt")));
+        deploymentFile.setFileName(buildDir.filePath("QtCreatorDeployment.txt"));
     if (deploymentFile.open(QFile::ReadOnly | QFile::Text)) {
         deploymentStream.setDevice(&deploymentFile);
         deploymentPrefix = deploymentStream.readLine();
-        if (!deploymentPrefix.endsWith(QLatin1Char('/')))
-            deploymentPrefix.append(QLatin1Char('/'));
+        if (!deploymentPrefix.endsWith('/'))
+            deploymentPrefix.append('/');
     }
 
     BuildTargetInfoList appTargetList;
     DeploymentData deploymentData;
 
-    foreach (const CMakeBuildTarget &ct, m_buildTargets) {
-        if (ct.executable.isEmpty())
+    foreach (const CMakeBuildTarget &ct, buildTargets()) {
+        if (ct.targetType == UtilityType)
             continue;
 
         if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType)
-            deploymentData.addFile(ct.executable, deploymentPrefix + buildDir.relativeFilePath(QFileInfo(ct.executable).dir().path()), DeployableFile::TypeExecutable);
+            deploymentData.addFile(ct.executable.toString(), deploymentPrefix + buildDir.relativeFilePath(ct.executable.toFileInfo().dir().path()), DeployableFile::TypeExecutable);
         if (ct.targetType == ExecutableType) {
             // TODO: Put a path to corresponding .cbp file into projectFilePath?
-            appTargetList.list << BuildTargetInfo(ct.title,
-                                                  FileName::fromString(ct.executable),
-                                                  FileName::fromString(ct.executable));
+            appTargetList.list << BuildTargetInfo(ct.title, ct.executable, ct.executable);
         }
     }
 
     QString absoluteSourcePath = sourceDir.absolutePath();
-    if (!absoluteSourcePath.endsWith(QLatin1Char('/')))
-        absoluteSourcePath.append(QLatin1Char('/'));
+    if (!absoluteSourcePath.endsWith('/'))
+        absoluteSourcePath.append('/');
     if (deploymentStream.device()) {
         while (!deploymentStream.atEnd()) {
             QString line = deploymentStream.readLine();
-            if (!line.contains(QLatin1Char(':')))
+            if (!line.contains(':'))
                 continue;
-            QStringList file = line.split(QLatin1Char(':'));
+            QStringList file = line.split(':');
             deploymentData.addFile(absoluteSourcePath + file.at(0), deploymentPrefix + file.at(1));
         }
     }
@@ -733,29 +549,45 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
     t->setDeploymentData(deploymentData);
 }
 
-void CMakeProject::createUiCodeModelSupport()
+void CMakeProject::createGeneratedCodeModelSupport()
 {
-    QHash<QString, QString> uiFileHash;
+    qDeleteAll(m_extraCompilers);
+    m_extraCompilers.clear();
+    QList<ExtraCompilerFactory *> factories =
+            ExtraCompilerFactory::extraCompilerFactories();
 
-    // Find all ui files
-    foreach (const QString &uiFile, m_files) {
-        if (uiFile.endsWith(QLatin1String(".ui")))
-            uiFileHash.insert(uiFile, uiHeaderFile(uiFile));
+    // Find all files generated by any of the extra compilers, in a rather crude way.
+    foreach (const QString &file, files(SourceFiles)) {
+        foreach (ExtraCompilerFactory *factory, factories) {
+            if (file.endsWith('.' + factory->sourceTag())) {
+                QStringList generated = filesGeneratedFrom(file);
+                if (!generated.isEmpty()) {
+                    const FileNameList fileNames = transform(generated,
+                                                             [](const QString &s) {
+                        return FileName::fromString(s);
+                    });
+                    m_extraCompilers.append(factory->create(this, FileName::fromString(file),
+                                                            fileNames));
+                }
+            }
+        }
     }
 
-    QtSupport::UiCodeModelManager::update(this, uiFileHash);
+    CppTools::GeneratedCodeModelSupport::update(m_extraCompilers);
 }
 
 void CMakeBuildTarget::clear()
 {
     executable.clear();
     makeCommand.clear();
-    makeCleanCommand.clear();
     workingDirectory.clear();
     sourceDirectory.clear();
     title.clear();
-    targetType = ExecutableType;
+    targetType = UtilityType;
     includeFiles.clear();
     compilerOptions.clear();
     defines.clear();
+    files.clear();
 }
+
+} // namespace CMakeProjectManager

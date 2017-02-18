@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -44,14 +44,14 @@ namespace QmlDesigner {
 
 bool isTabView(const ModelNode &modelNode)
 {
-    return modelNode.metaInfo().isSubclassOf("QtQuick.Controls.TabView", -1, -1);
+    return modelNode.metaInfo().isSubclassOf("QtQuick.Controls.TabView");
 }
 
 bool isTabAndParentIsTabView(const ModelNode &modelNode)
 {
-    return modelNode.metaInfo().isSubclassOf("QtQuick.Controls.Tab", -1, -1)
+    return modelNode.metaInfo().isSubclassOf("QtQuick.Controls.Tab")
             && modelNode.hasParentProperty()
-            && modelNode.parentProperty().parentModelNode().metaInfo().isSubclassOf("QtQuick.Controls.TabView", -1, -1);
+            && modelNode.parentProperty().parentModelNode().metaInfo().isSubclassOf("QtQuick.Controls.TabView");
 }
 
 AddTabDesignerAction::AddTabDesignerAction()
@@ -77,7 +77,7 @@ int AddTabDesignerAction::priority() const
 
 ActionInterface::Type AddTabDesignerAction::type() const
 {
-    return Action;
+    return ContextMenuAction;
 }
 
 bool AddTabDesignerAction::isVisible(const SelectionContext &selectionContext) const
@@ -97,7 +97,7 @@ bool AddTabDesignerAction::isEnabled(const SelectionContext &selectionContext) c
 
 static ModelNode findTabViewModelNode(const ModelNode &currentModelNode)
 {
-    if (currentModelNode.metaInfo().isSubclassOf("QtQuick.Controls.TabView", -1, -1))
+    if (currentModelNode.metaInfo().isSubclassOf("QtQuick.Controls.TabView"))
         return currentModelNode;
     else
         return findTabViewModelNode(currentModelNode.parentProperty().parentModelNode());

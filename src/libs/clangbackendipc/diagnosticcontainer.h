@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,44 +9,34 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef CLANGBACKEND_DIAGNOSTICCONTAINER_H
-#define CLANGBACKEND_DIAGNOSTICCONTAINER_H
+#pragma once
 
 #include "sourcerangecontainer.h"
 #include "fixitcontainer.h"
 
+#include <QDataStream>
 #include <QVector>
 
 #include <utility>
 
 namespace ClangBackEnd {
 
-class CMBIPC_EXPORT DiagnosticContainer
+class DiagnosticContainer
 {
-    friend CMBIPC_EXPORT QDataStream &operator<<(QDataStream &out, const DiagnosticContainer &container);
-    friend CMBIPC_EXPORT QDataStream &operator>>(QDataStream &in, DiagnosticContainer &container);
-    friend CMBIPC_EXPORT bool operator==(const DiagnosticContainer &first, const DiagnosticContainer &second);
-    friend CMBIPC_EXPORT bool operator<(const DiagnosticContainer &first, const DiagnosticContainer &second);
-
 public:
     DiagnosticContainer() = default;
     DiagnosticContainer(const Utf8String &text,
@@ -56,20 +46,108 @@ public:
                         const SourceLocationContainer &location,
                         const QVector<SourceRangeContainer> &ranges,
                         const QVector<FixItContainer> &fixIts,
-                        const QVector<DiagnosticContainer> &children);
+                        const QVector<DiagnosticContainer> &children)
+        : location_(location),
+          ranges_(ranges),
+          text_(text),
+          category_(category),
+          enableOption_(options.first),
+          disableOption_(options.second),
+          children_(children),
+          fixIts_(fixIts),
+          severity_(severity)
+    {
+    }
 
-    const Utf8String &text() const;
-    const Utf8String &category() const;
-    const Utf8String &enableOption() const;
-    const Utf8String &disableOption() const;
-    const SourceLocationContainer &location() const;
-    const QVector<SourceRangeContainer> &ranges() const;
-    DiagnosticSeverity severity() const;
-    const QVector<FixItContainer> &fixIts() const;
-    const QVector<DiagnosticContainer> &children() const;
+    const Utf8String &text() const
+    {
+        return text_;
+    }
 
-private:
-    quint32 &severityAsInt();
+    const Utf8String &category() const
+    {
+        return category_;
+    }
+
+    const Utf8String &enableOption() const
+    {
+        return enableOption_;
+    }
+
+    const Utf8String &disableOption() const
+    {
+        return disableOption_;
+    }
+
+    const SourceLocationContainer &location() const
+    {
+        return location_;
+    }
+
+    const QVector<SourceRangeContainer> &ranges() const
+    {
+        return ranges_;
+    }
+
+    DiagnosticSeverity severity() const
+    {
+        return severity_;
+    }
+
+    const QVector<FixItContainer> &fixIts() const
+    {
+        return fixIts_;
+    }
+
+    const QVector<DiagnosticContainer> &children() const
+    {
+        return children_;
+    }
+
+    friend QDataStream &operator<<(QDataStream &out, const DiagnosticContainer &container)
+    {
+        out << container.text_;
+        out << container.category_;
+        out << container.enableOption_;
+        out << container.disableOption_;
+        out << container.location_;
+        out << static_cast<quint32>(container.severity_);
+        out << container.ranges_;
+        out << container.fixIts_;
+        out << container.children_;
+
+        return out;
+    }
+
+    friend QDataStream &operator>>(QDataStream &in, DiagnosticContainer &container)
+    {
+        quint32 severity;
+
+        in >> container.text_;
+        in >> container.category_;
+        in >> container.enableOption_;
+        in >> container.disableOption_;
+        in >> container.location_;
+        in >> severity;
+        in >> container.ranges_;
+        in >> container.fixIts_;
+        in >> container.children_;
+
+        container.severity_ = static_cast<DiagnosticSeverity>(severity);
+
+        return in;
+    }
+
+    friend bool operator==(const DiagnosticContainer &first, const DiagnosticContainer &second)
+    {
+        return first.text_ == second.text_
+            && first.location_ == second.location_;
+    }
+
+    friend bool operator!=(const DiagnosticContainer &first, const DiagnosticContainer &second)
+    {
+        return !(first == second);
+    }
 
 private:
     SourceLocationContainer location_;
@@ -83,16 +161,7 @@ private:
     DiagnosticSeverity severity_;
 };
 
-CMBIPC_EXPORT QDataStream &operator<<(QDataStream &out, const DiagnosticContainer &container);
-CMBIPC_EXPORT QDataStream &operator>>(QDataStream &in, DiagnosticContainer &container);
-CMBIPC_EXPORT bool operator==(const DiagnosticContainer &first, const DiagnosticContainer &second);
-CMBIPC_EXPORT bool operator<(const DiagnosticContainer &first, const DiagnosticContainer &second);
-
 CMBIPC_EXPORT QDebug operator<<(QDebug debug, const DiagnosticContainer &container);
 void PrintTo(const DiagnosticContainer &container, ::std::ostream* os);
 
 } // namespace ClangBackEnd
-
-Q_DECLARE_METATYPE(ClangBackEnd::DiagnosticContainer)
-
-#endif // CLANGBACKEND_DIAGNOSTICCONTAINER_H

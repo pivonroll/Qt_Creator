@@ -1,14 +1,14 @@
 !isEmpty(QTCREATOR_PRI_INCLUDED):error("qtcreator.pri already included")
 QTCREATOR_PRI_INCLUDED = 1
 
-QTCREATOR_VERSION = 3.5.81
-QTCREATOR_COMPAT_VERSION = 3.5.81
+QTCREATOR_VERSION = 4.2.82
+QTCREATOR_COMPAT_VERSION = 4.2.82
+VERSION = $$QTCREATOR_VERSION
 BINARY_ARTIFACTS_BRANCH = master
 
-# enable c++11
-CONFIG += c++11
+CONFIG += c++14
 
-defineReplace(qtLibraryName) {
+defineReplace(qtLibraryTargetName) {
    unset(LIBRARY_NAME)
    LIBRARY_NAME = $$1
    CONFIG(debug, debug|release) {
@@ -18,6 +18,15 @@ defineReplace(qtLibraryName) {
       }
    }
    isEmpty(RET):RET = $$LIBRARY_NAME
+   return($$RET)
+}
+
+defineReplace(qtLibraryName) {
+   RET = $$qtLibraryTargetName($$1)
+   win32 {
+      VERSION_LIST = $$split(QTCREATOR_VERSION, .)
+      RET = $$RET$$first(VERSION_LIST)
+   }
    return($$RET)
 }
 
@@ -49,6 +58,15 @@ defineReplace(stripSrcDir) {
     return($$relative_path($$absolute_path($$1, $$OUT_PWD), $$_PRO_FILE_PWD_))
 }
 
+macos:!minQtVersion(5, 7, 0) {
+    # Qt 5.6 still sets deployment target 10.7, which does not work
+    # with all C++11/14 features (e.g. std::future)
+    QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.8
+}
+
+QTC_BUILD_TESTS = $$(QTC_BUILD_TESTS)
+!isEmpty(QTC_BUILD_TESTS):TEST = $$QTC_BUILD_TESTS
+
 !isEmpty(BUILD_TESTS):TEST = 1
 
 isEmpty(TEST):CONFIG(debug, debug|release) {
@@ -78,7 +96,10 @@ IDE_APP_PATH = $$IDE_BUILD_TREE/bin
 osx {
     IDE_APP_TARGET   = "Qt Creator"
 
-    IDE_APP_BUNDLE = $$IDE_APP_PATH/$${IDE_APP_TARGET}.app
+    # check if IDE_BUILD_TREE is actually an existing Qt Creator.app,
+    # for building against a binary package
+    exists($$IDE_BUILD_TREE/Contents/MacOS/Qt Creator): IDE_APP_BUNDLE = $$IDE_BUILD_TREE
+    else: IDE_APP_BUNDLE = $$IDE_APP_PATH/$${IDE_APP_TARGET}.app
 
     # set output path if not set manually
     isEmpty(IDE_OUTPUT_PATH): IDE_OUTPUT_PATH = $$IDE_APP_BUNDLE/Contents
@@ -93,6 +114,14 @@ osx {
 
     LINK_LIBRARY_PATH = $$IDE_APP_BUNDLE/Contents/Frameworks
     LINK_PLUGIN_PATH  = $$IDE_APP_BUNDLE/Contents/PlugIns
+
+    INSTALL_LIBRARY_PATH = $$QTC_PREFIX/$${IDE_APP_TARGET}.app/Contents/Frameworks
+    INSTALL_PLUGIN_PATH  = $$QTC_PREFIX/$${IDE_APP_TARGET}.app/Contents/PlugIns
+    INSTALL_LIBEXEC_PATH = $$QTC_PREFIX/$${IDE_APP_TARGET}.app/Contents/Resources
+    INSTALL_DATA_PATH    = $$QTC_PREFIX/$${IDE_APP_TARGET}.app/Contents/Resources
+    INSTALL_DOC_PATH     = $$INSTALL_DATA_PATH/doc
+    INSTALL_BIN_PATH     = $$QTC_PREFIX/$${IDE_APP_TARGET}.app/Contents/MacOS
+    INSTALL_APP_PATH     = $$QTC_PREFIX/
 } else {
     contains(TEMPLATE, vc.*):vcproj = 1
     IDE_APP_TARGET   = qtcreator
@@ -123,12 +152,29 @@ osx {
     INSTALL_DATA_PATH    = $$QTC_PREFIX/share/qtcreator
     INSTALL_DOC_PATH     = $$QTC_PREFIX/share/doc/qtcreator
     INSTALL_BIN_PATH     = $$QTC_PREFIX/bin
+    INSTALL_APP_PATH     = $$QTC_PREFIX/bin
 }
 
+RELATIVE_PLUGIN_PATH = $$relative_path($$IDE_PLUGIN_PATH, $$IDE_BIN_PATH)
+RELATIVE_LIBEXEC_PATH = $$relative_path($$IDE_LIBEXEC_PATH, $$IDE_BIN_PATH)
+RELATIVE_DATA_PATH = $$relative_path($$IDE_DATA_PATH, $$IDE_BIN_PATH)
+RELATIVE_DOC_PATH = $$relative_path($$IDE_DOC_PATH, $$IDE_BIN_PATH)
+DEFINES += $$shell_quote(RELATIVE_PLUGIN_PATH=\"$$RELATIVE_PLUGIN_PATH\")
+DEFINES += $$shell_quote(RELATIVE_LIBEXEC_PATH=\"$$RELATIVE_LIBEXEC_PATH\")
+DEFINES += $$shell_quote(RELATIVE_DATA_PATH=\"$$RELATIVE_DATA_PATH\")
+DEFINES += $$shell_quote(RELATIVE_DOC_PATH=\"$$RELATIVE_DOC_PATH\")
+
 INCLUDEPATH += \
-    $$IDE_BUILD_TREE/src \ # for <app/app_version.h>
+    $$IDE_BUILD_TREE/src \ # for <app/app_version.h> in case of actual build directory
+    $$IDE_SOURCE_TREE/src \ # for <app/app_version.h> in case of binary package with dev package
     $$IDE_SOURCE_TREE/src/libs \
     $$IDE_SOURCE_TREE/tools
+
+win32:exists($$IDE_SOURCE_TREE/lib/qtcreator) {
+    # for .lib in case of binary package with dev package
+    LIBS *= -L$$IDE_SOURCE_TREE/lib/qtcreator
+    LIBS *= -L$$IDE_SOURCE_TREE/lib/qtcreator/plugins
+}
 
 QTC_PLUGIN_DIRS_FROM_ENVIRONMENT = $$(QTC_PLUGIN_DIRS)
 QTC_PLUGIN_DIRS += $$split(QTC_PLUGIN_DIRS_FROM_ENVIRONMENT, $$QMAKE_DIRLIST_SEP)
@@ -150,7 +196,11 @@ exists($$IDE_LIBRARY_PATH): LIBS *= -L$$IDE_LIBRARY_PATH  # library path from ou
     DEFINES += IDE_LIBRARY_BASENAME=\\\"$$IDE_LIBRARY_BASENAME\\\"
 }
 
-DEFINES += QT_CREATOR QT_NO_CAST_TO_ASCII QT_NO_CAST_FROM_ASCII
+DEFINES += \
+    QT_CREATOR \
+    QT_NO_CAST_TO_ASCII \
+    QT_RESTRICTED_CAST_FROM_ASCII \
+    QT_DISABLE_DEPRECATED_BEFORE=0x050600
 !macx:DEFINES += QT_USE_FAST_OPERATOR_PLUS QT_USE_FAST_CONCATENATION
 
 unix {
@@ -164,7 +214,7 @@ unix {
     UI_DIR = $${OUT_PWD}/.uic
 }
 
-win32-msvc* {
+msvc {
     #Don't warn about sprintf, fopen etc being 'unsafe'
     DEFINES += _CRT_SECURE_NO_WARNINGS
     QMAKE_CXXFLAGS_WARN_ON *= -w44996

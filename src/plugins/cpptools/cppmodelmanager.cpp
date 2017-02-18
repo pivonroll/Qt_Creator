@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,7 +29,6 @@
 #include "baseeditordocumentprocessor.h"
 #include "builtinindexingsupport.h"
 #include "cppcodemodelinspectordumper.h"
-#include "cppcodemodelsettings.h"
 #include "cppfindreferences.h"
 #include "cppindexingsupport.h"
 #include "cppmodelmanagersupportinternal.h"
@@ -44,6 +38,7 @@
 #include "cpptoolsplugin.h"
 #include "cpptoolsreuse.h"
 #include "editordocumenthandle.h"
+#include "symbolfinder.h"
 
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/icore.h>
@@ -54,15 +49,16 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/session.h>
 #include <extensionsystem/pluginmanager.h>
-#include <utils/algorithm.h>
 #include <utils/fileutils.h>
 #include <utils/qtcassert.h>
 
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
+#include <QFutureWatcher>
 #include <QMutexLocker>
 #include <QTextBlock>
+#include <QThreadPool>
 #include <QTimer>
 
 #if defined(QTCREATOR_WITH_DUMP_AST) && defined(Q_CC_GNU)
@@ -70,8 +66,6 @@
 #include <iostream>
 #include <sstream>
 #endif
-
-Q_DECLARE_METATYPE(QSet<QString>)
 
 static const bool DumpProjectInfo = qgetenv("QTC_DUMP_PROJECT_INFO") == "1";
 
@@ -137,12 +131,13 @@ public:
     // Project integration
     mutable QMutex m_projectMutex;
     QMap<ProjectExplorer::Project *, ProjectInfo> m_projectToProjectsInfo;
+    QHash<ProjectExplorer::Project *, bool> m_projectToIndexerCanceled;
     QMap<Utils::FileName, QList<ProjectPart::Ptr> > m_fileToProjectParts;
     QMap<QString, ProjectPart::Ptr> m_projectPartIdToProjectProjectPart;
     // The members below are cached/(re)calculated from the projects and/or their project parts
     bool m_dirty;
     QStringList m_projectFiles;
-    ProjectPart::HeaderPaths m_headerPaths;
+    ProjectPartHeaderPaths m_headerPaths;
     QByteArray m_definedMacros;
 
     // Editor integration
@@ -150,11 +145,9 @@ public:
     QMap<QString, CppEditorDocumentHandle *> m_cppEditorDocuments;
     QSet<AbstractEditorSupport *> m_extraEditorSupports;
 
-    // Completion & highlighting
-    ModelManagerSupportProviderInternal m_modelManagerSupportInternalProvider;
-    ModelManagerSupport::Ptr m_modelManagerSupportInternal;
-    QHash<QString, ModelManagerSupportProvider *> m_availableModelManagerSupports;
-    QHash<QString, ModelManagerSupport::Ptr> m_activeModelManagerSupports;
+    // Model Manager Supports for e.g. completion and highlighting
+    ModelManagerSupport::Ptr m_builtinModelManagerSupport;
+    ModelManagerSupport::Ptr m_activeModelManagerSupport;
 
     // Indexing
     CppIndexingSupport *m_indexingSupporter;
@@ -163,8 +156,14 @@ public:
 
     CppFindReferences *m_findReferences;
 
+    SymbolFinder m_symbolFinder;
+    QThreadPool m_threadPool;
+
     bool m_enableGC;
     QTimer m_delayedGcTimer;
+
+    // Refactoring
+    RefactoringEngineInterface *m_refactoringEngine = nullptr;
 };
 
 } // namespace Internal
@@ -187,6 +186,12 @@ const char pp_configuration[] =
     "#define __builtin_va_arg(a,b) ((b)0)\n"
 
     "#define _Pragma(x)\n" // C99 _Pragma operator
+
+    "#define __func__ \"\"\n"
+
+    // ### add macros for gcc
+    "#define __PRETTY_FUNCTION__ \"\"\n"
+    "#define __FUNCTION__ \"\"\n"
 
     // ### add macros for win32
     "#define __cdecl\n"
@@ -251,9 +256,19 @@ QString CppModelManager::editorConfigurationFileName()
     return QLatin1String("<per-editor-defines>");
 }
 
+void CppModelManager::setRefactoringEngine(RefactoringEngineInterface *refactoringEngine)
+{
+    instance()->d->m_refactoringEngine = refactoringEngine;
+}
+
+RefactoringEngineInterface *CppModelManager::refactoringEngine()
+{
+    return instance()->d->m_refactoringEngine;
+}
+
 QString CppModelManager::configurationFileName()
 {
-    return Preprocessor::configurationFileName;
+    return Preprocessor::configurationFileName();
 }
 
 void CppModelManager::updateModifiedSourceFiles()
@@ -290,6 +305,13 @@ CppModelManager *CppModelManager::instance()
     return m_instance;
 }
 
+void CppModelManager::initializeBuiltinModelManagerSupport()
+{
+    d->m_builtinModelManagerSupport
+            = ModelManagerSupportProviderInternal().createModelManagerSupport();
+    d->m_activeModelManagerSupport = d->m_builtinModelManagerSupport;
+}
+
 CppModelManager::CppModelManager(QObject *parent)
     : CppModelManagerBase(parent), d(new CppModelManagerPrivate)
 {
@@ -297,8 +319,8 @@ CppModelManager::CppModelManager(QObject *parent)
     d->m_enableGC = true;
 
     qRegisterMetaType<QSet<QString> >();
-    connect(this, SIGNAL(sourceFilesRefreshed(QSet<QString>)),
-            this, SLOT(onSourceFilesRefreshed()));
+    connect(this, &CppModelManager::sourceFilesRefreshed,
+            this, &CppModelManager::onSourceFilesRefreshed);
 
     d->m_findReferences = new CppFindReferences(this);
     d->m_indexerEnabled = qgetenv("QTC_NO_CODE_INDEXER") != "1";
@@ -307,17 +329,17 @@ CppModelManager::CppModelManager(QObject *parent)
 
     d->m_delayedGcTimer.setObjectName(QLatin1String("CppModelManager::m_delayedGcTimer"));
     d->m_delayedGcTimer.setSingleShot(true);
-    connect(&d->m_delayedGcTimer, SIGNAL(timeout()), this, SLOT(GC()));
+    connect(&d->m_delayedGcTimer, &QTimer::timeout, this, &CppModelManager::GC);
 
-    QObject *sessionManager = ProjectExplorer::SessionManager::instance();
-    connect(sessionManager, SIGNAL(projectAdded(ProjectExplorer::Project*)),
-            this, SLOT(onProjectAdded(ProjectExplorer::Project*)));
-    connect(sessionManager, SIGNAL(aboutToRemoveProject(ProjectExplorer::Project*)),
-            this, SLOT(onAboutToRemoveProject(ProjectExplorer::Project*)));
-    connect(sessionManager, SIGNAL(aboutToLoadSession(QString)),
-            this, SLOT(onAboutToLoadSession()));
-    connect(sessionManager, SIGNAL(aboutToUnloadSession(QString)),
-            this, SLOT(onAboutToUnloadSession()));
+    auto sessionManager = ProjectExplorer::SessionManager::instance();
+    connect(sessionManager, &ProjectExplorer::SessionManager::projectAdded,
+            this, &CppModelManager::onProjectAdded);
+    connect(sessionManager, &ProjectExplorer::SessionManager::aboutToRemoveProject,
+            this, &CppModelManager::onAboutToRemoveProject);
+    connect(sessionManager, &ProjectExplorer::SessionManager::aboutToLoadSession,
+            this, &CppModelManager::onAboutToLoadSession);
+    connect(sessionManager, &ProjectExplorer::SessionManager::startupProjectChanged,
+            this, &CppModelManager::onActiveProjectChanged);
 
     connect(Core::EditorManager::instance(), &Core::EditorManager::currentEditorChanged,
             this, &CppModelManager::onCurrentEditorChanged);
@@ -325,24 +347,14 @@ CppModelManager::CppModelManager(QObject *parent)
     connect(Core::DocumentManager::instance(), &Core::DocumentManager::allDocumentsRenamed,
             this, &CppModelManager::renameIncludes);
 
-    connect(Core::ICore::instance(), SIGNAL(coreAboutToClose()),
-            this, SLOT(onCoreAboutToClose()));
+    connect(Core::ICore::instance(), &Core::ICore::coreAboutToClose,
+            this, &CppModelManager::onCoreAboutToClose);
 
     qRegisterMetaType<CPlusPlus::Document::Ptr>("CPlusPlus::Document::Ptr");
     qRegisterMetaType<QList<Document::DiagnosticMessage>>(
                 "QList<CPlusPlus::Document::DiagnosticMessage>");
 
-    QSharedPointer<CppCodeModelSettings> codeModelSettings
-            = CppToolsPlugin::instance()->codeModelSettings();
-    codeModelSettings->setDefaultId(d->m_modelManagerSupportInternalProvider.id());
-    connect(codeModelSettings.data(), &CppCodeModelSettings::changed,
-            this, &CppModelManager::onCodeModelSettingsChanged);
-
-    d->m_modelManagerSupportInternal
-            = d->m_modelManagerSupportInternalProvider.createModelManagerSupport();
-    d->m_activeModelManagerSupports.insert(d->m_modelManagerSupportInternalProvider.id(),
-                                           d->m_modelManagerSupportInternal);
-    addModelManagerSupportProvider(&d->m_modelManagerSupportInternalProvider);
+    initializeBuiltinModelManagerSupport();
 
     d->m_internalIndexingSupport = new BuiltinIndexingSupport;
 }
@@ -381,9 +393,9 @@ bool CppModelManager::replaceDocument(Document::Ptr newDoc)
     return true;
 }
 
+/// Make sure that m_projectMutex is locked when calling this.
 void CppModelManager::ensureUpdated()
 {
-    QMutexLocker locker(&d->m_projectMutex);
     if (!d->m_dirty)
         return;
 
@@ -409,16 +421,16 @@ QStringList CppModelManager::internalProjectFiles() const
     return files;
 }
 
-ProjectPart::HeaderPaths CppModelManager::internalHeaderPaths() const
+ProjectPartHeaderPaths CppModelManager::internalHeaderPaths() const
 {
-    ProjectPart::HeaderPaths headerPaths;
+    ProjectPartHeaderPaths headerPaths;
     QMapIterator<ProjectExplorer::Project *, ProjectInfo> it(d->m_projectToProjectsInfo);
     while (it.hasNext()) {
         it.next();
         const ProjectInfo pinfo = it.value();
         foreach (const ProjectPart::Ptr &part, pinfo.projectParts()) {
-            foreach (const ProjectPart::HeaderPath &path, part->headerPaths) {
-                const ProjectPart::HeaderPath hp(QDir::cleanPath(path.path), path.type);
+            foreach (const ProjectPartHeaderPath &path, part->headerPaths) {
+                const ProjectPartHeaderPath hp(QDir::cleanPath(path.path), path.type);
                 if (!headerPaths.contains(hp))
                     headerPaths += hp;
             }
@@ -472,8 +484,7 @@ void CppModelManager::dumpModelManagerConfiguration(const QString &logFileId)
     dumper.dumpProjectInfos(projectInfos());
     dumper.dumpSnapshot(globalSnapshot, globalSnapshotTitle, /*isGlobalSnapshot=*/ true);
     dumper.dumpWorkingCopy(workingCopy());
-    ensureUpdated();
-    dumper.dumpMergedEntities(d->m_headerPaths, d->m_definedMacros);
+    dumper.dumpMergedEntities(headerPaths(), definedMacros());
 }
 
 QSet<AbstractEditorSupport *> CppModelManager::abstractEditorSupports() const
@@ -583,11 +594,6 @@ WorkingCopy CppModelManager::buildWorkingCopyList()
         workingCopy.insert(es->fileName(), es->contents(), es->revision());
     }
 
-    // Add the project configuration file
-    QByteArray conf = codeModelConfiguration();
-    conf += definedMacros();
-    workingCopy.insert(configurationFileName(), conf);
-
     return workingCopy;
 }
 
@@ -601,9 +607,9 @@ QByteArray CppModelManager::codeModelConfiguration() const
     return QByteArray::fromRawData(pp_configuration, qstrlen(pp_configuration));
 }
 
-static QSet<QString> tooBigFilesRemoved(const QSet<QString> &files, int fileSizeLimit)
+static QSet<QString> tooBigFilesRemoved(const QSet<QString> &files, int fileSizeLimitInMb)
 {
-    if (fileSizeLimit == 0)
+    if (fileSizeLimitInMb <= 0)
         return files;
 
     QSet<QString> result;
@@ -613,7 +619,7 @@ static QSet<QString> tooBigFilesRemoved(const QSet<QString> &files, int fileSize
     while (i.hasNext()) {
         const QString filePath = i.next();
         fileInfo.setFile(filePath);
-        if (skipFileDueToSizeLimit(fileInfo), fileSizeLimit)
+        if (fileSizeExceedsLimit(fileInfo, fileSizeLimitInMb))
             continue;
 
         result << filePath;
@@ -628,7 +634,7 @@ QFuture<void> CppModelManager::updateSourceFiles(const QSet<QString> &sourceFile
     if (sourceFiles.isEmpty() || !d->m_indexerEnabled)
         return QFuture<void>();
 
-    const auto filteredFiles = tooBigFilesRemoved(sourceFiles, fileSizeLimit());
+    const QSet<QString> filteredFiles = tooBigFilesRemoved(sourceFiles, indexerFileSizeLimitInMb());
 
     if (d->m_indexingSupporter)
         d->m_indexingSupporter->refreshSourceFiles(filteredFiles, mode);
@@ -663,39 +669,6 @@ void CppModelManager::removeProjectInfoFilesAndIncludesFromSnapshot(const Projec
     }
 }
 
-void CppModelManager::handleAddedModelManagerSupports(const QSet<QString> &supportIds)
-{
-    foreach (const QString &id, supportIds) {
-        ModelManagerSupportProvider * const provider = d->m_availableModelManagerSupports.value(id);
-        if (provider) {
-            QTC_CHECK(!d->m_activeModelManagerSupports.contains(id));
-            d->m_activeModelManagerSupports.insert(id, provider->createModelManagerSupport());
-        }
-    }
-}
-
-QList<ModelManagerSupport::Ptr> CppModelManager::handleRemovedModelManagerSupports(
-        const QSet<QString> &supportIds)
-{
-    QList<ModelManagerSupport::Ptr> removed;
-
-    foreach (const QString &id, supportIds) {
-        const ModelManagerSupport::Ptr support = d->m_activeModelManagerSupports.value(id);
-        d->m_activeModelManagerSupports.remove(id);
-        removed << support;
-    }
-
-    return removed;
-}
-
-void CppModelManager::closeCppEditorDocuments()
-{
-    QList<Core::IDocument *> cppDocumentsToClose;
-    foreach (CppEditorDocumentHandle *cppDocument, cppEditorDocuments())
-        cppDocumentsToClose << cppDocument->processor()->baseTextDocument();
-    QTC_CHECK(Core::EditorManager::closeDocuments(cppDocumentsToClose));
-}
-
 QList<CppEditorDocumentHandle *> CppModelManager::cppEditorDocuments() const
 {
     QMutexLocker locker(&d->m_cppEditorDocumentsMutex);
@@ -709,13 +682,6 @@ void CppModelManager::removeFilesFromSnapshot(const QSet<QString> &filesToRemove
     QSetIterator<QString> i(filesToRemove);
     while (i.hasNext())
         d->m_snapshot.remove(i.next());
-}
-
-static QSet<QString> projectPartIds(const QSet<ProjectPart::Ptr> &projectParts)
-{
-    return Utils::transform(projectParts, [](const ProjectPart::Ptr &projectPart) {
-        return projectPart->id();
-    });
 }
 
 class ProjectInfoComparer
@@ -749,8 +715,8 @@ public:
 
     QStringList removedProjectParts()
     {
-        QSet<QString> removed = projectPartIds(m_old.projectParts().toSet());
-        removed.subtract(projectPartIds(m_new.projectParts().toSet()));
+        QSet<QString> removed = projectPartIds(m_old.projectParts());
+        removed.subtract(projectPartIds(m_new.projectParts()));
         return removed.toList();
     }
 
@@ -769,6 +735,17 @@ public:
         }
 
         return CppModelManager::timeStampModifiedFiles(documentsToCheck);
+    }
+
+private:
+    static QSet<QString> projectPartIds(const QVector<ProjectPart::Ptr> &projectParts)
+    {
+        QSet<QString> ids;
+
+        foreach (const ProjectPart::Ptr &projectPart, projectParts)
+            ids.insert(projectPart->id());
+
+        return ids;
     }
 
 private:
@@ -793,9 +770,30 @@ void CppModelManager::recalculateProjectPartMappings()
 
         }
     }
+
+    d->m_symbolFinder.clearCache();
 }
 
-void CppModelManager::updateCppEditorDocuments() const
+void CppModelManager::watchForCanceledProjectIndexer(QFuture<void> future,
+                                                     ProjectExplorer::Project *project)
+{
+    d->m_projectToIndexerCanceled.insert(project, false);
+
+    if (future.isCanceled() || future.isFinished())
+        return;
+
+    QFutureWatcher<void> *watcher = new QFutureWatcher<void>();
+    connect(watcher, &QFutureWatcher<void>::canceled, this, [this, project]() {
+        if (d->m_projectToIndexerCanceled.contains(project)) // Project not yet removed
+            d->m_projectToIndexerCanceled.insert(project, true);
+    });
+    connect(watcher, &QFutureWatcher<void>::finished, this, [watcher]() {
+        watcher->deleteLater();
+    });
+    watcher->setFuture(future);
+}
+
+void CppModelManager::updateCppEditorDocuments(bool projectsUpdated) const
 {
     // Refresh visible documents
     QSet<Core::IDocument *> visibleCppEditorDocuments;
@@ -804,7 +802,7 @@ void CppModelManager::updateCppEditorDocuments() const
             const QString filePath = document->filePath().toString();
             if (CppEditorDocumentHandle *theCppEditorDocument = cppEditorDocument(filePath)) {
                 visibleCppEditorDocuments.insert(document);
-                theCppEditorDocument->processor()->run();
+                theCppEditorDocument->processor()->run(projectsUpdated);
             }
         }
     }
@@ -815,8 +813,12 @@ void CppModelManager::updateCppEditorDocuments() const
     invisibleCppEditorDocuments.subtract(visibleCppEditorDocuments);
     foreach (Core::IDocument *document, invisibleCppEditorDocuments) {
         const QString filePath = document->filePath().toString();
-        if (CppEditorDocumentHandle *theCppEditorDocument = cppEditorDocument(filePath))
-            theCppEditorDocument->setNeedsRefresh(true);
+        if (CppEditorDocumentHandle *theCppEditorDocument = cppEditorDocument(filePath)) {
+            const CppEditorDocumentHandle::RefreshReason refreshReason = projectsUpdated
+                    ? CppEditorDocumentHandle::ProjectUpdate
+                    : CppEditorDocumentHandle::Other;
+            theCppEditorDocument->setRefreshReason(refreshReason);
+        }
     }
 }
 
@@ -825,19 +827,24 @@ QFuture<void> CppModelManager::updateProjectInfo(const ProjectInfo &newProjectIn
     if (!newProjectInfo.isValid())
         return QFuture<void>();
 
+    ProjectInfo theNewProjectInfo = newProjectInfo;
+    theNewProjectInfo.finish();
+
     QSet<QString> filesToReindex;
+    QStringList removedProjectParts;
     bool filesRemoved = false;
+    ProjectExplorer::Project *project = theNewProjectInfo.project().data();
 
     { // Only hold the mutex for a limited scope, so the dumping afterwards does not deadlock.
         QMutexLocker projectLocker(&d->m_projectMutex);
 
-        ProjectExplorer::Project *project = newProjectInfo.project().data();
-        const QSet<QString> newSourceFiles = newProjectInfo.sourceFiles();
+        const QSet<QString> newSourceFiles = theNewProjectInfo.sourceFiles();
 
         // Check if we can avoid a full reindexing
         ProjectInfo oldProjectInfo = d->m_projectToProjectsInfo.value(project);
-        if (oldProjectInfo.isValid()) {
-            ProjectInfoComparer comparer(oldProjectInfo, newProjectInfo);
+        const bool previousIndexerCanceled = d->m_projectToIndexerCanceled.value(project, false);
+        if (!previousIndexerCanceled && oldProjectInfo.isValid()) {
+            ProjectInfoComparer comparer(oldProjectInfo, theNewProjectInfo);
 
             if (comparer.configurationOrFilesChanged()) {
                 d->m_dirty = true;
@@ -846,12 +853,6 @@ QFuture<void> CppModelManager::updateProjectInfo(const ProjectInfo &newProjectIn
                 if (comparer.configurationChanged()) {
                     removeProjectInfoFilesAndIncludesFromSnapshot(oldProjectInfo);
                     filesToReindex.unite(newSourceFiles);
-
-                    // The "configuration file" includes all defines and therefore should be updated
-                    if (comparer.definesChanged()) {
-                        QMutexLocker snapshotLocker(&d->m_snapshotMutex);
-                        d->m_snapshot.remove(configurationFileName());
-                    }
 
                 // Otherwise check for added and modified files
                 } else {
@@ -871,8 +872,7 @@ QFuture<void> CppModelManager::updateProjectInfo(const ProjectInfo &newProjectIn
                 }
             }
 
-            // Announce removed project parts
-            emit projectPartsRemoved(comparer.removedProjectParts());
+            removedProjectParts = comparer.removedProjectParts();
 
         // A new project was opened/created, do a full indexing
         } else {
@@ -881,7 +881,7 @@ QFuture<void> CppModelManager::updateProjectInfo(const ProjectInfo &newProjectIn
         }
 
         // Update Project/ProjectInfo and File/ProjectPart table
-        d->m_projectToProjectsInfo.insert(project, newProjectInfo);
+        d->m_projectToProjectsInfo.insert(project, theNewProjectInfo);
         recalculateProjectPartMappings();
 
     } // Mutex scope
@@ -894,17 +894,37 @@ QFuture<void> CppModelManager::updateProjectInfo(const ProjectInfo &newProjectIn
     if (filesRemoved)
         GC();
 
+    // Announce removed project parts
+    if (!removedProjectParts.isEmpty())
+        emit projectPartsRemoved(removedProjectParts);
+
     // Announce added project parts
-    emit projectPartsUpdated(newProjectInfo.project().data());
+    emit projectPartsUpdated(theNewProjectInfo.project().data());
 
     // Ideally, we would update all the editor documents that depend on the 'filesToReindex'.
     // However, on e.g. a session restore first the editor documents are created and then the
     // project updates come in. That is, there are no reasonable dependency tables based on
     // resolved includes that we could rely on.
-    updateCppEditorDocuments();
+    updateCppEditorDocuments(/*projectsUpdated = */ true);
 
     // Trigger reindexing
-    return updateSourceFiles(filesToReindex, ForcedProgressNotification);
+    QFuture<void> indexerFuture = updateSourceFiles(filesToReindex, ForcedProgressNotification);
+    watchForCanceledProjectIndexer(indexerFuture, project);
+
+    return indexerFuture;
+}
+
+ProjectInfo CppModelManager::updateCompilerCallDataForProject(
+        ProjectExplorer::Project *project,
+        ProjectInfo::CompilerCallData &compilerCallData)
+{
+    QMutexLocker locker(&d->m_projectMutex);
+
+    ProjectInfo projectInfo = d->m_projectToProjectsInfo.value(project, ProjectInfo());
+    projectInfo.setCompilerCallData(compilerCallData);
+    d->m_projectToProjectsInfo.insert(project, projectInfo);
+
+    return projectInfo;
 }
 
 ProjectPart::Ptr CppModelManager::projectPartForId(const QString &projectPartId) const
@@ -932,35 +952,39 @@ QList<ProjectPart::Ptr> CppModelManager::projectPartFromDependencies(
     return parts.values();
 }
 
-ProjectPart::Ptr CppModelManager::fallbackProjectPart() const
+ProjectPart::Ptr CppModelManager::fallbackProjectPart()
 {
     ProjectPart::Ptr part(new ProjectPart);
 
-    part->projectDefines = d->m_definedMacros;
-    part->headerPaths = d->m_headerPaths;
-    part->languageVersion = ProjectPart::CXX14;
+    part->projectDefines = definedMacros();
+    part->headerPaths = headerPaths();
+
+    // Do not activate ObjectiveCExtensions since this will lead to the
+    // "objective-c++" language option for a project-less *.cpp file.
     part->languageExtensions = ProjectPart::AllExtensions;
+    part->languageExtensions &= ~ProjectPart::ObjectiveCExtensions;
+
     part->qtVersion = ProjectPart::Qt5;
     part->updateLanguageFeatures();
 
     return part;
 }
 
-bool CppModelManager::isCppEditor(Core::IEditor *editor) const
+bool CppModelManager::isCppEditor(Core::IEditor *editor)
 {
-    return editor->context().contains(ProjectExplorer::Constants::LANG_CXX);
+    return editor->context().contains(ProjectExplorer::Constants::CXX_LANGUAGE_ID);
 }
 
-bool CppModelManager::isManagedByModelManagerSupport(Core::IDocument *document, const QString &id) const
+bool CppModelManager::isClangCodeModelActive() const
 {
-    auto documentMimeTupe = document->mimeType();
-    auto codeModelSettings = CppToolsPlugin::instance()->codeModelSettings();
-
-    return codeModelSettings->hasModelManagerSupportIdForMimeType(documentMimeTupe, id);
+    return d->m_activeModelManagerSupport != d->m_builtinModelManagerSupport;
 }
 
 void CppModelManager::emitDocumentUpdated(Document::Ptr doc)
 {
+    if (Client::isInjectedFile(doc->fileName()))
+        return;
+
     if (replaceDocument(doc))
         emit documentUpdated(doc);
 }
@@ -988,40 +1012,56 @@ void CppModelManager::delayedGC()
         d->m_delayedGcTimer.start(500);
 }
 
-static QStringList idsOfAllProjectParts(const ProjectInfo &projectInfo)
+static QStringList removedProjectParts(const QStringList &before, const QStringList &after)
 {
-    QStringList projectPaths;
-    foreach (const ProjectPart::Ptr &part, projectInfo.projectParts())
-        projectPaths << part->id();
-    return projectPaths;
+    QSet<QString> b = before.toSet();
+    b.subtract(after.toSet());
+
+    return b.toList();
 }
 
 void CppModelManager::onAboutToRemoveProject(ProjectExplorer::Project *project)
 {
-    QStringList projectPartIds;
+    QStringList idsOfRemovedProjectParts;
+
+    d->m_projectToIndexerCanceled.remove(project);
 
     {
         QMutexLocker locker(&d->m_projectMutex);
         d->m_dirty = true;
-
-        // Save paths
-        const ProjectInfo projectInfo = d->m_projectToProjectsInfo.value(project, ProjectInfo());
-        projectPartIds = idsOfAllProjectParts(projectInfo);
+        const QStringList projectPartsIdsBefore = d->m_projectPartIdToProjectProjectPart.keys();
 
         d->m_projectToProjectsInfo.remove(project);
         recalculateProjectPartMappings();
+
+        const QStringList projectPartsIdsAfter = d->m_projectPartIdToProjectProjectPart.keys();
+        idsOfRemovedProjectParts = removedProjectParts(projectPartsIdsBefore, projectPartsIdsAfter);
     }
 
-    if (!projectPartIds.isEmpty())
-        emit projectPartsRemoved(projectPartIds);
+    if (!idsOfRemovedProjectParts.isEmpty())
+        emit projectPartsRemoved(idsOfRemovedProjectParts);
 
     delayedGC();
+}
+
+void CppModelManager::onActiveProjectChanged(ProjectExplorer::Project *project)
+{
+    if (!project)
+        return; // Last project closed.
+
+    {
+        QMutexLocker locker(&d->m_projectMutex);
+        if (!d->m_projectToProjectsInfo.contains(project))
+            return; // Not yet known to us.
+    }
+
+    updateCppEditorDocuments();
 }
 
 void CppModelManager::onSourceFilesRefreshed() const
 {
     if (BuiltinIndexingSupport::isFindErrorsIndexingActive()) {
-        QTimer::singleShot(1, QCoreApplication::instance(), SLOT(quit()));
+        QTimer::singleShot(1, QCoreApplication::instance(), &QCoreApplication::quit);
         qDebug("FindErrorsIndexing: Done, requesting Qt Creator to quit.");
     }
 }
@@ -1033,50 +1073,14 @@ void CppModelManager::onCurrentEditorChanged(Core::IEditor *editor)
 
     const QString filePath = editor->document()->filePath().toString();
     if (CppEditorDocumentHandle *theCppEditorDocument = cppEditorDocument(filePath)) {
-        if (theCppEditorDocument->needsRefresh()) {
-            theCppEditorDocument->setNeedsRefresh(false);
-            theCppEditorDocument->processor()->run();
+        const CppEditorDocumentHandle::RefreshReason refreshReason
+                = theCppEditorDocument->refreshReason();
+        if (refreshReason != CppEditorDocumentHandle::None) {
+            const bool projectsChanged = refreshReason == CppEditorDocumentHandle::ProjectUpdate;
+            theCppEditorDocument->setRefreshReason(CppEditorDocumentHandle::None);
+            theCppEditorDocument->processor()->run(projectsChanged);
         }
     }
-}
-
-static const QSet<QString> activeModelManagerSupportsFromSettings()
-{
-    QSet<QString> result;
-    QSharedPointer<CppCodeModelSettings> codeModelSettings
-            = CppToolsPlugin::instance()->codeModelSettings();
-
-    const QStringList mimeTypes = codeModelSettings->supportedMimeTypes();
-    foreach (const QString &mimeType, mimeTypes) {
-        const QString id = codeModelSettings->modelManagerSupportIdForMimeType(mimeType);
-        if (!id.isEmpty())
-            result << id;
-    }
-
-    return result;
-}
-
-void CppModelManager::onCodeModelSettingsChanged()
-{
-    const QSet<QString> currentCodeModelSupporters = d->m_activeModelManagerSupports.keys().toSet();
-    const QSet<QString> newCodeModelSupporters = activeModelManagerSupportsFromSettings();
-
-    QSet<QString> added = newCodeModelSupporters;
-    added.subtract(currentCodeModelSupporters);
-    added.remove(d->m_modelManagerSupportInternalProvider.id());
-    handleAddedModelManagerSupports(added);
-
-    QSet<QString> removed = currentCodeModelSupporters;
-    removed.subtract(newCodeModelSupporters);
-    removed.remove(d->m_modelManagerSupportInternalProvider.id());
-    const QList<ModelManagerSupport::Ptr> supportsToDelete
-            = handleRemovedModelManagerSupports(removed);
-    QTC_CHECK(removed.size() == supportsToDelete.size());
-
-    if (!added.isEmpty() || !removed.isEmpty())
-        closeCppEditorDocuments();
-
-    // supportsToDelete goes out of scope and deletes the supports
 }
 
 void CppModelManager::onAboutToLoadSession()
@@ -1084,17 +1088,6 @@ void CppModelManager::onAboutToLoadSession()
     if (d->m_delayedGcTimer.isActive())
         d->m_delayedGcTimer.stop();
     GC();
-}
-
-void CppModelManager::onAboutToUnloadSession()
-{
-    Core::ProgressManager::cancelTasks(CppTools::Constants::TASK_INDEX);
-    do {
-        QMutexLocker locker(&d->m_projectMutex);
-        d->m_projectToProjectsInfo.clear();
-        recalculateProjectPartMappings();
-        d->m_dirty = true;
-    } while (0);
 }
 
 void CppModelManager::renameIncludes(const QString &oldFileName, const QString &newFileName)
@@ -1128,6 +1121,7 @@ void CppModelManager::renameIncludes(const QString &oldFileName, const QString &
 
 void CppModelManager::onCoreAboutToClose()
 {
+    Core::ProgressManager::cancelTasks(CppTools::Constants::TASK_INDEX);
     d->m_enableGC = false;
 }
 
@@ -1188,44 +1182,23 @@ void CppModelManager::finishedRefreshingSourceFiles(const QSet<QString> &files)
     emit sourceFilesRefreshed(files);
 }
 
-void CppModelManager::addModelManagerSupportProvider(
+void CppModelManager::activateClangCodeModel(
         ModelManagerSupportProvider *modelManagerSupportProvider)
 {
     QTC_ASSERT(modelManagerSupportProvider, return);
-    d->m_availableModelManagerSupports[modelManagerSupportProvider->id()]
-            = modelManagerSupportProvider;
-    QSharedPointer<CppCodeModelSettings> cms = CppToolsPlugin::instance()->codeModelSettings();
-    cms->setModelManagerSupportProviders(d->m_availableModelManagerSupports.values());
 
-    onCodeModelSettingsChanged();
+    d->m_activeModelManagerSupport = modelManagerSupportProvider->createModelManagerSupport();
 }
 
-ModelManagerSupport::Ptr CppModelManager::modelManagerSupportForMimeType(
-        const QString &mimeType) const
+CppCompletionAssistProvider *CppModelManager::completionAssistProvider() const
 {
-    QSharedPointer<CppCodeModelSettings> cms = CppToolsPlugin::instance()->codeModelSettings();
-    const QString &id = cms->modelManagerSupportIdForMimeType(mimeType);
-    return d->m_activeModelManagerSupports.value(id, d->m_modelManagerSupportInternal);
-}
-
-CppCompletionAssistProvider *CppModelManager::completionAssistProvider(
-        const QString &mimeType) const
-{
-    if (mimeType.isEmpty())
-        return 0;
-
-    ModelManagerSupport::Ptr cms = modelManagerSupportForMimeType(mimeType);
-    QTC_ASSERT(cms, return 0);
-    return cms->completionAssistProvider();
+    return d->m_activeModelManagerSupport->completionAssistProvider();
 }
 
 BaseEditorDocumentProcessor *CppModelManager::editorDocumentProcessor(
         TextEditor::TextDocument *baseTextDocument) const
 {
-    QTC_ASSERT(baseTextDocument, return 0);
-    ModelManagerSupport::Ptr cms = modelManagerSupportForMimeType(baseTextDocument->mimeType());
-    QTC_ASSERT(cms, return 0);
-    return cms->editorDocumentProcessor(baseTextDocument);
+    return d->m_activeModelManagerSupport->editorDocumentProcessor(baseTextDocument);
 }
 
 void CppModelManager::setIndexingSupport(CppIndexingSupport *indexingSupport)
@@ -1245,24 +1218,31 @@ CppIndexingSupport *CppModelManager::indexingSupport()
 
 QStringList CppModelManager::projectFiles()
 {
+    QMutexLocker locker(&d->m_projectMutex);
     ensureUpdated();
+
     return d->m_projectFiles;
 }
 
-ProjectPart::HeaderPaths CppModelManager::headerPaths()
+ProjectPartHeaderPaths CppModelManager::headerPaths()
 {
+    QMutexLocker locker(&d->m_projectMutex);
     ensureUpdated();
+
     return d->m_headerPaths;
 }
 
-void CppModelManager::setHeaderPaths(const ProjectPart::HeaderPaths &headerPaths)
+void CppModelManager::setHeaderPaths(const ProjectPartHeaderPaths &headerPaths)
 {
+    QMutexLocker locker(&d->m_projectMutex);
     d->m_headerPaths = headerPaths;
 }
 
 QByteArray CppModelManager::definedMacros()
 {
+    QMutexLocker locker(&d->m_projectMutex);
     ensureUpdated();
+
     return d->m_definedMacros;
 }
 
@@ -1270,6 +1250,16 @@ void CppModelManager::enableGarbageCollector(bool enable)
 {
     d->m_delayedGcTimer.stop();
     d->m_enableGC = enable;
+}
+
+SymbolFinder *CppModelManager::symbolFinder()
+{
+    return &d->m_symbolFinder;
+}
+
+QThreadPool *CppModelManager::sharedThreadPool()
+{
+    return &d->m_threadPool;
 }
 
 } // namespace CppTools

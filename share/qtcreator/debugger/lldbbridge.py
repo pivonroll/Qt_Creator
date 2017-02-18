@@ -1,7 +1,7 @@
 ############################################################################
 #
-# Copyright (C) 2015 The Qt Company Ltd.
-# Contact: http://www.qt.io/licensing
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
 #
 # This file is part of Qt Creator.
 #
@@ -9,24 +9,19 @@
 # Licensees holding valid commercial Qt licenses may use this file in
 # accordance with the commercial license agreement provided with the
 # Software or, alternatively, in accordance with the terms contained in
-# a written agreement between you and The Qt Company.  For licensing terms and
-# conditions see http://www.qt.io/terms-conditions.  For further information
-# use the contact form at http://www.qt.io/contact-us.
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
 #
-# GNU Lesser General Public License Usage
-# Alternatively, this file may be used under the terms of the GNU Lesser
-# General Public License version 2.1 or version 3 as published by the Free
-# Software Foundation and appearing in the file LICENSE.LGPLv21 and
-# LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-# following information to ensure the GNU Lesser General Public License
-# requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-# http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
 #
-# In addition, as a special exception, The Qt Company gives you certain additional
-# rights.  These rights are described in The Qt Company LGPL Exception
-# version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-#
-#############################################################################
+############################################################################
 
 import inspect
 import os
@@ -48,11 +43,8 @@ from dumper import *
 
 qqWatchpointOffset = 10000
 
-def warn(message):
-    print('\n\nWARNING="%s",\n' % message.encode("latin1").replace('"', "'"))
-
 def showException(msg, exType, exValue, exTraceback):
-    warn("**** CAUGHT EXCEPTION: %s ****" % msg)
+    warn('**** CAUGHT EXCEPTION: %s ****' % msg)
     import traceback
     lines = [line for line in traceback.format_exception(exType, exValue, exTraceback)]
     warn('\n'.join(lines))
@@ -63,111 +55,15 @@ def fileNameAsString(file):
 
 def check(exp):
     if not exp:
-        raise RuntimeError("Check failed")
-
-Value = lldb.SBValue
-
-def impl_SBValue__add__(self, offset):
-    if self.GetType().IsPointerType():
-        if isinstance(offset, int) or isinstance(offset, long):
-            pass
-        else:
-            offset = offset.GetValueAsSigned()
-        itemsize = self.GetType().GetPointeeType().GetByteSize()
-        address = self.GetValueAsUnsigned() + offset * itemsize
-        address = address & 0xFFFFFFFFFFFFFFFF  # Force unsigned
-        return self.CreateValueFromAddress(None, address,
-                self.GetType().GetPointeeType()).AddressOf()
-
-    raise RuntimeError("SBValue.__add__ not implemented: %s" % self.GetType())
-    return NotImplemented
-
-def impl_SBValue__sub__(self, other):
-    if self.GetType().IsPointerType():
-        if isinstance(other, int) or isinstance(other, long):
-            address = self.GetValueAsUnsigned() - other
-            address = address & 0xFFFFFFFFFFFFFFFF  # Force unsigned
-            return self.CreateValueFromAddress(None, address, self.GetType())
-        if other.GetType().IsPointerType():
-            itemsize = self.GetType().GetPointeeType().GetByteSize()
-            return (self.GetValueAsUnsigned() - other.GetValueAsUnsigned()) / itemsize
-    raise RuntimeError("SBValue.__sub__ not implemented: %s" % self.GetType())
-    return NotImplemented
-
-def impl_SBValue__le__(self, other):
-    if self.GetType().IsPointerType() and other.GetType().IsPointerType():
-        return int(self) <= int(other)
-    raise RuntimeError("SBValue.__le__ not implemented")
-    return NotImplemented
-
-def impl_SBValue__int__(self):
-    return self.GetValueAsSigned()
-
-def impl_SBValue__float__(self):
-    error = lldb.SBError()
-    if self.GetType().GetByteSize() == 4:
-        result = self.GetData().GetFloat(error, 0)
-    else:
-        result = self.GetData().GetDouble(error, 0)
-    if error.Success():
-        return result
-    return NotImplemented
-
-def impl_SBValue__long__(self):
-    return int(self.GetValue(), 0)
-
-def impl_SBValue__getitem__(value, index):
-    if isinstance(index, int) or isinstance(index, long):
-        type = value.GetType()
-        if type.IsPointerType():
-            innertype = value.Dereference().GetType()
-            address = value.GetValueAsUnsigned() + index * innertype.GetByteSize()
-            address = address & 0xFFFFFFFFFFFFFFFF  # Force unsigned
-            return value.CreateValueFromAddress(None, address, innertype)
-        return value.GetChildAtIndex(index)
-    item = value.GetChildMemberWithName(index)
-    if item.IsValid():
-        return item
-    raise RuntimeError("SBValue.__getitem__: No such member '%s'" % index)
-
-def impl_SBValue__deref(value):
-    result = value.Dereference()
-    if result.IsValid():
-        return result
-    exp = "*(class %s*)0x%x" % (value.GetType().GetPointeeType(), value.GetValueAsUnsigned())
-    return value.CreateValueFromExpression(None, exp)
-
-lldb.SBValue.__add__ = impl_SBValue__add__
-lldb.SBValue.__sub__ = impl_SBValue__sub__
-lldb.SBValue.__le__ = impl_SBValue__le__
-
-lldb.SBValue.__getitem__ = impl_SBValue__getitem__
-lldb.SBValue.__int__ = impl_SBValue__int__
-lldb.SBValue.__float__ = impl_SBValue__float__
-lldb.SBValue.__long__ = lambda self: long(self.GetValue(), 0)
-
-lldb.SBValue.code = lambda self: self.GetTypeClass()
-lldb.SBValue.cast = lambda self, typeObj: self.Cast(typeObj)
-lldb.SBValue.dereference = impl_SBValue__deref
-lldb.SBValue.address = property(lambda self: self.GetLoadAddress())
-
-lldb.SBType.pointer = lambda self: self.GetPointerType()
-lldb.SBType.target = lambda self: self.GetPointeeType()
-lldb.SBType.code = lambda self: self.GetTypeClass()
-lldb.SBType.sizeof = property(lambda self: self.GetByteSize())
-
-
-lldb.SBType.unqualified = \
-    lambda self: self.GetUnqualifiedType() if hasattr(self, 'GetUnqualifiedType') else self
-lldb.SBType.strip_typedefs = \
-    lambda self: self.GetCanonicalType() if hasattr(self, 'GetCanonicalType') else self
-
-lldb.SBType.__orig__str__ = lldb.SBType.__str__
-lldb.SBType.__str__ = lldb.SBType.GetName
+        raise RuntimeError('Check failed')
 
 class Dumper(DumperBase):
     def __init__(self):
         DumperBase.__init__(self)
+        lldb.theDumper = self
+
+        self.isLldb = True
+        self.typeCache = {}
 
         self.outputLock = threading.Lock()
         self.debugger = lldb.SBDebugger.Create()
@@ -176,118 +72,480 @@ class Dumper(DumperBase):
         #    s = args.strip()
         #    s = s.replace('"', "'")
         #    sys.stdout.write('log="%s"@\n' % s)
-        #Same as: self.debugger.HandleCommand("log enable lldb dyld step")
-        #self.debugger.EnableLog("lldb", ["dyld", "step", "process", "state",
-        #    "thread", "events",
-        #    "communication", "unwind", "commands"])
-        #self.debugger.EnableLog("lldb", ["all"])
+        #Same as: self.debugger.HandleCommand('log enable lldb dyld step')
+        #self.debugger.EnableLog('lldb', ['dyld', 'step', 'process', 'state',
+        #    'thread', 'events',
+        #    'communication', 'unwind', 'commands'])
+        #self.debugger.EnableLog('lldb', ['all'])
         self.debugger.Initialize()
-        self.debugger.HandleCommand("settings set auto-confirm on")
+        self.debugger.HandleCommand('settings set auto-confirm on')
 
-        # FIXME: warn("DISABLING DEFAULT FORMATTERS")
+        # FIXME: warn('DISABLING DEFAULT FORMATTERS')
         # It doesn't work at all with 179.5 and we have some bad
-        # interactonn in 3000
-        # if not hasattr(lldb.SBType, 'GetCanonicalType'): # "Test" for 179.5
-        self.debugger.HandleCommand('type category delete gnu-libstdc++')
-        self.debugger.HandleCommand('type category delete libcxx')
+        # interaction in 300
+        # if not hasattr(lldb.SBType, 'GetCanonicalType'): # 'Test' for 179.5
+        #self.debugger.HandleCommand('type category delete gnu-libstdc++')
+        #self.debugger.HandleCommand('type category delete libcxx')
+        #self.debugger.HandleCommand('type category delete default')
+        self.debugger.DeleteCategory('gnu-libstdc++')
+        self.debugger.DeleteCategory('libcxx')
+        self.debugger.DeleteCategory('default')
+        self.debugger.DeleteCategory('cplusplus')
         #for i in range(self.debugger.GetNumCategories()):
         #    self.debugger.GetCategoryAtIndex(i).SetEnabled(False)
 
-        self.isLldb = True
-        self.isGoodLldb = hasattr(lldb.SBValue, "SetPreferDynamicValue")
         self.process = None
         self.target = None
         self.eventState = lldb.eStateInvalid
-        self.expandedINames = {}
-        self.passExceptions = False
-        self.useLldbDumpers = False
-        self.autoDerefPointers = True
-        self.useDynamicType = True
-        self.useFancy = True
-        self.formats = {}
-        self.typeformats = {}
-
-        self.currentIName = None
-        self.currentValue = ReportItem()
-        self.currentType = ReportItem()
-        self.currentNumChild = None
-        self.currentMaxNumChild = None
-        self.currentPrintsAddress = None
-        self.currentChildType = None
-        self.currentChildNumChild = -1
-        self.currentWatchers = {}
+        self.runEngineAttempted = False
 
         self.executable_ = None
         self.startMode_ = None
         self.processArgs_ = None
         self.attachPid_ = None
+        self.dyldImageSuffix = None
+        self.dyldLibraryPath = None
+        self.dyldFrameworkPath = None
 
-        self.charType_ = None
-        self.intType_ = None
-        self.int64Type_ = None
-        self.sizetType_ = None
-        self.charPtrType_ = None
-        self.voidPtrType_ = None
         self.isShuttingDown_ = False
         self.isInterrupting_ = False
-        self.qmlBreakpointResolvers = {}
-        self.qmlTriggeredBreakpoint = None
+        self.interpreterBreakpointResolvers = []
 
         self.report('lldbversion=\"%s\"' % lldb.SBDebugger.GetVersionString())
-        self.reportState("enginesetupok")
+        self.reportState('enginesetupok')
+        self.debuggerCommandInProgress = False
 
-    def enterSubItem(self, item):
-        if isinstance(item.name, lldb.SBValue):
-            # Avoid $$__synth__ suffix on Mac.
-            value = item.name
-            if self.isGoodLldb:
-                value.SetPreferSyntheticValue(False)
-            item.name = value.GetName()
-            if item.name is None:
-                self.anonNumber += 1
-                item.name = "#%d" % self.anonNumber
-        if not item.iname:
-            item.iname = "%s.%s" % (self.currentIName, item.name)
-        self.put('{')
-        #if not item.name is None:
-        if isinstance(item.name, str):
-            if item.name == '**&':
-                item.name = '*'
-            self.put('name="%s",' % item.name)
-        item.savedIName = self.currentIName
-        item.savedValue = self.currentValue
-        item.savedType = self.currentType
-        self.currentIName = item.iname
-        self.currentValue = ReportItem()
-        self.currentType = ReportItem()
+    def fromNativeFrameValue(self, nativeValue):
+        return self.fromNativeValue(nativeValue)
 
-    def exitSubItem(self, item, exType, exValue, exTraceBack):
-        if not exType is None:
-            if self.passExceptions:
-                showException("SUBITEM", exType, exValue, exTraceBack)
-            self.putNumChild(0)
-            self.putSpecialValue(SpecialNotAccessibleValue)
-        try:
-            if self.currentType.value:
-                typeName = self.currentType.value
-                if len(typeName) > 0 and typeName != self.currentChildType:
-                    self.put('type="%s",' % typeName) # str(type.unqualified()) ?
-            if  self.currentValue.value is None:
-                self.put('value="",encoding="%d",numchild="0",'
-                        % SpecialNotAccessibleValue)
+    def fromNativeValue(self, nativeValue):
+        self.check(isinstance(nativeValue, lldb.SBValue))
+        nativeValue.SetPreferSyntheticValue(False)
+        nativeType = nativeValue.GetType()
+        code = nativeType.GetTypeClass()
+        if code == lldb.eTypeClassReference:
+            nativeTargetType = nativeType.GetDereferencedType()
+            if not nativeTargetType.IsPointerType():
+                nativeTargetType = nativeTargetType.GetUnqualifiedType()
+            targetType = self.fromNativeType(nativeTargetType)
+            val = self.createReferenceValue(nativeValue.GetValueAsUnsigned(), targetType)
+            val.laddress = nativeValue.AddressOf().GetValueAsUnsigned()
+            #warn('CREATED REF: %s' % val)
+            return val
+        if code == lldb.eTypeClassPointer:
+            nativeTargetType = nativeType.GetPointeeType()
+            if not nativeTargetType.IsPointerType():
+                nativeTargetType = nativeTargetType.GetUnqualifiedType()
+            targetType = self.fromNativeType(nativeTargetType)
+            val = self.createPointerValue(nativeValue.GetValueAsUnsigned(), targetType)
+            #warn('CREATED PTR 1: %s' % val)
+            val.laddress = nativeValue.AddressOf().GetValueAsUnsigned()
+            #warn('CREATED PTR 2: %s' % val)
+            return val
+        if code == lldb.eTypeClassTypedef:
+            nativeTargetType = nativeType.GetUnqualifiedType()
+            if hasattr(nativeTargetType, 'GetCanonicalType'):
+                 nativeTargetType = nativeTargetType.GetCanonicalType()
+            val = self.fromNativeValue(nativeValue.Cast(nativeTargetType))
+            val.type = self.fromNativeType(nativeType)
+            #warn('CREATED TYPEDEF: %s' % val)
+            return val
+
+        val = self.Value(self)
+        address = nativeValue.GetLoadAddress()
+        if not address is None:
+            val.laddress = address
+        if True:
+            data = nativeValue.GetData()
+            error = lldb.SBError()
+            size = nativeValue.GetType().GetByteSize()
+            if size > 1:
+                # 0 happens regularly e.g. for cross-shared-object types.
+                # 1 happens on Linux e.g. for QObject uses outside of QtCore.
+                try:
+                    val.ldata = data.ReadRawData(error, 0, size)
+                except:
+                    pass
+
+        val.type = self.fromNativeType(nativeType)
+        val.lIsInScope = nativeValue.IsInScope()
+
+        if code == lldb.eTypeClassEnumeration:
+            intval = nativeValue.GetValueAsSigned()
+            if hasattr(nativeType, 'get_enum_members_array'):
+                for enumMember in nativeType.get_enum_members_array():
+                    # Even when asking for signed we get unsigned with LLDB 3.8.
+                    diff = enumMember.GetValueAsSigned() - intval
+                    mask = (1 << nativeType.GetByteSize() * 8) - 1
+                    if diff & mask == 0:
+                        path = nativeType.GetName().split('::')
+                        path[-1] = enumMember.GetName()
+                        val.ldisplay = '%s (%d)' % ('::'.join(path), intval)
+            val.ldisplay = '%d' % intval
+        elif code in (lldb.eTypeClassComplexInteger, lldb.eTypeClassComplexFloat):
+            val.ldisplay = str(nativeValue.GetValue())
+        elif code == lldb.eTypeClassReference:
+            derefNativeValue = nativeValue.Dereference()
+            derefNativeValue = derefNativeValue.Cast(derefNativeValue.GetType().GetUnqualifiedType())
+            val1 = self.Value(self)
+            val1.type = val.type
+            val1.targetValue = self.fromNativeValue(derefNativeValue)
+            return val1
+        #elif code == lldb.eTypeClassArray:
+        #    if hasattr(nativeType, 'GetArrayElementType'): # New in 3.8(?) / 350.x
+        #        val.type.ltarget = self.fromNativeType(nativeType.GetArrayElementType())
+        #    else:
+        #        fields = nativeType.get_fields_array()
+        #        if len(fields):
+        #            val.type.ltarget = self.fromNativeType(fields[0])
+        #elif code == lldb.eTypeClassVector:
+        #    val.type.ltarget = self.fromNativeType(nativeType.GetVectorElementType())
+
+        val.name = nativeValue.GetName()
+        return val
+
+    def nativeTypeFieldTypeByName(self, nativeType, name):
+        for i in range(nativeType.GetNumberOfFields()):
+            field = nativeType.GetFieldAtIndex(i)
+            if field.GetName() == name:
+                return self.fromNativeType(field.GetType())
+        return None
+
+    def nativeStructAlignment(self, nativeType):
+        def handleItem(nativeFieldType, align):
+            a = self.fromNativeType(nativeFieldType).alignment()
+            return a if a > align else align
+        align = 1
+        for i in range(nativeType.GetNumberOfDirectBaseClasses()):
+            base = nativeType.GetDirectBaseClassAtIndex(i)
+            align = handleItem(base.GetType(), align)
+        for i in range(nativeType.GetNumberOfFields()):
+            child = nativeType.GetFieldAtIndex(i)
+            align = handleItem(child.GetType(), align)
+        return align
+
+    def listMembers(self, nativeType, value):
+        #warn("ADDR: 0x%x" % self.fakeAddress)
+        fakeAddress = self.fakeAddress if value.laddress is None else value.laddress
+        sbaddr = lldb.SBAddress(fakeAddress, self.target)
+        fakeValue = self.target.CreateValueFromAddress('x', sbaddr, nativeType)
+        fakeValue.SetPreferSyntheticValue(False)
+
+        baseNames = {}
+        for i in range(nativeType.GetNumberOfDirectBaseClasses()):
+            base = nativeType.GetDirectBaseClassAtIndex(i)
+            baseNames[base.GetName()] = i
+
+        fieldBits = {}
+        for f in nativeType.get_fields_array():
+            bitsize = f.GetBitfieldSizeInBits()
+            if bitsize == 0:
+                bitsize = f.GetType().GetByteSize() * 8
+            bitpos = f.GetOffsetInBits()
+            # Correction for some bitfields. Size 0 can occur for
+            # types without debug information.
+            if bitsize > 0:
+                #bitpos = bitpos % bitsize
+                bitpos = bitpos % 8 # Reported type is always wrapping type!
+            fieldBits[f.name] = (bitsize, bitpos, f.IsBitfield())
+
+        # Normal members and non-empty base classes.
+        for i in range(fakeValue.GetNumChildren()):
+            nativeField = fakeValue.GetChildAtIndex(i)
+            nativeField.SetPreferSyntheticValue(False)
+
+            field = self.Field(self)
+            field.name = nativeField.GetName()
+            nativeFieldType = nativeField.GetType()
+
+            if field.name in fieldBits:
+                (field.lbitsize, field.lbitpos, isBitfield) = fieldBits[field.name]
             else:
-                if not self.currentValue.encoding is None:
-                    self.put('valueencoded="%s",' % self.currentValue.encoding)
-                if self.currentValue.elided:
-                    self.put('valueelided="%s",' % self.currentValue.elided)
-                self.put('value="%s",' % self.currentValue.value)
-        except:
-            pass
-        self.put('},')
-        self.currentIName = item.savedIName
-        self.currentValue = item.savedValue
-        self.currentType = item.savedType
-        return True
+                field.lbitsize = nativeFieldType.GetByteSize() * 8
+                isBitfield = False
+
+            if isBitfield: # Bit fields
+                field.ltype = self.createBitfieldType(self.typeName(nativeFieldType), field.lbitsize)
+                yield field
+
+            elif field.name is None: # Anon members
+                fakeMember = fakeValue.GetChildAtIndex(i)
+                fakeMemberAddress = fakeMember.GetLoadAddress()
+                offset = fakeMemberAddress - fakeAddress
+                field.lbitpos = 8 * offset
+                field.ltype = self.fromNativeType(nativeFieldType)
+                yield field
+
+            elif field.name in baseNames:  # Simple bases
+                member = self.fromNativeValue(fakeValue.GetChildAtIndex(i))
+                member.isBaseClass = True
+                yield member
+
+            else: # Normal named members
+                member = self.fromNativeValue(fakeValue.GetChildAtIndex(i))
+                member.name = nativeField.GetName()
+                yield member
+
+        # Empty bases are not covered above.
+        for i in range(nativeType.GetNumberOfDirectBaseClasses()):
+            fieldObj = nativeType.GetDirectBaseClassAtIndex(i)
+            fieldType = fieldObj.GetType()
+            if fieldType.GetNumberOfFields() == 0:
+                if fieldType.GetNumberOfDirectBaseClasses() == 0:
+                    member = self.Value(self)
+                    fieldName = fieldObj.GetName()
+                    member.type = self.fromNativeType(fieldType)
+                    member.name = fieldName
+                    member.fields = []
+                    if False:
+                        # This would be correct if we came here only for
+                        # truly empty base classes. Alas, we don't, see below.
+                        member.ldata = bytes()
+                        member.lbitsize = fieldType.GetByteSize() * 8
+                    else:
+                        # This is a hack. LLDB 3.8 reports declared but not defined
+                        # types as having no fields and(!) size == 1. At least
+                        # for the common case of a single base class we can
+                        # fake the contents by using the whole derived object's
+                        # data as base class data.
+                        data = fakeValue.GetData()
+                        size = nativeType.GetByteSize()
+                        member.lbitsize = size * 8
+                        error = lldb.SBError()
+                        member.laddress = value.laddress
+                        member.ldata = data.ReadRawData(error, 0, size)
+                    member.isBaseClass = True
+                    member.ltype = self.fromNativeType(fieldType)
+                    member.name = fieldName
+                    yield member
+
+    def ptrSize(self):
+        result = self.target.GetAddressByteSize()
+        self.ptrSize = lambda: result
+        return result
+
+    def fromNativeType(self, nativeType):
+        self.check(isinstance(nativeType, lldb.SBType))
+        code = nativeType.GetTypeClass()
+
+        # eTypeClassInvalid           = (0u),
+        # eTypeClassArray             = (1u << 0),
+        # eTypeClassBlockPointer      = (1u << 1),
+        # eTypeClassBuiltin           = (1u << 2),
+        # eTypeClassClass             = (1u << 3),
+        # eTypeClassComplexFloat      = (1u << 4),
+        # eTypeClassComplexInteger    = (1u << 5),
+        # eTypeClassEnumeration       = (1u << 6),
+        # eTypeClassFunction          = (1u << 7),
+        # eTypeClassMemberPointer     = (1u << 8),
+        # eTypeClassObjCObject        = (1u << 9),
+        # eTypeClassObjCInterface     = (1u << 10),
+        # eTypeClassObjCObjectPointer = (1u << 11),
+        # eTypeClassPointer           = (1u << 12),
+        # eTypeClassReference         = (1u << 13),
+        # eTypeClassStruct            = (1u << 14),
+        # eTypeClassTypedef           = (1u << 15),
+        # eTypeClassUnion             = (1u << 16),
+        # eTypeClassVector            = (1u << 17),
+        # // Define the last type class as the MSBit of a 32 bit value
+        # eTypeClassOther             = (1u << 31),
+        # // Define a mask that can be used for any type when finding types
+        # eTypeClassAny               = (0xffffffffu)
+
+        #warn('CURRENT: %s' % self.typeData.keys())
+        #warn('FROM NATIVE TYPE: %s' % nativeType.GetName())
+        if code == lldb.eTypeClassInvalid:
+            return None
+
+        if code == lldb.eTypeClassBuiltin:
+            nativeType = nativeType.GetUnqualifiedType()
+
+        if code == lldb.eTypeClassPointer:
+            #warn('PTR')
+            nativeTargetType = nativeType.GetPointeeType()
+            if not nativeTargetType.IsPointerType():
+                nativeTargetType = nativeTargetType.GetUnqualifiedType()
+            #warn('PTR: %s' % nativeTargetType.name)
+            return self.createPointerType(self.fromNativeType(nativeTargetType))
+
+        if code == lldb.eTypeClassReference:
+            #warn('REF')
+            nativeTargetType = nativeType.GetDereferencedType()
+            if not nativeTargetType.IsPointerType():
+                nativeTargetType = nativeTargetType.GetUnqualifiedType()
+            #warn('REF: %s' % nativeTargetType.name)
+            return self.createReferenceType(self.fromNativeType(nativeTargetType))
+
+        if code == lldb.eTypeClassTypedef:
+            #warn('TYPEDEF')
+            nativeTargetType = nativeType.GetUnqualifiedType()
+            if hasattr(nativeTargetType, 'GetCanonicalType'):
+                 nativeTargetType = nativeTargetType.GetCanonicalType()
+            targetType = self.fromNativeType(nativeTargetType)
+            return self.createTypedefedType(targetType, nativeType.GetName())
+
+        nativeType = nativeType.GetUnqualifiedType()
+        typeName = self.typeName(nativeType)
+
+        if code in (lldb.eTypeClassArray, lldb.eTypeClassVector):
+            #warn('ARRAY: %s' % nativeType.GetName())
+            if hasattr(nativeType, 'GetArrayElementType'): # New in 3.8(?) / 350.x
+                nativeTargetType = nativeType.GetArrayElementType()
+                if not nativeTargetType.IsValid():
+                    if hasattr(nativeType, 'GetVectorElementType'): # New in 3.8(?) / 350.x
+                        #warn('BAD: %s ' % nativeTargetType.get_fields_array())
+                        nativeTargetType = nativeType.GetVectorElementType()
+                count = nativeType.GetByteSize() // nativeTargetType.GetByteSize()
+                targetTypeName = nativeTargetType.GetName()
+                if targetTypeName.startswith('(anon'):
+                    typeName = nativeType.GetName()
+                    pos1 = typeName.rfind('[')
+                    targetTypeName = typeName[0:pos1].strip()
+                #warn("TARGET TYPENAME: %s" % targetTypeName)
+                targetType = self.fromNativeType(nativeTargetType)
+                tdata = targetType.typeData().copy()
+                tdata.name = targetTypeName
+                targetType.typeData = lambda : tdata
+                return self.createArrayType(targetType, count)
+            if hasattr(nativeType, 'GetVectorElementType'): # New in 3.8(?) / 350.x
+                nativeTargetType = nativeType.GetVectorElementType()
+                count = nativeType.GetByteSize() // nativeTargetType.GetByteSize()
+                targetType = self.fromNativeType(nativeTargetType)
+                return self.createArrayType(targetType, count)
+            return self.createType(nativeType.GetName())
+
+        typeId = self.nativeTypeId(nativeType)
+        res = self.typeData.get(typeId, None)
+        if res is None:
+            #  # This strips typedefs for pointers. We don't want that.
+            #  typeobj.nativeType = nativeType.GetUnqualifiedType()
+            tdata = self.TypeData(self)
+            tdata.typeId = typeId
+            tdata.name = typeName
+            tdata.lbitsize = nativeType.GetByteSize() * 8
+            if code == lldb.eTypeClassBuiltin:
+                if isFloatingPointTypeName(typeName):
+                    tdata.code = TypeCodeFloat
+                elif isIntegralTypeName(typeName):
+                    tdata.code = TypeCodeIntegral
+                elif typeName == 'void':
+                    tdata.code = TypeCodeVoid
+                else:
+                    warn('UNKNOWN TYPE KEY: %s: %s' % (typeName, code))
+            elif code == lldb.eTypeClassEnumeration:
+                tdata.code = TypeCodeEnum
+                tdata.enumDisplay = lambda intval : \
+                    self.nativeTypeEnumDisplay(nativeType, intval)
+            elif code in (lldb.eTypeClassComplexInteger, lldb.eTypeClassComplexFloat):
+                tdata.code = TypeCodeComplex
+            elif code in (lldb.eTypeClassClass, lldb.eTypeClassStruct, lldb.eTypeClassUnion):
+                tdata.code = TypeCodeStruct
+                tdata.lalignment = lambda : \
+                    self.nativeStructAlignment(nativeType)
+                tdata.lfields = lambda value : \
+                    self.listMembers(nativeType, value)
+                tdata.lfieldByName = lambda name : \
+                    self.nativeTypeFieldTypeByName(nativeType, name)
+                tdata.templateArguments = self.listTemplateParametersHelper(nativeType)
+            elif code == lldb.eTypeClassFunction:
+                tdata.code = TypeCodeFunction,
+            elif code == lldb.eTypeClassMemberPointer:
+                tdata.code = TypeCodeMemberPointer
+
+            self.registerType(typeId, tdata) # Fix up fields and template args
+        #    warn('CREATE TYPE: %s' % typeId)
+        #else:
+        #    warn('REUSE TYPE: %s' % typeId)
+        return self.Type(self, typeId)
+
+    def listTemplateParametersHelper(self, nativeType):
+        stringArgs = self.listTemplateParameters(nativeType.GetName())
+        n = nativeType.GetNumberOfTemplateArguments()
+        if n != len(stringArgs):
+            # Something wrong in the debug info.
+            # Should work in theory, doesn't work in practice.
+            # Items like std::allocator<std::pair<unsigned int const, float> report 0
+            # for nativeType.GetNumberOfTemplateArguments() with LLDB 3.8
+            return stringArgs
+
+        targs = []
+        for i in range(nativeType.GetNumberOfTemplateArguments()):
+            kind = nativeType.GetTemplateArgumentKind(i)
+            # eTemplateArgumentKindNull = 0,
+            # eTemplateArgumentKindType,
+            # eTemplateArgumentKindDeclaration,
+            # eTemplateArgumentKindIntegral,
+            # eTemplateArgumentKindTemplate,
+            # eTemplateArgumentKindTemplateExpansion,
+            # eTemplateArgumentKindExpression,
+            # eTemplateArgumentKindPack
+            if kind == lldb.eTemplateArgumentKindType:
+                innerType = nativeType.GetTemplateArgumentType(i).GetUnqualifiedType().GetCanonicalType()
+                targs.append(self.fromNativeType(innerType))
+            #elif kind == lldb.eTemplateArgumentKindIntegral:
+            #   innerType = nativeType.GetTemplateArgumentType(i).GetUnqualifiedType().GetCanonicalType()
+            #   #warn('INNER TYP: %s' % innerType)
+            #   basicType = innerType.GetBasicType()
+            #   #warn('IBASIC TYP: %s' % basicType)
+            #   inner = self.extractTemplateArgument(nativeType.GetName(), i)
+            #   exp = '(%s)%s' % (innerType.GetName(), inner)
+            #   #warn('EXP : %s' % exp)
+            #   val = self.nativeParseAndEvaluate('(%s)%s' % (innerType.GetName(), inner))
+            #   # Clang writes 'int' and '0xfffffff' into the debug info
+            #   # LLDB manages to read a value of 0xfffffff...
+            #   #if basicType == lldb.eBasicTypeInt:
+            #   value = val.GetValueAsUnsigned()
+            #   if value >= 0x8000000:
+            #       value -= 0x100000000
+            #   #warn('KIND: %s' % kind)
+            #   targs.append(value)
+            else:
+                #warn('UNHANDLED TEMPLATE TYPE : %s' % kind)
+                targs.append(stringArgs[i]) # Best we can do.
+        #warn('TARGS: %s %s' % (nativeType.GetName(), [str(x) for x in  targs]))
+        return targs
+
+    def typeName(self, nativeType):
+        if hasattr(nativeType, 'GetDisplayTypeName'):
+            return nativeType.GetDisplayTypeName()  # Xcode 6 (lldb-320)
+        return nativeType.GetName()             # Xcode 5 (lldb-310)
+
+    def nativeTypeId(self, nativeType):
+        name = self.typeName(nativeType)
+
+    def nativeTypeId(self, nativeType):
+        name = self.typeName(nativeType)
+        if name is None or len(name) == 0:
+            c = '0'
+        elif name == '(anonymous struct)' and nativeType.GetTypeClass() == lldb.eTypeClassStruct:
+            c = 's'
+        elif name == '(anonymous struct)' and nativeType.GetTypeClass() == lldb.eTypeClassUnion:
+            c = 'u'
+        else:
+            return name
+        fields = nativeType.get_fields_array()
+        typeId = c + ''.join(['{%s:%s}' % (f.name, self.nativeTypeId(f.GetType())) for f in fields])
+        #warn('NATIVE TYPE ID FOR %s IS %s' % (name, typeId))
+        return typeId
+
+    def nativeTypeEnumDisplay(self, nativeType, intval):
+        if hasattr(nativeType, 'get_enum_members_array'):
+            for enumMember in nativeType.get_enum_members_array():
+                # Even when asking for signed we get unsigned with LLDB 3.8.
+                diff = enumMember.GetValueAsSigned() - intval
+                mask = (1 << nativeType.GetByteSize() * 8) - 1
+                if diff & mask == 0:
+                    path = nativeType.GetName().split('::')
+                    path[-1] = enumMember.GetName()
+                    return '%s (%d)' % ('::'.join(path), intval)
+        return '%d' % intval
+
+    def nativeDynamicTypeName(self, address, baseType):
+        return None # FIXME: Seems sufficient, no idea why.
+        addr = self.target.ResolveLoadAddress(address)
+        ctx = self.target.ResolveSymbolContextForAddress(addr, 0)
+        sym = ctx.GetSymbol()
+        return sym.GetName()
 
     def stateName(self, s):
         try:
@@ -329,96 +587,49 @@ class Dumper(DumperBase):
         except:
             return 'unknown(%s)' % s
 
-    def isSimpleType(self, typeobj):
-        typeClass = typeobj.GetTypeClass()
-        return typeClass == lldb.eTypeClassBuiltin
-
-    def childWithName(self, value, name):
-        child = value.GetChildMemberWithName(name)
-        return child if child.IsValid() else None
-
-    def simpleValue(self, value):
-        return str(value.value)
-
-    def childAt(self, value, index):
-        return value.GetChildAtIndex(index)
-
-    def fieldAt(self, type, index):
-        return type.GetFieldAtIndex(index)
-
-    def pointerValue(self, value):
-        return value.GetValueAsUnsigned()
-
     def enumExpression(self, enumType, enumValue):
         ns = self.qtNamespace()
-        return ns + "Qt::" + enumType + "(" \
-            + ns + "Qt::" + enumType + "::" + enumValue + ")"
+        return ns + 'Qt::' + enumType + '(' \
+            + ns + 'Qt::' + enumType + '::' + enumValue + ')'
 
-    def callHelper(self, value, func, args):
+    def callHelper(self, rettype, value, func, args):
         # args is a tuple.
         arg = ','.join(args)
-        #self.warn("CALL: %s -> %s(%s)" % (value, func, arg))
-        type = value.type.name
-        exp = "((%s*)%s)->%s(%s)" % (type, value.address, func, arg)
-        #self.warn("CALL: %s" % exp)
-        result = value.CreateValueFromExpression('', exp)
-        #self.warn("  -> %s" % result)
-        return result
+        #warn('PRECALL: %s -> %s(%s)' % (value.address(), func, arg))
+        typename = value.type.name
+        exp = '((%s*)0x%x)->%s(%s)' % (typename, value.address(), func, arg)
+        #warn('CALL: %s' % exp)
+        result = self.currentContextValue.CreateValueFromExpression('', exp)
+        #warn('  -> %s' % result)
+        return self.fromNativeValue(result)
 
-    def isBadPointer(self, value):
-        target = value.dereference()
-        return target.GetError().Fail()
-
-    def makeValue(self, type, *args):
+    def pokeValue(self, typeName, *args):
         thread = self.currentThread()
         frame = thread.GetFrameAtIndex(0)
         inner = ','.join(args)
-        value = frame.EvaluateExpression(type + '{' + inner + '}')
-        #self.warn("  TYPE: %s" % value.type)
-        #self.warn("  ADDR: 0x%x" % value.address)
-        #self.warn("  VALUE: %s" % value)
+        value = frame.EvaluateExpression(typeName + '{' + inner + '}')
+        #self.warn('  TYPE: %s' % value.type)
+        #self.warn('  ADDR: 0x%x' % value.address)
+        #self.warn('  VALUE: %s' % value)
         return value
 
-    def parseAndEvaluate(self, expr):
+    def nativeParseAndEvaluate(self, exp):
         thread = self.currentThread()
         frame = thread.GetFrameAtIndex(0)
-        return frame.EvaluateExpression(expr)
+        val = frame.EvaluateExpression(exp)
+        #options = lldb.SBExpressionOptions()
+        #val = self.target.EvaluateExpression(exp, options)
+        err = val.GetError()
+        if err.Fail():
+            #warn('FAILING TO EVAL: %s' % exp)
+            return None
+        #warn('NO ERROR.')
+        #warn('EVAL: %s -> %s' % (exp, val.IsValid()))
+        return val
 
-    def checkPointer(self, p, align = 1):
-        if not self.isNull(p):
-            p.Dereference()
-
-    def isNull(self, p):
-        return p.GetValueAsUnsigned() == 0
-
-    def directBaseClass(self, typeobj, index = 0):
-        result = typeobj.GetDirectBaseClassAtIndex(index).GetType()
-        return result if result.IsValid() else None
-
-    def templateArgument(self, typeobj, index):
-        type = typeobj.GetTemplateArgumentType(index)
-        if type.IsValid():
-            return type
-        inner = self.extractTemplateArgument(typeobj.GetName(), index)
-        return self.lookupType(inner)
-
-    def numericTemplateArgument(self, typeobj, index):
-        # There seems no API to extract the numeric value.
-        inner = self.extractTemplateArgument(typeobj.GetName(), index)
-        innerType = typeobj.GetTemplateArgumentType(index)
-        basicType = innerType.GetBasicType()
-        value = toInteger(inner)
-        # Clang writes 'int' and '0xfffffff' into the debug info
-        # LLDB manages to read a value of 0xfffffff...
-        if basicType == lldb.eBasicTypeInt and value >= 0x8000000:
-            value -= 0x100000000
-        return value
-
-    def isReferenceType(self, typeobj):
-        return typeobj.IsReferenceType()
-
-    def isStructType(self, typeobj):
-        return typeobj.GetTypeClass() in (lldb.eTypeClassStruct, lldb.eTypeClassClass)
+    def parseAndEvaluate(self, exp):
+        val = self.nativeParseAndEvaluate(exp)
+        return None if val is None else self.fromNativeValue(val)
 
     def isWindowsTarget(self):
         return False
@@ -427,6 +638,9 @@ class Dumper(DumperBase):
         return False
 
     def isArmArchitecture(self):
+        return False
+
+    def isMsvcTarget(self):
         return False
 
     def qtVersionAndNamespace(self):
@@ -465,6 +679,15 @@ class Dumper(DumperBase):
             qtVersion = 0x10000 * int(major) + 0x100 * int(minor) + int(patch)
             self.qtVersion = lambda: qtVersion
 
+            funcs = self.target.FindFunctions('QObject::customEvent')
+            if len(funcs):
+                symbol = funcs[0].GetSymbol()
+                self.qtCustomEventFunc = symbol.GetStartAddress().GetLoadAddress(self.target)
+
+            funcs = self.target.FindFunctions('QObject::property')
+            if len(funcs):
+                symbol = funcs[0].GetSymbol()
+                self.qtPropertyFunc = symbol.GetStartAddress().GetLoadAddress(self.target)
             return (qtNamespace, qtVersion)
 
         return ('', 0x50200)
@@ -476,69 +699,6 @@ class Dumper(DumperBase):
         self.qtVersionAndNamespace()
         return self.qtVersionAndNamespace()[1]
 
-    def intSize(self):
-        return 4
-
-    def ptrSize(self):
-        return self.target.GetAddressByteSize()
-
-    def intType(self):
-        return self.target.GetBasicType(lldb.eBasicTypeInt)
-
-    def int64Type(self):
-        return self.target.GetBasicType(lldb.eBasicTypeLongLong)
-
-    def charType(self):
-        return self.target.GetBasicType(lldb.eBasicTypeChar)
-
-    def charPtrType(self):
-        return self.target.GetBasicType(lldb.eBasicTypeChar).GetPointerType()
-
-    def voidPtrType(self):
-        return self.target.GetBasicType(lldb.eBasicVoid).GetPointerType()
-
-    def sizetType(self):
-        if self.sizetType_ is None:
-             self.sizetType_ = self.lookupType('size_t')
-        return self.sizetType_
-
-    def addressOf(self, value):
-        return int(value.GetLoadAddress())
-
-    def extractUShort(self, address):
-        error = lldb.SBError()
-        return int(self.process.ReadUnsignedFromMemory(address, 2, error))
-
-    def extractShort(self, address):
-        i = self.extractUInt(address)
-        if i >= 0x8000:
-            i -= 0x10000
-        return i
-
-    def extractUInt(self, address):
-        error = lldb.SBError()
-        return int(self.process.ReadUnsignedFromMemory(address, 4, error))
-
-    def extractInt(self, address):
-        i = self.extractUInt(address)
-        if i >= 0x80000000:
-            i -= 0x100000000
-        return i
-
-    def extractUInt64(self, address):
-        error = lldb.SBError()
-        return int(self.process.ReadUnsignedFromMemory(address, 8, error))
-
-    def extractInt64(self, address):
-        i = self.extractUInt64(address)
-        if i >= 0x8000000000000000:
-            i -= 0x10000000000000000
-        return i
-
-    def extractByte(self, address):
-        error = lldb.SBError()
-        return int(self.process.ReadUnsignedFromMemory(address, 1, error) & 0xFF)
-
     def handleCommand(self, command):
         result = lldb.SBCommandReturnObject()
         self.debugger.GetCommandInterpreter().HandleCommand(command, result)
@@ -548,129 +708,120 @@ class Dumper(DumperBase):
         else:
             self.report('error="%s"' % result.GetError())
 
-    def put(self, stuff):
-        self.out += stuff
-
-    def isMovableType(self, type):
-        if type.GetTypeClass() in (lldb.eTypeClassBuiltin, lldb.eTypeClassPointer):
-            return True
-        return self.isKnownMovableType(self.stripNamespaceFromType(type.GetName()))
-
-    def putPointerValue(self, value):
-        # Use a lower priority
-        if value is None:
-            self.putEmptyValue(-1)
-        else:
-            self.putValue("0x%x" % value.Dereference())
-
-    def putSimpleValue(self, value, encoding = None, priority = 0):
-        self.putValue(value.GetValue(), encoding, priority)
-
-    def simpleEncoding(self, typeobj):
-        code = typeobj.GetTypeClass()
-        size = typeobj.sizeof
-        if code == lldb.eTypeClassBuiltin:
-            name = str(typeobj)
-            if name == "float":
-                return Hex2EncodedFloat4
-            if name == "double":
-                return Hex2EncodedFloat8
-            if name.find("unsigned") >= 0:
-                if size == 1:
-                    return Hex2EncodedUInt1
-                if size == 2:
-                    return Hex2EncodedUInt2
-                if size == 4:
-                    return Hex2EncodedUInt4
-                if size == 8:
-                    return Hex2EncodedUInt8
-            else:
-                if size == 1:
-                    return Hex2EncodedInt1
-                if size == 2:
-                    return Hex2EncodedInt2
-                if size == 4:
-                    return Hex2EncodedInt4
-                if size == 8:
-                    return Hex2EncodedInt8
-        return None
-
-    def createPointerValue(self, address, pointeeType):
-        addr = int(address) & 0xFFFFFFFFFFFFFFFF
-        sbaddr = lldb.SBAddress(addr, self.target)
-        # Any type.
-        # FIXME: This can be replaced with self.target.CreateValueFromExpression
-        # as soon as we drop support for lldb builds not having that (~Xcode 6.1)
-        dummy = self.target.CreateValueFromAddress('@', sbaddr, self.target.FindFirstType('char'))
-        return dummy.CreateValueFromExpression('', '(%s*)%s' % (pointeeType, addr))
-
-    def createValue(self, address, referencedType):
-        addr = int(address) & 0xFFFFFFFFFFFFFFFF
-        sbaddr = lldb.SBAddress(addr, self.target)
-        return self.target.CreateValueFromAddress('@', sbaddr, referencedType)
-
-    def childRange(self):
-        if self.currentMaxNumChild is None:
-            return xrange(0, self.currentNumChild)
-        return xrange(min(self.currentMaxNumChild, self.currentNumChild))
-
     def canonicalTypeName(self, name):
         return re.sub('\\bconst\\b', '', name).replace(' ', '')
 
-    def lookupType(self, name):
-        #self.warn("LOOKUP TYPE NAME: %s" % name)
+    def removeTypePrefix(self, name):
+        return re.sub('^(struct|class|union|enum|typedef) ', '', name)
+
+    def lookupNativeType(self, name):
+        #warn('LOOKUP TYPE NAME: %s' % name)
+        typeobj = self.typeCache.get(name)
+        if not typeobj is None:
+            #warn('CACHED: %s' % name)
+            return typeobj
         typeobj = self.target.FindFirstType(name)
         if typeobj.IsValid():
+            #warn('VALID FIRST : %s' % typeobj)
+            self.typeCache[name] = typeobj
             return typeobj
-        typeobj = self.target.FindFirstType(name + '*')
-        if typeobj.IsValid():
-            return typeob.GetPointeeType()
-        typeobj = self.target.FindFirstType(name + '&')
-        if typeobj.IsValid():
-            return typeob.GetReferencedType()
+
+        # FindFirstType has a bug (in lldb) that if there are two types with the same base name
+        # but different scope name (e.g. inside different classes) and the searched for type name
+        # would be returned as the second result in a call to FindTypes, FindFirstType would return
+        # an empty result.
+        # Therefore an additional call to FindTypes is done as a fallback.
+        # Note that specifying a prefix like enum or typedef or class will make the call fail to
+        # find the type, thus the prefix is stripped.
+        nonPrefixedName = self.canonicalTypeName(self.removeTypePrefix(name))
+        typeobjlist = self.target.FindTypes(nonPrefixedName)
+        if typeobjlist.IsValid():
+            for typeobj in typeobjlist:
+                n = self.canonicalTypeName(self.removeTypePrefix(typeobj.GetDisplayTypeName()))
+                if n == nonPrefixedName:
+                    #warn('FOUND TYPE USING FindTypes : %s' % typeobj)
+                    self.typeCache[name] = typeobj
+                    return typeobj
         if name.endswith('*'):
-            typeobj = self.target.FindFirstType(name[:-1].strip())
-            if typeobj.IsValid():
+            #warn('RECURSE PTR')
+            typeobj = self.lookupNativeType(name[:-1].strip())
+            if typeobj is not None:
+                #warn('RECURSE RESULT X: %s' % typeobj)
+                self.fromNativeType(typeobj.GetPointerType())
+                #warn('RECURSE RESULT: %s' % typeobj.GetPointerType())
                 return typeobj.GetPointerType()
-        #self.warn("LOOKUP RESULT: %s" % typeobj.name)
-        #self.warn("LOOKUP VALID: %s" % typeobj.IsValid())
+
+            #typeobj = self.target.FindFirstType(name[:-1].strip())
+            #if typeobj.IsValid():
+            #    self.typeCache[name] = typeobj.GetPointerType()
+            #    return typeobj.GetPointerType()
+
+        if name.endswith(' const'):
+            #warn('LOOKUP END CONST')
+            typeobj = self.lookupNativeType(name[:-6])
+            if typeobj is not None:
+                return typeobj
+
+        if name.startswith('const '):
+            #warn('LOOKUP START CONST')
+            typeobj = self.lookupNativeType(name[6:])
+            if typeobj is not None:
+                return typeobj
+
         needle = self.canonicalTypeName(name)
-        #self.warn("NEEDLE: %s " % needle)
+        #warn('NEEDLE: %s ' % needle)
+        warn('Searching for type %s across all target modules, this could be very slow' % name)
         for i in xrange(self.target.GetNumModules()):
             module = self.target.GetModuleAtIndex(i)
             # SBModule.GetType is new somewhere after early 300.x
             # So this may fail.
             for t in module.GetTypes():
                 n = self.canonicalTypeName(t.GetName())
+                #warn('N: %s' % n)
                 if n == needle:
-                    #self.warn("FOUND TYPE DIRECT 2: %s " % t)
+                    #warn('FOUND TYPE DIRECT 2: %s ' % t)
+                    self.typeCache[name] = t
                     return t
                 if n == needle + '*':
-                    #self.warn("FOUND TYPE BY POINTER 2: %s " % t.GetPointeeType())
-                    return t.GetPointeeType()
+                    res = t.GetPointeeType()
+                    self.typeCache[name] = res
+                    x = self.fromNativeType(res)  # Register under both names
+                    self.registerTypeAlias(x.typeId, name)
+                    #warn('FOUND TYPE BY POINTER: %s ' % res.name)
+                    return res
                 if n == needle + '&':
-                    #self.warn("FOUND TYPE BY REFERENCE 2: %s " % t)
-                    return t.GetDereferencedType()
-        #self.warn("NOT FOUND: %s " % needle)
+                    res = t.GetDereferencedType().GetUnqualifiedType()
+                    self.typeCache[name] = res
+                    x = self.fromNativeType(res)  # Register under both names
+                    self.registerTypeAlias(x.typeId, name)
+                    #warn('FOUND TYPE BY REFERENCE: %s ' % res.name)
+                    return res
+        #warn('NOT FOUND: %s ' % needle)
         return None
 
     def setupInferior(self, args):
         error = lldb.SBError()
 
         self.executable_ = args['executable']
-        self.startMode_ = args.get('startMode', 1)
-        self.breakOnMain_ = args.get('breakOnMain', 0)
-        self.useTerminal_ = args.get('useTerminal', 0)
-        self.processArgs_ = args.get('processArgs', [])
-        self.processArgs_ = map(lambda x: self.hexdecode(x), self.processArgs_)
-        self.attachPid_ = args.get('attachPid', 0)
-        self.sysRoot_ = args.get('sysRoot', '')
-        self.remoteChannel_ = args.get('remoteChannel', '')
+        self.startMode_ = args.get('startmode', 1)
+        self.breakOnMain_ = args.get('breakonmain', 0)
+        self.useTerminal_ = args.get('useterminal', 0)
+        self.processArgs_ = args.get('processargs', [])
+        self.processArgs_ = list(map(lambda x: self.hexdecode(x), self.processArgs_))
+        self.environment_ = args.get('environment', [])
+        self.environment_ = list(map(lambda x: self.hexdecode(x), self.environment_))
+        self.attachPid_ = args.get('attachpid', 0)
+        self.sysRoot_ = args.get('sysroot', '')
+        self.remoteChannel_ = args.get('remotechannel', '')
         self.platform_ = args.get('platform', '')
+        self.nativeMixed = int(args.get('nativemixed', 0))
+        self.workingDirectory_ = args.get('workingdirectory', '')
+        if self.workingDirectory_ == '':
+            self.workingDirectory_ = os.getcwd()
 
         self.ignoreStops = 0
         self.silentStops = 0
-        if platform.system() == "Linux":
+        if platform.system() == 'Linux':
             if self.startMode_ == AttachCore:
                 pass
             else:
@@ -689,16 +840,23 @@ class Dumper(DumperBase):
         if self.sysRoot_:
             self.debugger.SetCurrentPlatformSDKRoot(self.sysRoot_)
 
-
         if os.path.isfile(self.executable_):
             self.target = self.debugger.CreateTarget(self.executable_, None, None, True, error)
         else:
             self.target = self.debugger.CreateTarget(None, None, None, True, error)
 
+        if self.nativeMixed:
+            self.interpreterEventBreakpoint = \
+                self.target.BreakpointCreateByName('qt_qmlDebugMessageAvailable')
+
         state = 1 if self.target.IsValid() else 0
-        self.reportResult('success="%s",msg="%s",exe="%s"' % (state, error, self.executable_), args)
+        self.reportResult('success="%s",msg="%s",exe="%s"'
+            % (state, error, self.executable_), args)
 
     def runEngine(self, args):
+        if self.runEngineAttempted:
+            return
+        self.runEngineAttempted = True
         self.prepare(args)
         s = threading.Thread(target=self.loop, args=[])
         s.start()
@@ -711,43 +869,47 @@ class Dumper(DumperBase):
             attachInfo = lldb.SBAttachInfo(self.attachPid_)
             self.process = self.target.Attach(attachInfo, error)
             if not error.Success():
-                self.reportState("inferiorrunfailed")
+                self.reportState('inferiorrunfailed')
                 return
             self.report('pid="%s"' % self.process.GetProcessID())
             # Even if it stops it seems that LLDB assumes it is running
             # and later detects that it did stop after all, so it is be
-            # better to mirror that and wait for the spontaneous stop.
-            self.reportState("enginerunandinferiorrunok")
+            # better to mirror that and wait for the spontaneous stop
+            if self.process and self.process.GetState() == lldb.eStateStopped:
+                # lldb stops the process after attaching. This happens before the
+                # eventloop starts. Relay the correct state back.
+                self.reportState('enginerunandinferiorstopok')
+            else:
+                self.reportState('enginerunandinferiorrunok')
         elif self.startMode_ == AttachToRemoteServer or self.startMode_ == AttachToRemoteProcess:
             self.process = self.target.ConnectRemote(
                 self.debugger.GetListener(),
                 self.remoteChannel_, None, error)
             if not error.Success():
                 self.report(self.describeError(error))
-                self.reportState("enginerunfailed")
+                self.reportState('enginerunfailed')
                 return
             # Even if it stops it seems that LLDB assumes it is running
             # and later detects that it did stop after all, so it is be
             # better to mirror that and wait for the spontaneous stop.
-            self.reportState("enginerunandinferiorrunok")
+            self.reportState('enginerunandinferiorrunok')
         elif self.startMode_ == AttachCore:
             coreFile = args.get('coreFile', '');
             self.process = self.target.LoadCore(coreFile)
-            self.reportState("enginerunokandinferiorunrunnable")
+            self.reportState('enginerunokandinferiorunrunnable')
         else:
             launchInfo = lldb.SBLaunchInfo(self.processArgs_)
-            launchInfo.SetWorkingDirectory(os.getcwd())
-            environmentList = [key + "=" + value for key,value in os.environ.items()]
-            launchInfo.SetEnvironmentEntries(environmentList, False)
+            launchInfo.SetWorkingDirectory(self.workingDirectory_)
+            launchInfo.SetEnvironmentEntries(self.environment_, False)
             if self.breakOnMain_:
                 self.createBreakpointAtMain()
             self.process = self.target.Launch(launchInfo, error)
             if not error.Success():
                 self.report(self.describeError(error))
-                self.reportState("enginerunfailed")
+                self.reportState('enginerunfailed')
                 return
             self.report('pid="%s"' % self.process.GetProcessID())
-            self.reportState("enginerunandinferiorrunok")
+            self.reportState('enginerunandinferiorrunok')
 
     def loop(self):
         event = lldb.SBEvent()
@@ -775,9 +937,11 @@ class Dumper(DumperBase):
     def describeLocation(self, frame):
         if int(frame.pc) == 0xffffffffffffffff:
             return ''
-        file = fileNameAsString(frame.line_entry.file)
+        fileName = fileNameAsString(frame.line_entry.file)
+        function = frame.GetFunctionName()
         line = frame.line_entry.line
-        return 'location={file="%s",line="%s",addr="%s"}' % (file, line, frame.pc)
+        return 'location={file="%s",line="%s",address="%s",function="%s"}' \
+            % (fileName, line, frame.pc, function)
 
     def currentThread(self):
         return None if self.process is None else self.process.GetSelectedThread()
@@ -803,11 +967,11 @@ class Dumper(DumperBase):
         for i in xrange(0, self.process.GetNumThreads()):
             thread = self.process.GetThreadAtIndex(i)
             if thread.is_stopped:
-                state = "stopped"
+                state = 'stopped'
             elif thread.is_suspended:
-                state = "suspended"
+                state = 'suspended'
             else:
-                state = "unknown"
+                state = 'unknown'
             reason = thread.GetStopReason()
             result += '{id="%d"' % thread.GetThreadID()
             result += ',index="%s"' % i
@@ -847,8 +1011,6 @@ class Dumper(DumperBase):
             self.reportResult('msg="No thread"', args)
             return
 
-        self.report(self.describeLocation(thread.GetFrameAtIndex(0))) # FIXME
-
         isNativeMixed = int(args.get('nativemixed', 0))
 
         limit = args.get('stacklimit', -1)
@@ -868,38 +1030,27 @@ class Dumper(DumperBase):
             pc = frame.GetPC()
             level = frame.idx
             addr = frame.GetPCAddress().GetLoadAddress(self.target)
+
             functionName = frame.GetFunctionName()
+
+            if isNativeMixed and functionName == '::qt_qmlDebugMessageAvailable()':
+                interpreterStack = self.extractInterpreterStack()
+                for interpreterFrame in interpreterStack.get('frames', []):
+                    function = interpreterFrame.get('function', '')
+                    fileName = interpreterFrame.get('file', '')
+                    language = interpreterFrame.get('language', '')
+                    lineNumber = interpreterFrame.get('line', 0)
+                    context = interpreterFrame.get('context', 0)
+                    result += ('frame={function="%s",file="%s",'
+                             'line="%s",language="%s",context="%s"}'
+                        % (function, fileName, lineNumber, language, context))
+
             fileName = fileNameAsString(lineEntry.file)
-            usable = None
-            language = None
-
-            if False and isNativeMixed:
-                if self.isReportableInterpreterFrame(functionName):
-                    engine = frame.FindVariable("engine")
-                    self.context = engine
-                    h = self.extractQmlLocation(engine)
-                    pc = 0
-                    functionName = h['function']
-                    fileName = h['file']
-                    lineNumber = h['line']
-                    addr = h['context']
-                    language = 'js'
-
-                #elif not functionName is None:
-                #    if functionName.startswith("qt_v4"):
-                #        usable = 0
-                #    elif functionName.find("QV4::") >= 0:
-                #        usable = 0
-
             result += '{pc="0x%x"' % pc
             result += ',level="%d"' % level
             result += ',address="0x%x"' % addr
-            if not usable is None:
-                result += ',usable="%s"' % usable
             result += ',function="%s"' % functionName
             result += ',line="%d"' % lineNumber
-            if not language is None:
-                result += ',language="%s"' % language
             result += ',file="%s"},' % fileName
         result += ']'
         result += ',hasmore="%d"' % isLimited
@@ -916,297 +1067,50 @@ class Dumper(DumperBase):
             # logview pane feature.
             self.report('token(\"%s\")' % args["token"])
 
-    def extractBlob(self, base, size):
+    def readRawMemory(self, address, size):
         if size == 0:
-            return Blob("")
-        base = int(base) & 0xFFFFFFFFFFFFFFFF
-        size = int(size) & 0xFFFFFFFF
+            return bytes()
         error = lldb.SBError()
-        return Blob(self.process.ReadMemory(base, size, error))
-
-    def toBlob(self, value):
-        data = value.GetData()
-        size = int(data.GetByteSize())
-        buf = bytearray(struct.pack('x' * size))
-        error = lldb.SBError()
-        #data.ReadRawData(error, 0, buf)
-        for i in range(size):
-            buf[i] = data.GetUnsignedInt8(error, i)
-        return Blob(bytes(buf))
-
-    def mangleName(self, typeName):
-        return '_ZN%sE' % ''.join(map(lambda x: "%d%s" % (len(x), x), typeName.split('::')))
+        #warn("READ: %s %s" % (address, size))
+        res = self.process.ReadMemory(address, size, error)
+        if res is None or len(res) != size:
+            # Using code in e.g. readToFirstZero relies on exceptions.
+            raise RuntimeError("Unreadable %s bytes at 0x%x" % (size, address))
+        return res
 
     def findStaticMetaObject(self, typeName):
         symbolName = self.mangleName(typeName + '::staticMetaObject')
-        return self.target.FindFirstGlobalVariable(symbolName)
+        symbol = self.target.FindFirstGlobalVariable(symbolName)
+        return symbol.AddressOf().GetValueAsUnsigned() if symbol.IsValid() else 0
 
     def findSymbol(self, symbolName):
         return self.target.FindFirstGlobalVariable(symbolName)
 
-    def stripNamespaceFromType(self, typeName):
-        #type = self.stripClassTag(typeName)
-        type = typeName
-        ns = self.qtNamespace()
-        if len(ns) > 0 and type.startswith(ns):
-            type = type[len(ns):]
-        pos = type.find("<")
-        # FIXME: make it recognize  foo<A>::bar<B>::iterator?
-        while pos != -1:
-            pos1 = type.rfind(">", pos)
-            type = type[0:pos] + type[pos1+1:]
-            pos = type.find("<")
-        if type.startswith("const "):
-            type = type[6:]
-        if type.startswith("volatile "):
-            type = type[9:]
-        return type
-
-    def putSubItem(self, component, value, tryDynamic=True):
-        if not value.IsValid():
-            self.warn("INVALID SUBITEM: %s" % value.GetName())
-            return
-        with SubItem(self, component):
-            self.putItem(value, tryDynamic)
-
-    def putAddress(self, addr):
-        #if int(addr) == 0xffffffffffffffff:
-        #    raise RuntimeError("Illegal address")
-        if self.currentPrintsAddress and not addr is None:
-            self.put('addr="0x%x",' % int(addr))
-
-    def isFunctionType(self, typeobj):
-        if self.isGoodLldb:
-            return typeobj.IsFunctionType()
-        #warn("TYPE: %s" % typeobj)
-        return False
-
-    def putItem(self, value, tryDynamic=True):
-        typeName = value.GetType().GetUnqualifiedType().GetName()
-        if self.isGoodLldb:
-            value.SetPreferDynamicValue(tryDynamic)
-        typeClass = value.GetType().GetTypeClass()
-
-        if tryDynamic:
-            self.putAddress(value.GetLoadAddress())
-
-        # Handle build-in LLDB visualizers if wanted.
-        if False and self.useLldbDumpers and value.GetTypeSynthetic().IsValid():
-            # FIXME: print "official" summary?
-            summary = value.GetTypeSummary()
-            if summary.IsValid():
-                warn("DATA: %s" % summary.GetData())
-            if self.isGoodLldb:
-                value.SetPreferSyntheticValue(False)
-            provider = value.GetTypeSynthetic()
-            data = provider.GetData()
-            formatter = eval(data)(value, {})
-            formatter.update()
-            numchild = formatter.num_children()
-            self.put('iname="%s",' % self.currentIName)
-            self.putType(typeName)
-            self.put('numchild="%s",' % numchild)
-            self.put('addr="0x%x",' % value.GetLoadAddress())
-            self.putItemCount(numchild)
-            if self.currentIName in self.expandedINames:
-                with Children(self):
-                    for i in xrange(numchild):
-                        child = formatter.get_child_at_index(i)
-                        with SubItem(self, i):
-                            self.putItem(child)
-            return
-
-        # Typedefs
-        if typeClass == lldb.eTypeClassTypedef:
-            if typeName in self.qqDumpers:
-                self.putType(typeName)
-                self.context = value
-                self.qqDumpers[typeName](self, value)
-                return
-            realType = value.GetType()
-            if hasattr(realType, 'GetCanonicalType'):
-                baseType = realType.GetCanonicalType()
-                if baseType != realType:
-                    baseValue = value.Cast(baseType.unqualified())
-                    self.putItem(baseValue)
-                    self.putBetterType(realType)
-                    return
-
-        # Our turf now.
-        if self.isGoodLldb:
-            value.SetPreferSyntheticValue(False)
-
-        # Arrays
-        if typeClass == lldb.eTypeClassArray:
-            self.putCStyleArray(value)
-            return
-
-        # Vectors like char __attribute__ ((vector_size (8)))
-        if typeClass == lldb.eTypeClassVector:
-            self.putCStyleArray(value)
-            return
-
-        # References
-        if value.GetType().IsReferenceType():
-            type = value.GetType().GetDereferencedType().unqualified()
-            addr = value.GetValueAsUnsigned()
-            #warn("FROM: %s" % value)
-            #warn("ADDR: 0x%x" % addr)
-            #warn("TYPE: %s" % type)
-            # Works:
-            #item = self.currentThread().GetSelectedFrame().EvaluateExpression(
-            #    "(%s*)0x%x" % (type, addr)).Dereference()
-            # Works:
-            item = value.CreateValueFromExpression(None,
-                "(%s*)0x%x" % (type, addr), lldb.SBExpressionOptions()).Dereference()
-            # Does not work:
-            #item = value.CreateValueFromAddress(None, addr, type)
-            # Does not work:
-            #item = value.Cast(type.GetPointerType()).Dereference()
-            #warn("TOOO: %s" % item)
-            self.putItem(item)
-            self.putBetterType(value.GetTypeName())
-            return
-
-        # Pointers
-        if value.GetType().IsPointerType():
-            self.putFormattedPointer(value)
-            return
-
-        # Chars
-        if typeClass == lldb.eTypeClassBuiltin:
-            basicType = value.GetType().GetBasicType()
-            if basicType == lldb.eBasicTypeChar:
-                self.putValue(value.GetValueAsUnsigned())
-                self.putType(typeName)
-                self.putNumChild(0)
-                return
-            if basicType == lldb.eBasicTypeSignedChar:
-                self.putValue(value.GetValueAsSigned())
-                self.putType(typeName)
-                self.putNumChild(0)
-                return
-
-        #warn("VALUE: %s" % value)
-        #warn("FANCY: %s" % self.useFancy)
-        if self.tryPutPrettyItem(typeName, value):
-            return
-
-        # Normal value
-        #numchild = 1 if value.MightHaveChildren() else 0
-        numchild = value.GetNumChildren()
-        self.putType(typeName)
-        self.putEmptyValue(-1)
-        staticMetaObject = self.extractStaticMetaObject(value.GetType())
-        if staticMetaObject:
-            self.context = value
-            self.putQObjectNameValue(value)
-        else:
-            v = value.GetValue()
-            if v:
-                self.putValue(v)
-
-        self.put('numchild="%s",' % numchild)
-
-        if self.currentIName in self.expandedINames:
-            with Children(self):
-                self.putFields(value)
-                if staticMetaObject:
-                    self.putQObjectGuts(value, staticMetaObject)
-
     def warn(self, msg):
         self.put('{name="%s",value="",type="",numchild="0"},' % msg)
 
-    def putFields(self, value):
-        # Suppress printing of 'name' field for arrays.
-        if value.GetType().GetTypeClass() == lldb.eTypeClassArray:
-            for i in xrange(value.GetNumChildren()):
-                child = value.GetChildAtIndex(i)
-                with UnnamedSubItem(self, str(i)):
-                    self.putItem(child)
+    def fetchVariables(self, args):
+        (ok, res) = self.tryFetchInterpreterVariables(args)
+        if ok:
+            self.reportResult(res, args)
             return
 
-        n = value.GetNumChildren()
-        m = value.GetType().GetNumberOfDirectBaseClasses()
-        if n > 10000:
-            n = 10000
-        # seems to happen in the 'inheritance' autotest
-        if m > n:
-            m = n
-        for i in xrange(m):
-            child = value.GetChildAtIndex(i)
-            with UnnamedSubItem(self, "@%d" % (i + 1)):
-                self.put('iname="%s",' % self.currentIName)
-                self.put('name="[%s]",' % child.name)
-                self.putItem(child)
+        self.setVariableFetchingOptions(args)
 
-        children = [value.GetChildAtIndex(i) for i in xrange(m, n)]
-        if self.sortStructMembers:
-            children.sort(key = lambda child: str(child.GetName()))
-        for child in children:
-            # Only needed in the QVariant4 test.
-            if int(child.GetLoadAddress()) == 0xffffffffffffffff:
-                typeClass = child.GetType().GetTypeClass()
-                if typeClass != lldb.eTypeClassBuiltin:
-                    field = value.GetType().GetFieldAtIndex(i)
-                    addr = value.GetLoadAddress() + field.GetOffsetInBytes()
-                    child = value.CreateValueFromAddress(child.GetName(), addr, child.GetType())
-            if child.IsValid():  # FIXME: Anon members?
-                with SubItem(self, child):
-                    self.putItem(child)
+        anyModule = self.target.GetModuleAtIndex(0)
+        anySymbol = anyModule.GetSymbolAtIndex(0)
+        self.fakeAddress = int(anySymbol.GetStartAddress())
 
-    def reportVariables(self, args):
-        self.out = ""
-        self.reportVariablesHelper(args)
-        self.reportResult(self.out, args)
-
-    def reportVariablesHelper(self, args = {}):
         frame = self.currentFrame()
         if frame is None:
+            self.reportResult('error="No frame"', args)
             return
 
-        partialVariable = args.get("partialVariable", "")
-        isPartial = len(partialVariable) > 0
+        self.output = ''
+        isPartial = len(self.partialVariable) > 0
 
         self.currentIName = 'local'
         self.put('data=[')
-        self.anonNumber = 0
-        shadowed = {}
-        ids = {} # Filter out duplicates entries at the same address.
-
-        # FIXME: Implement shortcut for partial updates.
-        #if isPartial:
-        #    values = [frame.FindVariable(partialVariable)]
-        #else:
-        if True:
-            values = list(frame.GetVariables(True, True, False, False))
-            values.reverse() # To get shadowed vars numbered backwards.
-
-        for value in values:
-            if not value.IsValid():
-                continue
-            name = value.GetName()
-            id = "%s:0x%x" % (name, value.GetLoadAddress())
-            if id in ids:
-                continue
-            ids[id] = True
-            if name is None:
-                # This can happen for unnamed function parameters with
-                # default values:  void foo(int = 0)
-                continue
-            if name in shadowed:
-                level = shadowed[name]
-                shadowed[name] = level + 1
-                name += "@%s" % level
-            else:
-                shadowed[name] = 1
-
-            if name == "argv" and value.GetType().GetName() == "char **":
-                self.putSpecialArgv(value)
-            else:
-                with SubItem(self, name):
-                    self.put('iname="%s",' % self.currentIName)
-                    self.putItem(value)
 
         with SubItem(self, '[statics]'):
             self.put('iname="%s",' % self.currentIName)
@@ -1218,20 +1122,46 @@ class Dumper(DumperBase):
                     if len(statics):
                         for i in xrange(len(statics)):
                             staticVar = statics[i]
+                            staticVar.SetPreferSyntheticValue(False)
                             typename = staticVar.GetType().GetName()
                             name = staticVar.GetName()
                             with SubItem(self, i):
                                 self.put('name="%s",' % name)
                                 self.put('iname="%s",' % self.currentIName)
-                                self.putItem(staticVar)
+                                self.putItem(self.fromNativeValue(staticVar))
                     else:
                         with SubItem(self, "None"):
                             self.putEmptyValue()
                             self.putNumChild(0)
 
+        # FIXME: Implement shortcut for partial updates.
+        #if isPartial:
+        #    values = [frame.FindVariable(partialVariable)]
+        #else:
+        if True:
+            values = list(frame.GetVariables(True, True, False, False))
+            values.reverse() # To get shadowed vars numbered backwards.
+
+        variables = []
+        for val in values:
+            val.SetPreferSyntheticValue(False)
+            if not val.IsValid():
+                continue
+            self.currentContextValue = val
+            name = val.GetName()
+            if name is None:
+                # This can happen for unnamed function parameters with
+                # default values:  void foo(int = 0)
+                continue
+            value = self.fromNativeFrameValue(val)
+            value.name = name
+            variables.append(value)
+
+        self.handleLocals(variables)
         self.handleWatches(args)
 
         self.put('],partial="%d"' % isPartial)
+        self.reportResult(self.output, args)
 
     def fetchRegisters(self, args = None):
         if self.process is None:
@@ -1281,7 +1211,7 @@ class Dumper(DumperBase):
         else:
             self.isInterrupting_ = True
             error = self.process.Stop()
-            self.reportResult(describeError(error), args)
+            self.reportResult(self.describeError(error), args)
 
     def detachInferior(self, args):
         if self.process is None:
@@ -1312,10 +1242,13 @@ class Dumper(DumperBase):
         flavor = event.GetDataFlavor()
         state = lldb.SBProcess.GetStateFromEvent(event)
         bp = lldb.SBBreakpoint.GetBreakpointFromEvent(event)
+        skipEventReporting = self.debuggerCommandInProgress \
+            and eventType in (lldb.SBProcess.eBroadcastBitSTDOUT, lldb.SBProcess.eBroadcastBitSTDERR)
         self.report('event={type="%s",data="%s",msg="%s",flavor="%s",state="%s",bp="%s"}'
             % (eventType, out.GetData(), msg, flavor, self.stateName(state), bp))
         if state != self.eventState:
-            self.eventState = state
+            if not skipEventReporting:
+                self.eventState = state
             if state == lldb.eStateExited:
                 if self.isShuttingDown_:
                     self.reportState("inferiorshutdownok")
@@ -1330,32 +1263,36 @@ class Dumper(DumperBase):
                     frame = stoppedThread.GetFrameAtIndex(0)
                     #self.report("FRAME: %s" % frame)
                     function = frame.GetFunction()
-                    #self.report("FUNCTION: %s" % function)
-                    if function.GetName() == "qt_v4ResolvePendingBreakpointsHook":
-                        #self.report("RESOLVER HIT")
-                        for bp in self.qmlBreakpointResolvers:
-                            self.qmlBreakpointResolvers[bp]()
-                            self.target.BreakpointDelete(bp.GetID())
-                        self.qmlBreakpointResolvers = {}
+                    functionName = function.GetName()
+                    if functionName == "::qt_qmlDebugConnectorOpen()":
+                        self.report("RESOLVER HIT")
+                        for resolver in self.interpreterBreakpointResolvers:
+                            resolver()
+                        self.report("AUTO-CONTINUE AFTER RESOLVING")
+                        self.reportState("inferiorstopok")
                         self.process.Continue();
                         return
-
+                    if functionName == "::qt_qmlDebugMessageAvailable()":
+                        self.report("ASYNC MESSAGE FROM SERVICE")
+                        res = self.handleInterpreterMessage()
+                        if not res:
+                            self.report("EVENT NEEDS NO STOP")
+                            self.reportState("stopped")
+                            self.process.Continue();
+                            return
                 if self.isInterrupting_:
                     self.isInterrupting_ = False
-                    self.reportState("inferiorstopok")
+                    self.reportState("stopped")
                 elif self.ignoreStops > 0:
                     self.ignoreStops -= 1
                     self.process.Continue()
                 elif self.silentStops > 0:
                     self.silentStops -= 1
-                #elif bp and bp in self.qmlBreakpointResolvers:
-                #    self.report("RESOLVER HIT")
-                #    self.qmlBreakpointResolvers[bp]()
-                #    self.process.Continue();
                 else:
                     self.reportState("stopped")
             else:
-                self.reportState(self.stateName(state))
+                if not skipEventReporting:
+                    self.reportState(self.stateName(state))
         if eventType == lldb.SBProcess.eBroadcastBitStateChanged: # 1
             state = self.process.GetState()
             if state == lldb.eStateStopped:
@@ -1367,12 +1304,12 @@ class Dumper(DumperBase):
         elif eventType == lldb.SBProcess.eBroadcastBitSTDOUT:
             # FIXME: Size?
             msg = self.process.GetSTDOUT(1024)
-            self.report('output={channel="stdout",data="%s"}'
-                % self.hexencode(msg))
+            if msg is not None:
+                self.report('output={channel="stdout",data="%s"}' % self.hexencode(msg))
         elif eventType == lldb.SBProcess.eBroadcastBitSTDERR:
             msg = self.process.GetSTDERR(1024)
-            self.report('output={channel="stderr",data="%s"}'
-                % self.hexencode(msg))
+            if msg is not None:
+                self.report('output={channel="stderr",data="%s"}' % self.hexencode(msg))
         elif eventType == lldb.SBProcess.eBroadcastBitProfileData:
             pass
 
@@ -1382,58 +1319,60 @@ class Dumper(DumperBase):
             result  = 'lldbid="%s"' % (qqWatchpointOffset + bp.GetID())
         else:
             result  = 'lldbid="%s"' % bp.GetID()
-        if not bp.IsValid():
-            return
+        result += ',valid="%s"' % (1 if bp.IsValid() else 0)
         result += ',hitcount="%s"' % bp.GetHitCount()
-        result += ',threadid="%s"' % bp.GetThreadID()
-        result += ',oneshot="%s"' % (1 if bp.IsOneShot() else 0)
+        if bp.IsValid():
+            if isinstance(bp, lldb.SBBreakpoint):
+                result += ',threadid="%s"' % bp.GetThreadID()
+                result += ',oneshot="%s"' % (1 if bp.IsOneShot() else 0)
         cond = bp.GetCondition()
         result += ',condition="%s"' % self.hexencode("" if cond is None else cond)
         result += ',enabled="%s"' % (1 if bp.IsEnabled() else 0)
         result += ',valid="%s"' % (1 if bp.IsValid() else 0)
         result += ',ignorecount="%s"' % bp.GetIgnoreCount()
-        result += ',locations=['
-        lineEntry = None
-        for i in xrange(bp.GetNumLocations()):
-            loc = bp.GetLocationAtIndex(i)
-            addr = loc.GetAddress()
-            lineEntry = addr.GetLineEntry()
-            result += '{locid="%s"' % loc.GetID()
-            result += ',function="%s"' % addr.GetFunction().GetName()
-            result += ',enabled="%s"' % (1 if loc.IsEnabled() else 0)
-            result += ',resolved="%s"' % (1 if loc.IsResolved() else 0)
-            result += ',valid="%s"' % (1 if loc.IsValid() else 0)
-            result += ',ignorecount="%s"' % loc.GetIgnoreCount()
-            result += ',file="%s"' % lineEntry.GetFileSpec()
-            result += ',line="%s"' % lineEntry.GetLine()
-            result += ',addr="%s"},' % addr.GetFileAddress()
-        result += ']'
-        if lineEntry is not None:
-            result += ',file="%s"' % lineEntry.GetFileSpec()
-            result += ',line="%s"' % lineEntry.GetLine()
+        if bp.IsValid() and isinstance(bp, lldb.SBBreakpoint):
+            result += ',locations=['
+            lineEntry = None
+            for i in xrange(bp.GetNumLocations()):
+                loc = bp.GetLocationAtIndex(i)
+                addr = loc.GetAddress()
+                lineEntry = addr.GetLineEntry()
+                result += '{locid="%s"' % loc.GetID()
+                result += ',function="%s"' % addr.GetFunction().GetName()
+                result += ',enabled="%s"' % (1 if loc.IsEnabled() else 0)
+                result += ',resolved="%s"' % (1 if loc.IsResolved() else 0)
+                result += ',valid="%s"' % (1 if loc.IsValid() else 0)
+                result += ',ignorecount="%s"' % loc.GetIgnoreCount()
+                result += ',file="%s"' % lineEntry.GetFileSpec()
+                result += ',line="%s"' % lineEntry.GetLine()
+                result += ',addr="%s"},' % addr.GetFileAddress()
+            result += ']'
+            if lineEntry is not None:
+                result += ',file="%s"' % lineEntry.GetFileSpec()
+                result += ',line="%s"' % lineEntry.GetLine()
         return result
 
     def createBreakpointAtMain(self):
         return self.target.BreakpointCreateByName(
-            "main", self.target.GetExecutable().GetFilename())
+            'main', self.target.GetExecutable().GetFilename())
 
     def insertBreakpoint(self, args):
-        bpType = args["type"]
+        bpType = args['type']
         if bpType == BreakpointByFileAndLine:
-            fileName = args["file"]
-            if fileName.endswith(".js") or fileName.endswith(".qml"):
-                self.doInsertInterpreterBreakpoint(args, False)
+            fileName = args['file']
+            if fileName.endswith('.js') or fileName.endswith('.qml'):
+                self.insertInterpreterBreakpoint(args)
                 return
 
         extra = ''
         more = True
         if bpType == BreakpointByFileAndLine:
             bp = self.target.BreakpointCreateByLocation(
-                str(args["file"]), int(args["line"]))
+                str(args['file']), int(args['line']))
         elif bpType == BreakpointByFunction:
-            bp = self.target.BreakpointCreateByName(args["function"])
+            bp = self.target.BreakpointCreateByName(args['function'])
         elif bpType == BreakpointByAddress:
-            bp = self.target.BreakpointCreateByAddress(args["address"])
+            bp = self.target.BreakpointCreateByAddress(args['address'])
         elif bpType == BreakpointAtMain:
             bp = self.createBreakpointAtMain()
         elif bpType == BreakpointAtThrow:
@@ -1444,14 +1383,15 @@ class Dumper(DumperBase):
                 lldb.eLanguageTypeC_plus_plus, True, False)
         elif bpType == WatchpointAtAddress:
             error = lldb.SBError()
-            bp = self.target.WatchAddress(args["address"], 4, False, True, error)
-            #warn("BPNEW: %s" % bp)
+            # This might yield bp.IsValid() == False and
+            # error.desc == 'process is not alive'.
+            bp = self.target.WatchAddress(args['address'], 4, False, True, error)
             extra = self.describeError(error)
         elif bpType == WatchpointAtExpression:
             # FIXME: Top level-only for now.
             try:
                 frame = self.currentFrame()
-                value = frame.FindVariable(args["expression"])
+                value = frame.FindVariable(args['expression'])
                 error = lldb.SBError()
                 bp = self.target.WatchAddress(value.GetLoadAddress(),
                     value.GetByteSize(), False, True, error)
@@ -1459,27 +1399,45 @@ class Dumper(DumperBase):
                 bp = self.target.BreakpointCreateByName(None)
         else:
             # This leaves the unhandled breakpoint in a (harmless)
-            # "pending" state.
+            # 'pending' state.
             bp = self.target.BreakpointCreateByName(None)
             more = False
 
-        if more:
-            bp.SetIgnoreCount(int(args["ignorecount"]))
-            bp.SetCondition(self.hexdecode(args["condition"]))
-            bp.SetEnabled(bool(args["enabled"]))
-            bp.SetOneShot(bool(args["oneshot"]))
+        if more and bp.IsValid():
+            bp.SetIgnoreCount(int(args['ignorecount']))
+            bp.SetCondition(self.hexdecode(args['condition']))
+            bp.SetEnabled(bool(args['enabled']))
+            bp.SetScriptCallbackBody('\n'.join([
+                'def foo(frame = frame, bp_loc = bp_loc, dict = internal_dict):',
+                '  ' + self.hexdecode(args['command']).replace('\n', '\n  '),
+                'from cStringIO import StringIO',
+                'origout = sys.stdout',
+                'sys.stdout = StringIO()',
+                'result = foo()',
+                'd = lldb.theDumper',
+                'output = d.hexencode(sys.stdout.getvalue())',
+                'sys.stdout = origout',
+                'd.report("output={channel=\"stderr\",data=\" + output + \"}")',
+                'if result is False:',
+                '  d.reportState("continueafternextstop")',
+                'return True'
+            ]))
+            if isinstance(bp, lldb.SBBreakpoint):
+                bp.SetOneShot(bool(args['oneshot']))
         self.reportResult(self.describeBreakpoint(bp) + extra, args)
 
     def changeBreakpoint(self, args):
-        lldbId = int(args["lldbid"])
+        lldbId = int(args['lldbid'])
         if lldbId > qqWatchpointOffset:
             bp = self.target.FindWatchpointByID(lldbId)
         else:
             bp = self.target.FindBreakpointByID(lldbId)
-        bp.SetIgnoreCount(int(args["ignorecount"]))
-        bp.SetCondition(self.hexdecode(args["condition"]))
-        bp.SetEnabled(bool(args["enabled"]))
-        bp.SetOneShot(bool(args["oneshot"]))
+        if bp.IsValid():
+            bp.SetIgnoreCount(int(args['ignorecount']))
+            bp.SetCondition(self.hexdecode(args['condition']))
+            bp.SetEnabled(bool(args['enabled']))
+            if isinstance(bp, lldb.SBBreakpoint):
+                bp.SetOneShot(bool(args['oneshot']))
         self.reportResult(self.describeBreakpoint(bp), args)
 
     def removeBreakpoint(self, args):
@@ -1545,16 +1503,16 @@ class Dumper(DumperBase):
     def shutdownInferior(self, args):
         self.isShuttingDown_ = True
         if self.process is None:
-            self.reportState("inferiorshutdownok")
+            self.reportState('inferiorshutdownok')
         else:
             state = self.process.GetState()
             if state == lldb.eStateStopped:
                 self.process.Kill()
-            self.reportState("inferiorshutdownok")
+            self.reportState('inferiorshutdownok')
         self.reportResult('', args)
 
     def quit(self, args):
-        self.reportState("engineshutdownok")
+        self.reportState('engineshutdownok')
         self.process.Kill()
         self.reportResult('', args)
 
@@ -1575,7 +1533,7 @@ class Dumper(DumperBase):
             bp = self.target.BreakpointCreateByAddress(addr)
             if bp.GetNumLocations() == 0:
                 self.target.BreakpointDelete(bp.GetID())
-                self.reportResult(self.describeStatus("No target location found.")
+                self.reportResult(self.describeStatus('No target location found.')
                     + self.describeLocation(frame), args)
                 return
             bp.SetOneShot(True)
@@ -1587,14 +1545,14 @@ class Dumper(DumperBase):
             line = int(args['line'])
             error = self.currentThread().StepOverUntil(frame, lldb.SBFileSpec(file), line)
             self.reportResult(self.describeError(error), args)
-            self.reportState("running")
-            self.reportState("stopped")
+            self.reportState('running')
+            self.reportState('stopped')
 
     def executeJumpToLocation(self, args):
         self.reportToken(args)
         frame = self.currentFrame()
         if not frame:
-            self.reportResult(self.describeStatus("No frame available."), args)
+            self.reportResult(self.describeStatus('No frame available.'), args)
             return
         addr = args.get('address', 0)
         if addr:
@@ -1604,17 +1562,17 @@ class Dumper(DumperBase):
                         str(args['file']), int(args['line']))
         if bp.GetNumLocations() == 0:
             self.target.BreakpointDelete(bp.GetID())
-            status = "No target location found."
+            status = 'No target location found.'
         else:
             loc = bp.GetLocationAtIndex(0)
             self.target.BreakpointDelete(bp.GetID())
             res = frame.SetPC(loc.GetLoadAddress())
-            status = "Jumped." if res else "Cannot jump."
+            status = 'Jumped.' if res else 'Cannot jump.'
         self.reportResult(self.describeStatus(status) + self.describeLocation(frame), args)
 
     def breakList(self):
         result = lldb.SBCommandReturnObject()
-        self.debugger.GetCommandInterpreter().HandleCommand("break list", result)
+        self.debugger.GetCommandInterpreter().HandleCommand('break list', result)
         self.report('success="%d",output="%s",error="%s"'
             % (result.Succeeded(), result.GetOutput(), result.GetError()))
 
@@ -1630,12 +1588,13 @@ class Dumper(DumperBase):
         self.reportResult('', args)
 
     def fetchFullBacktrace(self, _ = None):
-        command = "thread backtrace all"
+        command = 'thread backtrace all'
         result = lldb.SBCommandReturnObject()
         self.debugger.GetCommandInterpreter().HandleCommand(command, result)
         self.reportResult(self.hexencode(result.GetOutput()), {})
 
     def executeDebuggerCommand(self, args):
+        self.debuggerCommandInProgress = True
         self.reportToken(args)
         result = lldb.SBCommandReturnObject()
         command = args['command']
@@ -1644,19 +1603,7 @@ class Dumper(DumperBase):
         output = result.GetOutput()
         error = str(result.GetError())
         self.report('success="%d",output="%s",error="%s"' % (success, output, error))
-
-    def fetchLocals(self, args):
-        self.output = ''
-        self.expandedINames = set(args.get('expanded', []))
-        self.autoDerefPointers = int(args.get('autoderef', '0'))
-        self.sortStructMembers = bool(args.get("sortStructMembers", True));
-        self.useDynamicType = int(args.get('dyntype', '0'))
-        self.useFancy = int(args.get('fancy', '0'))
-        self.passExceptions = int(args.get('passexceptions', '0'))
-        self.currentWatchers = args.get('watchers', {})
-        self.typeformats = args.get("typeformats", {})
-        self.formats = args.get("formats", {})
-        self.reportVariables(args)
+        self.debuggerCommandInProgress = False
 
     def fetchDisassembler(self, args):
         functionName = args.get('function', '')
@@ -1672,7 +1619,7 @@ class Dumper(DumperBase):
         else:
             base = args.get('address', 0)
             if int(base) == 0xffffffffffffffff:
-                warn("INVALID DISASSEMBLER BASE")
+                warn('INVALID DISASSEMBLER BASE')
                 return
             addr = lldb.SBAddress(base, self.target)
             instructions = self.target.ReadInstructions(addr, 100)
@@ -1693,14 +1640,21 @@ class Dumper(DumperBase):
                 if lineNumber != currentLine or fileName != currentFile:
                     currentLine = lineNumber
                     currentFile = fileName
-                    key = "%s:%s" % (fileName, lineNumber)
+                    key = '%s:%s' % (fileName, lineNumber)
                     hunk = hunks.get(key, 0) + 1
                     hunks[key] = hunk
                     source = sources.get(fileName, None)
                     if source is None:
-                        with open(fileName, 'r') as f:
-                            source = f.read().splitlines()
-                            sources[fileName] = source
+                        try:
+                            with open(fileName, 'r') as f:
+                                source = f.read().splitlines()
+                                sources[fileName] = source
+                        except IOError as error:
+                            # With lldb-3.8 files like /data/dev/creator-3.6/tests/
+                            # auto/debugger/qt_tst_dumpers_StdVector_bfNWZa/main.cpp
+                            # with non-existent directories appear.
+                            warn('FILE: %s  ERROR: %s' % (fileName, error))
+                            source = ''
                     result += '{line="%s"' % lineNumber
                     result += ',file="%s"' % fileName
                     if 0 < lineNumber and lineNumber <= len(source):
@@ -1710,16 +1664,12 @@ class Dumper(DumperBase):
             result += ',data="%s %s"' % (insn.GetMnemonic(self.target),
                 insn.GetOperands(self.target))
             result += ',function="%s"' % functionName
-            rawData = insn.GetData(lldb.target).uint8s
+            rawData = insn.GetData(self.target).uint8s
             result += ',rawdata="%s"' % ' '.join(["%02x" % x for x in rawData])
             if comment:
-                result += ',comment="%s"' % comment
+                result += ',comment="%s"' % self.hexencode(comment)
             result += ',offset="%s"}' % (loadAddr - base)
         self.reportResult(result + ']', args)
-
-    def loadDumpers(self, args):
-        msg = self.setupDumpers()
-        self.reportResult(msg, args)
 
     def fetchMemory(self, args):
         address = args['address']
@@ -1744,45 +1694,47 @@ class Dumper(DumperBase):
         value = self.hexdecode(args['value'])
         lhs = self.findValueByExpression(exp)
         lhs.SetValueFromCString(value, error)
-        self.reportResult(describeError(error), args)
+        self.reportResult(self.describeError(error), args)
+
+    def watchPoint(self, args):
+        self.reportToken(args)
+        ns = self.qtNamespace()
+        lenns = len(ns)
+        funcs = self.target.FindGlobalFunctions('.*QApplication::widgetAt', 2, 1)
+        func = funcs[1]
+        addr = func.GetFunction().GetStartAddress().GetLoadAddress(self.target)
+        expr = '((void*(*)(int,int))0x%x)' % addr
+        #expr = '%sQApplication::widgetAt(%s,%s)' % (ns, args['x'], args['y'])
+        res = self.parseAndEvaluate(expr)
+        p = 0 if res is None else res.pointer()
+        n = ns + 'QWidget'
+        self.reportResult('selected="0x%x",expr="(%s*)0x%x"' % (p, n, p), args)
 
     def createResolvePendingBreakpointsHookBreakpoint(self, args):
-        if self.qmlTriggeredBreakpoint is None:
-            self.qmlTriggeredBreakpoint = \
-                self.target.BreakpointCreateByName("qt_v4TriggeredBreakpointHook")
-
-        bp = self.target.BreakpointCreateByName("qt_v4ResolvePendingBreakpointsHook")
+        bp = self.target.BreakpointCreateByName('qt_qmlDebugConnectorOpen')
         bp.SetOneShot(True)
-        self.qmlBreakpointResolvers[bp] = lambda: \
-            self.doInsertQmlBreakpoint(args)
+        self.interpreterBreakpointResolvers.append(
+            lambda: self.resolvePendingInterpreterBreakpoint(args))
 
 
 # Used in dumper auto test.
 class Tester(Dumper):
-    def __init__(self, binary, expandedINames):
+    def __init__(self, binary, args):
         Dumper.__init__(self)
         lldb.theDumper = self
-
-        self.expandedINames = set(expandedINames)
-        self.passExceptions = True
-        self.sortStructMembers = True
-
         self.loadDumpers({'token': 1})
         error = lldb.SBError()
         self.target = self.debugger.CreateTarget(binary, None, None, True, error)
 
         if error.GetType():
-            warn("ERROR: %s" % error)
+            warn('ERROR: %s' % error)
             return
 
-        s = threading.Thread(target=self.testLoop, args=[])
+        s = threading.Thread(target=self.testLoop, args=(args,))
         s.start()
         s.join(30)
 
-    def reportDumpers(self, msg):
-        pass
-
-    def testLoop(self):
+    def testLoop(self, args):
         # Disable intermediate reporting.
         savedReport = self.report
         self.report = lambda stuff: 0
@@ -1790,19 +1742,19 @@ class Tester(Dumper):
         error = lldb.SBError()
         launchInfo = lldb.SBLaunchInfo([])
         launchInfo.SetWorkingDirectory(os.getcwd())
-        environmentList = [key + "=" + value for key,value in os.environ.items()]
+        environmentList = [key + '=' + value for key,value in os.environ.items()]
         launchInfo.SetEnvironmentEntries(environmentList, False)
 
         self.process = self.target.Launch(launchInfo, error)
         if error.GetType():
-            warn("ERROR: %s" % error)
+            warn('ERROR: %s' % error)
 
         event = lldb.SBEvent()
         listener = self.debugger.GetListener()
         while True:
             state = self.process.GetState()
             if listener.WaitForEvent(100, event):
-                #warn("EVENT: %s" % event)
+                #warn('EVENT: %s' % event)
                 state = lldb.SBProcess.GetStateFromEvent(event)
                 if state == lldb.eStateExited: # 10
                     break
@@ -1811,29 +1763,29 @@ class Tester(Dumper):
                     for i in xrange(0, self.process.GetNumThreads()):
                         thread = self.process.GetThreadAtIndex(i)
                         reason = thread.GetStopReason()
-                        #warn("THREAD: %s REASON: %s" % (thread, reason))
+                        #warn('THREAD: %s REASON: %s' % (thread, reason))
                         if (reason == lldb.eStopReasonBreakpoint or
                                 reason == lldb.eStopReasonException or
                                 reason == lldb.eStopReasonSignal):
                             stoppedThread = thread
 
                     if stoppedThread:
-                        # This seems highly fragile and depending on the "No-ops" in the
+                        # This seems highly fragile and depending on the 'No-ops' in the
                         # event handling above.
                         frame = stoppedThread.GetFrameAtIndex(0)
                         line = frame.line_entry.line
                         if line != 0:
                             self.report = savedReport
                             self.process.SetSelectedThread(stoppedThread)
-                            self.reportVariables({'token':2})
+                            self.fetchVariables(args)
                             #self.describeLocation(frame)
-                            self.report("@NS@%s@" % self.qtNamespace())
-                            #self.report("ENV=%s" % os.environ.items())
-                            #self.report("DUMPER=%s" % self.qqDumpers)
+                            self.report('@NS@%s@' % self.qtNamespace())
+                            #self.report('ENV=%s' % os.environ.items())
+                            #self.report('DUMPER=%s' % self.qqDumpers)
                             break
 
             else:
                 warn('TIMEOUT')
-                warn("Cannot determined stopped thread")
+                warn('Cannot determined stopped thread')
 
         lldb.SBDebugger.Destroy(self.debugger)

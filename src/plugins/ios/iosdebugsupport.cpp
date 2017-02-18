@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -117,7 +112,7 @@ RunControl *IosDebugSupport::createDebugRunControl(IosRunConfiguration *runConfi
     bool cppDebug = aspect->useCppDebugger();
     bool qmlDebug = aspect->useQmlDebugger();
     if (cppDebug) {
-        params.executable = runConfig->localExecutable().toString();
+        params.inferior.executable = runConfig->localExecutable().toString();
         params.remoteChannel = QLatin1String("connect://localhost:0");
 
         Utils::FileName xcodeInfo = IosConfigurations::developerPath().parentDir()
@@ -148,8 +143,14 @@ RunControl *IosDebugSupport::createDebugRunControl(IosRunConfiguration *runConfi
                              ProjectExplorer::Constants::TASK_CATEGORY_DEPLOYMENT);
         }
     }
-    if (qmlDebug && !cppDebug) {
-        params.startMode = AttachToRemoteServer;
+
+    if (qmlDebug) {
+        QTcpServer server;
+        QTC_ASSERT(server.listen(QHostAddress::LocalHost)
+                   || server.listen(QHostAddress::LocalHostIPv6), return 0);
+        params.qmlServer.host = server.serverAddress().toString();
+        if (!cppDebug)
+            params.startMode = AttachToRemoteServer;
     }
 
     DebuggerRunControl *debuggerRunControl = createDebuggerRunControl(params, runConfig, errorMessage);
@@ -186,18 +187,19 @@ IosDebugSupport::~IosDebugSupport()
 {
 }
 
-void IosDebugSupport::handleServerPorts(int gdbServerPort, int qmlPort)
+void IosDebugSupport::handleServerPorts(Utils::Port gdbServerPort, Utils::Port qmlPort)
 {
     RemoteSetupResult result;
     result.gdbServerPort = gdbServerPort;
     result.qmlServerPort = qmlPort;
-    result.success = gdbServerPort > 0 || (m_runner && !m_runner->cppDebug() && qmlPort > 0);
+    result.success = gdbServerPort.isValid()
+            || (m_runner && !m_runner->cppDebug() && qmlPort.isValid());
     if (!result.success)
         result.reason =  tr("Could not get debug server file descriptor.");
     m_runControl->notifyEngineRemoteSetupFinished(result);
 }
 
-void IosDebugSupport::handleGotInferiorPid(qint64 pid, int qmlPort)
+void IosDebugSupport::handleGotInferiorPid(qint64 pid, Utils::Port qmlPort)
 {
     RemoteSetupResult result;
     result.qmlServerPort = qmlPort;

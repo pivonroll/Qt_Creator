@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -56,13 +51,11 @@ const char GENERIC_BC_ID[] = "GenericProjectManager.GenericBuildConfiguration";
 
 GenericBuildConfiguration::GenericBuildConfiguration(Target *parent)
     : BuildConfiguration(parent, Core::Id(GENERIC_BC_ID))
-{
-}
+{ }
 
 GenericBuildConfiguration::GenericBuildConfiguration(Target *parent, Core::Id id)
     : BuildConfiguration(parent, id)
-{
-}
+{ }
 
 GenericBuildConfiguration::GenericBuildConfiguration(Target *parent, GenericBuildConfiguration *source) :
     BuildConfiguration(parent, source)
@@ -125,7 +118,7 @@ BuildConfiguration *GenericBuildConfigurationFactory::create(Target *parent, con
     QTC_ASSERT(info->kitId == parent->kit()->id(), return 0);
     QTC_ASSERT(!info->displayName.isEmpty(), return 0);
 
-    GenericBuildConfiguration *bc = new GenericBuildConfiguration(parent);
+    auto bc = new GenericBuildConfiguration(parent);
     bc->setDisplayName(info->displayName);
     bc->setDefaultDisplayName(info->displayName);
     bc->setBuildDirectory(info->buildDirectory);
@@ -134,14 +127,14 @@ BuildConfiguration *GenericBuildConfigurationFactory::create(Target *parent, con
     BuildStepList *cleanSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_CLEAN);
 
     Q_ASSERT(buildSteps);
-    GenericMakeStep *makeStep = new GenericMakeStep(buildSteps);
+    auto makeStep = new GenericMakeStep(buildSteps);
     buildSteps->insertStep(0, makeStep);
-    makeStep->setBuildTarget(QLatin1String("all"), /* on = */ true);
+    makeStep->setBuildTarget("all", /* on = */ true);
 
     Q_ASSERT(cleanSteps);
-    GenericMakeStep *cleanMakeStep = new GenericMakeStep(cleanSteps);
+    auto cleanMakeStep = new GenericMakeStep(cleanSteps);
     cleanSteps->insertStep(0, cleanMakeStep);
-    cleanMakeStep->setBuildTarget(QLatin1String("clean"), /* on = */ true);
+    cleanMakeStep->setBuildTarget("clean", /* on = */ true);
     cleanMakeStep->setClean(true);
 
     return bc;
@@ -172,7 +165,7 @@ BuildConfiguration *GenericBuildConfigurationFactory::restore(Target *parent, co
 {
     if (!canRestore(parent, map))
         return 0;
-    GenericBuildConfiguration *bc(new GenericBuildConfiguration(parent));
+    auto bc = new GenericBuildConfiguration(parent);
     if (bc->fromMap(map))
         return bc;
     delete bc;
@@ -189,7 +182,7 @@ bool GenericBuildConfigurationFactory::canHandle(const Target *t) const
 BuildInfo *GenericBuildConfigurationFactory::createBuildInfo(const Kit *k,
                                                              const Utils::FileName &buildDir) const
 {
-    BuildInfo *info = new BuildInfo(this);
+    auto info = new BuildInfo(this);
     info->typeName = tr("Build");
     info->buildDirectory = buildDir;
     info->kitId = k->id();
@@ -208,13 +201,13 @@ BuildConfiguration::BuildType GenericBuildConfiguration::buildType() const
 GenericBuildSettingsWidget::GenericBuildSettingsWidget(GenericBuildConfiguration *bc)
     : m_buildConfiguration(0)
 {
-    QFormLayout *fl = new QFormLayout(this);
+    auto fl = new QFormLayout(this);
     fl->setContentsMargins(0, -1, 0, -1);
     fl->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
     // build directory
     m_pathChooser = new Utils::PathChooser(this);
-    m_pathChooser->setHistoryCompleter(QLatin1String("Generic.BuildDir.History"));
+    m_pathChooser->setHistoryCompleter("Generic.BuildDir.History");
     m_pathChooser->setEnabled(true);
     fl->addRow(tr("Build directory:"), m_pathChooser);
     connect(m_pathChooser, &Utils::PathChooser::rawPathChanged,

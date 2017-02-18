@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -56,7 +51,7 @@ GeneralSettings::GeneralSettings()
     setDisplayName(tr("Interface"));
     setCategory(Constants::SETTINGS_CATEGORY_CORE);
     setDisplayCategory(QCoreApplication::translate("Core", Constants::SETTINGS_TR_CATEGORY_CORE));
-    setCategoryIcon(QLatin1String(Constants::SETTINGS_CATEGORY_CORE_ICON));
+    setCategoryIcon(Utils::Icon(Constants::SETTINGS_CATEGORY_CORE_ICON));
 }
 
 static bool hasQmFilesForLocale(const QString &locale, const QString &creatorTrPath)
@@ -108,10 +103,10 @@ QWidget *GeneralSettings::widget()
         m_page->colorButton->setColor(StyleHelper::requestedBaseColor());
         m_page->resetWarningsButton->setEnabled(canResetWarnings());
 
-        connect(m_page->resetColorButton, SIGNAL(clicked()),
-                this, SLOT(resetInterfaceColor()));
-        connect(m_page->resetWarningsButton, SIGNAL(clicked()),
-                this, SLOT(resetWarnings()));
+        connect(m_page->resetColorButton, &QAbstractButton::clicked,
+                this, &GeneralSettings::resetInterfaceColor);
+        connect(m_page->resetWarningsButton, &QAbstractButton::clicked,
+                this, &GeneralSettings::resetWarnings);
     }
     return m_widget;
 }
@@ -124,7 +119,7 @@ void GeneralSettings::apply()
     setLanguage(m_page->languageBox->itemData(currentIndex, Qt::UserRole).toString());
     // Apply the new base color if accepted
     StyleHelper::setBaseColor(m_page->colorButton->color());
-    m_page->themeWidget->apply();
+    m_page->themeChooser->apply();
 }
 
 void GeneralSettings::finish()
@@ -168,7 +163,7 @@ void GeneralSettings::setLanguage(const QString &locale)
 {
     QSettings *settings = ICore::settings();
     if (settings->value(QLatin1String("General/OverrideLanguage")).toString() != locale)
-        QMessageBox::information(ICore::mainWindow(), tr("Restart required"),
+        QMessageBox::information(ICore::mainWindow(), tr("Restart Required"),
                                  tr("The language change will take effect after a restart of Qt Creator."));
 
     if (locale.isEmpty())

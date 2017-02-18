@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -43,6 +38,8 @@
 #include <QHelpEngine>
 #include <QKeyEvent>
 #include <QMenu>
+#include <QScrollBar>
+#include <QTimer>
 #include <QToolTip>
 #include <QVBoxLayout>
 
@@ -55,6 +52,7 @@ TextBrowserHelpViewer::TextBrowserHelpViewer(QWidget *parent)
     : HelpViewer(parent)
     , m_textBrowser(new TextBrowserHelpWidget(this))
 {
+    m_textBrowser->setOpenLinks(false);
     QVBoxLayout *layout = new QVBoxLayout;
     setLayout(layout);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -68,9 +66,11 @@ TextBrowserHelpViewer::TextBrowserHelpViewer(QWidget *parent)
     p.setColor(QPalette::Text, Qt::black);
     setPalette(p);
 
-    connect(m_textBrowser, SIGNAL(sourceChanged(QUrl)), this, SIGNAL(titleChanged()));
-    connect(m_textBrowser, SIGNAL(forwardAvailable(bool)), this, SIGNAL(forwardAvailable(bool)));
-    connect(m_textBrowser, SIGNAL(backwardAvailable(bool)), this, SIGNAL(backwardAvailable(bool)));
+    connect(m_textBrowser, &TextBrowserHelpWidget::anchorClicked,
+            this, &TextBrowserHelpViewer::setSource);
+    connect(m_textBrowser, &QTextBrowser::sourceChanged, this, &HelpViewer::titleChanged);
+    connect(m_textBrowser, &QTextBrowser::forwardAvailable, this, &HelpViewer::forwardAvailable);
+    connect(m_textBrowser, &QTextBrowser::backwardAvailable, this, &HelpViewer::backwardAvailable);
 }
 
 TextBrowserHelpViewer::~TextBrowserHelpViewer()
@@ -147,12 +147,13 @@ void TextBrowserHelpViewer::setSource(const QUrl &url)
 
     slotLoadStarted();
     m_textBrowser->setSource(url);
-    slotLoadFinished();
-}
-
-void TextBrowserHelpViewer::scrollToAnchor(const QString &anchor)
-{
-    m_textBrowser->scrollToAnchor(anchor);
+    QTimer::singleShot(0, this, [this, url]() {
+        if (!url.fragment().isEmpty())
+            m_textBrowser->scrollToAnchor(url.fragment());
+        if (QScrollBar *hScrollBar = m_textBrowser->horizontalScrollBar())
+            hScrollBar->setValue(0);
+        slotLoadFinished();
+    });
 }
 
 void TextBrowserHelpViewer::setHtml(const QString &html)
@@ -195,11 +196,6 @@ void TextBrowserHelpViewer::addForwardHistoryItems(QMenu *forwardMenu)
         connect(action, &QAction::triggered, this, &TextBrowserHelpViewer::goToHistoryItem);
         forwardMenu->addAction(action);
     }
-}
-
-void TextBrowserHelpViewer::setOpenInNewPageActionVisible(bool visible)
-{
-    m_textBrowser->m_openInNewPageActionVisible = visible;
 }
 
 bool TextBrowserHelpViewer::findText(const QString &text, Core::FindFlags flags,
@@ -255,8 +251,6 @@ bool TextBrowserHelpViewer::findText(const QString &text, Core::FindFlags flags,
     return !cursorIsNull;
 }
 
-// -- public slots
-
 void TextBrowserHelpViewer::copy()
 {
     m_textBrowser->copy();
@@ -268,12 +262,16 @@ void TextBrowserHelpViewer::stop()
 
 void TextBrowserHelpViewer::forward()
 {
+    slotLoadStarted();
     m_textBrowser->forward();
+    slotLoadFinished();
 }
 
 void TextBrowserHelpViewer::backward()
 {
+    slotLoadStarted();
     m_textBrowser->backward();
+    slotLoadFinished();
 }
 
 void TextBrowserHelpViewer::print(QPrinter *printer)
@@ -306,7 +304,6 @@ TextBrowserHelpWidget::TextBrowserHelpWidget(TextBrowserHelpViewer *parent)
     : QTextBrowser(parent)
     , zoomCount(0)
     , forceFont(false)
-    , m_openInNewPageActionVisible(true)
     , m_parent(parent)
 {
     installEventFilter(this);
@@ -315,7 +312,7 @@ TextBrowserHelpWidget::TextBrowserHelpWidget(TextBrowserHelpViewer *parent)
 
 QVariant TextBrowserHelpWidget::loadResource(int type, const QUrl &name)
 {
-    if (type < 4)
+    if (type < QTextDocument::UserResource)
         return LocalHelpManager::helpData(name).data;
     return QByteArray();
 }
@@ -333,16 +330,6 @@ QString TextBrowserHelpWidget::linkAt(const QPoint &pos)
         anchor = (hsh >= 0 ? src.left(hsh) : src) + anchor;
     }
     return anchor;
-}
-
-void TextBrowserHelpWidget::openLink(const QUrl &url, bool newPage)
-{
-    if (url.isEmpty() || !url.isValid())
-        return;
-    if (newPage)
-        OpenPagesManager::instance().createPage(url);
-    else
-        setSource(url);
 }
 
 void TextBrowserHelpWidget::scaleUp()
@@ -367,27 +354,32 @@ void TextBrowserHelpWidget::scaleDown()
 
 void TextBrowserHelpWidget::contextMenuEvent(QContextMenuEvent *event)
 {
-    QMenu menu(QLatin1String(""), 0);
+    QMenu menu("", 0);
 
     QAction *copyAnchorAction = 0;
     const QUrl link(linkAt(event->pos()));
     if (!link.isEmpty() && link.isValid()) {
         QAction *action = menu.addAction(tr("Open Link"));
         connect(action, &QAction::triggered, this, [this, link]() {
-            openLink(link, false/*newPage*/);
+            setSource(link);
         });
-        if (m_openInNewPageActionVisible) {
-            action = menu.addAction(QCoreApplication::translate("HelpViewer",
-                                                                "Open Link as New Page"));
+        if (m_parent->isActionVisible(HelpViewer::Action::NewPage)) {
+            action = menu.addAction(QCoreApplication::translate("HelpViewer", Constants::TR_OPEN_LINK_AS_NEW_PAGE));
             connect(action, &QAction::triggered, this, [this, link]() {
-                openLink(link, true/*newPage*/);
+                emit m_parent->newPageRequested(link);
+            });
+        }
+        if (m_parent->isActionVisible(HelpViewer::Action::ExternalWindow)) {
+            action = menu.addAction(QCoreApplication::translate("HelpViewer", Constants::TR_OPEN_LINK_IN_WINDOW));
+            connect(action, &QAction::triggered, this, [this, link]() {
+                emit m_parent->externalPageRequested(link);
             });
         }
         copyAnchorAction = menu.addAction(tr("Copy Link"));
     } else if (!textCursor().selectedText().isEmpty()) {
-        menu.addAction(tr("Copy"), this, SLOT(copy()));
+        connect(menu.addAction(tr("Copy")), &QAction::triggered, this, &QTextEdit::copy);
     } else {
-        menu.addAction(tr("Reload"), this, SLOT(reload()));
+        connect(menu.addAction(tr("Reload")), &QAction::triggered, this, &QTextBrowser::reload);
     }
 
     if (copyAnchorAction == menu.exec(event->globalPos()))
@@ -404,7 +396,7 @@ bool TextBrowserHelpWidget::eventFilter(QObject *obj, QEvent *event)
             QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
             if (keyEvent->key() == Qt::Key_Slash) {
                 keyEvent->accept();
-                Core::FindPlugin::instance()->openFindToolBar(Core::FindPlugin::FindForwardDirection);
+                Core::Find::openFindToolBar(Core::Find::FindForwardDirection);
                 return true;
             }
         } else if (event->type() == QEvent::ToolTip) {
@@ -441,9 +433,25 @@ void TextBrowserHelpWidget::mouseReleaseEvent(QMouseEvent *e)
     bool controlPressed = e->modifiers() & Qt::ControlModifier;
     const QString link = linkAt(e->pos());
     if ((controlPressed || e->button() == Qt::MidButton) && link.isEmpty()) {
-        openLink(link, true/*newPage*/);
+        emit m_parent->newPageRequested(QUrl(link));
         return;
     }
 
     QTextBrowser::mouseReleaseEvent(e);
+}
+
+void TextBrowserHelpWidget::setSource(const QUrl &name)
+{
+    QTextBrowser::setSource(name);
+
+    QTextCursor cursor(document());
+    while (!cursor.atEnd()) {
+        QTextBlockFormat fmt = cursor.blockFormat();
+        if (fmt.hasProperty(QTextFormat::LineHeightType) && fmt.lineHeightType() == QTextBlockFormat::FixedHeight) {
+           fmt.setProperty(QTextFormat::LineHeightType, QTextBlockFormat::MinimumHeight);
+           cursor.setBlockFormat(fmt);
+        }
+        if (!cursor.movePosition(QTextCursor::NextBlock))
+            break;
+    }
 }

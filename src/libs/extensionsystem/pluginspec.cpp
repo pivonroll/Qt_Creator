@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,8 @@
 #include "iplugin.h"
 #include "iplugin_p.h"
 #include "pluginmanager.h"
+
+#include <utils/algorithm.h>
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -151,6 +148,24 @@ bool PluginDependency::operator==(const PluginDependency &other) const
     return name == other.name && version == other.version && type == other.type;
 }
 
+static QString typeString(PluginDependency::Type type)
+{
+    switch (type) {
+    case PluginDependency::Optional:
+        return QString(", optional");
+    case PluginDependency::Test:
+        return QString(", test");
+    case PluginDependency::Required:
+    default:
+        return QString();
+    }
+}
+
+QString PluginDependency::toString() const
+{
+    return name + " (" + version + typeString(type) + ")";
+}
+
 /*!
     \internal
 */
@@ -260,6 +275,11 @@ bool PluginSpec::isAvailableForHostPlatform() const
 bool PluginSpec::isRequired() const
 {
     return d->required;
+}
+
+bool PluginSpec::isHiddenByDefault() const
+{
+    return d->hiddenByDefault;
 }
 
 /*!
@@ -451,6 +471,14 @@ QHash<PluginDependency, PluginSpec *> PluginSpec::dependencySpecs() const
     return d->dependencySpecs;
 }
 
+bool PluginSpec::requiresAny(const QSet<PluginSpec *> &plugins) const
+{
+    return Utils::anyOf(d->dependencySpecs.keys(), [this, &plugins](const PluginDependency &dep) {
+        return dep.type == PluginDependency::Required
+               && plugins.contains(d->dependencySpecs.value(dep));
+    });
+}
+
 //==========PluginSpecPrivate==================
 
 namespace {
@@ -459,6 +487,7 @@ namespace {
     const char PLUGIN_VERSION[] = "Version";
     const char PLUGIN_COMPATVERSION[] = "CompatVersion";
     const char PLUGIN_REQUIRED[] = "Required";
+    const char PLUGIN_HIDDEN_BY_DEFAULT[] = "HiddenByDefault";
     const char PLUGIN_EXPERIMENTAL[] = "Experimental";
     const char PLUGIN_DISABLED_BY_DEFAULT[] = "DisabledByDefault";
     const char VENDOR[] = "Vendor";
@@ -484,17 +513,7 @@ namespace {
     \internal
 */
 PluginSpecPrivate::PluginSpecPrivate(PluginSpec *spec)
-    : required(false),
-      experimental(false),
-      enabledByDefault(true),
-      enabledBySettings(true),
-      enabledIndirectly(false),
-      forceEnabled(false),
-      forceDisabled(false),
-      plugin(0),
-      state(PluginSpec::Invalid),
-      hasError(false),
-      q(spec)
+    : q(spec)
 {
 }
 
@@ -678,6 +697,12 @@ bool PluginSpecPrivate::readMetaData(const QJsonObject &metaData)
         return reportError(msgValueIsNotABool(PLUGIN_REQUIRED));
     required = value.toBool(false);
     qCDebug(pluginLog) << "required =" << required;
+
+    value = pluginInfo.value(QLatin1String(PLUGIN_HIDDEN_BY_DEFAULT));
+    if (!value.isUndefined() && !value.isBool())
+        return reportError(msgValueIsNotABool(PLUGIN_HIDDEN_BY_DEFAULT));
+    hiddenByDefault = value.toBool(false);
+    qCDebug(pluginLog) << "hiddenByDefault =" << hiddenByDefault;
 
     value = pluginInfo.value(QLatin1String(PLUGIN_EXPERIMENTAL));
     if (!value.isUndefined() && !value.isBool())
@@ -882,14 +907,9 @@ bool PluginSpecPrivate::resolveDependencies(const QList<PluginSpec *> &specs)
     }
     QHash<PluginDependency, PluginSpec *> resolvedDependencies;
     foreach (const PluginDependency &dependency, dependencies) {
-        PluginSpec *found = 0;
-
-        foreach (PluginSpec *spec, specs) {
-            if (spec->provides(dependency.name, dependency.version)) {
-                found = spec;
-                break;
-            }
-        }
+        PluginSpec * const found = Utils::findOrDefault(specs, [&dependency](PluginSpec *spec) {
+            return spec->provides(dependency.name, dependency.version);
+        });
         if (!found) {
             if (dependency.type == PluginDependency::Required) {
                 hasError = true;

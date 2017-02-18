@@ -6,7 +6,9 @@ HEADERS += $$PWD/qmldesignerconstants.h \
     $$PWD/settingspage.h \
     $$PWD/designmodecontext.h \
     $$PWD/documentmanager.h \
-    $$PWD/styledoutputpaneplaceholder.h
+    $$PWD/documentwarningwidget.h \
+    $$PWD/qmldesignericons.h \
+    $$PWD/openuiqmlfiledialog.h
 
 SOURCES += $$PWD/qmldesignerplugin.cpp \
     $$PWD/shortcutmanager.cpp \
@@ -15,6 +17,8 @@ SOURCES += $$PWD/qmldesignerplugin.cpp \
     $$PWD/settingspage.cpp \
     $$PWD/designmodecontext.cpp \
     $$PWD/documentmanager.cpp \
-    $$PWD/styledoutputpaneplaceholder.cpp
+    $$PWD/documentwarningwidget.cpp \
+    $$PWD/openuiqmlfiledialog.cpp
 
-FORMS += $$PWD/settingspage.ui
+FORMS += $$PWD/settingspage.ui \
+    $$PWD/openuiqmlfiledialog.ui

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,9 +32,19 @@
 
 #include <QTextBlock>
 #include <QPlainTextEdit>
+#include <QRegularExpression>
 #include <QTextCursor>
 
 namespace Core {
+
+static QRegularExpression regularExpression(const QString &txt, FindFlags flags)
+{
+    return QRegularExpression(
+                (flags & FindRegularExpression) ? txt
+                                                : QRegularExpression::escape(txt),
+                (flags & FindCaseSensitively) ? QRegularExpression::NoPatternOption
+                                              : QRegularExpression::CaseInsensitiveOption);
+}
 
 struct BaseTextFindPrivate
 {
@@ -210,26 +215,45 @@ void BaseTextFind::replace(const QString &before, const QString &after, FindFlag
     setTextCursor(cursor);
 }
 
+// QTextCursor::insert moves all other QTextCursors that are the the insertion point forward.
+// We do not want that for the replace operation, because then e.g. the find scope would move when
+// replacing a match at the start.
+static void insertTextAfterSelection(const QString &text, QTextCursor &cursor)
+{
+    // first insert after the cursor's selection end, then remove selection
+    int start = cursor.selectionStart();
+    int end = cursor.selectionEnd();
+    QTextCursor insertCursor = cursor;
+    insertCursor.beginEditBlock();
+    insertCursor.setPosition(end);
+    insertCursor.insertText(text);
+    // change cursor to be behind the inserted text, like it would be when directly inserting
+    cursor = insertCursor;
+    // redo the selection, because that changed when inserting the text at the end...
+    insertCursor.setPosition(start);
+    insertCursor.setPosition(end, QTextCursor::KeepAnchor);
+    insertCursor.removeSelectedText();
+    insertCursor.endEditBlock();
+}
+
 QTextCursor BaseTextFind::replaceInternal(const QString &before, const QString &after,
                                           FindFlags findFlags)
 {
     QTextCursor cursor = textCursor();
     bool usesRegExp = (findFlags & FindRegularExpression);
     bool preserveCase = (findFlags & FindPreserveCase);
-    QRegExp regexp(before,
-                   (findFlags & FindCaseSensitively) ? Qt::CaseSensitive : Qt::CaseInsensitive,
-                   usesRegExp ? QRegExp::RegExp : QRegExp::FixedString);
-
-    if (regexp.exactMatch(cursor.selectedText())) {
+    QRegularExpression regexp = regularExpression(before, findFlags);
+    QRegularExpressionMatch match = regexp.match(cursor.selectedText());
+    if (match.hasMatch()) {
         QString realAfter;
         if (usesRegExp)
-            realAfter = Utils::expandRegExpReplacement(after, regexp.capturedTexts());
+            realAfter = Utils::expandRegExpReplacement(after, match.capturedTexts());
         else if (preserveCase)
             realAfter = Utils::matchCaseReplacement(cursor.selectedText(), after);
         else
             realAfter = after;
         int start = cursor.selectionStart();
-        cursor.insertText(realAfter);
+        insertTextAfterSelection(realAfter, cursor);
         if ((findFlags & FindBackward) != 0)
             cursor.setPosition(start);
     }
@@ -257,9 +281,7 @@ int BaseTextFind::replaceAll(const QString &before, const QString &after, FindFl
     int count = 0;
     bool usesRegExp = (findFlags & FindRegularExpression);
     bool preserveCase = (findFlags & FindPreserveCase);
-    QRegExp regexp(before);
-    regexp.setPatternSyntax(usesRegExp ? QRegExp::RegExp : QRegExp::FixedString);
-    regexp.setCaseSensitivity((findFlags & FindCaseSensitively) ? Qt::CaseSensitive : Qt::CaseInsensitive);
+    QRegularExpression regexp = regularExpression(before, findFlags);
     QTextCursor found = findOne(regexp, editCursor, textDocumentFlagsForFindFlags(findFlags));
     bool first = true;
     while (!found.isNull() && inScope(found.selectionStart(), found.selectionEnd())) {
@@ -281,16 +303,16 @@ int BaseTextFind::replaceAll(const QString &before, const QString &after, FindFl
         ++count;
         editCursor.setPosition(found.selectionStart());
         editCursor.setPosition(found.selectionEnd(), QTextCursor::KeepAnchor);
-        regexp.exactMatch(found.selectedText());
+        QRegularExpressionMatch match = regexp.match(found.selectedText());
 
         QString realAfter;
         if (usesRegExp)
-            realAfter = Utils::expandRegExpReplacement(after, regexp.capturedTexts());
+            realAfter = Utils::expandRegExpReplacement(after, match.capturedTexts());
         else if (preserveCase)
             realAfter = Utils::matchCaseReplacement(found.selectedText(), after);
         else
             realAfter = after;
-        editCursor.insertText(realAfter);
+        insertTextAfterSelection(realAfter, editCursor);
         found = findOne(regexp, editCursor, textDocumentFlagsForFindFlags(findFlags));
     }
     editCursor.endEditBlock();
@@ -304,9 +326,7 @@ bool BaseTextFind::find(const QString &txt, FindFlags findFlags,
         setTextCursor(start);
         return true;
     }
-    QRegExp regexp(txt);
-    regexp.setPatternSyntax((findFlags & FindRegularExpression) ? QRegExp::RegExp : QRegExp::FixedString);
-    regexp.setCaseSensitivity((findFlags & FindCaseSensitively) ? Qt::CaseSensitive : Qt::CaseInsensitive);
+    QRegularExpression regexp = regularExpression(txt, findFlags);
     QTextCursor found = findOne(regexp, start, textDocumentFlagsForFindFlags(findFlags));
     if (wrapped)
         *wrapped = false;
@@ -347,7 +367,8 @@ bool BaseTextFind::find(const QString &txt, FindFlags findFlags,
 
 
 // helper function. Works just like QTextDocument::find() but supports vertical block selection
-QTextCursor BaseTextFind::findOne(const QRegExp &expr, const QTextCursor &from, QTextDocument::FindFlags options) const
+QTextCursor BaseTextFind::findOne(const QRegularExpression &expr,
+                                  const QTextCursor &from, QTextDocument::FindFlags options) const
 {
     QTextCursor candidate = document()->find(expr, from, options);
     if (candidate.isNull())
@@ -392,8 +413,10 @@ void BaseTextFind::defineFindScope()
 {
     QTextCursor cursor = textCursor();
     if (cursor.hasSelection() && cursor.block() != cursor.document()->findBlock(cursor.anchor())) {
-        d->m_findScopeStart = QTextCursor(document()->docHandle(), qMax(0, cursor.selectionStart()));
-        d->m_findScopeEnd = QTextCursor(document()->docHandle(), cursor.selectionEnd());
+        d->m_findScopeStart = cursor;
+        d->m_findScopeStart.setPosition(qMax(0, cursor.selectionStart()));
+        d->m_findScopeEnd = cursor;
+        d->m_findScopeEnd.setPosition(cursor.selectionEnd());
         d->m_findScopeVerticalBlockSelectionFirstColumn = -1;
         d->m_findScopeVerticalBlockSelectionLastColumn = -1;
 

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,23 +9,30 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
+#include "designeractionmanager.h"
 #include "formeditorwidget.h"
+#include "formeditorscene.h"
 #include "qmldesignerplugin.h"
 #include "designersettings.h"
+#include "qmldesignerconstants.h"
+#include "qmldesignericons.h"
+#include "viewmanager.h"
+#include <model.h>
+#include <theming.h>
 
 #include <QWheelEvent>
 #include <QVBoxLayout>
@@ -38,7 +45,13 @@
 #include <lineeditaction.h>
 #include <backgroundaction.h>
 
+#include <coreplugin/icore.h>
+
 #include <utils/fileutils.h>
+#include <utils/utilsicons.h>
+
+#include <QFileDialog>
+#include <QPainter>
 
 namespace QmlDesigner {
 
@@ -46,7 +59,7 @@ FormEditorWidget::FormEditorWidget(FormEditorView *view)
     : QWidget(),
     m_formEditorView(view)
 {
-    setStyleSheet(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/formeditorstylesheet.css"))));
+    setStyleSheet(Theming::replaceCssColors(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/formeditorstylesheet.css")))));
 
     QVBoxLayout *fillLayout = new QVBoxLayout(this);
     fillLayout->setMargin(0);
@@ -65,21 +78,21 @@ FormEditorWidget::FormEditorWidget(FormEditorView *view)
     m_noSnappingAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     m_noSnappingAction->setCheckable(true);
     m_noSnappingAction->setChecked(true);
-    m_noSnappingAction->setIcon(QPixmap(QLatin1String(":/icon/layout/no_snapping.png")));
+    m_noSnappingAction->setIcon(Icons::NO_SNAPPING.icon());
 
     m_snappingAndAnchoringAction = layoutActionGroup->addAction(tr("Snap to parent or sibling items and generate anchors (W)."));
     m_snappingAndAnchoringAction->setShortcut(Qt::Key_W);
     m_snappingAndAnchoringAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     m_snappingAndAnchoringAction->setCheckable(true);
     m_snappingAndAnchoringAction->setChecked(true);
-    m_snappingAndAnchoringAction->setIcon(QPixmap(QLatin1String(":/icon/layout/snapping_and_anchoring.png")));
+    m_snappingAndAnchoringAction->setIcon(Icons::NO_SNAPPING_AND_ANCHORING.icon());
 
     m_snappingAction = layoutActionGroup->addAction(tr("Snap to parent or sibling items but do not generate anchors (E)."));
     m_snappingAction->setShortcut(Qt::Key_E);
     m_snappingAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     m_snappingAction->setCheckable(true);
     m_snappingAction->setChecked(true);
-    m_snappingAction->setIcon(QPixmap(QLatin1String(":/icon/layout/snapping.png")));
+    m_snappingAction->setIcon(Icons::SNAPPING.icon());
 
 
     addActions(layoutActionGroup->actions());
@@ -95,7 +108,7 @@ FormEditorWidget::FormEditorWidget(FormEditorView *view)
     m_showBoundingRectAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     m_showBoundingRectAction->setCheckable(true);
     m_showBoundingRectAction->setChecked(true);
-    m_showBoundingRectAction->setIcon(QPixmap(QLatin1String(":/icon/layout/boundingrect.png")));
+    m_showBoundingRectAction->setIcon(Utils::Icons::BOUNDING_RECT.icon());
 
     addAction(m_showBoundingRectAction.data());
     upperActions.append(m_showBoundingRectAction.data());
@@ -105,18 +118,29 @@ FormEditorWidget::FormEditorWidget(FormEditorView *view)
     addAction(separatorAction);
     upperActions.append(separatorAction);
 
-    m_rootWidthAction = new LineEditAction(tr("Width"), this);
+    m_rootWidthAction = new LineEditAction(tr("Override Width"), this);
+    m_rootWidthAction->setToolTip(tr("Override width of root item."));
     connect(m_rootWidthAction.data(), SIGNAL(textChanged(QString)), this, SLOT(changeRootItemWidth(QString)));
     addAction(m_rootWidthAction.data());
     upperActions.append(m_rootWidthAction.data());
 
-    m_rootHeightAction =  new LineEditAction(tr("Height"), this);
+    m_rootHeightAction =  new LineEditAction(tr("Override Height"), this);
+    m_rootHeightAction->setToolTip(tr("Override height of root item."));
     connect(m_rootHeightAction.data(), SIGNAL(textChanged(QString)), this, SLOT(changeRootItemHeight(QString)));
     addAction(m_rootHeightAction.data());
     upperActions.append(m_rootHeightAction.data());
 
+    static const QList<Utils::Icon> icon = {
+        Utils::Icon({{":/baremetal/images/baremetaldevicesmall.png",
+                      Utils::Theme::PanelTextColorDark}}, Utils::Icon::Tint),
+        Utils::Icon({{":/baremetal/images/baremetaldevice.png",
+                      Utils::Theme::IconsBaseColor}})};
+
+
     m_toolBox = new ToolBox(this);
     fillLayout->addWidget(m_toolBox.data());
+
+
     m_toolBox->setLeftSideActions(upperActions);
 
     m_backgroundAction = new BackgroundAction(m_toolActionGroup.data());
@@ -134,7 +158,7 @@ FormEditorWidget::FormEditorWidget(FormEditorView *view)
     m_resetAction = new QAction(tr("Reset view (R)."), this);
     m_resetAction->setShortcut(Qt::Key_R);
     m_resetAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    m_resetAction->setIcon(QPixmap(QLatin1String(":/icon/reset.png")));
+    m_resetAction->setIcon(Utils::Icons::RESET_TOOLBAR.icon());
     connect(m_resetAction.data(), SIGNAL(triggered(bool)), this, SLOT(resetNodeInstanceView()));
     addAction(m_resetAction.data());
     upperActions.append(m_resetAction.data());
@@ -143,7 +167,7 @@ FormEditorWidget::FormEditorWidget(FormEditorView *view)
     m_graphicsView = new FormEditorGraphicsView(this);
 
     fillLayout->addWidget(m_graphicsView.data());
-    m_graphicsView.data()->setStyleSheet(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/scrollbar.css"))));
+    m_graphicsView.data()->setStyleSheet(Theming::replaceCssColors(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/scrollbar.css")))));
 }
 
 void FormEditorWidget::changeTransformTool(bool checked)
@@ -235,6 +259,34 @@ void FormEditorWidget::setFocus()
     m_graphicsView->setFocus(Qt::OtherFocusReason);
 }
 
+void FormEditorWidget::showErrorMessageBox(const QList<DocumentMessage> &errors)
+{
+    errorWidget()->setErrors(errors);
+    errorWidget()->setVisible(true);
+    m_graphicsView->setDisabled(true);
+    m_toolBox->setDisabled(true);
+}
+
+void FormEditorWidget::hideErrorMessageBox()
+{
+    if (!m_documentErrorWidget.isNull())
+        errorWidget()->setVisible(false);
+
+    m_graphicsView->setDisabled(false);
+    m_toolBox->setDisabled(false);
+}
+
+void FormEditorWidget::showWarningMessageBox(const QList<DocumentMessage> &warnings)
+{
+      if (!errorWidget()->warningsEnabled())
+          return;
+
+    errorWidget()->setWarnings(warnings);
+    errorWidget()->setVisible(true);
+    m_graphicsView->setDisabled(true);
+    m_toolBox->setDisabled(true);
+}
+
 ZoomAction *FormEditorWidget::zoomAction() const
 {
     return m_zoomAction.data();
@@ -279,14 +331,12 @@ ToolBox *FormEditorWidget::toolBox() const
 
 double FormEditorWidget::spacing() const
 {
-    DesignerSettings settings = QmlDesignerPlugin::instance()->settings();
-    return settings.itemSpacing;
+    return DesignerSettings::getValue(DesignerSettingsKey::ITEMSPACING).toDouble();
 }
 
 double FormEditorWidget::containerPadding() const
 {
-    DesignerSettings settings = QmlDesignerPlugin::instance()->settings();
-    return settings.containerPadding;
+    return DesignerSettings::getValue(DesignerSettingsKey::CONTAINERPADDING).toDouble();
 }
 
 
@@ -307,6 +357,42 @@ QRectF FormEditorWidget::rootItemRect() const
 {
     return m_graphicsView->rootItemRect();
 }
+
+void FormEditorWidget::exportAsImage(const QRectF &boundingRect)
+{
+    QString proposedFileName = m_formEditorView->model()->fileUrl().toLocalFile();
+    proposedFileName.chop(4);
+    if (proposedFileName.endsWith(".ui"))
+        proposedFileName.chop(3);
+    proposedFileName.append(".png");
+    const QString fileName = QFileDialog::getSaveFileName(Core::ICore::dialogParent(),
+                                                          tr("Export Current QML File as Image"),
+                                                          proposedFileName,
+                                                          tr("PNG (*.png);;JPG (*.jpg)"));
+
+    if (!fileName.isNull()) {
+        QImage image(boundingRect.size().toSize(), QImage::Format_ARGB32);
+        QPainter painter(&image);
+        QTransform viewportTransform = m_graphicsView->viewportTransform();
+        m_graphicsView->render(&painter,
+                               QRectF(0, 0, image.width(), image.height()),
+                               viewportTransform.mapRect(boundingRect).toRect());
+        image.save(fileName);
+    }
+}
+
+DocumentWarningWidget *FormEditorWidget::errorWidget()
+{
+    if (m_documentErrorWidget.isNull()) {
+        m_documentErrorWidget = new DocumentWarningWidget(this);
+        connect(m_documentErrorWidget.data(), &DocumentWarningWidget::gotoCodeClicked, [=]
+            (const QString &, int codeLine, int codeColumn) {
+            m_formEditorView->gotoError(codeLine, codeColumn);
+        });
+    }
+    return m_documentErrorWidget;
+}
+
 
 }
 

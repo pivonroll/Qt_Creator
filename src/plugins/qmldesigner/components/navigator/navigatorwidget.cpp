@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,25 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "navigatorwidget.h"
 #include "navigatorview.h"
+#include "qmldesignerconstants.h"
+#include "qmldesignericons.h"
+#include <theming.h>
 
 #include <QBoxLayout>
 #include <QToolButton>
@@ -32,7 +35,6 @@
 #include <QHeaderView>
 #include <QtDebug>
 #include <utils/fileutils.h>
-
 
 namespace QmlDesigner {
 
@@ -58,8 +60,8 @@ NavigatorWidget::NavigatorWidget(NavigatorView *view) :
 
     setWindowTitle(tr("Navigator", "Title of navigator view"));
 
-    setStyleSheet(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/stylesheet.css"))));
-    m_treeView->setStyleSheet(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/scrollbar.css"))));
+    setStyleSheet(Theming::replaceCssColors(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/stylesheet.css")))));
+    m_treeView->setStyleSheet(Theming::replaceCssColors(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/scrollbar.css")))));
 }
 
 void NavigatorWidget::setTreeModel(QAbstractItemModel* model)
@@ -77,24 +79,25 @@ QList<QToolButton *> NavigatorWidget::createToolBarWidgets()
     QList<QToolButton *> buttons;
 
     buttons.append(new QToolButton());
-    buttons.last()->setIcon(QIcon(QLatin1String(":/navigator/icon/arrowleft.png")));
+    buttons.last()->setIcon(Icons::ARROW_LEFT.icon());
     buttons.last()->setToolTip(tr("Become last sibling of parent (CTRL + Left)."));
     buttons.last()->setShortcut(QKeySequence(Qt::Key_Left | Qt::CTRL));
     connect(buttons.last(), SIGNAL(clicked()), this, SIGNAL(leftButtonClicked()));
+
     buttons.append(new QToolButton());
-    buttons.last()->setIcon(QIcon(QLatin1String(":/navigator/icon/arrowright.png")));
+    buttons.last()->setIcon(Icons::ARROW_RIGHT.icon());
     buttons.last()->setToolTip(tr("Become child of last sibling (CTRL + Right)."));
     buttons.last()->setShortcut(QKeySequence(Qt::Key_Right | Qt::CTRL));
     connect(buttons.last(), SIGNAL(clicked()), this, SIGNAL(rightButtonClicked()));
 
     buttons.append(new QToolButton());
-    buttons.last()->setIcon(QIcon(QLatin1String(":/navigator/icon/arrowdown.png")));
+    buttons.last()->setIcon(Icons::ARROW_DOWN.icon());
     buttons.last()->setToolTip(tr("Move down (CTRL + Down)."));
     buttons.last()->setShortcut(QKeySequence(Qt::Key_Down | Qt::CTRL));
     connect(buttons.last(), SIGNAL(clicked()), this, SIGNAL(downButtonClicked()));
 
     buttons.append(new QToolButton());
-    buttons.last()->setIcon(QIcon(QLatin1String(":/navigator/icon/arrowup.png")));
+    buttons.last()->setIcon(Icons::ARROW_UP.icon());
     buttons.last()->setToolTip(tr("Move up (CTRL + Up)."));
     buttons.last()->setShortcut(QKeySequence(Qt::Key_Up | Qt::CTRL));
     connect(buttons.last(), SIGNAL(clicked()), this, SIGNAL(upButtonClicked()));

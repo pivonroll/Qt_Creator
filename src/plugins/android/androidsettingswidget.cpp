@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -39,9 +34,12 @@
 #include <utils/environment.h>
 #include <utils/hostosinfo.h>
 #include <utils/pathchooser.h>
+#include <utils/runextensions.h>
+#include <utils/utilsicons.h>
 #include <projectexplorer/toolchainmanager.h>
 #include <projectexplorer/kitmanager.h>
 #include <projectexplorer/kitinformation.h>
+#include <projectexplorer/projectexplorerconstants.h>
 #include <qtsupport/qtkitinformation.h>
 #include <qtsupport/qtversionmanager.h>
 
@@ -56,7 +54,6 @@
 #include <QMessageBox>
 #include <QModelIndex>
 #include <QtCore/QUrl>
-#include <QtConcurrentRun>
 
 namespace Android {
 namespace Internal {
@@ -135,8 +132,8 @@ AndroidSettingsWidget::AndroidSettingsWidget(QWidget *parent)
 {
     m_ui->setupUi(this);
 
-    connect(&m_checkGdbWatcher, SIGNAL(finished()),
-            this, SLOT(checkGdbFinished()));
+    connect(&m_checkGdbWatcher, &QFutureWatcherBase::finished,
+            this, &AndroidSettingsWidget::checkGdbFinished);
 
     m_ui->SDKLocationPathChooser->setFileName(m_androidConfig.sdkLocation());
     m_ui->SDKLocationPathChooser->setPromptDialogTitle(tr("Select Android SDK folder"));
@@ -174,22 +171,61 @@ AndroidSettingsWidget::AndroidSettingsWidget(QWidget *parent)
     m_ui->downloadAntToolButton->setVisible(!Utils::HostOsInfo::isLinuxHost());
     m_ui->downloadOpenJDKToolButton->setVisible(!Utils::HostOsInfo::isLinuxHost());
 
-    connect(m_ui->gdbWarningLabel, SIGNAL(linkActivated(QString)),
-            this, SLOT(showGdbWarningDialog()));
+    const QPixmap warningPixmap = Utils::Icons::WARNING.pixmap();
+    m_ui->jdkWarningIconLabel->setPixmap(warningPixmap);
+    m_ui->kitWarningIconLabel->setPixmap(warningPixmap);
 
-    connect(&m_virtualDevicesWatcher, SIGNAL(finished()),
-            this, SLOT(updateAvds()));
+    const QPixmap errorPixmap = Utils::Icons::CRITICAL.pixmap();
+    m_ui->sdkWarningIconLabel->setPixmap(errorPixmap);
+    m_ui->gdbWarningIconLabel->setPixmap(errorPixmap);
+    m_ui->ndkWarningIconLabel->setPixmap(errorPixmap);
+
+    connect(m_ui->gdbWarningLabel, &QLabel::linkActivated,
+            this, &AndroidSettingsWidget::showGdbWarningDialog);
+
+    connect(&m_virtualDevicesWatcher, &QFutureWatcherBase::finished,
+            this, &AndroidSettingsWidget::updateAvds);
 
     check(All);
     applyToUi(All);
 
-    connect(&m_futureWatcher, SIGNAL(finished()),
-            this, SLOT(avdAdded()));
+    connect(&m_futureWatcher, &QFutureWatcherBase::finished,
+            this, &AndroidSettingsWidget::avdAdded);
 
-    connect(m_ui->NDKLocationPathChooser, SIGNAL(rawPathChanged(QString)), this, SLOT(ndkLocationEditingFinished()));
-    connect(m_ui->SDKLocationPathChooser, SIGNAL(rawPathChanged(QString)), this, SLOT(sdkLocationEditingFinished()));
-    connect(m_ui->AntLocationPathChooser, SIGNAL(rawPathChanged(QString)), this, SLOT(antLocationEditingFinished()));
-    connect(m_ui->OpenJDKLocationPathChooser, SIGNAL(rawPathChanged(QString)), this, SLOT(openJDKLocationEditingFinished()));
+    connect(m_ui->NDKLocationPathChooser, &Utils::PathChooser::rawPathChanged,
+            this, &AndroidSettingsWidget::ndkLocationEditingFinished);
+    connect(m_ui->SDKLocationPathChooser, &Utils::PathChooser::rawPathChanged,
+            this, &AndroidSettingsWidget::sdkLocationEditingFinished);
+    connect(m_ui->AntLocationPathChooser, &Utils::PathChooser::rawPathChanged,
+            this, &AndroidSettingsWidget::antLocationEditingFinished);
+    connect(m_ui->OpenJDKLocationPathChooser, &Utils::PathChooser::rawPathChanged,
+            this, &AndroidSettingsWidget::openJDKLocationEditingFinished);
+    connect(m_ui->AVDAddPushButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::addAVD);
+    connect(m_ui->AVDRemovePushButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::removeAVD);
+    connect(m_ui->AVDStartPushButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::startAVD);
+    connect(m_ui->AVDTableView, &QAbstractItemView::activated,
+            this, &AndroidSettingsWidget::avdActivated);
+    connect(m_ui->AVDTableView, &QAbstractItemView::clicked,
+            this, &AndroidSettingsWidget::avdActivated);
+    connect(m_ui->DataPartitionSizeSpinBox, &QAbstractSpinBox::editingFinished,
+            this, &AndroidSettingsWidget::dataPartitionSizeEditingFinished);
+    connect(m_ui->manageAVDPushButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::manageAVD);
+    connect(m_ui->CreateKitCheckBox, &QAbstractButton::toggled,
+            this, &AndroidSettingsWidget::createKitToggled);
+    connect(m_ui->downloadSDKToolButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::openSDKDownloadUrl);
+    connect(m_ui->downloadNDKToolButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::openNDKDownloadUrl);
+    connect(m_ui->downloadAntToolButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::openAntDownloadUrl);
+    connect(m_ui->downloadOpenJDKToolButton, &QAbstractButton::clicked,
+            this, &AndroidSettingsWidget::openOpenJDKDownloadUrl);
+    connect(m_ui->UseGradleCheckBox, &QAbstractButton::toggled,
+            this, &AndroidSettingsWidget::useGradleToggled);
 
 }
 
@@ -279,6 +315,8 @@ void AndroidSettingsWidget::check(AndroidSettingsWidget::Mode mode)
             // Check for a gdb with a broken python
             QStringList gdbPaths;
             foreach (const AndroidToolChainFactory::AndroidToolChainInformation &ati, compilerPaths) {
+                if (ati.language == Core::Id(ProjectExplorer::Constants::C_LANGUAGE_ID))
+                    continue;
                 // we only check the arm gdbs, that's indicative enough
                 if (ati.abi.architecture() != ProjectExplorer::Abi::ArmArchitecture)
                     continue;
@@ -288,21 +326,24 @@ void AndroidSettingsWidget::check(AndroidSettingsWidget::Mode mode)
             }
 
             if (!gdbPaths.isEmpty()) {
-                m_checkGdbWatcher.setFuture(QtConcurrent::run(&checkGdbForBrokenPython, gdbPaths));
+                m_checkGdbWatcher.setFuture(Utils::runAsync(&checkGdbForBrokenPython, gdbPaths));
                 m_gdbCheckPaths = gdbPaths;
             }
 
             // See if we have qt versions for those toolchains
             QSet<ProjectExplorer::Abi> toolchainsForAbi;
-            foreach (const AndroidToolChainFactory::AndroidToolChainInformation &ati, compilerPaths)
-                toolchainsForAbi.insert(ati.abi);
-
-            QSet<ProjectExplorer::Abi> qtVersionsForAbi;
-            foreach (QtSupport::BaseQtVersion *qtVersion, QtSupport::QtVersionManager::versions()) {
-                if (qtVersion->type() != QLatin1String(Constants::ANDROIDQT) || qtVersion->qtAbis().isEmpty())
-                    continue;
-                qtVersionsForAbi.insert(qtVersion->qtAbis().first());
+            foreach (const AndroidToolChainFactory::AndroidToolChainInformation &ati, compilerPaths) {
+                if (ati.language == Core::Id(ProjectExplorer::Constants::CXX_LANGUAGE_ID))
+                    toolchainsForAbi.insert(ati.abi);
             }
+
+            const QList<QtSupport::BaseQtVersion *> androidQts
+                    = QtSupport::QtVersionManager::versions([](const QtSupport::BaseQtVersion *v) {
+                return v->type() == QLatin1String(Constants::ANDROIDQT) && !v->qtAbis().isEmpty();
+            });
+            QSet<ProjectExplorer::Abi> qtVersionsForAbi;
+            foreach (QtSupport::BaseQtVersion *qtVersion, androidQts)
+                qtVersionsForAbi.insert(qtVersion->qtAbis().first());
 
             QSet<ProjectExplorer::Abi> missingQtArchs = toolchainsForAbi.subtract(qtVersionsForAbi);
             if (missingQtArchs.isEmpty()) {
@@ -313,9 +354,9 @@ void AndroidSettingsWidget::check(AndroidSettingsWidget::Mode mode)
                                              "To add the Qt version, select Options > Build & Run > Qt Versions.")
                             .arg((*missingQtArchs.constBegin()).toString());
                 } else {
-                    m_ndkMissingQtArchs = tr("Qt versions for %1 architectures are missing.\n"
-                                             "To add the Qt versions, select Options > Build & Run > Qt Versions.")
-                            .arg(missingQtArchs.size());
+                    m_ndkMissingQtArchs = tr("Qt versions for %n architectures are missing.\n"
+                                             "To add the Qt versions, select Options > Build & Run > Qt Versions.",
+                                             nullptr, missingQtArchs.size());
                 }
             }
         }
@@ -461,16 +502,6 @@ void AndroidSettingsWidget::saveSettings()
     AndroidConfigurations::setConfig(m_androidConfig);
 }
 
-int indexOf(const QList<AndroidToolChainFactory::AndroidToolChainInformation> &list, const Utils::FileName &f)
-{
-    int end = list.count();
-    for (int i = 0; i < end; ++i) {
-        if (list.at(i).compilerCommand == f)
-            return i;
-    }
-    return -1;
-}
-
 void AndroidSettingsWidget::sdkLocationEditingFinished()
 {
     m_androidConfig.setSdkLocation(Utils::FileName::fromUserInput(m_ui->SDKLocationPathChooser->rawPath()));
@@ -533,22 +564,22 @@ void AndroidSettingsWidget::openJDKLocationEditingFinished()
 
 void AndroidSettingsWidget::openSDKDownloadUrl()
 {
-    QDesktopServices::openUrl(QUrl::fromUserInput(QLatin1String("http://developer.android.com/sdk")));
+    QDesktopServices::openUrl(QUrl::fromUserInput("https://developer.android.com/studio/"));
 }
 
 void AndroidSettingsWidget::openNDKDownloadUrl()
 {
-    QDesktopServices::openUrl(QUrl::fromUserInput(QLatin1String("http://developer.android.com/tools/sdk/ndk/index.html#Downloads")));
+    QDesktopServices::openUrl(QUrl::fromUserInput("https://developer.android.com/ndk/downloads/"));
 }
 
 void AndroidSettingsWidget::openAntDownloadUrl()
 {
-    QDesktopServices::openUrl(QUrl::fromUserInput(QLatin1String("http://ant.apache.org/bindownload.cgi")));
+    QDesktopServices::openUrl(QUrl::fromUserInput("http://ant.apache.org/bindownload.cgi"));
 }
 
 void AndroidSettingsWidget::openOpenJDKDownloadUrl()
 {
-    QDesktopServices::openUrl(QUrl::fromUserInput(QLatin1String("http://www.oracle.com/technetwork/java/javase/downloads")));
+    QDesktopServices::openUrl(QUrl::fromUserInput("http://www.oracle.com/technetwork/java/javase/downloads/"));
 }
 
 void AndroidSettingsWidget::addAVD()
@@ -641,12 +672,13 @@ void AndroidSettingsWidget::showGdbWarningDialog()
 void AndroidSettingsWidget::manageAVD()
 {
     QProcess *avdProcess = new QProcess();
-    connect(this, SIGNAL(destroyed()), avdProcess, SLOT(deleteLater()));
-    connect(avdProcess, SIGNAL(finished(int)), avdProcess, SLOT(deleteLater()));
+    connect(this, &QObject::destroyed, avdProcess, &QObject::deleteLater);
+    connect(avdProcess, static_cast<void (QProcess::*)(int)>(&QProcess::finished),
+            avdProcess, &QObject::deleteLater);
 
     avdProcess->setProcessEnvironment(m_androidConfig.androidToolEnvironment().toProcessEnvironment());
     QString executable = m_androidConfig.androidToolPath().toString();
-    QStringList arguments = QStringList() << QLatin1String("avd");
+    QStringList arguments = QStringList("avd");
 
     avdProcess->start(executable, arguments);
 }

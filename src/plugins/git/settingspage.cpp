@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,9 +29,11 @@
 #include "gitclient.h"
 
 #include <coreplugin/icore.h>
-#include <vcsbase/vcsbaseconstants.h>
-#include <utils/hostosinfo.h>
 #include <coreplugin/messagebox.h>
+#include <vcsbase/vcsbaseconstants.h>
+
+#include <utils/environment.h>
+#include <utils/hostosinfo.h>
 
 #include <QDir>
 #include <QDebug>
@@ -54,7 +51,7 @@ SettingsPageWidget::SettingsPageWidget(QWidget *parent) : VcsClientOptionsPageWi
         const QByteArray currentHome = qgetenv("HOME");
         const QString toolTip
                 = tr("Set the environment variable HOME to \"%1\"\n(%2).\n"
-                     "This causes msysgit to look for the SSH-keys in that location\n"
+                     "This causes Git to look for the SSH-keys in that location\n"
                      "instead of its installation directory when run outside git bash.").
                 arg(QDir::homePath(),
                     currentHome.isEmpty() ? tr("not currently set") :
@@ -63,9 +60,13 @@ SettingsPageWidget::SettingsPageWidget(QWidget *parent) : VcsClientOptionsPageWi
     } else {
         m_ui.winHomeCheckBox->setVisible(false);
     }
+    updateNoteField();
+
     m_ui.repBrowserCommandPathChooser->setExpectedKind(Utils::PathChooser::ExistingCommand);
-    m_ui.repBrowserCommandPathChooser->setHistoryCompleter(QLatin1String("Git.RepoCommand.History"));
+    m_ui.repBrowserCommandPathChooser->setHistoryCompleter("Git.RepoCommand.History");
     m_ui.repBrowserCommandPathChooser->setPromptDialogTitle(tr("Git Repository Browser Command"));
+
+    connect(m_ui.pathLineEdit, &QLineEdit::textChanged, this, &SettingsPageWidget::updateNoteField);
 }
 
 VcsBaseClientSettings SettingsPageWidget::settings() const
@@ -95,9 +96,20 @@ void SettingsPageWidget::setSettings(const VcsBaseClientSettings &s)
     m_ui.repBrowserCommandPathChooser->setPath(s.stringValue(GitSettings::repositoryBrowserCmd));
 }
 
+void SettingsPageWidget::updateNoteField()
+{
+    Utils::Environment env = Utils::Environment::systemEnvironment();
+    env.prependOrSetPath(m_ui.pathLineEdit->text());
+
+    bool showNote = env.searchInPath("perl").isEmpty();
+
+    m_ui.noteFieldlabel->setVisible(showNote);
+    m_ui.noteLabel->setVisible(showNote);
+}
+
 // -------- SettingsPage
 SettingsPage::SettingsPage(Core::IVersionControl *control) :
-    VcsClientOptionsPage(control, GitPlugin::instance()->client())
+    VcsClientOptionsPage(control, GitPlugin::client())
 {
     setId(VcsBase::Constants::VCS_ID_GIT);
     setDisplayName(tr("Git"));

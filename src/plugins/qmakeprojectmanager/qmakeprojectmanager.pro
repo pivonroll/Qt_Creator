@@ -8,6 +8,7 @@ HEADERS += \
     qmakebuildinfo.h \
     qmakekitinformation.h \
     qmakekitconfigwidget.h \
+    qmakeparsernodes.h \
     qmakeprojectimporter.h \
     qmakerunconfigurationfactory.h \
     qmakeprojectmanagerplugin.h \
@@ -31,6 +32,7 @@ HEADERS += \
     wizards/qtwizard.h \
     wizards/subdirsprojectwizard.h \
     wizards/subdirsprojectwizarddialog.h \
+    wizards/simpleprojectwizard.h \
     qmakeprojectmanagerconstants.h \
     makestep.h \
     qmakestep.h \
@@ -50,6 +52,7 @@ HEADERS += \
 SOURCES += \
     qmakekitconfigwidget.cpp \
     qmakekitinformation.cpp \
+    qmakeparsernodes.cpp \
     qmakeprojectimporter.cpp \
     qmakerunconfigurationfactory.cpp \
     qmakeprojectmanagerplugin.cpp \
@@ -73,6 +76,7 @@ SOURCES += \
     wizards/qtwizard.cpp \
     wizards/subdirsprojectwizard.cpp \
     wizards/subdirsprojectwizarddialog.cpp \
+    wizards/simpleprojectwizard.cpp \
     makestep.cpp \
     qmakestep.cpp \
     qtmodulesinfo.cpp \

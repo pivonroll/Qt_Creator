@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef JSONWIZARD_H
-#define JSONWIZARD_H
+#pragma once
 
 #include "../projectexplorer_export.h"
 
@@ -37,6 +31,8 @@
 
 #include <utils/wizard.h>
 #include <utils/macroexpander.h>
+
+#include <QVariant>
 
 namespace ProjectExplorer {
 
@@ -50,7 +46,7 @@ class PROJECTEXPLORER_EXPORT JsonWizard : public Utils::Wizard
 public:
     class GeneratorFile {
     public:
-        GeneratorFile() : generator(0) { }
+        GeneratorFile() : generator(nullptr) { }
         GeneratorFile(const Core::GeneratedFile &f, JsonWizardGenerator *g) :
             file(f), generator(g)
         { }
@@ -63,8 +59,8 @@ public:
     typedef QList<GeneratorFile> GeneratorFiles;
     Q_PROPERTY(GeneratorFiles generateFileList READ generateFileList)
 
-    explicit JsonWizard(QWidget *parent = 0);
-    ~JsonWizard();
+    explicit JsonWizard(QWidget *parent = nullptr);
+    ~JsonWizard() override;
 
     void addGenerator(JsonWizardGenerator *gen);
 
@@ -78,6 +74,22 @@ public:
     QVariant value(const QString &n) const;
     void setValue(const QString &key, const QVariant &value);
 
+    class OptionDefinition {
+    public:
+        QString key() const { return m_key; }
+        QString value(Utils::MacroExpander &expander) const;
+        bool condition(Utils::MacroExpander &expander) const;
+
+    private:
+        QString m_key;
+        QString m_value;
+        QVariant m_condition;
+        QVariant m_evaluate;
+
+        friend class JsonWizard;
+    };
+    static QList<OptionDefinition> parseOptions(const QVariant &v, QString *errorMessage);
+
     static bool boolFromVariant(const QVariant &v, Utils::MacroExpander *expander);
     static QString stringListToArrayString(const QStringList &list,
                                            const Utils::MacroExpander *expander);
@@ -85,9 +97,6 @@ public:
     void removeAttributeFromAllFiles(Core::GeneratedFile::Attribute a);
 
     QHash<QString, QVariant> variables() const override;
-
-    static QString processText(Utils::MacroExpander *expander, const QString &input,
-                               QString *errorMessage);
 
 signals:
     void preGenerateFiles(); // emitted before files are generated (can happen several times!)
@@ -104,11 +113,10 @@ public slots:
     void accept() override;
     void reject() override;
 
-private slots:
+private:
     void handleNewPages(int pageId);
     void handleError(const QString &message);
 
-private:
     QString stringify(const QVariant &v) const override;
     QString evaluate(const QVariant &v) const override ;
     void openFiles(const GeneratorFiles &files);
@@ -120,5 +128,3 @@ private:
 };
 
 } // namespace ProjectExplorer
-
-#endif // JSONWIZARD_H

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "semantichighlighter.h"
 
 #include "syntaxhighlighter.h"
+#include "texteditorsettings.h"
 
 #include <utils/qtcassert.h>
 
@@ -39,6 +35,19 @@
 
 using namespace TextEditor;
 using namespace TextEditor::SemanticHighlighter;
+
+namespace {
+
+QTextCharFormat textCharFormatForResult(const HighlightingResult &result,
+                                        const QHash<int, QTextCharFormat> &kindToFormat)
+{
+    if (result.useTextSyles)
+        return TextEditorSettings::fontSettings().toTextCharFormat(result.textStyles);
+    else
+        return kindToFormat.value(result.kind);
+}
+
+}
 
 void SemanticHighlighter::incrementalApplyExtraAdditionalFormats(
         SyntaxHighlighter *highlighter,
@@ -77,19 +86,19 @@ void SemanticHighlighter::incrementalApplyExtraAdditionalFormats(
 
         // clear formats of blocks until blockNumber
         while (currentBlockNumber < blockNumber) {
-            QList<QTextLayout::FormatRange> noFormats;
-            highlighter->setExtraAdditionalFormats(b, noFormats);
+            QVector<QTextLayout::FormatRange> noFormats;
+            highlighter->setExtraFormats(b, noFormats);
             b = b.next();
             ++currentBlockNumber;
         }
 
         // collect all the formats for the current line
-        QList<QTextLayout::FormatRange> formats;
+        QVector<QTextLayout::FormatRange> formats;
         formats.reserve(to - from);
         forever {
             QTextLayout::FormatRange formatRange;
 
-            formatRange.format = kindToFormat.value(result.kind);
+            formatRange.format = textCharFormatForResult(result, kindToFormat);
             if (formatRange.format.isValid()) {
                 formatRange.start = result.column - 1;
                 formatRange.length = result.length;
@@ -104,7 +113,7 @@ void SemanticHighlighter::incrementalApplyExtraAdditionalFormats(
             if (nextBlockNumber != blockNumber)
                 break;
         }
-        highlighter->setExtraAdditionalFormats(b, formats);
+        highlighter->setExtraFormats(b, formats);
         b = b.next();
         ++currentBlockNumber;
     }
@@ -127,15 +136,14 @@ void SemanticHighlighter::clearExtraAdditionalFormatsUntilEnd(
     QTextDocument *doc = highlighter->document();
 
     const int firstBlockToClear = lastBlockNumber + 1;
-    if (firstBlockToClear == doc->blockCount())
+    if (firstBlockToClear >= doc->blockCount())
         return;
-    QTC_ASSERT(firstBlockToClear < doc->blockCount(), return);
 
     QTextBlock b = doc->findBlockByNumber(firstBlockToClear);
 
     while (b.isValid()) {
-        QList<QTextLayout::FormatRange> noFormats;
-        highlighter->setExtraAdditionalFormats(b, noFormats);
+        QVector<QTextLayout::FormatRange> noFormats;
+        highlighter->setExtraFormats(b, noFormats);
         b = b.next();
     }
 }

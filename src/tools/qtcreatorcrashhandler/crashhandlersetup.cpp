@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -62,8 +57,10 @@
 #include <X11/Xlib.h>
 #endif
 
-static const char *crashHandlerPathC;
-static void *signalHandlerStack;
+static const char *appNameC = nullptr;
+static const char *disableRestartOptionC = nullptr;
+static const char *crashHandlerPathC = nullptr;
+static void *signalHandlerStack = nullptr;
 
 extern "C" void signalHandler(int signal)
 {
@@ -77,7 +74,12 @@ extern "C" void signalHandler(int signal)
     case -1: // error
         break;
     case 0: // child
-        execl(crashHandlerPathC, crashHandlerPathC, strsignal(signal), (char *) 0);
+        if (disableRestartOptionC) {
+            execl(crashHandlerPathC, crashHandlerPathC, strsignal(signal), appNameC,
+                  disableRestartOptionC, (char *) 0);
+        } else {
+            execl(crashHandlerPathC, crashHandlerPathC, strsignal(signal), appNameC, (char *) 0);
+        }
         _exit(EXIT_FAILURE);
     default: // parent
         prctl(PR_SET_PTRACER, pid, 0, 0, 0);
@@ -88,14 +90,23 @@ extern "C" void signalHandler(int signal)
 }
 #endif // BUILD_CRASH_HANDLER
 
-CrashHandlerSetup::CrashHandlerSetup()
+CrashHandlerSetup::CrashHandlerSetup(const QString &appName,
+                                     RestartCapability restartCap,
+                                     const QString &executableDirPath)
 {
 #ifdef BUILD_CRASH_HANDLER
     if (qgetenv("QTC_USE_CRASH_HANDLER").isEmpty())
         return;
 
-    const QString crashHandlerPath = qApp->applicationDirPath()
-        + QLatin1String("/qtcreator_crash_handler");
+    appNameC = qstrdup(qPrintable(appName));
+
+    if (restartCap == DisableRestart)
+        disableRestartOptionC = "--disable-restart";
+
+    const QString execDirPath = executableDirPath.isEmpty()
+            ? qApp->applicationDirPath()
+            : executableDirPath;
+    const QString crashHandlerPath = execDirPath + QLatin1String("/qtcreator_crash_handler");
     crashHandlerPathC = qstrdup(qPrintable(crashHandlerPath));
 
     // Setup an alternative stack for the signal handler. This way we are able to handle SIGSEGV
@@ -135,6 +146,10 @@ CrashHandlerSetup::CrashHandlerSetup()
                 strsignal(signalsToHandle[i]), Q_FUNC_INFO);
         }
     }
+#else
+    Q_UNUSED(appName);
+    Q_UNUSED(restartCap);
+    Q_UNUSED(executableDirPath);
 #endif // BUILD_CRASH_HANDLER
 }
 
@@ -142,6 +157,7 @@ CrashHandlerSetup::~CrashHandlerSetup()
 {
 #ifdef BUILD_CRASH_HANDLER
     delete[] crashHandlerPathC;
+    delete[] appNameC;
     free(signalHandlerStack);
 #endif
 }

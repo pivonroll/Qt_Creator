@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,6 +33,15 @@
 #include "model.h"
 #include "model_p.h"
 namespace QmlDesigner {
+
+bool compareBindingProperties(const QmlDesigner::BindingProperty &bindingProperty01, const QmlDesigner::BindingProperty &bindingProperty02)
+{
+    if (bindingProperty01.parentModelNode() != bindingProperty02.parentModelNode())
+        return false;
+    if (bindingProperty01.name() != bindingProperty02.name())
+        return false;
+    return true;
+}
 
 BindingProperty::BindingProperty()
 {
@@ -96,7 +105,7 @@ static ModelNode resolveBinding(const QString &binding, ModelNode currentNode, A
     while (!element.isEmpty())
     {
         if (currentNode.isValid()) {
-            if (element == "parent") {
+            if (element == QLatin1String("parent")) {
                 if (currentNode.hasParentProperty())
                     currentNode = currentNode.parentProperty().toNodeAbstractProperty().parentModelNode();
                 else
@@ -200,7 +209,7 @@ bool BindingProperty::isAliasExport() const
     return parentModelNode() == parentModelNode().view()->rootModelNode()
             && isDynamic()
             && dynamicTypeName() == "alias"
-            && name() == expression()
+            && name() == expression().toUtf8()
             && parentModelNode().view()->modelNodeForId(expression()).isValid();
 }
 
@@ -233,6 +242,24 @@ void BindingProperty::setDynamicTypeNameAndExpression(const TypeName &typeName, 
         model()->d->removeProperty(internalNode()->property(name()));
 
      model()->d->setDynamicBindingProperty(internalNode(), name(), typeName, expression);
+}
+
+QDebug operator<<(QDebug debug, const BindingProperty &property)
+{
+    if (!property.isValid())
+        return debug.nospace() << "BindingProperty(" << PropertyName("invalid") << ')';
+    else
+        return debug.nospace() << "BindingProperty(" <<  property.name() << " " << property.expression() << ')';
+}
+
+QTextStream& operator<<(QTextStream &stream, const BindingProperty &property)
+{
+    if (!property.isValid())
+        stream << "BindingProperty(" << PropertyName("invalid") << ')';
+    else
+        stream << "BindingProperty(" <<  property.name() << " " << property.expression() << ')';
+
+    return stream;
 }
 
 } // namespace QmlDesigner

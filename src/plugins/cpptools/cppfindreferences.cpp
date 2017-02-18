@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -40,6 +35,7 @@
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <texteditor/basefilefind.h>
 
+#include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 #include <utils/runextensions.h>
 #include <utils/textfileformat.h>
@@ -280,7 +276,7 @@ static void find_helper(QFutureInterface<Usage> &future,
 
     const Utils::FileName sourceFile = Utils::FileName::fromUtf8(symbol->fileName(),
                                                                  symbol->fileNameLength());
-    Utils::FileNameList files(sourceFile);
+    Utils::FileNameList files {sourceFile};
 
     if (symbol->isClass()
         || symbol->isForwardClassDeclaration()
@@ -300,7 +296,7 @@ static void find_helper(QFutureInterface<Usage> &future,
     } else {
         files += snapshot.filesDependingOn(sourceFile);
     }
-    files.removeDuplicates();
+    files = Utils::filteredUnique(files);
 
     future.setProgressRange(0, files.size());
 
@@ -333,11 +329,10 @@ void CppFindReferences::findUsages(Symbol *symbol,
                                                 SearchResultWindow::PreserveCaseDisabled,
                                                 QLatin1String("CppEditor"));
     search->setTextToReplace(replacement);
-    connect(search, SIGNAL(replaceButtonClicked(QString,QList<Core::SearchResultItem>,bool)),
-            SLOT(onReplaceButtonClicked(QString,QList<Core::SearchResultItem>,bool)));
-    connect(search, SIGNAL(paused(bool)), this, SLOT(setPaused(bool)));
+    connect(search, &SearchResult::replaceButtonClicked,
+            this, &CppFindReferences::onReplaceButtonClicked);
     search->setSearchAgainSupported(true);
-    connect(search, SIGNAL(searchAgainRequested()), this, SLOT(searchAgain()));
+    connect(search, &SearchResult::searchAgainRequested, this, &CppFindReferences::searchAgain);
     CppFindReferencesParameters parameters;
     parameters.symbolId = fullIdForSymbol(symbol);
     parameters.symbolFileName = QByteArray(symbol->fileName());
@@ -362,20 +357,20 @@ void CppFindReferences::findAll_helper(SearchResult *search, Symbol *symbol,
         search->finishSearch(false);
         return;
     }
-    connect(search, SIGNAL(cancelled()), this, SLOT(cancel()));
-    connect(search, SIGNAL(activated(Core::SearchResultItem)),
-            this, SLOT(openEditor(Core::SearchResultItem)));
+    connect(search, &SearchResult::activated,
+            this, &CppFindReferences::openEditor);
 
     SearchResultWindow::instance()->popup(IOutputPane::ModeSwitch | IOutputPane::WithFocus);
     const WorkingCopy workingCopy = m_modelManager->workingCopy();
     QFuture<Usage> result;
-    result = QtConcurrent::run(&find_helper, workingCopy, context, symbol);
+    result = Utils::runAsync(m_modelManager->sharedThreadPool(), find_helper,
+                             workingCopy, context, symbol);
     createWatcher(result, search);
 
     FutureProgress *progress = ProgressManager::addTask(result, tr("Searching for Usages"),
                                                               CppTools::Constants::TASK_SEARCH);
 
-    connect(progress, SIGNAL(clicked()), search, SLOT(popup()));
+    connect(progress, &FutureProgress::clicked, search, &SearchResult::popup);
 }
 
 void CppFindReferences::onReplaceButtonClicked(const QString &text,
@@ -405,10 +400,10 @@ void CppFindReferences::searchAgain()
 }
 
 namespace {
-class SymbolFinder : public SymbolVisitor
+class UidSymbolFinder : public SymbolVisitor
 {
 public:
-    SymbolFinder(const QList<QByteArray> &uid) : m_uid(uid), m_index(0), m_result(0) { }
+    UidSymbolFinder(const QList<QByteArray> &uid) : m_uid(uid), m_index(0), m_result(0) { }
     Symbol *result() const { return m_result; }
 
     bool preVisit(Symbol *symbol)
@@ -460,7 +455,7 @@ Symbol *CppFindReferences::findSymbol(const CppFindReferencesParameters &paramet
     doc->check();
 
     // find matching symbol in new document and return the new parameters
-    SymbolFinder finder(parameters.symbolId);
+    UidSymbolFinder finder(parameters.symbolId);
     finder.accept(doc->globalNamespace());
     if (finder.result()) {
         *context = LookupContext(doc, snapshot);
@@ -469,15 +464,9 @@ Symbol *CppFindReferences::findSymbol(const CppFindReferencesParameters &paramet
     return 0;
 }
 
-void CppFindReferences::displayResults(int first, int last)
+static void displayResults(SearchResult *search, QFutureWatcher<Usage> *watcher,
+                           int first, int last)
 {
-    QFutureWatcher<Usage> *watcher = static_cast<QFutureWatcher<Usage> *>(sender());
-    SearchResult *search = m_watchers.value(watcher);
-    if (!search) {
-        // search was deleted while it was running
-        watcher->cancel();
-        return;
-    }
     for (int index = first; index != last; ++index) {
         Usage result = watcher->future().resultAt(index);
         search->addResult(result.path,
@@ -488,40 +477,12 @@ void CppFindReferences::displayResults(int first, int last)
     }
 }
 
-void CppFindReferences::searchFinished()
-{
-    QFutureWatcher<Usage> *watcher = static_cast<QFutureWatcher<Usage> *>(sender());
-    SearchResult *search = m_watchers.value(watcher);
-    if (search)
-        search->finishSearch(watcher->isCanceled());
-    m_watchers.remove(watcher);
-    watcher->deleteLater();
-}
-
-void CppFindReferences::cancel()
-{
-    SearchResult *search = qobject_cast<SearchResult *>(sender());
-    QTC_ASSERT(search, return);
-    QFutureWatcher<Usage> *watcher = m_watchers.key(search);
-    QTC_ASSERT(watcher, return);
-    watcher->cancel();
-}
-
-void CppFindReferences::setPaused(bool paused)
-{
-    SearchResult *search = qobject_cast<SearchResult *>(sender());
-    QTC_ASSERT(search, return);
-    QFutureWatcher<Usage> *watcher = m_watchers.key(search);
-    QTC_ASSERT(watcher, return);
-    if (!paused || watcher->isRunning()) // guard against pausing when the search is finished
-        watcher->setPaused(paused);
-}
-
 void CppFindReferences::openEditor(const SearchResultItem &item)
 {
     if (item.path.size() > 0) {
         EditorManager::openEditorAt(QDir::fromNativeSeparators(item.path.first()),
-                                              item.lineNumber, item.textMarkPos);
+                                    item.mainRange.begin.line,
+                                    item.mainRange.begin.column);
     } else {
         EditorManager::openEditor(QDir::fromNativeSeparators(item.text));
     }
@@ -617,9 +578,8 @@ static void findMacroUses_helper(QFutureInterface<Usage> &future,
                                  const Macro macro)
 {
     const Utils::FileName sourceFile = Utils::FileName::fromString(macro.fileName());
-    Utils::FileNameList files(sourceFile);
-    files += snapshot.filesDependingOn(sourceFile);
-    files.removeDuplicates();
+    Utils::FileNameList files {sourceFile};
+    files = Utils::filteredUnique(files + snapshot.filesDependingOn(sourceFile));
 
     future.setProgressRange(0, files.size());
     FindMacroUsesInFile process(workingCopy, snapshot, macro, &future);
@@ -649,15 +609,13 @@ void CppFindReferences::findMacroUses(const Macro &macro, const QString &replace
                 QLatin1String("CppEditor"));
 
     search->setTextToReplace(replacement);
-    connect(search, SIGNAL(replaceButtonClicked(QString,QList<Core::SearchResultItem>,bool)),
-            SLOT(onReplaceButtonClicked(QString,QList<Core::SearchResultItem>,bool)));
+    connect(search, &SearchResult::replaceButtonClicked,
+            this, &CppFindReferences::onReplaceButtonClicked);
 
     SearchResultWindow::instance()->popup(IOutputPane::ModeSwitch | IOutputPane::WithFocus);
 
-    connect(search, SIGNAL(activated(Core::SearchResultItem)),
-            this, SLOT(openEditor(Core::SearchResultItem)));
-    connect(search, SIGNAL(cancelled()), this, SLOT(cancel()));
-    connect(search, SIGNAL(paused(bool)), this, SLOT(setPaused(bool)));
+    connect(search, &SearchResult::activated,
+            this, &CppFindReferences::openEditor);
 
     const Snapshot snapshot = m_modelManager->snapshot();
     const WorkingCopy workingCopy = m_modelManager->workingCopy();
@@ -674,12 +632,13 @@ void CppFindReferences::findMacroUses(const Macro &macro, const QString &replace
     }
 
     QFuture<Usage> result;
-    result = QtConcurrent::run(&findMacroUses_helper, workingCopy, snapshot, macro);
+    result = Utils::runAsync(m_modelManager->sharedThreadPool(), findMacroUses_helper,
+                             workingCopy, snapshot, macro);
     createWatcher(result, search);
 
     FutureProgress *progress = ProgressManager::addTask(result, tr("Searching for Usages"),
                                                               CppTools::Constants::TASK_SEARCH);
-    connect(progress, SIGNAL(clicked()), search, SLOT(popup()));
+    connect(progress, &FutureProgress::clicked, search, &SearchResult::popup);
 }
 
 void CppFindReferences::renameMacroUses(const Macro &macro, const QString &replacement)
@@ -691,9 +650,21 @@ void CppFindReferences::renameMacroUses(const Macro &macro, const QString &repla
 void CppFindReferences::createWatcher(const QFuture<Usage> &future, SearchResult *search)
 {
     QFutureWatcher<Usage> *watcher = new QFutureWatcher<Usage>();
+    // auto-delete:
+    connect(watcher, &QFutureWatcherBase::finished, watcher, &QObject::deleteLater);
+
+    connect(watcher, &QFutureWatcherBase::resultsReadyAt, search,
+            [search, watcher](int first, int last) {
+                displayResults(search, watcher, first, last);
+            });
+    connect(watcher, &QFutureWatcherBase::finished, search, [search, watcher]() {
+        search->finishSearch(watcher->isCanceled());
+    });
+    connect(search, &SearchResult::cancelled, watcher, [watcher]() { watcher->cancel(); });
+    connect(search, &SearchResult::paused, watcher, [watcher](bool paused) {
+        if (!paused || watcher->isRunning()) // guard against pausing when the search is finished
+            watcher->setPaused(paused);
+    });
     watcher->setPendingResultsLimit(1);
-    connect(watcher, SIGNAL(resultsReadyAt(int,int)), this, SLOT(displayResults(int,int)));
-    connect(watcher, SIGNAL(finished()), this, SLOT(searchFinished()));
-    m_watchers.insert(watcher, search);
     watcher->setFuture(future);
 }

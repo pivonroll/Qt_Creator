@@ -7,10 +7,13 @@ QtcTool {
     Depends { name: "Utils" }
     Depends { name: "app_version_header" }
 
-    cpp.defines: base.concat([qbs.targetOS.contains("osx")
-            ? 'DATA_PATH="."' : 'DATA_PATH="../share/qtcreator"'])
+    cpp.defines: base.concat([qbs.targetOS.contains("macos")
+            ? 'DATA_PATH="."'
+            : qbs.targetOS.contains("windows") ? 'DATA_PATH="../share/qtcreator"'
+                                               : 'DATA_PATH="../../share/qtcreator"'])
 
     files: [
+        "addcmakeoperation.cpp", "addcmakeoperation.h",
         "adddebuggeroperation.cpp", "adddebuggeroperation.h",
         "adddeviceoperation.cpp", "adddeviceoperation.h",
         "addkeysoperation.cpp",
@@ -30,6 +33,7 @@ QtcTool {
         "main.cpp",
         "operation.cpp",
         "operation.h",
+        "rmcmakeoperation.cpp", "rmcmakeoperation.h",
         "rmdebuggeroperation.cpp", "rmdebuggeroperation.h",
         "rmdeviceoperation.cpp", "rmdeviceoperation.h",
         "rmkeysoperation.cpp",

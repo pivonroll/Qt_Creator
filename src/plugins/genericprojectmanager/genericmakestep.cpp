@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -65,15 +60,13 @@ const char MAKE_COMMAND_KEY[] = "GenericProjectManager.GenericMakeStep.MakeComma
 const char CLEAN_KEY[] = "GenericProjectManager.GenericMakeStep.Clean";
 
 GenericMakeStep::GenericMakeStep(BuildStepList *parent) :
-    AbstractProcessStep(parent, Id(GENERIC_MS_ID)),
-    m_clean(false)
+    AbstractProcessStep(parent, Id(GENERIC_MS_ID))
 {
     ctor();
 }
 
 GenericMakeStep::GenericMakeStep(BuildStepList *parent, const Id id) :
-    AbstractProcessStep(parent, id),
-    m_clean(false)
+    AbstractProcessStep(parent, id)
 {
     ctor();
 }
@@ -94,11 +87,7 @@ void GenericMakeStep::ctor()
                                                       GENERIC_MS_DISPLAY_NAME));
 }
 
-GenericMakeStep::~GenericMakeStep()
-{
-}
-
-bool GenericMakeStep::init()
+bool GenericMakeStep::init(QList<const BuildStep *> &earlierSteps)
 {
     BuildConfiguration *bc = buildConfiguration();
     if (!bc)
@@ -106,7 +95,7 @@ bool GenericMakeStep::init()
     if (!bc)
         emit addTask(Task::buildConfigurationMissingTask());
 
-    ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit());
+    ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit(), ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (!tc)
         emit addTask(Task::compilerMissingTask());
 
@@ -119,9 +108,7 @@ bool GenericMakeStep::init()
     pp->setMacroExpander(bc->macroExpander());
     pp->setWorkingDirectory(bc->buildDirectory().toString());
     Utils::Environment env = bc->environment();
-    // Force output to english for the parsers. Do this here and not in the toolchain's
-    // addToEnvironment() to not screw up the users run environment.
-    env.set(QLatin1String("LC_ALL"), QLatin1String("C"));
+    Utils::Environment::setupEnglishOutput(&env);
     pp->setEnvironment(env);
     pp->setCommand(makeCommand(bc->environment()));
     pp->setArguments(allArguments());
@@ -138,7 +125,7 @@ bool GenericMakeStep::init()
         appendOutputParser(parser);
     outputParser()->setWorkingDirectory(pp->effectiveWorkingDirectory());
 
-    return AbstractProcessStep::init();
+    return AbstractProcessStep::init(earlierSteps);
 }
 
 void GenericMakeStep::setClean(bool clean)
@@ -155,19 +142,19 @@ QVariantMap GenericMakeStep::toMap() const
 {
     QVariantMap map(AbstractProcessStep::toMap());
 
-    map.insert(QLatin1String(BUILD_TARGETS_KEY), m_buildTargets);
-    map.insert(QLatin1String(MAKE_ARGUMENTS_KEY), m_makeArguments);
-    map.insert(QLatin1String(MAKE_COMMAND_KEY), m_makeCommand);
-    map.insert(QLatin1String(CLEAN_KEY), m_clean);
+    map.insert(BUILD_TARGETS_KEY, m_buildTargets);
+    map.insert(MAKE_ARGUMENTS_KEY, m_makeArguments);
+    map.insert(MAKE_COMMAND_KEY, m_makeCommand);
+    map.insert(CLEAN_KEY, m_clean);
     return map;
 }
 
 bool GenericMakeStep::fromMap(const QVariantMap &map)
 {
-    m_buildTargets = map.value(QLatin1String(BUILD_TARGETS_KEY)).toStringList();
-    m_makeArguments = map.value(QLatin1String(MAKE_ARGUMENTS_KEY)).toString();
-    m_makeCommand = map.value(QLatin1String(MAKE_COMMAND_KEY)).toString();
-    m_clean = map.value(QLatin1String(CLEAN_KEY)).toBool();
+    m_buildTargets = map.value(BUILD_TARGETS_KEY).toStringList();
+    m_makeArguments = map.value(MAKE_ARGUMENTS_KEY).toString();
+    m_makeCommand = map.value(MAKE_COMMAND_KEY).toString();
+    m_clean = map.value(CLEAN_KEY).toBool();
 
     return BuildStep::fromMap(map);
 }
@@ -183,11 +170,11 @@ QString GenericMakeStep::makeCommand(const Utils::Environment &environment) cons
 {
     QString command = m_makeCommand;
     if (command.isEmpty()) {
-        ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit());
+        ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit(), ProjectExplorer::Constants::CXX_LANGUAGE_ID);
         if (tc)
             command = tc->makeCommand(environment);
         else
-            command = QLatin1String("make");
+            command = "make";
     }
     return command;
 }
@@ -227,15 +214,16 @@ void GenericMakeStep::setBuildTarget(const QString &target, bool on)
 // GenericMakeStepConfigWidget
 //
 
-GenericMakeStepConfigWidget::GenericMakeStepConfigWidget(GenericMakeStep *makeStep)
-    : m_makeStep(makeStep)
+GenericMakeStepConfigWidget::GenericMakeStepConfigWidget(GenericMakeStep *makeStep) :
+    m_makeStep(makeStep)
 {
     m_ui = new Ui::GenericMakeStep;
     m_ui->setupUi(this);
 
-    GenericProject *pro = static_cast<GenericProject *>(m_makeStep->target()->project());
-    foreach (const QString &target, pro->buildTargets()) {
-        QListWidgetItem *item = new QListWidgetItem(target, m_ui->targetsList);
+    const auto pro = static_cast<GenericProject *>(m_makeStep->target()->project());
+    const auto buildTargets = pro->buildTargets();
+    for (const QString &target : buildTargets) {
+        auto item = new QListWidgetItem(target, m_ui->targetsList);
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(m_makeStep->buildsTarget(item->text()) ? Qt::Checked : Qt::Unchecked);
     }
@@ -252,13 +240,13 @@ GenericMakeStepConfigWidget::GenericMakeStepConfigWidget(GenericMakeStep *makeSt
     connect(m_ui->makeArgumentsLineEdit, &QLineEdit::textEdited,
             this, &GenericMakeStepConfigWidget::makeArgumentsLineEditTextEdited);
 
-    connect(ProjectExplorerPlugin::instance(), SIGNAL(settingsChanged()),
-            this, SLOT(updateMakeOverrrideLabel()));
-    connect(ProjectExplorerPlugin::instance(), SIGNAL(settingsChanged()),
-            this, SLOT(updateDetails()));
+    connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::settingsChanged,
+            this, &GenericMakeStepConfigWidget::updateMakeOverrrideLabel);
+    connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::settingsChanged,
+            this, &GenericMakeStepConfigWidget::updateDetails);
 
-    connect(m_makeStep->target(), SIGNAL(kitChanged()),
-            this, SLOT(updateMakeOverrrideLabel()));
+    connect(m_makeStep->target(), &Target::kitChanged,
+            this, &GenericMakeStepConfigWidget::updateMakeOverrrideLabel);
 
     connect(pro, &GenericProject::environmentChanged,
             this, &GenericMakeStepConfigWidget::updateMakeOverrrideLabel);
@@ -333,70 +321,34 @@ GenericMakeStepFactory::GenericMakeStepFactory(QObject *parent) :
 {
 }
 
-bool GenericMakeStepFactory::canCreate(BuildStepList *parent, const Id id) const
+QList<BuildStepInfo> GenericMakeStepFactory::availableSteps(BuildStepList *parent) const
 {
-    if (parent->target()->project()->id() == Constants::GENERICPROJECT_ID)
-        return id == GENERIC_MS_ID;
-    return false;
+    if (parent->target()->project()->id() != Constants::GENERICPROJECT_ID)
+        return {};
+
+    return {{ GENERIC_MS_ID,
+              QCoreApplication::translate("GenericProjectManager::Internal::GenericMakeStep",
+              GENERIC_MS_DISPLAY_NAME) }};
 }
 
 BuildStep *GenericMakeStepFactory::create(BuildStepList *parent, const Id id)
 {
-    if (!canCreate(parent, id))
-        return 0;
-    GenericMakeStep *step = new GenericMakeStep(parent);
+    Q_UNUSED(id)
+    auto step = new GenericMakeStep(parent);
     if (parent->id() == ProjectExplorer::Constants::BUILDSTEPS_CLEAN) {
         step->setClean(true);
-        step->setBuildTarget(QLatin1String("clean"), /* on = */ true);
+        step->setBuildTarget("clean", /* on = */ true);
     } else if (parent->id() == ProjectExplorer::Constants::BUILDSTEPS_BUILD) {
-        step->setBuildTarget(QLatin1String("all"), /* on = */ true);
+        step->setBuildTarget("all", /* on = */ true);
     }
     return step;
 }
 
-bool GenericMakeStepFactory::canClone(BuildStepList *parent, BuildStep *source) const
-{
-    return canCreate(parent, source->id());
-}
-
 BuildStep *GenericMakeStepFactory::clone(BuildStepList *parent, BuildStep *source)
 {
-    if (!canClone(parent, source))
-        return 0;
-    GenericMakeStep *old(qobject_cast<GenericMakeStep *>(source));
+    auto old = qobject_cast<GenericMakeStep *>(source);
     Q_ASSERT(old);
     return new GenericMakeStep(parent, old);
-}
-
-bool GenericMakeStepFactory::canRestore(BuildStepList *parent, const QVariantMap &map) const
-{
-    return canCreate(parent, idFromMap(map));
-}
-
-BuildStep *GenericMakeStepFactory::restore(BuildStepList *parent, const QVariantMap &map)
-{
-    if (!canRestore(parent, map))
-        return 0;
-    GenericMakeStep *bs(new GenericMakeStep(parent));
-    if (bs->fromMap(map))
-        return bs;
-    delete bs;
-    return 0;
-}
-
-QList<Id> GenericMakeStepFactory::availableCreationIds(BuildStepList *parent) const
-{
-    if (parent->target()->project()->id() == Constants::GENERICPROJECT_ID)
-        return QList<Id>() << Id(GENERIC_MS_ID);
-    return QList<Id>();
-}
-
-QString GenericMakeStepFactory::displayNameForId(const Id id) const
-{
-    if (id == GENERIC_MS_ID)
-        return QCoreApplication::translate("GenericProjectManager::Internal::GenericMakeStep",
-                                           GENERIC_MS_DISPLAY_NAME);
-    return QString();
 }
 
 } // namespace Internal

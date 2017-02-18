@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -45,8 +40,13 @@
 #include <algorithm>
 #include <limits>
 #include <ctype.h>
+#include <unordered_map>
 
 typedef std::vector<int>::size_type VectorIndexType;
+
+typedef std::unordered_map<std::string, SymbolAncestorInfo> AncestorInfos;
+
+static std::unordered_map<std::string, AncestorInfos> typeAncestorInfos;
 
 /*!
     \class SymbolGroupValueContext
@@ -73,7 +73,7 @@ typedef std::vector<int>::size_type VectorIndexType;
 unsigned SymbolGroupValue::verbose = 0;
 
 SymbolGroupValue::SymbolGroupValue(const std::string &parentError) :
-    m_node(0), m_errorMessage(parentError)
+    m_errorMessage(parentError)
 {
     if (m_errorMessage.empty())
         m_errorMessage = "Invalid";
@@ -92,7 +92,7 @@ SymbolGroupValue::SymbolGroupValue(SymbolGroupNode *node,
 }
 
 SymbolGroupValue::SymbolGroupValue() :
-    m_node(0), m_errorMessage("Invalid")
+    m_errorMessage("Invalid")
 {
 }
 
@@ -132,6 +132,113 @@ SymbolGroupValue SymbolGroupValue::operator[](unsigned index) const
         formatNodeError(m_node, dp);
     }
     return SymbolGroupValue(m_errorMessage);
+}
+
+SymbolGroupValue SymbolGroupValue::addSymbolForAncestor(const std::string &ancestorName) const
+{
+    const SymbolAncestorInfo info = infoOfAncestor(ancestorName);
+    if (info.isValid()) {
+        const ULONG64 base = isPointerType(type()) ? pointerValue() : address();
+        return addSymbol(base + info.offset, stripClassPrefixes(info.type));
+    }
+    if (isValid() && SymbolGroupValue::verbose) { // Do not report subsequent errors
+        DebugPrint dp;
+        dp << this->name() << "::addSymbolForAncestor(\"" << ancestorName << "\") failed. ";
+        formatNodeError(m_node, dp);
+    }
+    return SymbolGroupValue(m_errorMessage);
+}
+
+int SymbolGroupValue::readIntegerFromAncestor(const std::string &name, int defaultValue) const
+{
+    return readPODFromAncestor<int>(name, defaultValue);
+}
+
+ULONG64 SymbolGroupValue::offsetOfChild(const SymbolGroupValue &child) const
+{
+    const ULONG64 base = isPointerType(type()) ? pointerValue() : address();
+    const ULONG64 childAddress = child.address();
+    if (base == 0 || childAddress == 0)
+        return 0;
+    return childAddress - base;
+}
+
+LONG64 SymbolGroupValue::offsetOfAncestor(const std::string &name) const
+{
+    return infoOfAncestor(name).offset;
+}
+
+ULONG64 SymbolGroupValue::addressOfAncestor(const std::string &name) const
+{
+    const ULONG64 base = isPointerType(type()) ? pointerValue() : address();
+    LONG64 offset = offsetOfAncestor(name);
+    return offset >= 0 ? base + ULONG64(offset) : 0;
+}
+
+std::string SymbolGroupValue::typeOfAncestor(const std::string &name) const
+{
+    return infoOfAncestor(name).type;
+}
+
+SymbolAncestorInfo SymbolGroupValue::infoOfAncestor(const std::string &name) const
+{
+    const std::string &typeName = type();
+    AncestorInfos &offsets = typeAncestorInfos[typeName];
+    auto offsetIt = offsets.find(name);
+    if (offsetIt != offsets.end())
+        return offsetIt->second;
+
+    SymbolAncestorInfo info;
+    if (!ensureExpanded())
+        return info;
+
+    if (AbstractSymbolGroupNode *abstractChildNode = m_node->childByIName(name.c_str())) {
+        if (SymbolGroupNode *childNode = abstractChildNode->asSymbolGroupNode()) {
+            SymbolGroupValue child(childNode, m_context);
+            ULONG64 childAddress = child.address();
+            if (childAddress == 0)
+                return info;
+            const ULONG64 base = isPointerType(typeName) ? pointerValue() : address();
+            info.offset = LONG64(childAddress - base);
+            info.type = child.type();
+        }
+    }
+
+    if (!info.isValid()) {
+        // Search recursively for ancestor
+        for (AbstractSymbolGroupNode *abstractChildNode : m_node->children())  {
+            if (SymbolGroupNode *childNode = abstractChildNode->asSymbolGroupNode()) {
+                SymbolGroupValue child(childNode, m_context);
+                if (isPointerType(child.type()))
+                    continue;
+                info = child.infoOfAncestor(name);
+                if (info.isValid()) {
+                    info.offset += offsetOfChild(child);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (info.isValid())
+        offsets[name] = info;
+    return info;
+}
+
+SymbolGroupValue SymbolGroupValue::addSymbol(const ULONG64 address, const std::string &type) const
+{
+    const std::string &pointerToType = pointedToSymbolName(address, type);
+    if (SymbolGroupNode *ancestorNode =
+            node()->symbolGroup()->addSymbol(module(), pointerToType, "", "", &std::string())) {
+        return SymbolGroupValue(ancestorNode, m_context);
+    }
+    if (isValid() && SymbolGroupValue::verbose) { // Do not report subsequent errors
+        DebugPrint dp;
+        dp << this->name() << "::addSymbol(\"" << address << "\", \"" << address << "\") failed. ";
+        formatNodeError(m_node, dp);
+    }
+    return SymbolGroupValue(m_errorMessage);
+
 }
 
 unsigned SymbolGroupValue::childCount() const
@@ -259,10 +366,27 @@ template<class POD>
     return rc;
 }
 
+template<class POD>
+POD SymbolGroupValue::readPODFromAncestor(const std::string &name, POD defaultValue) const
+{
+    ULONG64 address = addressOfAncestor(name.c_str());
+    if (address == 0)
+        return defaultValue;
+    return readPODFromMemory<POD>(m_context.dataspaces, address, sizeof(POD), defaultValue, 0);
+}
+
 ULONG64 SymbolGroupValue::readPointerValue(CIDebugDataSpaces *ds, ULONG64 address,
                                            std::string *errorMessage /* = 0 */)
 {
     return readPODFromMemory<ULONG64>(ds, address, SymbolGroupValue::pointerSize(), 0, errorMessage);
+}
+
+ULONG64 SymbolGroupValue::readPointerValueFromAncestor(const std::string &name) const
+{
+    ULONG64 address = addressOfAncestor(name.c_str());
+    if (address == 0)
+        return 0;
+    return readPointerValue(m_context.dataspaces, address);
 }
 
 ULONG64 SymbolGroupValue::readUnsignedValue(CIDebugDataSpaces *ds,
@@ -653,14 +777,16 @@ const QtInfo &QtInfo::get(const SymbolGroupValueContext &ctx)
     std::string moduleName;
     std::string::size_type exclPos = std::string::npos;
     std::string::size_type libPos = std::string::npos;
+    std::string::size_type qtPos = std::string::npos;
 
     const StringList &modules = SymbolGroupValue::getAllModuleNames(ctx);
     for (StringListConstIt module = modules.begin(), total = modules.end();
          module != total; ++module) {
         moduleName = *module;
-        if (moduleName.find("Qt") != std::string::npos) {
+        qtPos = moduleName.find("Qt");
+        if (qtPos != std::string::npos) {
             libPos = moduleName.find("Core");
-            if (libPos != std::string::npos)
+            if (libPos != std::string::npos && (libPos - qtPos) < 4)
                 break;
         }
     }
@@ -1115,6 +1241,22 @@ static KnownType knownClassTypeHelper(const std::string &type,
             case 8:
                 if (!type.compare(hPos, 8, "multimap"))
                     return KT_StdMultiMap;
+                if (!type.compare(hPos, 8, "multiset"))
+                    return KT_StdMultiSet;
+                if (!type.compare(hPos, 8, "valarray"))
+                    return KT_StdValArray;
+                break;
+            case 13:
+                if (!type.compare(hPos, 13, "unordered_map"))
+                    return KT_StdUnorderedMap;
+                if (!type.compare(hPos, 13, "unordered_set"))
+                    return KT_StdUnorderedSet;
+                break;
+            case 18:
+                if (!type.compare(hPos, 18, "unordered_multimap"))
+                    return KT_StdUnorderedMultiMap;
+                if (!type.compare(hPos, 18, "unordered_multiset"))
+                    return KT_StdUnorderedMultiSet;
                 break;
             }
         }
@@ -1506,6 +1648,14 @@ void formatKnownTypeFlags(std::ostream &os, KnownType kt)
         os << " simple_dumper";
 }
 
+unsigned SymbolGroupValue::isMovable(const std::string &t, const SymbolGroupValue &v)
+{
+    KnownType kt = knownType(t, false);
+    if (kt & (KT_POD_Type | KT_Qt_MovableType | KT_Qt_PrimitiveType))
+        return true;
+    return kt == KT_QStringList && QtInfo::get(v.context()).version >= 5;
+}
+
 static inline DumpParameterRecodeResult
     checkCharArrayRecode(const SymbolGroupValue &v)
 {
@@ -1710,7 +1860,7 @@ static unsigned qAtomicIntSize(const SymbolGroupValueContext &ctx)
 }
 
 // Dump a QByteArray
-static inline bool dumpQByteArray(const SymbolGroupValue &v, std::wostream &str, int *encoding,
+static inline bool dumpQByteArray(const SymbolGroupValue &v, std::wostream &str, std::string *encoding,
                                   MemoryHandle **memoryHandle = 0)
 {
     const QtInfo &qtInfo = QtInfo::get(v.context());
@@ -1735,7 +1885,7 @@ static inline bool dumpQByteArray(const SymbolGroupValue &v, std::wostream &str,
 
     // Qt 5: Data start at offset past the 'd' of type QByteArrayData.
     if (encoding)
-        *encoding = DumpEncodingHex_Latin1_WithQuotes;
+        *encoding = "latin1";
     wchar_t oldFill = str.fill(wchar_t('0'));
     str << std::hex;
     char *memory;
@@ -1839,7 +1989,7 @@ static bool dumpQByteArrayFromQPrivateClass(const SymbolGroupValue &v,
                                             QPrivateDumpMode mode,
                                             unsigned additionalOffset,
                                             std::wostream &str,
-                                            int *encoding)
+                                            std::string *encoding)
 {
     std::string errorMessage;
     const ULONG64 byteArrayAddress = addressOfQPrivateMember(v, mode, additionalOffset);
@@ -1935,7 +2085,7 @@ static inline bool dumpQFile(const SymbolGroupValue &v, std::wostream &str)
     return dumpQStringFromQPrivateClass(v, QPDM_qVirtual, qFileBasePrivateSize,  str);
 }
 
-static inline bool dumpQIPv6Address(const SymbolGroupValue &v, std::wostream &str, int *encoding)
+static inline bool dumpQIPv6Address(const SymbolGroupValue &v, std::wostream &str, std::string *encoding)
 {
     unsigned char *p = SymbolGroupValue::readMemory( v.context().dataspaces, v["c"].address(), 16);
     if (!p || !encoding)
@@ -1950,12 +2100,12 @@ static inline bool dumpQIPv6Address(const SymbolGroupValue &v, std::wostream &st
     }
     str << std::dec;
     str.fill(oldFill);
-    *encoding = DumpEncodingIPv6AddressAndHexScopeId;
+    *encoding = "ipv6addressandhexscopeid";
     return true;
 }
 /* Dump QHostAddress, for whose private class no debugging information is available.
  * Dump string 'ipString' past of its private class. Does not currently work? */
-static inline bool dumpQHostAddress(const SymbolGroupValue &v, std::wostream &str, int *encoding)
+static inline bool dumpQHostAddress(const SymbolGroupValue &v, std::wostream &str, std::string *encoding)
 {
     // Determine offset in private struct: qIPv6AddressType (array, unaligned) +  uint32 + enum.
     const QtInfo info = QtInfo::get(v.context());
@@ -2181,13 +2331,13 @@ static inline bool dumpQFlags(const SymbolGroupValue &v, std::wostream &str)
     return false;
 }
 
-static bool dumpQDate(const SymbolGroupValue &v, std::wostream &str, int *encoding)
+static bool dumpQDate(const SymbolGroupValue &v, std::wostream &str, std::string *encoding)
 {
     if (const SymbolGroupValue julianDayV = v["jd"]) {
         if (julianDayV.intValue() > 0) {
             str << julianDayV.intValue();
             if (encoding)
-                *encoding = DumpEncodingJulianDate;
+                *encoding = "juliandate";
         } else {
             str << L"(invalid)";
         }
@@ -2196,19 +2346,19 @@ static bool dumpQDate(const SymbolGroupValue &v, std::wostream &str, int *encodi
     return false;
 }
 
-static bool dumpQTime(const SymbolGroupValue &v, std::wostream &str, int *encoding)
+static bool dumpQTime(const SymbolGroupValue &v, std::wostream &str, std::string *encoding)
 {
     if (const SymbolGroupValue milliSecsV = v["mds"]) {
         const int milliSecs = milliSecsV.intValue();
         str << milliSecs;
         if (encoding)
-            *encoding = DumpEncodingMillisecondsSinceMidnight;
+            *encoding = "millisecondssincemidnight";
         return true;
     }
     return false;
 }
 
-static bool dumpQTimeZone(const SymbolGroupValue &v, std::wostream &str, int *encoding)
+static bool dumpQTimeZone(const SymbolGroupValue &v, std::wostream &str, std::string *encoding)
 {
     if (!dumpQByteArrayFromQPrivateClass(v, QPDM_qSharedDataPadded, SymbolGroupValue::pointerSize(), str, encoding))
         str << L"(null)";
@@ -2220,7 +2370,7 @@ static bool dumpQTimeZoneFromQPrivateClass(const SymbolGroupValue &v,
                                            QPrivateDumpMode mode,
                                            unsigned additionalOffset,
                                            std::wostream &str,
-                                           int *encoding)
+                                           std::string *encoding)
 {
     std::string errorMessage;
     const ULONG64 timeZoneAddress = addressOfQPrivateMember(v, mode, additionalOffset);
@@ -2250,7 +2400,7 @@ static bool dumpQTimeZoneFromQPrivateClass(const SymbolGroupValue &v,
 
 // QDateTime has an unexported private class. Obtain date and time
 // from memory.
-static bool dumpQDateTime(const SymbolGroupValue &v, std::wostream &str, int *encoding)
+static bool dumpQDateTime(const SymbolGroupValue &v, std::wostream &str, std::string *encoding)
 {
     // QDate is 64bit starting from Qt 5 which is always aligned 64bit.
     if (QtInfo::get(v.context()).version == 5) {
@@ -2298,7 +2448,7 @@ static bool dumpQDateTime(const SymbolGroupValue &v, std::wostream &str, int *en
             << status;
 
         if (encoding)
-            *encoding = DumpEncodingMillisecondsSinceEpoch;
+            *encoding = "datetimeinternal";
 
         return  true;
     }
@@ -2319,7 +2469,7 @@ static bool dumpQDateTime(const SymbolGroupValue &v, std::wostream &str, int *en
                                        timeAddr, SymbolGroupValue::intSize(), 0);
     str << date << '/' << time;
     if (encoding)
-        *encoding = DumpEncodingJulianDateAndMillisecondsSinceMidnight;
+        *encoding = "juliandateandmillisecondssincemidnight";
     return true;
 }
 
@@ -2651,7 +2801,7 @@ static inline std::string
     return rc;
 }
 
-static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, int *encoding,
+static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, std::string *encoding,
                          void **specialInfoIn = 0)
 {
     const QtInfo &qtInfo = QtInfo::get(v.context());
@@ -2695,7 +2845,8 @@ static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, int *enc
         if (const SymbolGroupValue mv = dataV.typeCast(vmType.c_str())) {
             SymbolGroupNode *mapNode = mv.node();
             std::wstring value;
-            if (dumpSimpleType(mapNode, dataV.context(), &value) == SymbolGroupNode::SimpleDumperOk) {
+            if (dumpSimpleType(mapNode, dataV.context(), &value, &std::string())
+                    == SymbolGroupNode::SimpleDumperOk) {
                 str << value;
                 if (specialInfoIn)
                     *specialInfoIn = mapNode;
@@ -2709,7 +2860,8 @@ static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, int *enc
         if (const SymbolGroupValue vl = dataV.typeCast(vLType.c_str())) {
             SymbolGroupNode *vListNode = vl.node();
             std::wstring value;
-            if (dumpSimpleType(vListNode, dataV.context(), &value) == SymbolGroupNode::SimpleDumperOk) {
+            if (dumpSimpleType(vListNode, dataV.context(), &value, &std::string())
+                    == SymbolGroupNode::SimpleDumperOk) {
                 str << value;
                 if (specialInfoIn)
                     *specialInfoIn = vListNode;
@@ -2734,7 +2886,8 @@ static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, int *enc
         if (const SymbolGroupValue sl = dataV.typeCast(qtInfo.prependQtCoreModule("QStringList *").c_str())) {
             SymbolGroupNode *listNode = sl.node();
             std::wstring value;
-            if (dumpSimpleType(listNode, dataV.context(), &value) == SymbolGroupNode::SimpleDumperOk) {
+            if (dumpSimpleType(listNode, dataV.context(), &value, &std::string())
+                    == SymbolGroupNode::SimpleDumperOk) {
                 str << value;
                 if (specialInfoIn)
                     *specialInfoIn = listNode;
@@ -2821,7 +2974,7 @@ static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, int *enc
     return true;
 }
 
-static inline bool dumpQSharedPointer(const SymbolGroupValue &v, std::wostream &str, int *encoding, void **specialInfoIn = 0)
+static inline bool dumpQSharedPointer(const SymbolGroupValue &v, std::wostream &str, std::string *encoding, void **specialInfoIn = 0)
 {
     const SymbolGroupValue externalRefCountV = v[unsigned(0)];
     const QtInfo qtInfo = QtInfo::get(v.context());
@@ -2850,22 +3003,20 @@ static inline bool dumpQSharedPointer(const SymbolGroupValue &v, std::wostream &
             str << L"(null)";
             return true;
         }
-        std::ostringstream namestr;
-        namestr << "*(" << SymbolGroupValue::stripClassPrefixes(value.type()) << ")("
-                << std::showbase << std::hex << value.pointerValue() << ')';
-        SymbolGroupNode *valueNode
-                = v.node()->symbolGroup()->addSymbol(v.module(), namestr.str(), std::string(), &std::string());
-        if (!valueNode)
-            return false;
 
-        str << valueNode->simpleDumpValue(v.context(), encoding);
-        return true;
+        if (knownType(value.type(), KnownTypeAutoStripPointer | KnownTypeHasClassPrefix)
+                & KT_HasSimpleDumper) {
+            str << value.node()->simpleDumpValue(v.context(), encoding);
+            return true;
+        }
+
+        return false;
     }
 }
 
 // Dump builtin simple types using SymbolGroupValue expressions.
 unsigned dumpSimpleType(SymbolGroupNode  *n, const SymbolGroupValueContext &ctx,
-                        std::wstring *s, int *encoding /* = 0 */, int *knownTypeIn /* = 0 */,
+                        std::wstring *s, std::string *encoding, int *knownTypeIn /* = 0 */,
                         int *containerSizeIn /* = 0 */,
                         void **specialInfoIn /* = 0 */,
                         MemoryHandle **memoryHandleIn /* = 0 */)
@@ -3047,55 +3198,27 @@ unsigned dumpSimpleType(SymbolGroupNode  *n, const SymbolGroupValueContext &ctx,
     return rc;
 }
 
-static inline void formatEditValue(int displayFormat, const MemoryHandle *mh, std::ostream &str)
+static inline void formatEditValue(const std::string &displayFormat, const MemoryHandle *mh, std::ostream &str)
 {
     str << "editformat=\"" << displayFormat << "\",editvalue=\""
         << mh->toHex() << "\",";
 }
 
-bool dumpEditValue(const SymbolGroupNode *n, const SymbolGroupValueContext &,
-                   int desiredFormat, std::ostream &str)
+void dumpEditValue(const SymbolGroupNode *n, const SymbolGroupValueContext &,
+                   const std::string &desiredFormat, std::ostream &str)
 {
-    // Keep in sync watchhandler.cpp/showEditValue(), dumper.py.
-    enum DebuggerEditFormats {
-        DisplayImageData                       = 1,
-        DisplayUtf16String                     = 2,
-        DisplayImageFile                       = 3,
-        DisplayLatin1String                    = 4,
-        DisplayUtf8String                      = 5
-    };
-
-    enum Formats {
-        NormalFormat = 0,
-        StringSeparateWindow = 1 // corresponds to menu index.
-    };
-
-    if (desiredFormat <= 0)
-        return true;
-
     if (SymbolGroupValue::verbose)
         DebugPrint() << __FUNCTION__ << ' ' << n->name() << '/' << desiredFormat;
 
-    switch (n->dumperType()) {
-    case KT_QString:
-    case KT_StdWString:
-        if (desiredFormat == StringSeparateWindow)
-            if (const MemoryHandle *mh = n->memory())
-                formatEditValue(DisplayUtf16String, mh, str);
-        break;
-    case KT_QByteArray:
-    case KT_StdString:
-        if (desiredFormat == StringSeparateWindow)
-            if (const MemoryHandle *mh = n->memory())
-                formatEditValue(DisplayLatin1String, mh, str);
-        break;
-    case KT_QImage:
-        if (desiredFormat == 1) // Image.
-            if (const MemoryHandle *mh = n->memory())
-                formatEditValue(DisplayImageData, mh, str);
-        break;
-    }
-    return true;
+    auto separatorPos = desiredFormat.find(':');
+    if (separatorPos == std::string::npos)
+        return;
+
+    if (desiredFormat.substr(separatorPos) != "separate")
+        return;
+
+    if (const MemoryHandle *mh = n->memory())
+        formatEditValue(desiredFormat, mh, str);
 }
 
 // Dump of QByteArray: Display as an array of unsigned chars.

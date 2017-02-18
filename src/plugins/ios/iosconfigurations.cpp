@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,10 +27,13 @@
 #include "iosconstants.h"
 #include "iosdevice.h"
 #include "iossimulator.h"
+#include "simulatorcontrol.h"
 #include "iosprobe.h"
 
 #include <coreplugin/icore.h>
+#include <utils/algorithm.h>
 #include <utils/qtcassert.h>
+#include <utils/synchronousprocess.h>
 #include <projectexplorer/kitmanager.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/devicesupport/devicemanager.h>
@@ -51,9 +49,10 @@
 #include <qtsupport/qtversionmanager.h>
 #include <qtsupport/qtversionfactory.h>
 
+#include <QDomDocument>
 #include <QFileInfo>
+#include <QHash>
 #include <QList>
-#include <QMap>
 #include <QSettings>
 #include <QStringList>
 #include <QTimer>
@@ -65,315 +64,260 @@ using namespace Debugger;
 
 namespace {
 Q_LOGGING_CATEGORY(kitSetupLog, "qtc.ios.kitSetup")
+Q_LOGGING_CATEGORY(iosCommonLog, "qtc.ios.common")
 }
 
+using ToolChainPair = std::pair<ClangToolChain *, ClangToolChain *>;
 namespace Ios {
 namespace Internal {
 
 const QLatin1String SettingsGroup("IosConfigurations");
 const QLatin1String ignoreAllDevicesKey("IgnoreAllDevices");
 
+static Core::Id deviceId(const Platform &platform)
+{
+    if (platform.name.startsWith(QLatin1String("iphoneos-")))
+        return Constants::IOS_DEVICE_TYPE;
+    else if (platform.name.startsWith(QLatin1String("iphonesimulator-")))
+        return Constants::IOS_SIMULATOR_TYPE;
+    return Core::Id();
+}
+
+static bool handledPlatform(const Platform &platform)
+{
+    // do not want platforms that
+    // - are not iphone (e.g. watchos)
+    // - are not base
+    // - are C++11
+    // - are not clang
+    return deviceId(platform).isValid()
+            && (platform.platformKind & Platform::BasePlatform) != 0
+            && (platform.platformKind & Platform::Cxx11Support) == 0
+            && platform.type == Platform::CLang;
+}
+
+static QList<Platform> handledPlatforms()
+{
+    QList<Platform> platforms = IosProbe::detectPlatforms().values();
+    return Utils::filtered(platforms, handledPlatform);
+}
+
+static QList<ClangToolChain *> clangToolChains(const QList<ToolChain *> &toolChains)
+{
+    QList<ClangToolChain *> clangToolChains;
+    foreach (ToolChain *toolChain, toolChains)
+        if (toolChain->typeId() == ProjectExplorer::Constants::CLANG_TOOLCHAIN_TYPEID)
+            clangToolChains.append(static_cast<ClangToolChain *>(toolChain));
+    return clangToolChains;
+}
+
+static QList<ClangToolChain *> autoDetectedIosToolChains()
+{
+    const QList<ClangToolChain *> toolChains = clangToolChains(ToolChainManager::toolChains());
+    return Utils::filtered(toolChains, [](ClangToolChain *toolChain) {
+        return toolChain->isAutoDetected()
+               && toolChain->displayName().startsWith(QLatin1String("iphone")); // TODO tool chains should be marked directly
+    });
+}
+
+static ToolChainPair findToolChainForPlatform(const Platform &platform, const QList<ClangToolChain *> &toolChains)
+{
+    ToolChainPair platformToolChains;
+    auto toolchainMatch = [](ClangToolChain *toolChain, const Utils::FileName &compilerPath, const QStringList &flags) {
+        return compilerPath == toolChain->compilerCommand()
+                && flags == toolChain->platformCodeGenFlags()
+                && flags == toolChain->platformLinkerFlags();
+    };
+    platformToolChains.first = Utils::findOrDefault(toolChains, std::bind(toolchainMatch, std::placeholders::_1,
+                                                                  platform.cCompilerPath,
+                                                                  platform.backendFlags));
+    platformToolChains.second = Utils::findOrDefault(toolChains, std::bind(toolchainMatch, std::placeholders::_1,
+                                                                   platform.cxxCompilerPath,
+                                                                   platform.backendFlags));
+    return platformToolChains;
+}
+
+static QHash<Platform, ToolChainPair> findToolChains(const QList<Platform> &platforms)
+{
+    QHash<Platform, ToolChainPair> platformToolChainHash;
+    const QList<ClangToolChain *> toolChains = autoDetectedIosToolChains();
+    foreach (const Platform &platform, platforms) {
+        ToolChainPair platformToolchains = findToolChainForPlatform(platform, toolChains);
+        if (platformToolchains.first || platformToolchains.second)
+            platformToolChainHash.insert(platform, platformToolchains);
+    }
+    return platformToolChainHash;
+}
+
+static QHash<Abi::Architecture, QSet<BaseQtVersion *>> iosQtVersions()
+{
+    const QList<BaseQtVersion *> iosVersions
+            = QtVersionManager::versions([](const BaseQtVersion *v) {
+        return v->isValid() && v->type() == Constants::IOSQT;
+    });
+    QHash<Abi::Architecture, QSet<BaseQtVersion *>> versions;
+    foreach (BaseQtVersion *qtVersion, iosVersions) {
+        foreach (const Abi &abi, qtVersion->qtAbis())
+            versions[abi.architecture()].insert(qtVersion);
+    }
+    return versions;
+}
+
+static void printQtVersions(const QHash<Abi::Architecture, QSet<BaseQtVersion *> > &map)
+{
+    foreach (const Abi::Architecture &arch, map.keys()) {
+        qCDebug(kitSetupLog) << "-" << Abi::toString(arch);
+        foreach (const BaseQtVersion *version, map.value(arch))
+            qCDebug(kitSetupLog) << "  -" << version->displayName() << version;
+    }
+}
+
+static QSet<Kit *> existingAutoDetectedIosKits()
+{
+    return Utils::filtered(KitManager::kits(), [](Kit *kit) -> bool {
+        Core::Id deviceKind = DeviceTypeKitInformation::deviceTypeId(kit);
+        return kit->isAutoDetected() && (deviceKind == Constants::IOS_DEVICE_TYPE
+                                         || deviceKind == Constants::IOS_SIMULATOR_TYPE);
+    }).toSet();
+}
+
+static void printKits(const QSet<Kit *> &kits)
+{
+    foreach (const Kit *kit, kits)
+        qCDebug(kitSetupLog) << "  -" << kit->displayName();
+}
+
+static void setupKit(Kit *kit, Core::Id pDeviceType, const ToolChainPair& toolChains,
+                     const QVariant &debuggerId, const Utils::FileName &sdkPath, BaseQtVersion *qtVersion)
+{
+    DeviceTypeKitInformation::setDeviceTypeId(kit, pDeviceType);
+    if (toolChains.first)
+        ToolChainKitInformation::setToolChain(kit, toolChains.first);
+    else
+        ToolChainKitInformation::clearToolChain(kit, ProjectExplorer::Constants::C_LANGUAGE_ID);
+    if (toolChains.second)
+        ToolChainKitInformation::setToolChain(kit, toolChains.second);
+    else
+        ToolChainKitInformation::clearToolChain(kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
+
+    QtKitInformation::setQtVersion(kit, qtVersion);
+    // only replace debugger with the default one if we find an unusable one here
+    // (since the user could have changed it)
+    if ((!DebuggerKitInformation::debugger(kit)
+            || !DebuggerKitInformation::debugger(kit)->isValid()
+            || DebuggerKitInformation::debugger(kit)->engineType() != LldbEngineType)
+            && debuggerId.isValid())
+        DebuggerKitInformation::setDebugger(kit, debuggerId);
+
+    kit->setMutable(DeviceKitInformation::id(), true);
+    kit->setSticky(QtKitInformation::id(), true);
+    kit->setSticky(ToolChainKitInformation::id(), true);
+    kit->setSticky(DeviceTypeKitInformation::id(), true);
+    kit->setSticky(SysRootKitInformation::id(), true);
+    kit->setSticky(DebuggerKitInformation::id(), false);
+
+    SysRootKitInformation::setSysRoot(kit, sdkPath);
+}
+
+static QVersionNumber findXcodeVersion()
+{
+    Utils::SynchronousProcess pkgUtilProcess;
+    Utils::SynchronousProcessResponse resp =
+            pkgUtilProcess.runBlocking("pkgutil", QStringList("--pkg-info-plist=com.apple.pkg.Xcode"));
+    if (resp.result == Utils::SynchronousProcessResponse::Finished) {
+        QDomDocument xcodeVersionDoc;
+        if (xcodeVersionDoc.setContent(resp.allRawOutput())) {
+            QDomNodeList nodes = xcodeVersionDoc.elementsByTagName(QStringLiteral("key"));
+            for (int i = 0; i < nodes.count(); ++i) {
+                QDomElement elem = nodes.at(i).toElement();
+                if (elem.text().compare(QStringLiteral("pkg-version")) == 0) {
+                    QString versionStr = elem.nextSiblingElement().text();
+                    return  QVersionNumber::fromString(versionStr);
+                }
+            }
+        } else {
+            qCDebug(iosCommonLog) << "Error finding Xcode version. Cannot parse xml output from pkgutil.";
+        }
+    } else {
+        qCDebug(iosCommonLog) << "Error finding Xcode version. pkgutil command failed.";
+    }
+
+    qCDebug(iosCommonLog) << "Error finding Xcode version. Unknow error.";
+    return QVersionNumber();
+}
+
 void IosConfigurations::updateAutomaticKitList()
 {
-    QMap<QString, Platform> platforms = IosProbe::detectPlatforms();
+    const QList<Platform> platforms = handledPlatforms();
+    qCDebug(kitSetupLog) << "Used platforms:" << platforms;
     if (!platforms.isEmpty())
-        setDeveloperPath(platforms.begin().value().developerPath);
-    // filter out all non iphone, non base, non clang or cxx11 platforms, as we don't set up kits for those
-    {
-        QMap<QString, Platform>::iterator iter(platforms.begin());
-        while (iter != platforms.end()) {
-            const Platform &p = iter.value();
-            if (!p.name.startsWith(QLatin1String("iphone")) || (p.platformKind & Platform::BasePlatform) == 0
-                    || (p.platformKind & Platform::Cxx11Support) != 0
-                    || !p.compilerPath.toString().contains(QLatin1String("clang")))
-                iter = platforms.erase(iter);
-            else {
-                qCDebug(kitSetupLog) << "keeping" << p.name << " " << p.compilerPath.toString() << " "
-                                     << p.backendFlags;
-                ++iter;
-            }
-        }
-    }
+        setDeveloperPath(platforms.first().developerPath);
+    qCDebug(kitSetupLog) << "Developer path:" << developerPath();
 
-    QMap<QString, GccToolChain *> platformToolchainMap;
-    // check existing toolchains (and remove old ones)
-    foreach (ToolChain *tc, ToolChainManager::toolChains()) {
-        if (!tc->isAutoDetected()) // use also user toolchains?
-            continue;
-        if (tc->typeId() != ProjectExplorer::Constants::CLANG_TOOLCHAIN_TYPEID
-                && tc->typeId() != ProjectExplorer::Constants::GCC_TOOLCHAIN_TYPEID)
-            continue;
-        GccToolChain *toolchain = static_cast<GccToolChain *>(tc);
-        QMapIterator<QString, Platform> iter(platforms);
-        bool found = false;
-        while (iter.hasNext()) {
-            iter.next();
-            const Platform &p = iter.value();
-            if (p.compilerPath == toolchain->compilerCommand()
-                    && p.backendFlags == toolchain->platformCodeGenFlags()
-                    && !platformToolchainMap.contains(p.name)) {
-                platformToolchainMap[p.name] = toolchain;
-                found = true;
-            }
-        }
-        iter.toFront();
-        while (iter.hasNext()) {
-            iter.next();
-            const Platform &p = iter.value();
-            if (p.platformKind)
-                continue;
-            if (p.compilerPath == toolchain->compilerCommand()
-                    && p.backendFlags == toolchain->platformCodeGenFlags()) {
-                found = true;
-                if ((p.architecture == QLatin1String("i386")
-                        && toolchain->targetAbi().wordWidth() != 32) ||
-                        (p.architecture == QLatin1String("x86_64")
-                        && toolchain->targetAbi().wordWidth() != 64)) {
-                        qCDebug(kitSetupLog) << "resetting api of " << toolchain->displayName();
-                    toolchain->setTargetAbi(Abi(Abi::X86Architecture,
-                                                Abi::MacOS, Abi::GenericMacFlavor,
-                                                Abi::MachOFormat,
-                                                p.architecture.endsWith(QLatin1String("64"))
-                                                    ? 64 : 32));
-                }
-                platformToolchainMap[p.name] = toolchain;
-                qCDebug(kitSetupLog) << p.name << " -> " << toolchain->displayName();
-            }
-        }
-        if (!found && (tc->displayName().startsWith(QLatin1String("iphone"))
-                       || tc->displayName().startsWith(QLatin1String("mac")))) {
-            qCWarning(kitSetupLog) << "removing toolchain" << tc->displayName();
-            ToolChainManager::deregisterToolChain(tc);
-        }
-    }
-    // add missing toolchains
-    {
-        QMapIterator<QString, Platform> iter(platforms);
-        while (iter.hasNext()) {
-            iter.next();
-            const Platform &p = iter.value();
-            if (platformToolchainMap.contains(p.name))
-                continue;
-            GccToolChain *toolchain;
-            if (p.compilerPath.toFileInfo().baseName().startsWith(QLatin1String("clang")))
-                toolchain = new ClangToolChain(ToolChain::AutoDetection);
-            else
-                toolchain = new GccToolChain(ProjectExplorer::Constants::GCC_TOOLCHAIN_TYPEID,
-                                             ToolChain::AutoDetection);
-            QString baseDisplayName = p.name;
-            QString displayName = baseDisplayName;
-            for (int iVers = 1; iVers < 100; ++iVers) {
-                bool unique = true;
-                foreach (ToolChain *existingTC, ToolChainManager::toolChains()) {
-                    if (existingTC->displayName() == displayName) {
-                        unique = false;
-                        break;
-                    }
-                }
-                if (unique) break;
-                displayName = baseDisplayName + QLatin1Char('-') + QString::number(iVers);
-            }
-            toolchain->setDisplayName(displayName);
-            toolchain->setPlatformCodeGenFlags(p.backendFlags);
-            toolchain->setPlatformLinkerFlags(p.backendFlags);
-            toolchain->resetToolChain(p.compilerPath);
-            if (p.architecture == QLatin1String("i386")
-                    || p.architecture == QLatin1String("x86_64")) {
-                qCDebug(kitSetupLog) << "setting toolchain Abi for " << toolchain->displayName();
-                toolchain->setTargetAbi(Abi(Abi::X86Architecture,Abi::MacOS, Abi::GenericMacFlavor,
-                                            Abi::MachOFormat,
-                                            p.architecture.endsWith(QLatin1String("64"))
-                                                ? 64 : 32));
-            }
-            qCDebug(kitSetupLog) << "adding toolchain " << p.name;
-            ToolChainManager::registerToolChain(toolchain);
-            platformToolchainMap.insert(p.name, toolchain);
-            QMapIterator<QString, Platform> iter2(iter);
-            while (iter2.hasNext()) {
-                iter2.next();
-                const Platform &p2 = iter2.value();
-                if (!platformToolchainMap.contains(p2.name)
-                        && p2.compilerPath == toolchain->compilerCommand()
-                        && p2.backendFlags == toolchain->platformCodeGenFlags()) {
-                    platformToolchainMap[p2.name] = toolchain;
-                }
-            }
-        }
-    }
-    QMap<Abi::Architecture, QList<BaseQtVersion *> > qtVersionsForArch;
-    foreach (BaseQtVersion *qtVersion, QtVersionManager::versions()) {
-        qCDebug(kitSetupLog) << "qt type " << qtVersion->type();
-        if (qtVersion->type() != QLatin1String(Constants::IOSQT)) {
-            if (qtVersion->qmakeProperty("QMAKE_PLATFORM").contains(QLatin1String("ios"))
-                    || qtVersion->qmakeProperty("QMAKE_XSPEC").contains(QLatin1String("ios"))) {
-                // replace with an ios version
-                BaseQtVersion *iosVersion =
-                        QtVersionFactory::createQtVersionFromQMakePath(
-                            qtVersion->qmakeCommand(),
-                            qtVersion->isAutodetected(),
-                            qtVersion->autodetectionSource());
-                if (iosVersion && iosVersion->type() == QLatin1String(Constants::IOSQT)) {
-                    qCDebug(kitSetupLog) << "converting QT to iOS QT for " << qtVersion->qmakeCommand().toUserOutput();
-                    QtVersionManager::removeVersion(qtVersion);
-                    QtVersionManager::addVersion(iosVersion);
-                    qtVersion = iosVersion;
-                } else {
-                    continue;
-                }
-            } else {
-                continue;
-            }
-        }
-        if (!qtVersion->isValid())
-            continue;
-        QList<Abi> qtAbis = qtVersion->qtAbis();
-        if (qtAbis.empty())
-            continue;
-        qCDebug(kitSetupLog) << "qt arch " << qtAbis.first().architecture();
-        foreach (const Abi &abi, qtAbis)
-            qtVersionsForArch[abi.architecture()].append(qtVersion);
-    }
+    // platform name -> tool chain
+    const QHash<Platform, ToolChainPair> platformToolChainHash = findToolChains(platforms);
+
+    const QHash<Abi::Architecture, QSet<BaseQtVersion *> > qtVersionsForArch = iosQtVersions();
+    qCDebug(kitSetupLog) << "iOS Qt versions:";
+    printQtVersions(qtVersionsForArch);
 
     const DebuggerItem *possibleDebugger = DebuggerItemManager::findByEngineType(LldbEngineType);
-    QVariant debuggerId = (possibleDebugger ? possibleDebugger->id() : QVariant());
+    const QVariant debuggerId = (possibleDebugger ? possibleDebugger->id() : QVariant());
 
-    QList<Kit *> existingKits;
-    QList<bool> kitMatched;
-    foreach (Kit *k, KitManager::kits()) {
-        Core::Id deviceKind = DeviceTypeKitInformation::deviceTypeId(k);
-        if (deviceKind != Constants::IOS_DEVICE_TYPE
-                && deviceKind != Constants::IOS_SIMULATOR_TYPE) {
-            qCDebug(kitSetupLog) << "skipping existing kit with deviceKind " << deviceKind.toString();
+    QSet<Kit *> existingKits = existingAutoDetectedIosKits();
+    qCDebug(kitSetupLog) << "Existing auto-detected iOS kits:";
+    printKits(existingKits);
+    QSet<Kit *> resultingKits;
+    // match existing kits and create missing kits
+    foreach (const Platform &platform, platforms) {
+        qCDebug(kitSetupLog) << "Guaranteeing kits for " << platform.name ;
+        const ToolChainPair &platformToolchains = platformToolChainHash.value(platform);
+        if (!platformToolchains.first && !platformToolchains.second) {
+            qCDebug(kitSetupLog) << "  - No tool chain found";
             continue;
         }
-        if (!k->isAutoDetected())
-            continue;
-        existingKits << k;
-        kitMatched << false;
-    }
-    // create missing kits
-    {
-        QMapIterator<QString, Platform> iter(platforms);
-        while (iter.hasNext()) {
-            iter.next();
-            const Platform &p = iter.value();
-            GccToolChain *pToolchain = platformToolchainMap.value(p.name, 0);
-            if (!pToolchain)
-                continue;
-            Core::Id pDeviceType;
-            qCDebug(kitSetupLog) << "guaranteeing kit for " << p.name ;
-            if (p.name.startsWith(QLatin1String("iphoneos-"))) {
-                pDeviceType = Constants::IOS_DEVICE_TYPE;
-            } else if (p.name.startsWith(QLatin1String("iphonesimulator-"))) {
-                pDeviceType = Constants::IOS_SIMULATOR_TYPE;
-                qCDebug(kitSetupLog) << "pDeviceType " << pDeviceType.toString();
+        Core::Id pDeviceType = deviceId(platform);
+        QTC_ASSERT(pDeviceType.isValid(), continue);
+        Abi::Architecture arch = platformToolchains.second ? platformToolchains.second->targetAbi().architecture() :
+                                                            platformToolchains.first->targetAbi().architecture();
+
+        QSet<BaseQtVersion *> qtVersions = qtVersionsForArch.value(arch);
+        foreach (BaseQtVersion *qtVersion, qtVersions) {
+            qCDebug(kitSetupLog) << "  - Qt version:" << qtVersion->displayName();
+            Kit *kit = Utils::findOrDefault(existingKits, [&pDeviceType, &platformToolchains, &qtVersion](const Kit *kit) {
+                // we do not compare the sdk (thus automatically upgrading it in place if a
+                // new Xcode is used). Change?
+                return DeviceTypeKitInformation::deviceTypeId(kit) == pDeviceType
+                        && ToolChainKitInformation::toolChain(kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID) == platformToolchains.second
+                        && ToolChainKitInformation::toolChain(kit, ProjectExplorer::Constants::C_LANGUAGE_ID) == platformToolchains.first
+                        && QtKitInformation::qtVersion(kit) == qtVersion;
+            });
+            QTC_ASSERT(!resultingKits.contains(kit), continue);
+            if (kit) {
+                qCDebug(kitSetupLog) << "    - Kit matches:" << kit->displayName();
+                kit->blockNotification();
+                setupKit(kit, pDeviceType, platformToolchains, debuggerId, platform.sdkPath, qtVersion);
+                kit->unblockNotification();
             } else {
-                qCDebug(kitSetupLog) << "skipping non ios kit " << p.name;
-                // we looked up only the ios qt build above...
-                continue;
-                //pDeviceType = Constants::DESKTOP_DEVICE_TYPE;
+                qCDebug(kitSetupLog) << "    - Setting up new kit";
+                kit = new Kit;
+                kit->blockNotification();
+                kit->setAutoDetected(true);
+                const QString baseDisplayName = tr("%1 %2").arg(platform.name, qtVersion->unexpandedDisplayName());
+                kit->setUnexpandedDisplayName(baseDisplayName);
+                setupKit(kit, pDeviceType, platformToolchains, debuggerId, platform.sdkPath, qtVersion);
+                kit->unblockNotification();
+                KitManager::registerKit(kit);
             }
-            Abi::Architecture arch = pToolchain->targetAbi().architecture();
-
-            QList<BaseQtVersion *> qtVersions = qtVersionsForArch.value(arch);
-            foreach (BaseQtVersion *qt, qtVersions) {
-                Kit *kitAtt = 0;
-                bool kitExists = false;
-                for (int i = 0; i < existingKits.size(); ++i) {
-                    Kit *k = existingKits.at(i);
-                    if (DeviceTypeKitInformation::deviceTypeId(k) == pDeviceType
-                            && ToolChainKitInformation::toolChain(k) == pToolchain
-                            && QtKitInformation::qtVersion(k) == qt)
-                    {
-                        QTC_CHECK(!kitMatched.value(i, true));
-                        // as we generate only two kits per qt (one for device and one for simulator)
-                        // we do not compare the sdk (thus automatically upgrading it in place if a
-                        // new Xcode is used). Change?
-                        kitExists = true;
-                        kitAtt = k;
-                        qCDebug(kitSetupLog) << "found existing kit " << k->displayName() << " for " << p.name
-                                 << "," << qt->displayName();
-                        if (i<kitMatched.size())
-                            kitMatched.replace(i, true);
-                        break;
-                    }
-                }
-                if (kitExists) {
-                    kitAtt->blockNotification();
-                    // TODO: this is just to fix up broken display names from before
-                    QString baseDisplayName = tr("%1 %2").arg(p.name, qt->unexpandedDisplayName());
-                    QString displayName = baseDisplayName;
-                    for (int iVers = 1; iVers < 100; ++iVers) {
-                        bool unique = true;
-                        foreach (const Kit *k, existingKits) {
-                            if (k == kitAtt)
-                                continue;
-                            if (k->displayName() == displayName) {
-                                unique = false;
-                                break;
-                            }
-                        }
-                        if (unique) break;
-                        displayName = baseDisplayName + QLatin1Char('-') + QString::number(iVers);
-                    }
-                    kitAtt->setUnexpandedDisplayName(displayName);
-                } else {
-                    qCDebug(kitSetupLog) << "setting up new kit for " << p.name;
-                    kitAtt = new Kit;
-                    kitAtt->setAutoDetected(true);
-                    QString baseDisplayName = tr("%1 %2").arg(p.name, qt->unexpandedDisplayName());
-                    QString displayName = baseDisplayName;
-                    for (int iVers = 1; iVers < 100; ++iVers) {
-                        bool unique = true;
-                        foreach (const Kit *k, existingKits) {
-                            if (k->displayName() == displayName) {
-                                unique = false;
-                                break;
-                            }
-                        }
-                        if (unique) break;
-                        displayName = baseDisplayName + QLatin1Char('-') + QString::number(iVers);
-                    }
-                    kitAtt->setUnexpandedDisplayName(displayName);
-                }
-                kitAtt->setIconPath(FileName::fromString(
-                                        QLatin1String(Constants::IOS_SETTINGS_CATEGORY_ICON)));
-                DeviceTypeKitInformation::setDeviceTypeId(kitAtt, pDeviceType);
-                ToolChainKitInformation::setToolChain(kitAtt, pToolchain);
-                QtKitInformation::setQtVersion(kitAtt, qt);
-                if ((!DebuggerKitInformation::debugger(kitAtt)
-                        || !DebuggerKitInformation::debugger(kitAtt)->isValid()
-                        || DebuggerKitInformation::debugger(kitAtt)->engineType() != LldbEngineType)
-                        && debuggerId.isValid())
-                    DebuggerKitInformation::setDebugger(kitAtt,
-                                                                  debuggerId);
-
-                kitAtt->setMutable(DeviceKitInformation::id(), true);
-                kitAtt->setSticky(QtKitInformation::id(), true);
-                kitAtt->setSticky(ToolChainKitInformation::id(), true);
-                kitAtt->setSticky(DeviceTypeKitInformation::id(), true);
-                kitAtt->setSticky(SysRootKitInformation::id(), true);
-                kitAtt->setSticky(DebuggerKitInformation::id(), false);
-
-                SysRootKitInformation::setSysRoot(kitAtt, p.sdkPath);
-                // QmakeProjectManager::QmakeKitInformation::setMkspec(newKit,
-                //    Utils::FileName::fromLatin1("macx-ios-clang")));
-                if (kitExists) {
-                    kitAtt->unblockNotification();
-                } else {
-                    KitManager::registerKit(kitAtt);
-                    existingKits << kitAtt;
-                }
-            }
+            resultingKits.insert(kit);
         }
     }
-    for (int i = 0; i < kitMatched.size(); ++i) {
-        // deleting extra (old) kits
-        if (!kitMatched.at(i)) {
-            qCWarning(kitSetupLog) << "deleting kit " << existingKits.at(i)->displayName();
-            KitManager::deregisterKit(existingKits.at(i));
-        }
-    }
+    // remove unused kits
+    existingKits.subtract(resultingKits);
+    qCDebug(kitSetupLog) << "Removing unused kits:";
+    printKits(existingKits);
+    foreach (Kit *kit, existingKits)
+        KitManager::deregisterKit(kit);
 }
 
 static IosConfigurations *m_instance = 0;
@@ -399,13 +343,17 @@ void IosConfigurations::setIgnoreAllDevices(bool ignoreDevices)
     if (ignoreDevices != m_instance->m_ignoreAllDevices) {
         m_instance->m_ignoreAllDevices = ignoreDevices;
         m_instance->save();
-        emit m_instance->updated();
     }
 }
 
 FileName IosConfigurations::developerPath()
 {
     return m_instance->m_developerPath;
+}
+
+QVersionNumber IosConfigurations::xcodeVersion()
+{
+    return m_instance->m_xcodeVersion;
 }
 
 void IosConfigurations::save()
@@ -440,7 +388,7 @@ void IosConfigurations::updateSimulators()
         dev = IDevice::ConstPtr(new IosSimulator(devId));
         devManager->addDevice(dev);
     }
-    IosSimulator::updateAvailableDevices();
+    SimulatorControl::updateAvailableSimulators();
 }
 
 void IosConfigurations::setDeveloperPath(const FileName &devPath)
@@ -451,11 +399,60 @@ void IosConfigurations::setDeveloperPath(const FileName &devPath)
         m_instance->save();
         if (!hasDevPath && !devPath.isEmpty()) {
             hasDevPath = true;
-            QTimer::singleShot(1000, IosDeviceManager::instance(), SLOT(monitorAvailableDevices()));
+            QTimer::singleShot(1000, IosDeviceManager::instance(),
+                               &IosDeviceManager::monitorAvailableDevices);
             m_instance->updateSimulators();
+
+            // Find xcode version.
+            m_instance->m_xcodeVersion = findXcodeVersion();
         }
-        emit m_instance->updated();
     }
+}
+
+static ClangToolChain *createToolChain(const Platform &platform, Core::Id l)
+{
+    if (!l.isValid())
+        return nullptr;
+
+    if (l != Core::Id(ProjectExplorer::Constants::C_LANGUAGE_ID)
+            && l != Core::Id(ProjectExplorer::Constants::CXX_LANGUAGE_ID))
+        return nullptr;
+
+    ClangToolChain *toolChain = new ClangToolChain(ToolChain::AutoDetection);
+    toolChain->setLanguage(l);
+    toolChain->setDisplayName(l == Core::Id(ProjectExplorer::Constants::CXX_LANGUAGE_ID) ? platform.name + "++" : platform.name);
+    toolChain->setPlatformCodeGenFlags(platform.backendFlags);
+    toolChain->setPlatformLinkerFlags(platform.backendFlags);
+    toolChain->resetToolChain(l == Core::Id(ProjectExplorer::Constants::CXX_LANGUAGE_ID) ?
+                                  platform.cxxCompilerPath : platform.cCompilerPath);
+    return toolChain;
+}
+
+QSet<Core::Id> IosToolChainFactory::supportedLanguages() const
+{
+    return { ProjectExplorer::Constants::CXX_LANGUAGE_ID };
+}
+
+QList<ToolChain *> IosToolChainFactory::autoDetect(const QList<ToolChain *> &existingToolChains)
+{
+    QList<ClangToolChain *> existingClangToolChains = clangToolChains(existingToolChains);
+    const QList<Platform> platforms = handledPlatforms();
+    QList<ClangToolChain *> toolChains;
+    toolChains.reserve(platforms.size());
+    foreach (const Platform &platform, platforms) {
+        ToolChainPair platformToolchains = findToolChainForPlatform(platform, existingClangToolChains);
+        auto createOrAdd = [&](ClangToolChain* toolChain, Core::Id l) {
+            if (!toolChain) {
+                toolChain = createToolChain(platform, l);
+                existingClangToolChains.append(toolChain);
+            }
+            toolChains.append(toolChain);
+        };
+
+        createOrAdd(platformToolchains.first, ProjectExplorer::Constants::C_LANGUAGE_ID);
+        createOrAdd(platformToolchains.second, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
+    }
+    return Utils::transform(toolChains, [](ClangToolChain *tc) -> ToolChain * { return tc; });
 }
 
 } // namespace Internal

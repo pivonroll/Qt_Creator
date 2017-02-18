@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,16 +28,15 @@
 #include "buildconfiguration.h"
 #include "buildsteplist.h"
 #include "projectexplorerconstants.h"
+#include "projectexplorericons.h"
 
 #include <coreplugin/icore.h>
-#include <coreplugin/coreconstants.h>
+#include <coreplugin/coreicons.h>
 #include <extensionsystem/pluginmanager.h>
 #include <utils/qtcassert.h>
 #include <utils/detailswidget.h>
 #include <utils/hostosinfo.h>
 #include <utils/theme/theme.h>
-
-#include <QSignalMapper>
 
 #include <QLabel>
 #include <QPushButton>
@@ -56,16 +50,16 @@ using namespace ProjectExplorer;
 using namespace ProjectExplorer::Internal;
 using namespace Utils;
 
-ToolWidget::ToolWidget(QWidget *parent)
-    : FadingPanel(parent), m_buildStepEnabled(true), m_targetOpacity(1.0f)
+ToolWidget::ToolWidget(QWidget *parent) : FadingPanel(parent),
+    m_targetOpacity(1.0f)
 {
-    QHBoxLayout *layout = new QHBoxLayout;
+    auto layout = new QHBoxLayout;
     layout->setMargin(4);
     layout->setSpacing(4);
     setLayout(layout);
     m_firstWidget = new FadingWidget(this);
     m_firstWidget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    QHBoxLayout *hbox = new QHBoxLayout();
+    auto hbox = new QHBoxLayout();
     hbox->setContentsMargins(0, 0, 0, 0);
     hbox->setSpacing(0);
     m_firstWidget->setLayout(hbox);
@@ -75,8 +69,7 @@ ToolWidget::ToolWidget(QWidget *parent)
     m_disableButton->setAutoRaise(true);
     m_disableButton->setToolTip(BuildStepListWidget::tr("Disable"));
     m_disableButton->setFixedSize(buttonSize);
-    m_disableButton->setIcon(QIcon(creatorTheme()->imageFile(Theme::BuildStepDisable,
-            QLatin1String(":/projectexplorer/images/disabledbuildstep.png"))));
+    m_disableButton->setIcon(Icons::BUILDSTEP_DISABLE.icon());
     m_disableButton->setCheckable(true);
     hbox->addWidget(m_disableButton);
     layout->addWidget(m_firstWidget);
@@ -92,32 +85,29 @@ ToolWidget::ToolWidget(QWidget *parent)
     m_upButton->setAutoRaise(true);
     m_upButton->setToolTip(BuildStepListWidget::tr("Move Up"));
     m_upButton->setFixedSize(buttonSize);
-    m_upButton->setIcon(QIcon(creatorTheme()->imageFile(Theme::BuildStepMoveUp,
-            QLatin1String(":/core/images/darkarrowup.png"))));
+    m_upButton->setIcon(Icons::BUILDSTEP_MOVEUP.icon());
     hbox->addWidget(m_upButton);
 
     m_downButton = new QToolButton(m_secondWidget);
     m_downButton->setAutoRaise(true);
     m_downButton->setToolTip(BuildStepListWidget::tr("Move Down"));
     m_downButton->setFixedSize(buttonSize);
-    m_downButton->setIcon(QIcon(creatorTheme()->imageFile(Theme::BuildStepMoveDown,
-            QLatin1String(":/core/images/darkarrowdown.png"))));
+    m_downButton->setIcon(Icons::BUILDSTEP_MOVEDOWN.icon());
     hbox->addWidget(m_downButton);
 
     m_removeButton  = new QToolButton(m_secondWidget);
     m_removeButton->setAutoRaise(true);
     m_removeButton->setToolTip(BuildStepListWidget::tr("Remove Item"));
     m_removeButton->setFixedSize(buttonSize);
-    m_removeButton->setIcon(QIcon(creatorTheme()->imageFile(Theme::BuildStepRemove,
-            QLatin1String(Core::Constants::ICON_DARK_CLOSE))));
+    m_removeButton->setIcon(Icons::BUILDSTEP_REMOVE.icon());
     hbox->addWidget(m_removeButton);
 
     layout->addWidget(m_secondWidget);
 
-    connect(m_disableButton, SIGNAL(clicked()), this, SIGNAL(disabledClicked()));
-    connect(m_upButton, SIGNAL(clicked()), this, SIGNAL(upClicked()));
-    connect(m_downButton, SIGNAL(clicked()), this, SIGNAL(downClicked()));
-    connect(m_removeButton, SIGNAL(clicked()), this, SIGNAL(removeClicked()));
+    connect(m_disableButton, &QAbstractButton::clicked, this, &ToolWidget::disabledClicked);
+    connect(m_upButton, &QAbstractButton::clicked, this, &ToolWidget::upClicked);
+    connect(m_downButton, &QAbstractButton::clicked, this, &ToolWidget::downClicked);
+    connect(m_removeButton, &QAbstractButton::clicked, this, &ToolWidget::removeClicked);
 }
 
 void ToolWidget::setOpacity(qreal value)
@@ -217,7 +207,7 @@ BuildStepListWidget::~BuildStepListWidget()
 
 void BuildStepListWidget::updateSummary()
 {
-    BuildStepConfigWidget *widget = qobject_cast<BuildStepConfigWidget *>(sender());
+    auto widget = qobject_cast<BuildStepConfigWidget *>(sender());
     if (widget) {
         foreach (const BuildStepsWidgetData *s, m_buildStepsData) {
             if (s->widget == widget) {
@@ -230,7 +220,7 @@ void BuildStepListWidget::updateSummary()
 
 void BuildStepListWidget::updateAdditionalSummary()
 {
-    BuildStepConfigWidget *widget = qobject_cast<BuildStepConfigWidget *>(sender());
+    auto widget = qobject_cast<BuildStepConfigWidget *>(sender());
     if (widget) {
         foreach (const BuildStepsWidgetData *s, m_buildStepsData) {
             if (s->widget == widget) {
@@ -243,7 +233,7 @@ void BuildStepListWidget::updateAdditionalSummary()
 
 void BuildStepListWidget::updateEnabledState()
 {
-    BuildStep *step = qobject_cast<BuildStep *>(sender());
+    auto step = qobject_cast<BuildStep *>(sender());
     if (step) {
         foreach (const BuildStepsWidgetData *s, m_buildStepsData) {
             if (s->step == step) {
@@ -263,14 +253,17 @@ void BuildStepListWidget::init(BuildStepList *bsl)
     setupUi();
 
     if (m_buildStepList) {
-        disconnect(m_buildStepList, SIGNAL(stepInserted(int)), this, SLOT(addBuildStep(int)));
-        disconnect(m_buildStepList, SIGNAL(stepRemoved(int)), this, SLOT(removeBuildStep(int)));
-        disconnect(m_buildStepList, SIGNAL(stepMoved(int,int)), this, SLOT(stepMoved(int,int)));
+        disconnect(m_buildStepList, &BuildStepList::stepInserted,
+                   this, &BuildStepListWidget::addBuildStep);
+        disconnect(m_buildStepList, &BuildStepList::stepRemoved,
+                   this, &BuildStepListWidget::removeBuildStep);
+        disconnect(m_buildStepList, &BuildStepList::stepMoved,
+                   this, &BuildStepListWidget::stepMoved);
     }
 
-    connect(bsl, SIGNAL(stepInserted(int)), this, SLOT(addBuildStep(int)));
-    connect(bsl, SIGNAL(stepRemoved(int)), this, SLOT(removeBuildStep(int)));
-    connect(bsl, SIGNAL(stepMoved(int,int)), this, SLOT(stepMoved(int,int)));
+    connect(bsl, &BuildStepList::stepInserted, this, &BuildStepListWidget::addBuildStep);
+    connect(bsl, &BuildStepList::stepRemoved, this, &BuildStepListWidget::removeBuildStep);
+    connect(bsl, &BuildStepList::stepMoved, this, &BuildStepListWidget::stepMoved);
 
     qDeleteAll(m_buildStepsData);
     m_buildStepsData.clear();
@@ -300,9 +293,14 @@ void BuildStepListWidget::updateAddBuildStepMenu()
     //Build up a list of possible steps and save map the display names to the (internal) name and factories.
     QList<IBuildStepFactory *> factories = ExtensionSystem::PluginManager::getObjects<IBuildStepFactory>();
     foreach (IBuildStepFactory *factory, factories) {
-        QList<Core::Id> ids = factory->availableCreationIds(m_buildStepList);
-        foreach (Core::Id id, ids)
-            map.insert(factory->displayNameForId(id), QPair<Core::Id, IBuildStepFactory *>(id, factory));
+        const QList<BuildStepInfo> infos = factory->availableSteps(m_buildStepList);
+        for (const BuildStepInfo &info : infos) {
+            if (info.flags & BuildStepInfo::Uncreatable)
+                continue;
+            if ((info.flags & BuildStepInfo::UniqueStep) && m_buildStepList->contains(info.id))
+                continue;
+            map.insert(info.displayName, qMakePair(info.id, factory));
+        }
     }
 
     // Ask the user which one to add
@@ -329,27 +327,18 @@ void BuildStepListWidget::updateAddBuildStepMenu()
 void BuildStepListWidget::addBuildStepWidget(int pos, BuildStep *step)
 {
     // create everything
-    BuildStepsWidgetData *s = new BuildStepsWidgetData(step);
+    auto s = new BuildStepsWidgetData(step);
     m_buildStepsData.insert(pos, s);
 
     m_vbox->insertWidget(pos, s->detailsWidget);
 
-    connect(s->widget, SIGNAL(updateSummary()),
-            this, SLOT(updateSummary()));
-    connect(s->widget, SIGNAL(updateAdditionalSummary()),
-            this, SLOT(updateAdditionalSummary()));
+    connect(s->widget, &BuildStepConfigWidget::updateSummary,
+            this, &BuildStepListWidget::updateSummary);
+    connect(s->widget, &BuildStepConfigWidget::updateAdditionalSummary,
+            this, &BuildStepListWidget::updateAdditionalSummary);
 
-    connect(s->step, SIGNAL(enabledChanged()),
-            this, SLOT(updateEnabledState()));
-
-    connect(s->toolWidget, SIGNAL(disabledClicked()),
-            m_disableMapper, SLOT(map()));
-    connect(s->toolWidget, SIGNAL(upClicked()),
-            m_upMapper, SLOT(map()));
-    connect(s->toolWidget, SIGNAL(downClicked()),
-            m_downMapper, SLOT(map()));
-    connect(s->toolWidget, SIGNAL(removeClicked()),
-            m_removeMapper, SLOT(map()));
+    connect(s->step, &BuildStep::enabledChanged,
+            this, &BuildStepListWidget::updateEnabledState);
 }
 
 void BuildStepListWidget::addBuildStep(int pos)
@@ -367,11 +356,6 @@ void BuildStepListWidget::addBuildStep(int pos)
     updateBuildStepButtonsState();
 }
 
-void BuildStepListWidget::triggerStepMoveUp(int pos)
-{
-    m_buildStepList->moveStepUp(pos);
-}
-
 void BuildStepListWidget::stepMoved(int from, int to)
 {
     m_vbox->insertWidget(to, m_buildStepsData.at(from)->detailsWidget);
@@ -381,21 +365,6 @@ void BuildStepListWidget::stepMoved(int from, int to)
     m_buildStepsData.insert(to, data);
 
     updateBuildStepButtonsState();
-}
-
-void BuildStepListWidget::triggerStepMoveDown(int pos)
-{
-    triggerStepMoveUp(pos + 1);
-}
-
-void BuildStepListWidget::triggerRemoveBuildStep(int pos)
-{
-    if (!m_buildStepList->removeStep(pos)) {
-        QMessageBox::warning(Core::ICore::mainWindow(),
-                             tr("Removing Step failed"),
-                             tr("Cannot remove build step while building"),
-                             QMessageBox::Ok, QMessageBox::Ok);
-    }
 }
 
 void BuildStepListWidget::removeBuildStep(int pos)
@@ -408,30 +377,10 @@ void BuildStepListWidget::removeBuildStep(int pos)
     m_noStepsLabel->setVisible(hasSteps);
 }
 
-void BuildStepListWidget::triggerDisable(int pos)
-{
-    BuildStep *bs = m_buildStepsData.at(pos)->step;
-    bs->setEnabled(!bs->enabled());
-    m_buildStepsData.at(pos)->toolWidget->setBuildStepEnabled(bs->enabled());
-}
-
 void BuildStepListWidget::setupUi()
 {
-    if (0 != m_addButton)
+    if (m_addButton)
         return;
-
-    m_disableMapper = new QSignalMapper(this);
-    connect(m_disableMapper, SIGNAL(mapped(int)),
-            this, SLOT(triggerDisable(int)));
-    m_upMapper = new QSignalMapper(this);
-    connect(m_upMapper, SIGNAL(mapped(int)),
-            this, SLOT(triggerStepMoveUp(int)));
-    m_downMapper = new QSignalMapper(this);
-    connect(m_downMapper, SIGNAL(mapped(int)),
-            this, SLOT(triggerStepMoveDown(int)));
-    m_removeMapper = new QSignalMapper(this);
-    connect(m_removeMapper, SIGNAL(mapped(int)),
-            this, SLOT(triggerRemoveBuildStep(int)));
 
     m_vbox = new QVBoxLayout(this);
     m_vbox->setContentsMargins(0, 0, 0, 0);
@@ -441,7 +390,7 @@ void BuildStepListWidget::setupUi()
     m_noStepsLabel->setContentsMargins(0, 0, 0, 0);
     m_vbox->addWidget(m_noStepsLabel);
 
-    QHBoxLayout *hboxLayout = new QHBoxLayout();
+    auto hboxLayout = new QHBoxLayout();
     hboxLayout->setContentsMargins(0, 4, 0, 0);
     m_addButton = new QPushButton(this);
     m_addButton->setMenu(new QMenu(this));
@@ -454,8 +403,8 @@ void BuildStepListWidget::setupUi()
 
     m_vbox->addLayout(hboxLayout);
 
-    connect(m_addButton->menu(), SIGNAL(aboutToShow()),
-            this, SLOT(updateAddBuildStepMenu()));
+    connect(m_addButton->menu(), &QMenu::aboutToShow,
+            this, &BuildStepListWidget::updateAddBuildStepMenu);
 }
 
 void BuildStepListWidget::updateBuildStepButtonsState()
@@ -464,18 +413,34 @@ void BuildStepListWidget::updateBuildStepButtonsState()
         return;
     for (int i = 0; i < m_buildStepsData.count(); ++i) {
         BuildStepsWidgetData *s = m_buildStepsData.at(i);
-        m_disableMapper->setMapping(s->toolWidget, i);
+        disconnect(s->toolWidget, nullptr, this, nullptr);
+        connect(s->toolWidget, &ToolWidget::disabledClicked,
+                this, [s] {
+            BuildStep *bs = s->step;
+            bs->setEnabled(!bs->enabled());
+            s->toolWidget->setBuildStepEnabled(bs->enabled());
+        });
         s->toolWidget->setRemoveEnabled(!m_buildStepList->at(i)->immutable());
-        m_removeMapper->setMapping(s->toolWidget, i);
+        connect(s->toolWidget, &ToolWidget::removeClicked,
+                this, [this, i] {
+            if (!m_buildStepList->removeStep(i)) {
+                QMessageBox::warning(Core::ICore::mainWindow(),
+                                     tr("Removing Step failed"),
+                                     tr("Cannot remove build step while building"),
+                                     QMessageBox::Ok, QMessageBox::Ok);
+            }
+        });
 
         s->toolWidget->setUpEnabled((i > 0)
                                     && !(m_buildStepList->at(i)->immutable()
                                          && m_buildStepList->at(i - 1)->immutable()));
-        m_upMapper->setMapping(s->toolWidget, i);
+        connect(s->toolWidget, &ToolWidget::upClicked,
+                this, [this, i] { m_buildStepList->moveStepUp(i); });
         s->toolWidget->setDownEnabled((i + 1 < m_buildStepList->count())
                                       && !(m_buildStepList->at(i)->immutable()
                                            && m_buildStepList->at(i + 1)->immutable()));
-        m_downMapper->setMapping(s->toolWidget, i);
+        connect(s->toolWidget, &ToolWidget::downClicked,
+                this, [this, i] { m_buildStepList->moveStepUp(i + 1); });
 
         // Only show buttons when needed
         s->toolWidget->setDownVisible(m_buildStepList->count() != 1);
@@ -484,11 +449,10 @@ void BuildStepListWidget::updateBuildStepButtonsState()
 }
 
 BuildStepsPage::BuildStepsPage(BuildConfiguration *bc, Core::Id id) :
-    NamedWidget(),
     m_id(id),
     m_widget(new BuildStepListWidget(this))
 {
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    auto layout = new QVBoxLayout(this);
     layout->setMargin(0);
     layout->setSpacing(0);
     layout->addWidget(m_widget);
@@ -500,6 +464,3 @@ BuildStepsPage::BuildStepsPage(BuildConfiguration *bc, Core::Id id) :
     if (m_id == Constants::BUILDSTEPS_CLEAN)
         setDisplayName(tr("Clean Steps"));
 }
-
-BuildStepsPage::~BuildStepsPage()
-{ }

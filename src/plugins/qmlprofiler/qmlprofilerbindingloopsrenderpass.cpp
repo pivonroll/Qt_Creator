@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,26 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "qmlprofilerbindingloopsrenderpass.h"
+#include <utils/qtcassert.h>
+
+#include <utils/theme/theme.h>
 
 namespace QmlProfiler {
 namespace Internal {
@@ -96,6 +94,14 @@ QmlProfilerBindingLoopsRenderPass::QmlProfilerBindingLoopsRenderPass()
 {
 }
 
+static inline bool eventOutsideRange(const QmlProfilerRangeModel *model,
+                                  const Timeline::TimelineRenderState *parentState, int i)
+{
+    const qint64 start = qMax(parentState->start(), model->startTime(i));
+    const qint64 end = qMin(parentState->end(), model->endTime(i));
+    return start > end;
+}
+
 void updateNodes(const QmlProfilerRangeModel *model, int from, int to,
                  const Timeline::TimelineRenderState *parentState,
                  BindingLoopsRenderPassState *state)
@@ -105,13 +111,7 @@ void updateNodes(const QmlProfilerRangeModel *model, int from, int to,
 
     for (int i = from; i < to; ++i) {
         int bindingLoopDest = model->bindingLoopDest(i);
-        if (bindingLoopDest == -1)
-            continue;
-
-        qint64 start = qMax(parentState->start(), model->startTime(i));
-        qint64 end = qMin(parentState->end(), model->startTime(i) + model->duration(i));
-
-        if (start > end)
+        if (bindingLoopDest == -1 || eventOutsideRange(model, parentState, i))
             continue;
 
         expandedPerRow[model->expandedRow(i)].usedVertices += 4;
@@ -134,10 +134,7 @@ void updateNodes(const QmlProfilerRangeModel *model, int from, int to,
     int rowHeight = Timeline::TimelineModel::defaultRowHeight();
     for (int i = from; i < to; ++i) {
         int bindingLoopDest = model->bindingLoopDest(i);
-        if (bindingLoopDest == -1)
-            continue;
-
-        if (model->startTime(i) > parentState->end() || model->endTime(i) < parentState->start())
+        if (bindingLoopDest == -1 || eventOutsideRange(model, parentState, i))
             continue;
 
         qint64 center = qMax(parentState->start(), qMin(parentState->end(),
@@ -169,7 +166,7 @@ Timeline::TimelineRenderPass::State *QmlProfilerBindingLoopsRenderPass::update(
     const QmlProfilerRangeModel *model = qobject_cast<const QmlProfilerRangeModel *>(
                 renderer->model());
 
-    if (!model || indexFrom < 0 || indexTo > model->count())
+    if (!model || indexFrom < 0 || indexTo > model->count() || indexFrom >= indexTo)
         return oldState;
 
     BindingLoopsRenderPassState *state;
@@ -234,6 +231,7 @@ void BindlingLoopsGeometry::allocate(QSGMaterial *material)
 {
     QSGGeometry *geometry = new QSGGeometry(BindlingLoopsGeometry::point2DWithOffset(),
                                             usedVertices);
+    Q_ASSERT(geometry->vertexData());
     geometry->setIndexDataPattern(QSGGeometry::StaticPattern);
     geometry->setVertexDataPattern(QSGGeometry::StaticPattern);
     node = new QSGGeometryNode;
@@ -261,12 +259,11 @@ void BindlingLoopsGeometry::addCollapsedEvent(float horizontalCenterSource,
                                               float verticalCenterSource,
                                               float verticalCenterTarget)
 {
-    if (verticalCenterSource < verticalCenterTarget) {
-        qSwap(verticalCenterSource, verticalCenterTarget);
-        qSwap(horizontalCenterSource, horizontalCenterTarget);
-    }
+    // The source event should always be above the parent event because ranges are perfectly nested
+    // and events are ordered by start time.
+    QTC_ASSERT(verticalCenterSource > verticalCenterTarget, /**/);
 
-    float tilt = horizontalCenterSource < horizontalCenterTarget ? +0.3 : -0.3;
+    float tilt = horizontalCenterSource < horizontalCenterTarget ? +0.3f : -0.3f;
 
     Point2DWithOffset *v = vertexData() + usedVertices;
     v[0].set(horizontalCenterSource, verticalCenterSource, -0.3f, tilt);
@@ -305,8 +302,9 @@ public:
 private:
     virtual void initialize();
 
-    int m_matrix_id;
-    int m_z_range_id;
+    int m_matrix_id = 0;
+    int m_z_range_id = 0;
+    int m_color_id = 0;
 };
 
 BindingLoopMaterialShader::BindingLoopMaterialShader()
@@ -321,6 +319,9 @@ void BindingLoopMaterialShader::updateState(const RenderState &state, QSGMateria
     if (state.isMatrixDirty()) {
         program()->setUniformValue(m_matrix_id, state.combinedMatrix());
         program()->setUniformValue(m_z_range_id, GLfloat(1.0));
+        program()->setUniformValue(
+                    m_color_id,
+                    Utils::creatorTheme()->color(Utils::Theme::Timeline_HighlightColor));
     }
 }
 
@@ -334,6 +335,7 @@ void BindingLoopMaterialShader::initialize()
 {
     m_matrix_id = program()->uniformLocation("matrix");
     m_z_range_id = program()->uniformLocation("_qt_zRange");
+    m_color_id = program()->uniformLocation("bindingLoopsColor");
 }
 
 
@@ -385,5 +387,5 @@ void BindingLoopsRenderPassState::updateIndexes(int from, int to)
         m_indexTo = to;
 }
 
-}
-}
+} // namespace Internal
+} // namespace QmlProfiler

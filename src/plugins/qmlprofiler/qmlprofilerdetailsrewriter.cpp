@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "qmlprofilerdetailsrewriter.h"
 
+#include <projectexplorer/kit.h>
+#include <projectexplorer/kitinformation.h>
+#include <projectexplorer/project.h>
+#include <projectexplorer/session.h>
+#include <projectexplorer/target.h>
+#include <projectexplorer/runconfiguration.h>
 #include <qmljs/parser/qmljsast_p.h>
 #include <qmljs/qmljsmodelmanagerinterface.h>
 #include <qmljstools/qmljsmodelmanager.h>
@@ -38,12 +39,6 @@
 
 namespace QmlProfiler {
 namespace Internal {
-
-struct PendingEvent {
-    QmlDebug::QmlEventLocation location;
-    QString localFile;
-    int requestId;
-};
 
 class PropertyVisitor: protected QmlJS::AST::Visitor
 {
@@ -71,8 +66,8 @@ protected:
 
     bool containsLocation(QmlJS::AST::SourceLocation start, QmlJS::AST::SourceLocation end)
     {
-        return (_line > start.startLine || (_line == start.startLine && _col >= start.startColumn)) &&
-                (_line < end.startLine || (_line == end.startLine && _col <= end.startColumn));
+        return (_line > start.startLine || (_line == start.startLine && _col >= start.startColumn))
+                && (_line < end.startLine || (_line == end.startLine && _col <= end.startColumn));
     }
 
 
@@ -96,123 +91,172 @@ protected:
     }
 };
 
-class QmlProfilerDetailsRewriter::QmlProfilerDetailsRewriterPrivate
+QmlProfilerDetailsRewriter::QmlProfilerDetailsRewriter(QObject *parent)
+    : QObject(parent)
 {
-public:
-    QmlProfilerDetailsRewriterPrivate(QmlProfilerDetailsRewriter *qq,
-                                      Utils::FileInProjectFinder *fileFinder)
-                                      : m_projectFinder(fileFinder), q(qq) {}
-    ~QmlProfilerDetailsRewriterPrivate() {}
-
-    QList <PendingEvent> m_pendingEvents;
-    QStringList m_pendingDocs;
-    Utils::FileInProjectFinder *m_projectFinder;
-    QMap<QString, QString> m_filesCache;
-
-    QmlProfilerDetailsRewriter *q;
-};
-
-QmlProfilerDetailsRewriter::QmlProfilerDetailsRewriter(
-        QObject *parent, Utils::FileInProjectFinder *fileFinder)
-    : QObject(parent), d(new QmlProfilerDetailsRewriterPrivate(this, fileFinder))
-{ }
-
-QmlProfilerDetailsRewriter::~QmlProfilerDetailsRewriter()
-{
-    delete d;
 }
 
-void QmlProfilerDetailsRewriter::requestDetailsForLocation(int requestId,
-        const QmlDebug::QmlEventLocation &location)
+void QmlProfilerDetailsRewriter::requestDetailsForLocation(int typeId,
+                                                           const QmlEventLocation &location)
+{
+    const QString localFile = getLocalFile(location.filename());
+    if (localFile.isEmpty())
+        return;
+
+    if (m_pendingEvents.isEmpty())
+        connectQmlModel();
+
+    m_pendingEvents.insert(localFile, {location, typeId});
+}
+
+QString QmlProfilerDetailsRewriter::getLocalFile(const QString &remoteFile)
 {
     QString localFile;
-    if (!d->m_filesCache.contains(location.filename)) {
-        localFile = d->m_projectFinder->findFile(location.filename);
-        d->m_filesCache[location.filename] = localFile;
+    if (!m_filesCache.contains(remoteFile)) {
+        localFile = m_projectFinder.findFile(remoteFile);
+        m_filesCache[remoteFile] = localFile;
     } else {
-        localFile = d->m_filesCache[location.filename];
+        localFile = m_filesCache[remoteFile];
     }
     QFileInfo fileInfo(localFile);
     if (!fileInfo.exists() || !fileInfo.isReadable())
-        return;
-    if (!QmlJS::ModelManagerInterface::guessLanguageOfFile(localFile).isQmlLikeLanguage())
-        return;
+        return QString();
+    if (!QmlJS::ModelManagerInterface::guessLanguageOfFile(localFile).isQmlLikeOrJsLanguage())
+        return QString();
 
-    PendingEvent ev = {location, localFile, requestId};
-    d->m_pendingEvents << ev;
-    if (!d->m_pendingDocs.contains(localFile)) {
-        if (d->m_pendingDocs.isEmpty())
-            connect(QmlJS::ModelManagerInterface::instance(),
-                    SIGNAL(documentUpdated(QmlJS::Document::Ptr)),
-                    this,
-                    SLOT(documentReady(QmlJS::Document::Ptr)));
-
-        d->m_pendingDocs << localFile;
-    }
+    return fileInfo.canonicalFilePath();
 }
 
 void QmlProfilerDetailsRewriter::reloadDocuments()
 {
-    if (!d->m_pendingDocs.isEmpty())
-        QmlJS::ModelManagerInterface::instance()->updateSourceFiles(d->m_pendingDocs, false);
-    else
+    if (!m_pendingEvents.isEmpty()) {
+        if (QmlJS::ModelManagerInterface *manager = QmlJS::ModelManagerInterface::instance()) {
+            manager->updateSourceFiles(m_pendingEvents.uniqueKeys(), false);
+        } else {
+            m_pendingEvents.clear();
+            disconnectQmlModel();
+            emit eventDetailsChanged();
+        }
+    } else {
         emit eventDetailsChanged();
+    }
 }
 
-void QmlProfilerDetailsRewriter::rewriteDetailsForLocation(QTextStream &textDoc,
-        QmlJS::Document::Ptr doc, int requestId, const QmlDebug::QmlEventLocation &location)
+void QmlProfilerDetailsRewriter::rewriteDetailsForLocation(
+        const QString &source, QmlJS::Document::Ptr doc, int typeId,
+        const QmlEventLocation &location)
 {
     PropertyVisitor propertyVisitor;
-    QmlJS::AST::Node *node = propertyVisitor(doc->ast(), location.line, location.column);
+    QmlJS::AST::Node *node = propertyVisitor(doc->ast(), location.line(), location.column());
 
     if (!node)
         return;
 
-    qint64 startPos = node->firstSourceLocation().begin();
-    qint64 len = node->lastSourceLocation().end() - startPos;
+    const quint32 startPos = node->firstSourceLocation().begin();
+    const quint32 len = node->lastSourceLocation().end() - startPos;
 
-    textDoc.seek(startPos);
-    QString details = textDoc.read(len).replace(QLatin1Char('\n'), QLatin1Char(' ')).simplified();
+    emit rewriteDetailsString(typeId, source.mid(startPos, len).simplified());
+}
 
-    emit rewriteDetailsString(requestId, details);
+void QmlProfilerDetailsRewriter::connectQmlModel()
+{
+    if (auto manager = QmlJS::ModelManagerInterface::instance()) {
+        connect(manager, &QmlJS::ModelManagerInterface::documentUpdated,
+                this, &QmlProfilerDetailsRewriter::documentReady);
+    }
+}
+
+void QmlProfilerDetailsRewriter::disconnectQmlModel()
+{
+    if (auto manager = QmlJS::ModelManagerInterface::instance()) {
+        disconnect(manager, &QmlJS::ModelManagerInterface::documentUpdated,
+                   this, &QmlProfilerDetailsRewriter::documentReady);
+    }
 }
 
 void QmlProfilerDetailsRewriter::clearRequests()
 {
-    d->m_filesCache.clear();
-    d->m_pendingDocs.clear();
+    m_filesCache.clear();
+    m_pendingEvents.clear();
+    disconnectQmlModel();
 }
 
 void QmlProfilerDetailsRewriter::documentReady(QmlJS::Document::Ptr doc)
 {
+    const QString &fileName = doc->fileName();
+    auto first = m_pendingEvents.find(fileName);
+
     // this could be triggered by an unrelated reload in Creator
-    if (!d->m_pendingDocs.contains(doc->fileName()))
+    if (first == m_pendingEvents.end())
         return;
 
-    // if the file could not be opened this slot is still triggered but source will be an empty string
+    // if the file could not be opened this slot is still triggered
+    // but source will be an empty string
     QString source = doc->source();
-    if (!source.isEmpty()) {
-        QTextStream st(&source, QIODevice::ReadOnly);
-
-        for (int i = d->m_pendingEvents.count()-1; i>=0; i--) {
-            PendingEvent ev = d->m_pendingEvents[i];
-            if (ev.localFile == doc->fileName()) {
-                d->m_pendingEvents.removeAt(i);
-                rewriteDetailsForLocation(st, doc, ev.requestId, ev.location);
-            }
-        }
+    const bool sourceHasContents = !source.isEmpty();
+    for (auto it = first; it != m_pendingEvents.end() && it.key() == fileName;) {
+        if (sourceHasContents)
+            rewriteDetailsForLocation(source, doc, it->typeId, it->location);
+        it = m_pendingEvents.erase(it);
     }
 
-    d->m_pendingDocs.removeOne(doc->fileName());
-
-    if (d->m_pendingDocs.isEmpty()) {
-        disconnect(QmlJS::ModelManagerInterface::instance(),
-                   SIGNAL(documentUpdated(QmlJS::Document::Ptr)),
-                   this,
-                   SLOT(documentReady(QmlJS::Document::Ptr)));
+    if (m_pendingEvents.isEmpty()) {
+        disconnectQmlModel();
         emit eventDetailsChanged();
-        d->m_filesCache.clear();
+        m_filesCache.clear();
     }
+}
+
+void QmlProfilerDetailsRewriter::populateFileFinder(
+        const ProjectExplorer::RunConfiguration *runConfiguration)
+{
+    // Prefer the given runConfiguration's target if available
+    const ProjectExplorer::Target *target = runConfiguration ? runConfiguration->target() : nullptr;
+
+    // If runConfiguration given, then use the project associated with that ...
+    const ProjectExplorer::Project *startupProject = target ? target->project() : nullptr;
+
+    // ... else try the session manager's global startup project ...
+    if (!startupProject)
+        startupProject = ProjectExplorer::SessionManager::startupProject();
+
+    // ... and if that is null, use the first project available.
+    const QList<ProjectExplorer::Project *> projects = ProjectExplorer::SessionManager::projects();
+    if (!startupProject && !projects.isEmpty())
+        startupProject = projects.first();
+
+    QString projectDirectory;
+    QStringList sourceFiles;
+
+    // Sort files from startupProject to the front of the list ...
+    if (startupProject) {
+        projectDirectory = startupProject->projectDirectory().toString();
+        sourceFiles.append(startupProject->files(ProjectExplorer::Project::SourceFiles));
+    }
+
+    // ... then add all the other projects' files.
+    for (const ProjectExplorer::Project *project : projects) {
+        if (project != startupProject)
+            sourceFiles.append(project->files(ProjectExplorer::Project::SourceFiles));
+    }
+
+    // If no runConfiguration was given, but we've found a startupProject, then try to deduct a
+    // target from that.
+    if (!target && startupProject)
+        target = startupProject->activeTarget();
+
+    // ... and find the sysroot if we have any target at all.
+    QString activeSysroot;
+    if (target) {
+        const ProjectExplorer::Kit *kit = target->kit();
+        if (kit && ProjectExplorer::SysRootKitInformation::hasSysRoot(kit))
+            activeSysroot = ProjectExplorer::SysRootKitInformation::sysRoot(kit).toString();
+    }
+
+    // Finally, do populate m_projectFinder
+    m_projectFinder.setProjectDirectory(projectDirectory);
+    m_projectFinder.setProjectFiles(sourceFiles);
+    m_projectFinder.setSysroot(activeSysroot);
 }
 
 } // namespace Internal

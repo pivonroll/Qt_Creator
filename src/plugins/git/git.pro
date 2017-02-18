@@ -1,4 +1,7 @@
 include(../../qtcreatorplugin.pri)
+
+DEFINES += QT_NO_FOREACH
+
 HEADERS += gitplugin.h \
     gitconstants.h \
     gitclient.h \
@@ -21,7 +24,8 @@ HEADERS += gitplugin.h \
     logchangedialog.h \
     mergetool.h \
     branchcheckoutdialog.h \
-    githighlighters.h
+    githighlighters.h \
+    gitgrep.h
 
 SOURCES += gitplugin.cpp \
     gitclient.cpp \
@@ -44,7 +48,8 @@ SOURCES += gitplugin.cpp \
     logchangedialog.cpp \
     mergetool.cpp \
     branchcheckoutdialog.cpp \
-    githighlighters.cpp
+    githighlighters.cpp \
+    gitgrep.cpp
 
 FORMS += changeselectiondialog.ui \
     settingspage.ui \

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,30 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "saveitemsdialog.h"
 
+#include <coreplugin/diffservice.h>
 #include <coreplugin/fileiconprovider.h>
 #include <coreplugin/idocument.h>
 
 #include <utils/fileutils.h>
 #include <utils/hostosinfo.h>
+
+#include <extensionsystem/pluginmanager.h>
 
 #include <QDir>
 #include <QFileInfo>
@@ -56,7 +54,13 @@ SaveItemsDialog::SaveItemsDialog(QWidget *parent,
     // QDialogButtonBox's behavior for "destructive" is wrong, the "do not save" should be left-aligned
     const QDialogButtonBox::ButtonRole discardButtonRole = Utils::HostOsInfo::isMacHost()
             ? QDialogButtonBox::ResetRole : QDialogButtonBox::DestructiveRole;
-    QPushButton *discardButton = m_ui.buttonBox->addButton(tr("Do not Save"), discardButtonRole);
+
+    if (ExtensionSystem::PluginManager::getObject<Core::DiffService>()) {
+        m_diffButton = m_ui.buttonBox->addButton(tr("&Diff"), discardButtonRole);
+        connect(m_diffButton, &QAbstractButton::clicked, this, &SaveItemsDialog::collectFilesToDiff);
+    }
+
+    QPushButton *discardButton = m_ui.buttonBox->addButton(tr("Do &not Save"), discardButtonRole);
     m_ui.buttonBox->button(QDialogButtonBox::Save)->setDefault(true);
     m_ui.treeWidget->setFocus();
 
@@ -67,7 +71,7 @@ SaveItemsDialog::SaveItemsDialog(QWidget *parent,
         QString directory;
         QString fileName = document->filePath().toString();
         if (fileName.isEmpty()) {
-            visibleName = document->suggestedFileName();
+            visibleName = document->fallbackSaveAsFileName();
         } else {
             QFileInfo info = QFileInfo(fileName);
             directory = info.absolutePath();
@@ -85,12 +89,13 @@ SaveItemsDialog::SaveItemsDialog(QWidget *parent,
     if (Utils::HostOsInfo::isMacHost())
         m_ui.treeWidget->setAlternatingRowColors(true);
     adjustButtonWidths();
-    updateSaveButton();
+    updateButtons();
 
-    connect(m_ui.buttonBox->button(QDialogButtonBox::Save), SIGNAL(clicked()),
-            this, SLOT(collectItemsToSave()));
-    connect(discardButton, SIGNAL(clicked()), this, SLOT(discardAll()));
-    connect(m_ui.treeWidget, SIGNAL(itemSelectionChanged()), this, SLOT(updateSaveButton()));
+    connect(m_ui.buttonBox->button(QDialogButtonBox::Save), &QAbstractButton::clicked,
+            this, &SaveItemsDialog::collectItemsToSave);
+    connect(discardButton, &QAbstractButton::clicked, this, &SaveItemsDialog::discardAll);
+    connect(m_ui.treeWidget, &QTreeWidget::itemSelectionChanged,
+            this, &SaveItemsDialog::updateButtons);
 }
 
 void SaveItemsDialog::setMessage(const QString &msg)
@@ -98,19 +103,27 @@ void SaveItemsDialog::setMessage(const QString &msg)
     m_ui.msgLabel->setText(msg);
 }
 
-void SaveItemsDialog::updateSaveButton()
+void SaveItemsDialog::updateButtons()
 {
     int count = m_ui.treeWidget->selectedItems().count();
-    QPushButton *button = m_ui.buttonBox->button(QDialogButtonBox::Save);
+    QPushButton *saveButton = m_ui.buttonBox->button(QDialogButtonBox::Save);
+    bool buttonsEnabled = true;
+    QString saveText = tr("&Save");
+    QString diffText = tr("&Diff && Cancel");
     if (count == m_ui.treeWidget->topLevelItemCount()) {
-        button->setEnabled(true);
-        button->setText(tr("Save All"));
+        saveText = tr("&Save All");
+        diffText = tr("&Diff All && Cancel");
     } else if (count == 0) {
-        button->setEnabled(false);
-        button->setText(tr("Save"));
+        buttonsEnabled = false;
     } else {
-        button->setEnabled(true);
-        button->setText(tr("Save Selected"));
+        saveText = tr("&Save Selected");
+        diffText = tr("&Diff Selected && Cancel");
+    }
+    saveButton->setEnabled(buttonsEnabled);
+    saveButton->setText(saveText);
+    if (m_diffButton) {
+        m_diffButton->setEnabled(buttonsEnabled);
+        m_diffButton->setText(diffText);
     }
 }
 
@@ -149,6 +162,16 @@ void SaveItemsDialog::collectItemsToSave()
     accept();
 }
 
+void SaveItemsDialog::collectFilesToDiff()
+{
+    m_filesToDiff.clear();
+    foreach (QTreeWidgetItem *item, m_ui.treeWidget->selectedItems()) {
+        if (IDocument *doc = item->data(0, Qt::UserRole).value<IDocument*>())
+            m_filesToDiff.append(doc->filePath().toString());
+    }
+    reject();
+}
+
 void SaveItemsDialog::discardAll()
 {
     m_ui.treeWidget->clearSelection();
@@ -158,6 +181,11 @@ void SaveItemsDialog::discardAll()
 QList<IDocument*> SaveItemsDialog::itemsToSave() const
 {
     return m_itemsToSave;
+}
+
+QStringList SaveItemsDialog::filesToDiff() const
+{
+    return m_filesToDiff;
 }
 
 void SaveItemsDialog::setAlwaysSaveMessage(const QString &msg)

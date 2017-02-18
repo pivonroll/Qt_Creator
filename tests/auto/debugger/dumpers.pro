@@ -1,18 +1,28 @@
 QT = core network
 
-win32-msvc* {
-    QTC_LIB_DEPENDS += utils
-}
+msvc: QTC_LIB_DEPENDS += utils
 
 include(../qttest.pri)
 
-win32-msvc* {
+msvc {
+
     LIBS *= -L$$IDE_PLUGIN_PATH
     DEFINES += Q_PLUGIN_PATH=\"\\\"$$IDE_PLUGIN_PATH\\\"\"
 
     CDBEXT_PATH = $$IDE_BUILD_TREE\\$$IDE_LIBRARY_BASENAME
     # replace '\' with '\\'
     DEFINES += CDBEXT_PATH=\"\\\"$$replace(CDBEXT_PATH, \\\\, \\\\)\\\"\"
+
+} else {
+
+    SOURCES += \
+        $$IDE_SOURCE_TREE/src/libs/utils/treemodel.cpp \
+        $$IDE_SOURCE_TREE/src/libs/utils/qtcassert.cpp
+
+    HEADERS += \
+        $$IDE_SOURCE_TREE/src/libs/utils/treemodel.h \
+        $$IDE_SOURCE_TREE/src/libs/utils/qtcassert.h
+
 }
 
 DEBUGGERDIR = $$IDE_SOURCE_TREE/src/plugins/debugger
@@ -41,7 +51,7 @@ HEADERS += \
 }
 
 INCLUDEPATH += $$DEBUGGERDIR
-DEFINES += QT_NO_CAST_FROM_ASCII
 
 # clang 3.5 does not like to optimize long functions.
-clang: QMAKE_CXXFLAGS_RELEASE =
+# likewise gcc 5.4
+clang|gcc: QMAKE_CXXFLAGS_RELEASE =

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,6 +32,10 @@ using namespace QMakeInternal;
 #include <qfile.h>
 #include <qfileinfo.h>
 
+#ifndef QT_NO_TEXTCODEC
+#include <qtextcodec.h>
+#endif
+
 #define fL1S(s) QString::fromLatin1(s)
 
 QT_BEGIN_NAMESPACE
@@ -47,16 +46,24 @@ QMakeVfs::QMakeVfs()
     , m_magicExisting(fL1S("existing"))
 #endif
 {
+#ifndef QT_NO_TEXTCODEC
+    m_textCodec = 0;
+#endif
 }
 
-bool QMakeVfs::writeFile(const QString &fn, QIODevice::OpenMode mode, const QString &contents,
-                         QString *errStr)
+bool QMakeVfs::writeFile(const QString &fn, QIODevice::OpenMode mode, VfsFlags flags,
+                         const QString &contents, QString *errStr)
 {
 #ifndef PROEVALUATOR_FULL
 # ifdef PROEVALUATOR_THREAD_SAFE
     QMutexLocker locker(&m_mutex);
 # endif
+#ifdef PROEVALUATOR_DUAL_VFS
+    QString *cont = &m_files[((flags & VfsCumulative) ? '-' : '+') + fn];
+#else
     QString *cont = &m_files[fn];
+    Q_UNUSED(flags)
+#endif
     if (mode & QIODevice::Append)
         *cont += contents;
     else
@@ -72,8 +79,16 @@ bool QMakeVfs::writeFile(const QString &fn, QIODevice::OpenMode mode, const QStr
     QByteArray bytes = contents.toLocal8Bit();
     QFile cfile(fn);
     if (!(mode & QIODevice::Append) && cfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (cfile.readAll() == bytes)
+        if (cfile.readAll() == bytes) {
+            if (flags & VfsExecutable) {
+                cfile.setPermissions(cfile.permissions()
+                                     | QFile::ExeUser | QFile::ExeGroup | QFile::ExeOther);
+            } else {
+                cfile.setPermissions(cfile.permissions()
+                                     & ~(QFile::ExeUser | QFile::ExeGroup | QFile::ExeOther));
+            }
             return true;
+        }
         cfile.close();
     }
     if (!cfile.open(mode | QIODevice::WriteOnly | QIODevice::Text)) {
@@ -86,39 +101,85 @@ bool QMakeVfs::writeFile(const QString &fn, QIODevice::OpenMode mode, const QStr
         *errStr = cfile.errorString();
         return false;
     }
+    if (flags & VfsExecutable)
+        cfile.setPermissions(cfile.permissions()
+                             | QFile::ExeUser | QFile::ExeGroup | QFile::ExeOther);
     return true;
 #endif
 }
 
-bool QMakeVfs::readFile(const QString &fn, QString *contents, QString *errStr)
+#ifndef PROEVALUATOR_FULL
+bool QMakeVfs::readVirtualFile(const QString &fn, VfsFlags flags, QString *contents)
+{
+# ifdef PROEVALUATOR_THREAD_SAFE
+    QMutexLocker locker(&m_mutex);
+# endif
+    QHash<QString, QString>::ConstIterator it;
+# ifdef PROEVALUATOR_DUAL_VFS
+    it = m_files.constFind(((flags & VfsCumulative) ? '-' : '+') + fn);
+    if (it != m_files.constEnd()) {
+        *contents = *it;
+        return true;
+    }
+# else
+    it = m_files.constFind(fn);
+    if (it != m_files.constEnd()
+        && it->constData() != m_magicMissing.constData()
+        && it->constData() != m_magicExisting.constData()) {
+        *contents = *it;
+        return true;
+    }
+    Q_UNUSED(flags)
+# endif
+    return false;
+}
+#endif
+
+QMakeVfs::ReadResult QMakeVfs::readFile(
+        const QString &fn, VfsFlags flags, QString *contents, QString *errStr)
 {
 #ifndef PROEVALUATOR_FULL
 # ifdef PROEVALUATOR_THREAD_SAFE
     QMutexLocker locker(&m_mutex);
 # endif
-    QHash<QString, QString>::ConstIterator it = m_files.constFind(fn);
+    QHash<QString, QString>::ConstIterator it;
+# ifdef PROEVALUATOR_DUAL_VFS
+    if (!(flags & VfsNoVirtual)) {
+        it = m_files.constFind(((flags & VfsCumulative) ? '-' : '+') + fn);
+        if (it != m_files.constEnd()) {
+            *contents = *it;
+            return ReadOk;
+        }
+    }
+# else
+    Q_UNUSED(flags)
+# endif
+    it = m_files.constFind(fn);
     if (it != m_files.constEnd()) {
         if (it->constData() == m_magicMissing.constData()) {
             *errStr = fL1S("No such file or directory");
-            return false;
+            return ReadNotFound;
         }
         if (it->constData() != m_magicExisting.constData()) {
             *contents = *it;
-            return true;
+            return ReadOk;
         }
     }
+#else
+    Q_UNUSED(flags)
 #endif
 
     QFile file(fn);
     if (!file.open(QIODevice::ReadOnly)) {
+        if (!file.exists()) {
 #ifndef PROEVALUATOR_FULL
-        if (!IoUtils::exists(fn)) {
             m_files[fn] = m_magicMissing;
-            *errStr = fL1S("No such file or directory");
-        } else
 #endif
-            *errStr = file.errorString();
-        return false;
+            *errStr = fL1S("No such file or directory");
+            return ReadNotFound;
+        }
+        *errStr = file.errorString();
+        return ReadOtherError;
     }
 #ifndef PROEVALUATOR_FULL
     m_files[fn] = m_magicExisting;
@@ -128,23 +189,37 @@ bool QMakeVfs::readFile(const QString &fn, QString *contents, QString *errStr)
     if (bcont.startsWith("\xef\xbb\xbf")) {
         // UTF-8 BOM will cause subtle errors
         *errStr = fL1S("Unexpected UTF-8 BOM");
-        return false;
+        return ReadOtherError;
     }
-    *contents = QString::fromLocal8Bit(bcont);
-    return true;
+    *contents =
+#ifndef QT_NO_TEXTCODEC
+        m_textCodec ? m_textCodec->toUnicode(bcont) :
+#endif
+        QString::fromLocal8Bit(bcont);
+    return ReadOk;
 }
 
-bool QMakeVfs::exists(const QString &fn)
+bool QMakeVfs::exists(const QString &fn, VfsFlags flags)
 {
 #ifndef PROEVALUATOR_FULL
 # ifdef PROEVALUATOR_THREAD_SAFE
     QMutexLocker locker(&m_mutex);
 # endif
-    QHash<QString, QString>::ConstIterator it = m_files.constFind(fn);
+    QHash<QString, QString>::ConstIterator it;
+# ifdef PROEVALUATOR_DUAL_VFS
+    it = m_files.constFind(((flags & VfsCumulative) ? '-' : '+') + fn);
+    if (it != m_files.constEnd())
+        return true;
+# else
+    Q_UNUSED(flags)
+# endif
+    it = m_files.constFind(fn);
     if (it != m_files.constEnd())
         return it->constData() != m_magicMissing.constData();
+#else
+    Q_UNUSED(flags)
 #endif
-    bool ex = IoUtils::exists(fn);
+    bool ex = IoUtils::fileType(fn) == IoUtils::FileIsRegular;
 #ifndef PROEVALUATOR_FULL
     m_files[fn] = ex ? m_magicExisting : m_magicMissing;
 #endif
@@ -175,6 +250,13 @@ void QMakeVfs::invalidateContents()
     QMutexLocker locker(&m_mutex);
 # endif
     m_files.clear();
+}
+#endif
+
+#ifndef QT_NO_TEXTCODEC
+void QMakeVfs::setTextCodec(const QTextCodec *textCodec)
+{
+    m_textCodec = textCodec;
 }
 #endif
 

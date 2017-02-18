@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,7 +30,6 @@
 #include "androidmanager.h"
 #include "androidqtsupport.h"
 
-#include <coreplugin/coreconstants.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/infobar.h>
 #include <coreplugin/editormanager/ieditor.h>
@@ -50,6 +44,7 @@
 #include <texteditor/texteditoractionhandler.h>
 #include <texteditor/texteditor.h>
 #include <utils/algorithm.h>
+#include <utils/utilsicons.h>
 
 #include <QLineEdit>
 #include <QFileInfo>
@@ -72,6 +67,7 @@
 #include <QCheckBox>
 #include <QScrollArea>
 
+#include <algorithm>
 #include <limits>
 
 using namespace ProjectExplorer;
@@ -117,11 +113,11 @@ AndroidManifestEditorWidget::AndroidManifestEditorWidget()
 
     m_editor = new AndroidManifestEditor(this);
 
-    connect(&m_timerParseCheck, SIGNAL(timeout()),
-            this, SLOT(delayedParseCheck()));
+    connect(&m_timerParseCheck, &QTimer::timeout,
+            this, &AndroidManifestEditorWidget::delayedParseCheck);
 
-    connect(m_textEditorWidget->document(), SIGNAL(contentsChanged()),
-            this, SLOT(startParseCheck()));
+    connect(m_textEditorWidget->document(), &QTextDocument::contentsChanged,
+            this, &AndroidManifestEditorWidget::startParseCheck);
     connect(m_textEditorWidget->textDocument(), &TextEditor::TextDocument::reloadFinished,
             this, [this](bool success) { if (success) updateAfterFileLoad(); });
     connect(m_textEditorWidget->textDocument(), &TextEditor::TextDocument::openFinishedSuccessfully,
@@ -142,6 +138,7 @@ void AndroidManifestEditorWidget::initializePage()
     QGroupBox *packageGroupBox = new QGroupBox(mainWidget);
     topLayout->addWidget(packageGroupBox);
 
+    auto setDirtyFunc = [this] { setDirty(); };
     packageGroupBox->setTitle(tr("Package"));
     {
         QFormLayout *formLayout = new QFormLayout();
@@ -166,7 +163,7 @@ void AndroidManifestEditorWidget::initializePage()
         m_packageNameWarning->setVisible(false);
 
         m_packageNameWarningIcon = new QLabel;
-        m_packageNameWarningIcon->setPixmap(QPixmap(QLatin1String(Core::Constants::ICON_WARNING)));
+        m_packageNameWarningIcon->setPixmap(Utils::Icons::WARNING.pixmap());
         m_packageNameWarningIcon->setVisible(false);
         m_packageNameWarningIcon->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
@@ -206,16 +203,18 @@ void AndroidManifestEditorWidget::initializePage()
 
         updateSdkVersions();
 
-        connect(m_packageNameLineEdit, SIGNAL(textEdited(QString)),
-                this, SLOT(setPackageName()));
-        connect(m_versionCode, SIGNAL(valueChanged(int)),
-                this, SLOT(setDirty()));
-        connect(m_versionNameLinedit, SIGNAL(textEdited(QString)),
-                this, SLOT(setDirty()));
-        connect(m_androidMinSdkVersion, SIGNAL(currentIndexChanged(int)),
-                this, SLOT(setDirty()));
-        connect(m_androidTargetSdkVersion, SIGNAL(currentIndexChanged(int)),
-                this, SLOT(setDirty()));
+        connect(m_packageNameLineEdit, &QLineEdit::textEdited,
+                this, &AndroidManifestEditorWidget::setPackageName);
+        connect(m_versionCode, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+                this, &AndroidManifestEditorWidget::setDirty);
+        connect(m_versionNameLinedit, &QLineEdit::textEdited,
+                this, setDirtyFunc);
+        connect(m_androidMinSdkVersion,
+                static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+                this, setDirtyFunc);
+        connect(m_androidTargetSdkVersion,
+                static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+                this, setDirtyFunc);
 
     }
 
@@ -266,16 +265,19 @@ void AndroidManifestEditorWidget::initializePage()
 
         applicationGroupBox->setLayout(formLayout);
 
-        connect(m_appNameLineEdit, SIGNAL(textEdited(QString)),
-                this, SLOT(setDirty()));
-        connect(m_activityNameLineEdit, SIGNAL(textEdited(QString)),
-                this, SLOT(setDirty()));
-        connect(m_targetLineEdit, SIGNAL(currentTextChanged(QString)),
-                this, SLOT(setDirty()));
+        connect(m_appNameLineEdit, &QLineEdit::textEdited,
+                this, setDirtyFunc);
+        connect(m_activityNameLineEdit, &QLineEdit::textEdited,
+                this, setDirtyFunc);
+        connect(m_targetLineEdit, &QComboBox::currentTextChanged,
+                this, setDirtyFunc);
 
-        connect(m_lIconButton, SIGNAL(clicked()), SLOT(setLDPIIcon()));
-        connect(m_mIconButton, SIGNAL(clicked()), SLOT(setMDPIIcon()));
-        connect(m_hIconButton, SIGNAL(clicked()), SLOT(setHDPIIcon()));
+        connect(m_lIconButton, &QAbstractButton::clicked,
+                this, &AndroidManifestEditorWidget::setLDPIIcon);
+        connect(m_mIconButton, &QAbstractButton::clicked,
+                this, &AndroidManifestEditorWidget::setMDPIIcon);
+        connect(m_hIconButton, &QAbstractButton::clicked,
+                this, &AndroidManifestEditorWidget::setHDPIIcon);
     }
 
 
@@ -448,17 +450,17 @@ void AndroidManifestEditorWidget::initializePage()
 
         permissionsGroupBox->setLayout(layout);
 
-        connect(m_defaultPermissonsCheckBox, SIGNAL(stateChanged(int)),
-                this, SLOT(defaultPermissionOrFeatureCheckBoxClicked()));
-        connect(m_defaultFeaturesCheckBox, SIGNAL(stateChanged(int)),
-                this, SLOT(defaultPermissionOrFeatureCheckBoxClicked()));
+        connect(m_defaultPermissonsCheckBox, &QCheckBox::stateChanged,
+                this, &AndroidManifestEditorWidget::defaultPermissionOrFeatureCheckBoxClicked);
+        connect(m_defaultFeaturesCheckBox, &QCheckBox::stateChanged,
+                this, &AndroidManifestEditorWidget::defaultPermissionOrFeatureCheckBoxClicked);
 
-        connect(m_addPermissionButton, SIGNAL(clicked()),
-                this, SLOT(addPermission()));
-        connect(m_removePermissionButton, SIGNAL(clicked()),
-                this, SLOT(removePermission()));
-        connect(m_permissionsComboBox, SIGNAL(currentTextChanged(QString)),
-                this, SLOT(updateAddRemovePermissionButtons()));
+        connect(m_addPermissionButton, &QAbstractButton::clicked,
+                this, &AndroidManifestEditorWidget::addPermission);
+        connect(m_removePermissionButton, &QAbstractButton::clicked,
+                this, &AndroidManifestEditorWidget::removePermission);
+        connect(m_permissionsComboBox, &QComboBox::currentTextChanged,
+                this, &AndroidManifestEditorWidget::updateAddRemovePermissionButtons);
     }
 
     topLayout->addSpacerItem(new QSpacerItem(0, 0, QSizePolicy::Fixed, QSizePolicy::MinimumExpanding));
@@ -475,7 +477,7 @@ bool AndroidManifestEditorWidget::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == m_targetLineEdit) {
         if (event->type() == QEvent::FocusIn)
-            QTimer::singleShot(0, this, SLOT(updateTargetComboBox()));
+            QTimer::singleShot(0, this, &AndroidManifestEditorWidget::updateTargetComboBox);
     }
 
     return QWidget::eventFilter(obj, event);
@@ -599,7 +601,8 @@ void AndroidManifestEditorWidget::postSave()
     if (project) {
         if (Target *target = project->activeTarget()) {
             AndroidQtSupport *androidQtSupport = AndroidManager::androidQtSupport(target);
-            androidQtSupport->manifestSaved(target);
+            if (androidQtSupport)
+                androidQtSupport->manifestSaved(target);
         }
     }
 }
@@ -776,10 +779,10 @@ void AndroidManifestEditorWidget::syncToWidgets(const QDomDocument &doc)
     m_mIconPath.clear();
     m_hIconPath.clear();
 
-    disconnect(m_defaultPermissonsCheckBox, SIGNAL(stateChanged(int)),
-            this, SLOT(defaultPermissionOrFeatureCheckBoxClicked()));
-    disconnect(m_defaultFeaturesCheckBox, SIGNAL(stateChanged(int)),
-            this, SLOT(defaultPermissionOrFeatureCheckBoxClicked()));
+    disconnect(m_defaultPermissonsCheckBox, &QCheckBox::stateChanged,
+            this, &AndroidManifestEditorWidget::defaultPermissionOrFeatureCheckBoxClicked);
+    disconnect(m_defaultFeaturesCheckBox, &QCheckBox::stateChanged,
+            this, &AndroidManifestEditorWidget::defaultPermissionOrFeatureCheckBoxClicked);
 
     m_defaultPermissonsCheckBox->setChecked(false);
     m_defaultFeaturesCheckBox->setChecked(false);
@@ -800,10 +803,10 @@ void AndroidManifestEditorWidget::syncToWidgets(const QDomDocument &doc)
     m_defaultPermissonsCheckBox->setChecked(foundPermissionComment);
     m_defaultFeaturesCheckBox->setChecked(foundFeatureComment);
 
-    connect(m_defaultPermissonsCheckBox, SIGNAL(stateChanged(int)),
-            this, SLOT(defaultPermissionOrFeatureCheckBoxClicked()));
-    connect(m_defaultFeaturesCheckBox, SIGNAL(stateChanged(int)),
-            this, SLOT(defaultPermissionOrFeatureCheckBoxClicked()));
+    connect(m_defaultPermissonsCheckBox, &QCheckBox::stateChanged,
+            this, &AndroidManifestEditorWidget::defaultPermissionOrFeatureCheckBoxClicked);
+    connect(m_defaultFeaturesCheckBox, &QCheckBox::stateChanged,
+            this, &AndroidManifestEditorWidget::defaultPermissionOrFeatureCheckBoxClicked);
 
     QStringList permissions;
     QDomElement permissionElem = manifest.firstChildElement(QLatin1String("uses-permission"));
@@ -1053,8 +1056,8 @@ bool AndroidManifestEditorWidget::parseMetaData(QXmlStreamReader &reader, QXmlSt
     QXmlStreamAttributes result;
 
     if (attributes.value(QLatin1String("android:name")) == QLatin1String("android.app.lib_name")) {
-        QStringList keys = QStringList() << QLatin1String("android:value");
-        QStringList values = QStringList() << m_targetLineEdit->currentText();
+        QStringList keys = QStringList("android:value");
+        QStringList values = QStringList(m_targetLineEdit->currentText());
         result = modifyXmlStreamAttributes(attributes, keys, values);
         found = true;
     } else {
@@ -1335,7 +1338,8 @@ const QStringList &PermissionsModel::permissions()
 
 QModelIndex PermissionsModel::addPermission(const QString &permission)
 {
-    const int idx = qLowerBound(m_permissions, permission) - m_permissions.constBegin();
+    auto it = std::lower_bound(m_permissions.constBegin(), m_permissions.constEnd(), permission);
+    const int idx = it - m_permissions.constBegin();
     beginInsertRows(QModelIndex(), idx, idx);
     m_permissions.insert(idx, permission);
     endInsertRows();
@@ -1349,7 +1353,8 @@ bool PermissionsModel::updatePermission(const QModelIndex &index, const QString 
     if (m_permissions[index.row()] == permission)
         return false;
 
-    int newIndex = qLowerBound(m_permissions.constBegin(), m_permissions.constEnd(), permission) - m_permissions.constBegin();
+    auto it = std::lower_bound(m_permissions.constBegin(), m_permissions.constEnd(), permission);
+    const int newIndex = it - m_permissions.constBegin();
     if (newIndex == index.row() || newIndex == index.row() + 1) {
         m_permissions[index.row()] = permission;
         emit dataChanged(index, index);

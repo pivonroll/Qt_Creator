@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -28,77 +28,52 @@ import QtQuick.Controls 1.1 as Controls
 import QtQuick.Controls.Styles 1.2
 
 ComboBoxStyle {
-    property color borderColor: "#222"
-    property color highlightColor: "orange"
-    property color textColor: "#eee"
-
+    property color textColor: creatorTheme.PanelTextColorLight
     __editor: Item {
 
     }
 
+    padding.left: 20
+
     background: Item {
         implicitWidth: 120
-        implicitHeight: 25
+        implicitHeight: 24
 
-        RoundedPanel {
+        Rectangle {
             anchors.fill: parent
-            roundLeft: true
-            roundRight: true
             visible: !control.pressed
+            color: creatorTheme.QmlDesignerButtonColor
+            border.color: creatorTheme.QmlDesignerBorderColor
+            border.width: 1
         }
 
-        RoundedPanel {
-            gradient: Gradient {
-                GradientStop {color: '#444' ; position: 0}
-                GradientStop {color: '#333' ; position: 1}
-            }
+        Rectangle {
+            color: creatorTheme.QmlDesignerBackgroundColorDarker
             anchors.fill: parent
-            roundLeft: true
-            roundRight: true
             visible: control.pressed
-        }
-
-        Rectangle {
-            border.color: highlightColor
-            anchors.fill: parent
-            anchors.margins: -1
-            color: "transparent"
-            opacity: 0.3
-            visible: control.activeFocus
-        }
-
-        Rectangle {
-            color: "#333"
-            width: 1
-            anchors.right: imageItem.left
-            anchors.topMargin: 4
-            anchors.bottomMargin: 4
-            anchors.rightMargin: 6
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
+            border.color: creatorTheme.QmlDesignerBorderColor
+            border.width: 1
         }
 
         Image {
             id: imageItem
-            source: "images/down-arrow.png"
+            width: 8
+            height: 4
+            source: "image://icons/down-arrow"
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
-            anchors.rightMargin: 10
-            opacity: control.enabled ? 0.7 : 0.5
+            anchors.rightMargin: 8
+            opacity: control.enabled ? 1 : 0.5
         }
     }
 
-    label: Item {
-        implicitWidth: textitem.implicitWidth + 20
-        Text {
-            id: textitem
-            anchors.left: parent.left
-            anchors.leftMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            text: control.currentText
-            renderType: Text.NativeRendering
-            color: textColor
-        }
+    label: Text {
+        id: textitem
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        text: control.currentText
+        renderType: Text.NativeRendering
+        color: control.textColor
     }
 
     __dropDownStyle: MenuStyle {

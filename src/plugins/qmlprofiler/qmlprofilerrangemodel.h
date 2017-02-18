@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,35 +9,31 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-
-#ifndef QMLPROFILERRANGEMODEL_H
-#define QMLPROFILERRANGEMODEL_H
+#pragma once
 
 #include "qmlprofilertimelinemodel.h"
-#include <qmldebug/qmlprofilereventtypes.h>
-#include <qmldebug/qmlprofilereventlocation.h>
-#include <QVariantList>
 #include "qmlprofilerdatamodel.h"
+#include "qmlprofilereventtypes.h"
+#include "qmleventlocation.h"
+#include "qmlprofilerconstants.h"
+
+#include <QVariantList>
 #include <QColor>
+#include <QStack>
 
 namespace QmlProfiler {
 class QmlProfilerModelManager;
@@ -51,8 +47,8 @@ public:
 
     struct QmlRangeEventStartInstance {
         QmlRangeEventStartInstance() :
-                displayRowExpanded(QmlDebug::Constants::QML_MIN_LEVEL),
-                displayRowCollapsed(QmlDebug::Constants::QML_MIN_LEVEL),
+                displayRowExpanded(1),
+                displayRowCollapsed(Constants::QML_MIN_LEVEL),
                 bindingLoopHead(-1) {}
 
         // not-expanded, per type
@@ -61,26 +57,25 @@ public:
         int bindingLoopHead;
     };
 
-    QmlProfilerRangeModel(QmlProfilerModelManager *manager, QmlDebug::RangeType range,
-                          QObject *parent = 0);
+    QmlProfilerRangeModel(QmlProfilerModelManager *manager, RangeType range, QObject *parent = 0);
 
-    Q_INVOKABLE int expandedRow(int index) const;
-    Q_INVOKABLE int collapsedRow(int index) const;
+    Q_INVOKABLE int expandedRow(int index) const override;
+    Q_INVOKABLE int collapsedRow(int index) const override;
     int bindingLoopDest(int index) const;
-    QColor color(int index) const;
+    QRgb color(int index) const override;
 
-    QVariantList labels() const;
-    QVariantMap details(int index) const;
-    QVariantMap location(int index) const;
+    QVariantList labels() const override;
+    QVariantMap details(int index) const override;
+    QVariantMap location(int index) const override;
 
-    int typeId(int index) const;
-    int selectionIdForLocation(const QString &filename, int line, int column) const;
+    int typeId(int index) const override;
 
-    virtual QList<const Timeline::TimelineRenderPass *> supportedRenderPasses() const;
+    virtual QList<const Timeline::TimelineRenderPass *> supportedRenderPasses() const override;
 
 protected:
-    void loadData();
-    void clear();
+    void loadEvent(const QmlEvent &event, const QmlEventType &type) override;
+    void finalize() override;
+    void clear() override;
 
 private:
 
@@ -90,10 +85,9 @@ private:
     void findBindingLoops();
 
     QVector<QmlRangeEventStartInstance> m_data;
+    QStack<int> m_stack;
     QVector<int> m_expandedRowTypes;
 };
 
-}
-}
-
-#endif // QMLPROFILERRANGEMODEL_H
+} // namespace Internal
+} // namespace QmlProfiler

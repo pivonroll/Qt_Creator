@@ -1,7 +1,7 @@
-/***************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Jochen Becher
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Jochen Becher
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,7 +30,6 @@
 #include "qmt/infrastructure/uid.h"
 
 #include "qmt/serializer/projectserializer.h"
-#include "qmt/serializer/diagramreferenceserializer.h"
 
 #include "qmt/project/project.h"
 #include "qmt/model_controller/mvoidvisitor.h"
@@ -120,7 +114,7 @@ public:
     void reset(const QDateTime &lastModified)
     {
         m_lastModified = lastModified;
-        m_modelUid = qmt::Uid::getInvalidUid();
+        m_modelUid = qmt::Uid::invalidUid();
         m_diagrams.clear();
     }
 
@@ -157,8 +151,8 @@ public:
     void reset(const QDateTime &lastModified)
     {
         m_lastModified = lastModified;
-        m_modelUid = qmt::Uid::getInvalidUid();
-        m_diagramUid = qmt::Uid::getInvalidUid();
+        m_modelUid = qmt::Uid::invalidUid();
+        m_diagramUid = qmt::Uid::invalidUid();
     }
 
     QString file() const { return m_file; }
@@ -220,17 +214,17 @@ ModelIndexer::DiagramsCollectorVisitor::DiagramsCollectorVisitor(IndexedModel *i
 
 void ModelIndexer::DiagramsCollectorVisitor::visitMObject(const qmt::MObject *object)
 {
-    foreach (const qmt::Handle<qmt::MObject> &child, object->getChildren()) {
+    foreach (const qmt::Handle<qmt::MObject> &child, object->children()) {
         if (child.hasTarget())
-            child.getTarget()->accept(this);
+            child.target()->accept(this);
     }
     visitMElement(object);
 }
 
 void ModelIndexer::DiagramsCollectorVisitor::visitMDiagram(const qmt::MDiagram *diagram)
 {
-    qCDebug(logger) << "add diagram " << diagram->getName() << " to index";
-    m_indexedModel->addDiagram(diagram->getUid());
+    qCDebug(logger) << "add diagram " << diagram->name() << " to index";
+    m_indexedModel->addDiagram(diagram->uid());
     visitMObject(diagram);
 }
 
@@ -300,21 +294,21 @@ void ModelIndexer::IndexerThread::onFilesQueued()
             qmt::Project project;
             projectSerializer.load(queuedFile.file(), &project);
             locker.relock();
-            indexedModel->setModelUid(project.getUid());
+            indexedModel->setModelUid(project.uid());
             // add indexedModel to set of indexedModelsByUid
-            QSet<IndexedModel *> indexedModels = m_indexer->d->indexedModelsByUid.value(project.getUid());
+            QSet<IndexedModel *> indexedModels = m_indexer->d->indexedModelsByUid.value(project.uid());
             indexedModels.insert(indexedModel);
-            m_indexer->d->indexedModelsByUid.insert(project.getUid(), indexedModels);
+            m_indexer->d->indexedModelsByUid.insert(project.uid(), indexedModels);
             // collect all diagrams of model
             DiagramsCollectorVisitor visitor(indexedModel);
-            project.getRootPackage()->accept(&visitor);
+            project.rootPackage()->accept(&visitor);
             if (m_indexer->d->defaultModelFiles.contains(queuedFile)) {
                 m_indexer->d->defaultModelFiles.remove(queuedFile);
                 // check if model has a diagram which could be opened
                 qmt::FindRootDiagramVisitor diagramVisitor;
-                project.getRootPackage()->accept(&diagramVisitor);
-                if (diagramVisitor.getDiagram())
-                    emit m_indexer->openDefaultModel(project.getUid());
+                project.rootPackage()->accept(&diagramVisitor);
+                if (diagramVisitor.diagram())
+                    emit m_indexer->openDefaultModel(project.uid());
             }
         }
     }
@@ -389,7 +383,7 @@ void ModelIndexer::onProjectFileListChanged(ProjectExplorer::Project *project)
 void ModelIndexer::scanProject(ProjectExplorer::Project *project)
 {
     // TODO harmonize following code with findFirstModel()?
-    QStringList files = project->files(ProjectExplorer::Project::ExcludeGeneratedFiles);
+    QStringList files = project->files(ProjectExplorer::Project::SourceFiles);
     QQueue<QueuedFile> filesQueue;
     QSet<QueuedFile> filesSet;
 
@@ -458,11 +452,11 @@ QString ModelIndexer::findFirstModel(ProjectExplorer::FolderNode *folderNode)
 {
     foreach (ProjectExplorer::FileNode *fileNode, folderNode->fileNodes()) {
         Utils::MimeType mimeType = Utils::MimeDatabase().mimeTypeForFile(
-                    fileNode->path().toFileInfo());
+                    fileNode->filePath().toFileInfo());
         if (mimeType.name() == QLatin1String(Constants::MIME_TYPE_MODEL))
-            return fileNode->path().toString();
+            return fileNode->filePath().toString();
     }
-    foreach (ProjectExplorer::FolderNode *subFolderNode, folderNode->subFolderNodes()) {
+    foreach (ProjectExplorer::FolderNode *subFolderNode, folderNode->folderNodes()) {
         QString modelFileName = findFirstModel(subFolderNode);
         if (!modelFileName.isEmpty())
             return modelFileName;
@@ -472,7 +466,7 @@ QString ModelIndexer::findFirstModel(ProjectExplorer::FolderNode *folderNode)
 
 void ModelIndexer::forgetProject(ProjectExplorer::Project *project)
 {
-    QStringList files = project->files(ProjectExplorer::Project::ExcludeGeneratedFiles);
+    QStringList files = project->files(ProjectExplorer::Project::SourceFiles);
 
     QMutexLocker locker(&d->indexerMutex);
     foreach (const QString &file, files) {

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 Thorben Kroeger <thorbenkroeger@gmail.com>.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Thorben Kroeger <thorbenkroeger@gmail.com>.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef THEME_H
-#define THEME_H
+#pragma once
 
 #include "../utils_global.h"
 
@@ -54,7 +48,7 @@ class QTCREATOR_UTILS_EXPORT Theme : public QObject
     Q_ENUMS(WidgetStyle)
 
 public:
-    Theme(const QString &name, QObject *parent = 0);
+    Theme(const QString &id, QObject *parent = 0);
     ~Theme();
 
     enum Color {
@@ -75,7 +69,6 @@ public:
         DetailsButtonBackgroundColorHover,
         DetailsWidgetBackgroundColor,
         DockWidgetResizeHandleColor,
-        DoubleTabWidget1stEmptyAreaBackgroundColor,
         DoubleTabWidget1stSeparatorColor,
         DoubleTabWidget1stTabActiveTextColor,
         DoubleTabWidget1stTabBackgroundColor,
@@ -85,6 +78,7 @@ public:
         DoubleTabWidget2ndTabBackgroundColor,
         DoubleTabWidget2ndTabInactiveTextColor,
         EditorPlaceholderColor,
+        FancyToolBarSeparatorColor,
         FancyTabBarBackgroundColor,
         FancyTabWidgetDisabledSelectedTextColor,
         FancyTabWidgetDisabledUnselectedTextColor,
@@ -108,15 +102,16 @@ public:
         OutputPaneButtonFlashColor,
         OutputPaneToggleButtonTextColorChecked,
         OutputPaneToggleButtonTextColorUnchecked,
-        PanelButtonToolBackgroundColorHover,
         PanelStatusBarBackgroundColor,
         PanelsWidgetSeparatorLineColor,
         PanelTextColorDark,
+        PanelTextColorMid,
         PanelTextColorLight,
         ProgressBarColorError,
         ProgressBarColorFinished,
         ProgressBarColorNormal,
         ProgressBarTitleColor,
+        ProgressBarBackgroundColor,
         SplitterColor,
         TextColorDisabled,
         TextColorError,
@@ -130,6 +125,93 @@ public:
         TreeViewArrowColorNormal,
         TreeViewArrowColorSelected,
 
+        /* Palette for QPalette */
+
+        PaletteWindow,
+        PaletteWindowText,
+        PaletteBase,
+        PaletteAlternateBase,
+        PaletteToolTipBase,
+        PaletteToolTipText,
+        PaletteText,
+        PaletteButton,
+        PaletteButtonText,
+        PaletteBrightText,
+        PaletteHighlight,
+        PaletteHighlightedText,
+        PaletteLink,
+        PaletteLinkVisited,
+
+        PaletteLight,
+        PaletteMidlight,
+        PaletteDark,
+        PaletteMid,
+        PaletteShadow,
+
+        PaletteWindowDisabled,
+        PaletteWindowTextDisabled,
+        PaletteBaseDisabled,
+        PaletteAlternateBaseDisabled,
+        PaletteToolTipBaseDisabled,
+        PaletteToolTipTextDisabled,
+        PaletteTextDisabled,
+        PaletteButtonDisabled,
+        PaletteButtonTextDisabled,
+        PaletteBrightTextDisabled,
+        PaletteHighlightDisabled,
+        PaletteHighlightedTextDisabled,
+        PaletteLinkDisabled,
+        PaletteLinkVisitedDisabled,
+
+        PaletteLightDisabled,
+        PaletteMidlightDisabled,
+        PaletteDarkDisabled,
+        PaletteMidDisabled,
+        PaletteShadowDisabled,
+
+        /* Icons */
+
+        IconsBaseColor,
+        IconsDisabledColor,
+        IconsInfoColor,
+        IconsInfoToolBarColor,
+        IconsWarningColor,
+        IconsWarningToolBarColor,
+        IconsErrorColor,
+        IconsErrorToolBarColor,
+        IconsRunColor,
+        IconsRunToolBarColor,
+        IconsStopColor,
+        IconsStopToolBarColor,
+        IconsInterruptColor,
+        IconsInterruptToolBarColor,
+        IconsDebugColor,
+        IconsNavigationArrowsColor,
+        IconsBuildHammerHandleColor,
+        IconsBuildHammerHeadColor,
+        IconsModeWelcomeActiveColor,
+        IconsModeEditActiveColor,
+        IconsModeDesignActiveColor,
+        IconsModeDebugActiveColor,
+        IconsModeProjectActiveColor,
+        IconsModeAnalyzeActiveColor,
+        IconsModeHelpActiveColor,
+
+        /* Code model Icons */
+
+        IconsCodeModelKeywordColor,
+        IconsCodeModelClassColor,
+        IconsCodeModelStructColor,
+        IconsCodeModelFunctionColor,
+        IconsCodeModelVariableColor,
+        IconsCodeModelEnumColor,
+        IconsCodeModelMacroColor,
+        IconsCodeModelAttributeColor,
+        IconsCodeModelUniformColor,
+        IconsCodeModelVaryingColor,
+        IconsCodeModelOverlayBackgroundColor,
+        IconsCodeModelOverlayForegroundColor,
+
         /* Output panes */
 
         OutputPanes_DebugTextColor,
@@ -139,6 +221,14 @@ public:
         OutputPanes_StdErrTextColor,
         OutputPanes_StdOutTextColor,
         OutputPanes_WarningMessageTextColor,
+        OutputPanes_TestPassTextColor,
+        OutputPanes_TestFailTextColor,
+        OutputPanes_TestXFailTextColor,
+        OutputPanes_TestXPassTextColor,
+        OutputPanes_TestSkipTextColor,
+        OutputPanes_TestWarnTextColor,
+        OutputPanes_TestFatalTextColor,
+        OutputPanes_TestDebugTextColor,
 
         /* Debugger Log Window */
 
@@ -154,27 +244,25 @@ public:
 
         /* Welcome Plugin */
 
-        Welcome_TextColorNormal,
-        Welcome_TextColorHeading,  // #535353 // Sessions, Recent Projects
-        Welcome_BackgroundColorNormal,   // #ffffff
-        Welcome_DividerColor,      // #737373
-        Welcome_Button_BorderColorNormal,
-        Welcome_Button_BorderColorPressed,
-        Welcome_Button_TextColorNormal,
-        Welcome_Button_TextColorPressed,
-        Welcome_Link_TextColorNormal,
-        Welcome_Link_TextColorActive,
-        Welcome_Link_BackgroundColor,
-        Welcome_Caption_TextColorNormal,
-        Welcome_SideBar_BackgroundColor,
+        Welcome_TextColor,
+        Welcome_ForegroundPrimaryColor,
+        Welcome_ForegroundSecondaryColor,
+        Welcome_BackgroundColor,
+        Welcome_ButtonBackgroundColor,
+        Welcome_DividerColor,
+        Welcome_LinkColor,
+        Welcome_HoverColor,
 
-        Welcome_ProjectItem_TextColorFilepath,
-        Welcome_ProjectItem_BackgroundColorHover,
-
-        Welcome_SessionItem_BackgroundColorNormal,
-        Welcome_SessionItem_BackgroundColorHover,
-        Welcome_SessionItemExpanded_BackgroundColorNormal,
-        Welcome_SessionItemExpanded_BackgroundColorHover,
+        /* Timeline Library */
+        Timeline_TextColor,
+        Timeline_BackgroundColor1,
+        Timeline_BackgroundColor2,
+        Timeline_DividerColor,
+        Timeline_HighlightColor,
+        Timeline_PanelBackgroundColor,
+        Timeline_PanelHeaderColor,
+        Timeline_HandleColor,
+        Timeline_RangeColor,
 
         /* VcsBase Plugin */
         VcsBase_FileStatusUnknown_TextColor,
@@ -182,6 +270,7 @@ public:
         VcsBase_FileModified_TextColor,
         VcsBase_FileDeleted_TextColor,
         VcsBase_FileRenamed_TextColor,
+        VcsBase_FileUnmerged_TextColor,
 
         /* Bookmarks Plugin */
         Bookmarks_TextMarkColor,
@@ -199,23 +288,20 @@ public:
 
         /* ClangCodeModel Plugin */
         ClangCodeModel_Error_TextMarkColor,
-        ClangCodeModel_Warning_TextMarkColor
+        ClangCodeModel_Warning_TextMarkColor,
+
+        /* QmlDesigner */
+        QmlDesigner_BackgroundColor,
+        QmlDesigner_HighlightColor,
+        QmlDesigner_FormEditorSelectionColor,
+        QmlDesigner_FormEditorForegroundColor
     };
 
     enum Gradient {
         DetailsWidgetHeaderGradient,
-        Welcome_Button_GradientNormal,
-        Welcome_Button_GradientPressed
     };
 
     enum ImageFile {
-        ProjectExplorerHeader,
-        ProjectExplorerSource,
-        ProjectExplorerForm,
-        ProjectExplorerResource,
-        ProjectExplorerQML,
-        ProjectExplorerOtherFiles,
-        ProjectFileIcon,
         IconOverlayCSource,
         IconOverlayCppHeader,
         IconOverlayCppSource,
@@ -223,55 +309,56 @@ public:
         IconOverlayPrf,
         IconOverlayPro,
         StandardPixmapFileIcon,
-        StandardPixmapDirIcon,
-        BuildStepDisable,
-        BuildStepRemove,
-        BuildStepMoveDown,
-        BuildStepMoveUp
+        StandardPixmapDirIcon
     };
 
     enum Flag {
         DrawTargetSelectorBottom,
         DrawSearchResultWidgetFrame,
-        DrawProgressBarSunken,
         DrawIndicatorBranch,
+        DrawToolBarHighlights,
+        DrawToolBarBorders,
         ComboBoxDrawTextShadow,
         DerivePaletteFromTheme,
-        ApplyThemePaletteGlobally
+        ApplyThemePaletteGlobally,
+        FlatToolBars,
+        FlatSideBarIcons,
+        FlatProjectsMode,
+        FlatMenuBar,
+        ToolBarIconShadow,
+        WindowColorAsBase
     };
 
-    enum WidgetStyle {
-        StyleDefault,
-        StyleFlat
-    };
-
-    WidgetStyle widgetStyle() const;
-    bool flag(Flag f) const;
-    QColor color(Color role) const;
+    Q_INVOKABLE bool flag(Flag f) const;
+    Q_INVOKABLE QColor color(Color role) const;
     QString imageFile(ImageFile imageFile, const QString &fallBack) const;
     QGradientStops gradient(Gradient role) const;
     QPalette palette() const;
     QStringList preferredStyles() const;
+    QString defaultTextEditorColorScheme() const;
 
+    QString id() const;
     QString filePath() const;
-    QString name() const;
-    void setName(const QString &name);
+    QString displayName() const;
+    void setDisplayName(const QString &displayName);
 
-    QVariantHash values() const;
+    const QVariantMap &values() const;
 
-    void writeSettings(const QString &filename) const;
     void readSettings(QSettings &settings);
 
     static QPalette initialPalette();
 
+protected:
+    Theme(ThemePrivate &dd, QObject *parent = nullptr);
     ThemePrivate *d;
 
 private:
+    friend QTCREATOR_UTILS_EXPORT Theme *creatorTheme();
+    friend QTCREATOR_UTILS_EXPORT Theme *proxyTheme();
     QPair<QColor, QString> readNamedColor(const QString &color) const;
 };
 
 QTCREATOR_UTILS_EXPORT Theme *creatorTheme();
+QTCREATOR_UTILS_EXPORT Theme *proxyTheme();
 
 } // namespace Utils
-
-#endif // THEME_H

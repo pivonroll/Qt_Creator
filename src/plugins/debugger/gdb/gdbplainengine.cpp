@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,7 +29,6 @@
 #include <debugger/debuggercore.h>
 #include <debugger/debuggerprotocol.h>
 #include <debugger/debuggerstartparameters.h>
-#include <debugger/debuggerstringutils.h>
 
 #include <utils/hostosinfo.h>
 #include <utils/qtcassert.h>
@@ -51,19 +45,24 @@ GdbPlainEngine::GdbPlainEngine(const DebuggerRunParameters &startParameters)
 {
     // Output
     connect(&m_outputCollector, &OutputCollector::byteDelivery,
-            this, &GdbEngine::readDebugeeOutput);
+            this, &GdbEngine::readDebuggeeOutput);
 }
 
 void GdbPlainEngine::setupInferior()
 {
     QTC_ASSERT(state() == InferiorSetupRequested, qDebug() << state());
     setEnvironmentVariables();
-    if (!runParameters().processArgs.isEmpty()) {
-        QString args = runParameters().processArgs;
-        runCommand("-exec-arguments " + toLocalEncoding(args));
+    const DebuggerRunParameters &rp = runParameters();
+    if (!rp.inferior.workingDirectory.isEmpty())
+        runCommand({"cd " + rp.inferior.workingDirectory});
+    if (!rp.inferior.commandLineArguments.isEmpty()) {
+        QString args = rp.inferior.commandLineArguments;
+        runCommand({"-exec-arguments " + args});
     }
-    runCommand("-file-exec-and-symbols \"" + execFilePath() + '"',
-        CB(handleFileExecAndSymbols));
+
+    QString executable = QFileInfo(runParameters().inferior.executable).absoluteFilePath();
+    runCommand({"-file-exec-and-symbols \"" + executable + '"',
+                CB(handleFileExecAndSymbols)});
 }
 
 void GdbPlainEngine::handleFileExecAndSymbols(const DebuggerResponse &response)
@@ -72,11 +71,10 @@ void GdbPlainEngine::handleFileExecAndSymbols(const DebuggerResponse &response)
     if (response.resultClass == ResultDone) {
         handleInferiorPrepared();
     } else {
-        QByteArray ba = response.data["msg"].data();
-        QString msg = fromLocalEncoding(ba);
+        QString msg = response.data["msg"].data();
         // Extend the message a bit in unknown cases.
-        if (!ba.endsWith("File format not recognized"))
-            msg = tr("Starting executable failed:") + QLatin1Char('\n') + msg;
+        if (!msg.endsWith("File format not recognized"))
+            msg = tr("Starting executable failed:") + '\n' + msg;
         notifyInferiorSetupFailed(msg);
     }
 }
@@ -84,23 +82,24 @@ void GdbPlainEngine::handleFileExecAndSymbols(const DebuggerResponse &response)
 void GdbPlainEngine::runEngine()
 {
     if (runParameters().useContinueInsteadOfRun)
-        runCommand("-exec-continue", CB(handleExecuteContinue), RunRequest);
+        runCommand({"-exec-continue", DebuggerCommand::RunRequest, CB(handleExecuteContinue)});
     else
-        runCommand("-exec-run", CB(handleExecRun), RunRequest);
+        runCommand({"-exec-run", DebuggerCommand::RunRequest, CB(handleExecRun)});
 }
+
 void GdbPlainEngine::handleExecRun(const DebuggerResponse &response)
 {
     QTC_ASSERT(state() == EngineRunRequested, qDebug() << state());
     if (response.resultClass == ResultRunning) {
         notifyEngineRunAndInferiorRunOk(); // For gdb < 7.0
         //showStatusMessage(tr("Running..."));
-        showMessage(_("INFERIOR STARTED"));
+        showMessage("INFERIOR STARTED");
         showMessage(msgInferiorSetupOk(), StatusBar);
         // FIXME: That's the wrong place for it.
         if (boolSetting(EnableReverseDebugging))
-            runCommand("target record");
+            runCommand({"target record"});
     } else {
-        QString msg = fromLocalEncoding(response.data["msg"].data());
+        QString msg = response.data["msg"].data();
         //QTC_CHECK(status() == InferiorRunOk);
         //interruptInferior();
         showMessage(msg);
@@ -111,7 +110,7 @@ void GdbPlainEngine::handleExecRun(const DebuggerResponse &response)
 void GdbPlainEngine::setupEngine()
 {
     QTC_ASSERT(state() == EngineSetupRequested, qDebug() << state());
-    showMessage(_("TRYING TO START ADAPTER"));
+    showMessage("TRYING TO START ADAPTER");
 
     if (!prepareCommand())
         return;
@@ -123,10 +122,7 @@ void GdbPlainEngine::setupEngine()
                 .arg(m_outputCollector.errorString()));
         return;
     }
-    gdbArgs.append(_("--tty=") + m_outputCollector.serverName());
-
-    if (!runParameters().workingDirectory.isEmpty())
-        m_gdbProc.setWorkingDirectory(runParameters().workingDirectory);
+    gdbArgs.append("--tty=" + m_outputCollector.serverName());
 
     startGdb(gdbArgs);
 }
@@ -143,25 +139,9 @@ void GdbPlainEngine::interruptInferior2()
 
 void GdbPlainEngine::shutdownEngine()
 {
-    showMessage(_("PLAIN ADAPTER SHUTDOWN %1").arg(state()));
+    showMessage(QString("PLAIN ADAPTER SHUTDOWN %1").arg(state()));
     m_outputCollector.shutdown();
     notifyAdapterShutdownOk();
-}
-
-QByteArray GdbPlainEngine::execFilePath() const
-{
-    return QFileInfo(runParameters().executable)
-            .absoluteFilePath().toLocal8Bit();
-}
-
-QByteArray GdbPlainEngine::toLocalEncoding(const QString &s) const
-{
-    return s.toLocal8Bit();
-}
-
-QString GdbPlainEngine::fromLocalEncoding(const QByteArray &b) const
-{
-    return QString::fromLocal8Bit(b);
 }
 
 } // namespace Debugger

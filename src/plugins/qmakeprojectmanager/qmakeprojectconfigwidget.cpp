@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,11 +30,14 @@
 #include "qmakenodes.h"
 #include "ui_qmakeprojectconfigwidget.h"
 
+#include <coreplugin/coreicons.h>
+#include <coreplugin/variablechooser.h>
 #include <projectexplorer/target.h>
 #include <qtsupport/qtkitinformation.h>
 
 #include <utils/algorithm.h>
 #include <utils/detailswidget.h>
+#include <utils/utilsicons.h>
 
 using namespace QmakeProjectManager;
 using namespace QmakeProjectManager::Internal;
@@ -52,7 +50,8 @@ QmakeProjectConfigWidget::QmakeProjectConfigWidget(QmakeBuildConfiguration *bc)
     m_defaultShadowBuildDir
             = QmakeBuildConfiguration::shadowBuildDirectory(bc->target()->project()->projectFilePath().toString(),
                                                             bc->target()->kit(),
-                                                            Utils::FileUtils::qmakeFriendlyName(bc->displayName()));
+                                                            Utils::FileUtils::qmakeFriendlyName(bc->displayName()),
+                                                            bc->buildType());
 
     QVBoxLayout *vbox = new QVBoxLayout(this);
     vbox->setMargin(0);
@@ -66,6 +65,7 @@ QmakeProjectConfigWidget::QmakeProjectConfigWidget(QmakeBuildConfiguration *bc)
 
     m_browseButton = m_ui->shadowBuildDirEdit->buttonAtIndex(0);
 
+    m_ui->warningLabel->setPixmap(Utils::Icons::WARNING.pixmap());
     m_ui->shadowBuildDirEdit->setPromptDialogTitle(tr("Shadow Build Directory"));
     m_ui->shadowBuildDirEdit->setExpectedKind(Utils::PathChooser::ExistingDirectory);
     m_ui->shadowBuildDirEdit->setHistoryCompleter(QLatin1String("Qmake.BuildDir.History"));
@@ -83,28 +83,34 @@ QmakeProjectConfigWidget::QmakeProjectConfigWidget(QmakeBuildConfiguration *bc)
     m_ui->inSourceBuildDirEdit->setReadOnly(true);
     m_ui->inSourceBuildDirEdit->setEnabled(false);
 
+    auto chooser = new Core::VariableChooser(this);
+    chooser->addSupportedWidget(m_ui->shadowBuildDirEdit->lineEdit());
+
     m_ui->shadowBuildCheckBox->setChecked(isShadowBuild);
 
-    connect(m_ui->shadowBuildCheckBox, SIGNAL(clicked(bool)),
-            this, SLOT(shadowBuildClicked(bool)));
+    connect(m_ui->shadowBuildCheckBox, &QAbstractButton::clicked,
+            this, &QmakeProjectConfigWidget::shadowBuildClicked);
 
-    connect(m_ui->shadowBuildDirEdit, SIGNAL(beforeBrowsing()),
-            this, SLOT(onBeforeBeforeShadowBuildDirBrowsed()));
+    connect(m_ui->shadowBuildDirEdit, &Utils::PathChooser::beforeBrowsing,
+            this, &QmakeProjectConfigWidget::onBeforeBeforeShadowBuildDirBrowsed);
 
-    connect(m_ui->shadowBuildDirEdit, SIGNAL(rawPathChanged(QString)),
-            this, SLOT(shadowBuildEdited()));
+    connect(m_ui->shadowBuildDirEdit, &Utils::PathChooser::rawPathChanged,
+            this, &QmakeProjectConfigWidget::shadowBuildEdited);
 
     QmakeProject *project = static_cast<QmakeProject *>(bc->target()->project());
-    connect(project, SIGNAL(environmentChanged()), this, SLOT(environmentChanged()));
-    connect(project, SIGNAL(buildDirectoryInitialized()), this, SLOT(updateProblemLabel()));
-    connect(project, SIGNAL(proFilesEvaluated()), this, SLOT(updateProblemLabel()));
+    connect(project, &QmakeProject::environmentChanged,
+            this, &QmakeProjectConfigWidget::environmentChanged);
+    connect(project, &QmakeProject::buildDirectoryInitialized,
+            this, &QmakeProjectConfigWidget::updateProblemLabel);
+    connect(project, &QmakeProject::proFilesEvaluated,
+            this, &QmakeProjectConfigWidget::updateProblemLabel);
 
-    connect(bc->target(), SIGNAL(kitChanged()), this, SLOT(updateProblemLabel()));
+    connect(bc->target(), &Target::kitChanged, this, &QmakeProjectConfigWidget::updateProblemLabel);
 
-    connect(m_buildConfiguration, SIGNAL(buildDirectoryChanged()),
-            this, SLOT(buildDirectoryChanged()));
-    connect(m_buildConfiguration, SIGNAL(qmakeBuildConfigurationChanged()),
-            this, SLOT(updateProblemLabel()));
+    connect(m_buildConfiguration, &BuildConfiguration::buildDirectoryChanged,
+            this, &QmakeProjectConfigWidget::buildDirectoryChanged);
+    connect(m_buildConfiguration, &QmakeBuildConfiguration::qmakeBuildConfigurationChanged,
+            this, &QmakeProjectConfigWidget::updateProblemLabel);
 
     setDisplayName(tr("General"));
 
@@ -204,7 +210,7 @@ void QmakeProjectConfigWidget::updateProblemLabel()
     }
 
     QmakeProject *p = static_cast<QmakeProject *>(m_buildConfiguration->target()->project());
-    if (p->rootQmakeProjectNode()->parseInProgress() || !p->rootQmakeProjectNode()->validParse()) {
+    if (p->rootProjectNode()->parseInProgress() || !p->rootProjectNode()->validParse()) {
         setProblemLabel(QString());
         return;
     }

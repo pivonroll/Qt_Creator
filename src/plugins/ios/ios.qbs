@@ -8,11 +8,10 @@ QtcPlugin {
     Depends { name: "QmakeProjectManager" }
     Depends { name: "Debugger" }
     Depends { name: "QtSupport" }
-    Depends { name: "AnalyzerBase" }
     Depends { name: "QmlDebug" }
     Depends { name: "Qt"; submodules: ["widgets", "xml", "network"] }
 
-    cpp.frameworks: base.concat(qbs.targetOS.contains("osx") ? ["CoreFoundation", "IOKit"] : [])
+    cpp.frameworks: base.concat(qbs.targetOS.contains("macos") ? ["CoreFoundation", "IOKit"] : [])
 
     files: [
         "ios.qrc",
@@ -54,7 +53,6 @@ QtcPlugin {
         "iosqtversionfactory.h",
         "iosrunconfiguration.cpp",
         "iosrunconfiguration.h",
-        "iosrunconfiguration.ui",
         "iosruncontrol.cpp",
         "iosruncontrol.h",
         "iosrunfactories.cpp",
@@ -71,6 +69,8 @@ QtcPlugin {
         "iossimulatorfactory.cpp",
         "iossimulatorfactory.h",
         "iostoolhandler.cpp",
-        "iostoolhandler.h"
+        "iostoolhandler.h",
+        "simulatorcontrol.cpp",
+        "simulatorcontrol.h"
     ]
 }

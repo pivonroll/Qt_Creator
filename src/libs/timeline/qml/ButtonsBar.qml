@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,34 +9,29 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-
 
 import QtQuick 2.1
 import QtQuick.Controls 1.0
 import QtQuick.Layouts 1.0
 import QtQuick.Controls.Styles 1.2
 
+import TimelineTheme 1.0
+
 ToolBar {
     id: buttons
-    readonly property int buttonWidth: 30
 
     signal jumpToPrev()
     signal jumpToNext()
@@ -69,7 +64,7 @@ ToolBar {
         }
         background: Rectangle {
             anchors.fill: parent
-            color: "#9B9B9B"
+            color: Theme.color(Theme.PanelStatusBarBackgroundColor)
         }
     }
 
@@ -77,62 +72,56 @@ ToolBar {
         spacing: 0
         anchors.fill: parent
 
-        ToolButton {
+        ImageToolButton {
             id: jumpToPrevButton
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            implicitWidth: buttonWidth
 
-            iconSource: "qrc:/timeline/ico_prev.png"
+            imageSource: "image://icons/prev"
             tooltip: qsTr("Jump to previous event.")
             onClicked: buttons.jumpToPrev()
         }
 
-        ToolButton {
+        ImageToolButton {
             id: jumpToNextButton
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            implicitWidth: buttonWidth
 
-            iconSource: "qrc:/timeline/ico_next.png"
+            imageSource: "image://icons/next"
             tooltip: qsTr("Jump to next event.")
             onClicked: buttons.jumpToNext()
         }
 
-        ToolButton {
+        ImageToolButton {
             id: zoomControlButton
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            implicitWidth: buttonWidth
 
-            iconSource: "qrc:/timeline/ico_zoom.png"
+            imageSource: "image://icons/zoom"
             tooltip: qsTr("Show zoom slider.")
             checkable: true
             checked: false
             onCheckedChanged: buttons.zoomControlChanged()
         }
 
-        ToolButton {
+        ImageToolButton {
             id: rangeButton
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            implicitWidth: buttonWidth
 
-            iconSource: checked ? "qrc:/timeline/ico_rangeselected.png" :
-                                  "qrc:/timeline/ico_rangeselection.png"
+            imageSource: "image://icons/" + (checked ? "rangeselected" : "rangeselection");
             tooltip: qsTr("Select range.")
             checkable: true
             checked: false
             onCheckedChanged: buttons.rangeSelectChanged()
         }
 
-        ToolButton {
+        ImageToolButton {
             id: lockButton
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            implicitWidth: buttonWidth
 
-            iconSource: "qrc:/timeline/ico_selectionmode.png"
+            imageSource: "image://icons/selectionmode"
             tooltip: qsTr("View event information on mouseover.")
             checkable: true
             checked: false

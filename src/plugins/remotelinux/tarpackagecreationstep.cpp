@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,29 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+
 #include "tarpackagecreationstep.h"
 
+#include <projectexplorer/buildmanager.h>
 #include <projectexplorer/deploymentdata.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/target.h>
+#include <qtsupport/qtkitinformation.h>
+#include <ssh/sshconnection.h>
+#include <ssh/sshconnectionmanager.h>
 
 #include <QDateTime>
 #include <QDir>
@@ -48,6 +48,7 @@ using namespace ProjectExplorer;
 namespace RemoteLinux {
 namespace {
 const char IgnoreMissingFilesKey[] = "RemoteLinux.TarPackageCreationStep.IgnoreMissingFiles";
+const char IncrementalDeploymentKey[] = "RemoteLinux.TarPackageCreationStep.IncrementalDeployment";
 
 class CreateTarStepWidget : public SimpleBuildStepConfigWidget
 {
@@ -56,14 +57,24 @@ public:
     CreateTarStepWidget(TarPackageCreationStep *step) : SimpleBuildStepConfigWidget(step)
     {
         m_ignoreMissingFilesCheckBox.setText(tr("Ignore missing files"));
+        m_incrementalDeploymentCheckBox.setText(tr("Package modified files only"));
+
         QVBoxLayout *mainLayout = new QVBoxLayout(this);
         mainLayout->setMargin(0);
+        mainLayout->addWidget(&m_incrementalDeploymentCheckBox);
         mainLayout->addWidget(&m_ignoreMissingFilesCheckBox);
-        m_ignoreMissingFilesCheckBox.setChecked(step->ignoreMissingFiles());
-        connect(&m_ignoreMissingFilesCheckBox, SIGNAL(toggled(bool)),
-            SLOT(handleIgnoreMissingFilesChanged(bool)));
 
-        connect(step, SIGNAL(packageFilePathChanged()), SIGNAL(updateSummary()));
+        m_ignoreMissingFilesCheckBox.setChecked(step->ignoreMissingFiles());
+        m_incrementalDeploymentCheckBox.setChecked(step->isIncrementalDeployment());
+
+        connect(&m_ignoreMissingFilesCheckBox, &QAbstractButton::toggled,
+                this, &CreateTarStepWidget::handleIgnoreMissingFilesChanged);
+
+        connect(&m_incrementalDeploymentCheckBox, &QAbstractButton::toggled,
+                this, &CreateTarStepWidget::handleIncrementalDeploymentChanged);
+
+        connect(step, &AbstractPackagingStep::packageFilePathChanged,
+                this, &BuildStepConfigWidget::updateSummary);
     }
 
     QString summaryText() const
@@ -80,12 +91,18 @@ public:
     bool showWidget() const { return true; }
 
 private:
-    Q_SLOT void handleIgnoreMissingFilesChanged(bool ignoreMissingFiles) {
+    void handleIgnoreMissingFilesChanged(bool ignoreMissingFiles) {
         TarPackageCreationStep *step = qobject_cast<TarPackageCreationStep *>(this->step());
         step->setIgnoreMissingFiles(ignoreMissingFiles);
     }
 
+    void handleIncrementalDeploymentChanged(bool incrementalDeployment) {
+        TarPackageCreationStep *step = qobject_cast<TarPackageCreationStep *>(this->step());
+        step->setIncrementalDeployment(incrementalDeployment);
+    }
+
     QCheckBox m_ignoreMissingFilesCheckBox;
+    QCheckBox m_incrementalDeploymentCheckBox;
 };
 
 
@@ -130,26 +147,42 @@ void TarPackageCreationStep::ctor()
     m_ignoreMissingFiles = false;
 }
 
-bool TarPackageCreationStep::init()
+bool TarPackageCreationStep::init(QList<const BuildStep *> &earlierSteps)
 {
-    if (!AbstractPackagingStep::init())
+    if (!AbstractPackagingStep::init(earlierSteps))
         return false;
+
     m_packagingNeeded = isPackagingNeeded();
-    if (m_packagingNeeded)
-        m_files = target()->deploymentData().allFiles();
+
     return true;
 }
 
 void TarPackageCreationStep::run(QFutureInterface<bool> &fi)
 {
     setPackagingStarted();
+
+    const QList<DeployableFile> &files = target()->deploymentData().allFiles();
+
+    if (m_incrementalDeployment) {
+        m_files.clear();
+        for (const DeployableFile &file : files)
+            addNeededDeploymentFiles(file, target()->kit());
+    } else {
+        m_files = files;
+    }
+
     const bool success = doPackage(fi);
+
     setPackagingFinished(success);
     if (success)
-        emit addOutput(tr("Packaging finished successfully."), MessageOutput);
+        emit addOutput(tr("Packaging finished successfully."), OutputFormat::NormalMessage);
     else
-        emit addOutput(tr("Packaging failed."), ErrorMessageOutput);
-    fi.reportResult(success);
+        emit addOutput(tr("Packaging failed."), OutputFormat::ErrorMessage);
+
+    connect(BuildManager::instance(), &BuildManager::buildQueueFinished,
+            this, &TarPackageCreationStep::deployFinished);
+
+    reportRunResult(fi, success);
 }
 
 void TarPackageCreationStep::setIgnoreMissingFiles(bool ignoreMissingFiles)
@@ -162,11 +195,50 @@ bool TarPackageCreationStep::ignoreMissingFiles() const
     return m_ignoreMissingFiles;
 }
 
+void TarPackageCreationStep::setIncrementalDeployment(bool incrementalDeployment)
+{
+    m_incrementalDeployment = incrementalDeployment;
+}
+
+bool TarPackageCreationStep::isIncrementalDeployment() const
+{
+    return m_incrementalDeployment;
+}
+
+void TarPackageCreationStep::addNeededDeploymentFiles(
+        const ProjectExplorer::DeployableFile &deployable,
+        const ProjectExplorer::Kit *kit)
+{
+    const QFileInfo fileInfo = deployable.localFilePath().toFileInfo();
+    if (!fileInfo.isDir()) {
+        if (m_deployTimes.hasChangedSinceLastDeployment(deployable, kit))
+            m_files << deployable;
+        return;
+    }
+
+    const QStringList files = QDir(deployable.localFilePath().toString())
+            .entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+
+    if (files.isEmpty()) {
+        m_files << deployable;
+        return;
+    }
+
+    for (const QString &fileName : files) {
+        const QString localFilePath = deployable.localFilePath().appendPath(fileName).toString();
+
+        const QString remoteDir = deployable.remoteDirectory() + '/' + fileInfo.fileName();
+
+        // Recurse through the subdirectories
+        addNeededDeploymentFiles(DeployableFile(localFilePath, remoteDir), kit);
+    }
+}
+
 bool TarPackageCreationStep::doPackage(QFutureInterface<bool> &fi)
 {
-    emit addOutput(tr("Creating tarball..."), MessageOutput);
+    emit addOutput(tr("Creating tarball..."), OutputFormat::NormalMessage);
     if (!m_packagingNeeded) {
-        emit addOutput(tr("Tarball up to date, skipping packaging."), MessageOutput);
+        emit addOutput(tr("Tarball up to date, skipping packaging."), OutputFormat::NormalMessage);
         return true;
     }
 
@@ -182,7 +254,7 @@ bool TarPackageCreationStep::doPackage(QFutureInterface<bool> &fi)
     foreach (const DeployableFile &d, m_files) {
         if (d.remoteDirectory().isEmpty()) {
             emit addOutput(tr("No remote path specified for file \"%1\", skipping.")
-                .arg(d.localFilePath().toUserOutput()), ErrorMessageOutput);
+                .arg(d.localFilePath().toUserOutput()), OutputFormat::ErrorMessage);
             continue;
         }
         QFileInfo fileInfo = d.localFilePath().toFileInfo();
@@ -235,7 +307,8 @@ bool TarPackageCreationStep::appendFile(QFile &tarFile, const QFileInfo &fileInf
 
     const int chunkSize = 1024*1024;
 
-    emit addOutput(tr("Adding file \"%1\" to tarball...").arg(nativePath), MessageOutput);
+    emit addOutput(tr("Adding file \"%1\" to tarball...").arg(nativePath),
+                   OutputFormat::NormalMessage);
 
     // TODO: Wasteful. Work with fixed-size buffer.
     while (!file.atEnd() && file.error() == QFile::NoError && tarFile.error() == QFile::NoError) {
@@ -327,6 +400,22 @@ bool TarPackageCreationStep::writeHeader(QFile &tarFile, const QFileInfo &fileIn
     return true;
 }
 
+void TarPackageCreationStep::deployFinished(bool success)
+{
+    disconnect(BuildManager::instance(), &BuildManager::buildQueueFinished,
+               this, &TarPackageCreationStep::deployFinished);
+
+    if (!success)
+        return;
+
+    const Kit *kit = target()->kit();
+
+    // Store files that have been tar'd and successfully deployed
+    const auto files = m_files;
+    for (const DeployableFile &file : files)
+        m_deployTimes.saveDeploymentTimeStamp(file, kit);
+}
+
 QString TarPackageCreationStep::packageFileName() const
 {
     return project()->displayName() + QLatin1String(".tar");
@@ -342,6 +431,8 @@ bool TarPackageCreationStep::fromMap(const QVariantMap &map)
     if (!AbstractPackagingStep::fromMap(map))
         return false;
     setIgnoreMissingFiles(map.value(QLatin1String(IgnoreMissingFilesKey), false).toBool());
+    setIncrementalDeployment(map.value(QLatin1String(IncrementalDeploymentKey), false).toBool());
+    m_deployTimes.importDeployTimes(map);
     return true;
 }
 
@@ -349,6 +440,8 @@ QVariantMap TarPackageCreationStep::toMap() const
 {
     QVariantMap map = AbstractPackagingStep::toMap();
     map.insert(QLatin1String(IgnoreMissingFilesKey), ignoreMissingFiles());
+    map.insert(QLatin1String(IncrementalDeploymentKey), m_incrementalDeployment);
+    map.unite(m_deployTimes.exportDeployTimes());
     return map;
 }
 

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,26 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "ifindfilter.h"
 
+#include <coreplugin/coreicons.h>
+
+#include <QApplication>
+#include <QKeySequence>
 #include <QPainter>
 #include <QPixmap>
 
@@ -44,7 +43,7 @@
     a text based search term (potentially with find flags like
     searching case sensitively or using regular expressions). Existing
     scopes are \gui {All Projects} that searches from all files in all projects
-    and \gui {Files on File System} where the user provides a directory and file
+    and \gui {Files in File System} where the user provides a directory and file
     patterns to search.
 
     To make your find scope available to the user, you need to implement this
@@ -220,6 +219,11 @@
 
 namespace Core {
 
+QKeySequence IFindFilter::defaultShortcut() const
+{
+    return QKeySequence();
+}
+
 FindFlags IFindFilter::supportedFindFlags() const
 {
     return FindCaseSensitively
@@ -228,39 +232,45 @@ FindFlags IFindFilter::supportedFindFlags() const
 
 QPixmap IFindFilter::pixmapForFindFlags(FindFlags flags)
 {
-    static const QPixmap casesensitiveIcon = QPixmap(QLatin1String(":/find/images/casesensitively.png"));
-    static const QPixmap regexpIcon = QPixmap(QLatin1String(":/find/images/regexp.png"));
-    static const QPixmap wholewordsIcon = QPixmap(QLatin1String(":/find/images/wholewords.png"));
-    static const QPixmap preservecaseIcon = QPixmap(QLatin1String(":/find/images/preservecase.png"));
+    static const QPixmap casesensitiveIcon = Icons::FIND_CASE_INSENSITIVELY.pixmap();
+    static const QPixmap regexpIcon = Icons::FIND_REGEXP.pixmap();
+    static const QPixmap wholewordsIcon = Icons::FIND_WHOLE_WORD.pixmap();
+    static const QPixmap preservecaseIcon = Icons::FIND_PRESERVE_CASE.pixmap();
     bool casesensitive = flags & FindCaseSensitively;
     bool wholewords = flags & FindWholeWords;
     bool regexp = flags & FindRegularExpression;
     bool preservecase = flags & FindPreserveCase;
     int width = 0;
-    if (casesensitive) width += 6;
-    if (wholewords) width += 6;
-    if (regexp) width += 6;
-    if (preservecase) width += 6;
-    if (width > 0) --width;
-    QPixmap pixmap(width, 17);
-    pixmap.fill(Qt::transparent);
+    if (casesensitive)
+        width += casesensitiveIcon.width();
+    if (wholewords)
+        width += wholewordsIcon.width();
+    if (regexp)
+        width += regexpIcon.width();
+    if (preservecase)
+        width += preservecaseIcon.width();
+    if (width == 0)
+        return QPixmap();
+    QPixmap pixmap(QSize(width, casesensitiveIcon.height()));
+    pixmap.fill(QColor(0xff, 0xff, 0xff, 0x28)); // Subtile contrast for dark themes
+    const int dpr = int(qApp->devicePixelRatio());
+    pixmap.setDevicePixelRatio(dpr);
     QPainter painter(&pixmap);
     int x = 0;
-
     if (casesensitive) {
-        painter.drawPixmap(x - 6, 0, casesensitiveIcon);
-        x += 6;
+        painter.drawPixmap(x, 0, casesensitiveIcon);
+        x += casesensitiveIcon.width() / dpr;
     }
     if (wholewords) {
-        painter.drawPixmap(x - 6, 0, wholewordsIcon);
-        x += 6;
+        painter.drawPixmap(x, 0, wholewordsIcon);
+        x += wholewordsIcon.width() / dpr;
     }
     if (regexp) {
-        painter.drawPixmap(x - 6, 0, regexpIcon);
-        x += 6;
+        painter.drawPixmap(x, 0, regexpIcon);
+        x += regexpIcon.width() / dpr;
     }
     if (preservecase)
-        painter.drawPixmap(x - 6, 0, preservecaseIcon);
+        painter.drawPixmap(x, 0, preservecaseIcon);
     return pixmap;
 }
 

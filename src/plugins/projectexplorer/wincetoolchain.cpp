@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,6 +28,7 @@
 #include "msvcparser.h"
 #include "projectexplorerconstants.h"
 
+#include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 
 #include <QDir>
@@ -114,20 +110,15 @@ static QString winExpandDelayedEnvReferences(QString in, const Utils::Environmen
 // This is pretty much the same as the ReadEnvironmentSetting in the msvctoolchain.cpp, but
 // this takes account of the library, binary and include paths to replace the vcvars versions
 // with the ones for this toolchain.
-Utils::Environment WinCEToolChain::readEnvironmentSetting(Utils::Environment &env) const
+Utils::Environment WinCEToolChain::readEnvironmentSetting(const Utils::Environment &env) const
 {
-    Utils::Environment result = env;
-    if (!QFileInfo::exists(m_vcvarsBat))
-        return result;
-
-    // Get the env pairs
+    Utils::Environment result;
     QMap<QString, QString> envPairs;
 
     if (!generateEnvironmentSettings(env, m_vcvarsBat, QString(), envPairs))
-        return result;
+        return env;
 
-    QMap<QString,QString>::const_iterator envPairIter;
-    for (envPairIter = envPairs.constBegin(); envPairIter!=envPairs.constEnd(); ++envPairIter) {
+    for (auto envPairIter = envPairs.constBegin(); envPairIter != envPairs.constEnd(); ++envPairIter) {
         // Replace the env values with those from the WinCE SDK
         QString varValue = envPairIter.value();
         if (envPairIter.key() == QLatin1String("PATH"))
@@ -141,18 +132,13 @@ Utils::Environment WinCEToolChain::readEnvironmentSetting(Utils::Environment &en
             result.set(envPairIter.key(), varValue);
     }
 
-
     // Now loop round and do the delayed expansion
-    Utils::Environment::const_iterator envIter = result.constBegin();
-    while (envIter != result.constEnd()) {
+    for (auto envIter = result.constBegin(); envIter != result.constEnd(); ++envIter) {
         const QString key = result.key(envIter);
         const QString unexpandedValue = result.value(envIter);
-
         const QString expandedValue = winExpandDelayedEnvReferences(unexpandedValue, result);
 
         result.set(key, expandedValue);
-
-        ++envIter;
     }
 
     if (debug) {
@@ -241,8 +227,9 @@ WinCEToolChain::WinCEToolChain(const QString &name,
                                const QString &binPath,
                                const QString &includePath,
                                const QString &libPath,
+                               Core::Id language,
                                Detection d) :
-    AbstractMsvcToolChain(Constants::WINCE_TOOLCHAIN_TYPEID, d, abi, vcvarsBat),
+    AbstractMsvcToolChain(Constants::WINCE_TOOLCHAIN_TYPEID, language, d, abi, vcvarsBat),
     m_msvcVer(msvcVer),
     m_ceVer(ceVer),
     m_binPath(binPath),
@@ -264,11 +251,11 @@ WinCEToolChain::WinCEToolChain() :
 
 WinCEToolChain *WinCEToolChain::readFromMap(const QVariantMap &data)
 {
-    WinCEToolChain *tc = new WinCEToolChain;
+    auto tc = new WinCEToolChain;
     if (tc->fromMap(data))
         return tc;
     delete tc;
-    return 0;
+    return nullptr;
 }
 
 QString WinCEToolChain::typeDisplayName() const
@@ -276,7 +263,7 @@ QString WinCEToolChain::typeDisplayName() const
     return WinCEToolChainFactory::tr("WinCE");
 }
 
-QList<Utils::FileName> WinCEToolChain::suggestedMkspecList() const
+Utils::FileNameList WinCEToolChain::suggestedMkspecList() const
 {
     const QChar specSeperator(QLatin1Char('-'));
 
@@ -288,7 +275,7 @@ QList<Utils::FileName> WinCEToolChain::suggestedMkspecList() const
     specString += specSeperator;
     specString += m_msvcVer;
 
-    return QList<Utils::FileName>() << Utils::FileName::fromString(specString);
+    return Utils::FileNameList() << Utils::FileName::fromString(specString);
 }
 
 
@@ -352,8 +339,38 @@ WinCEToolChainFactory::WinCEToolChainFactory()
     setDisplayName(tr("WinCE"));
 }
 
+QSet<Core::Id> WinCEToolChainFactory::supportedLanguages() const
+{
+    return { Constants::CXX_LANGUAGE_ID };
+}
 
-QList<ToolChain *> WinCEToolChainFactory::autoDetect()
+static ToolChain *findOrCreateToolChain(const QList<ToolChain *> &alreadyKnown,
+                                        const QString &name, const Abi &abi,
+                                        const QString &vcvarsBat, const QString &msvcVer,
+                                        const QString &ceVer, const QString &binPath,
+                                        const QString &includePath, const QString &libPath,
+                                        ToolChain::Detection d = ToolChain::ManualDetection)
+{
+    ToolChain *tc
+            = Utils::findOrDefault(alreadyKnown, [&](ToolChain *tc) -> bool {
+                                       if (tc->typeId() != Constants::WINCE_TOOLCHAIN_TYPEID)
+                                           return false;
+                                       auto cetc = static_cast<WinCEToolChain *>(tc);
+                                       return cetc->targetAbi() == abi
+                                                  && cetc->varsBat() == vcvarsBat
+                                                  && cetc->msvcVer() == msvcVer
+                                                  && cetc->ceVer() == ceVer
+                                                  && cetc->binPath() == binPath
+                                                  && cetc->includePath() == includePath
+                                                  && cetc->libPath() == libPath;
+                                         });
+    if (!tc)
+        tc = new WinCEToolChain(name, abi, vcvarsBat, msvcVer, ceVer, binPath, includePath, libPath,
+                                Constants::CXX_LANGUAGE_ID, d);
+    return tc;
+}
+
+QList<ToolChain *> WinCEToolChainFactory::autoDetect(const QList<ToolChain *> &alreadyKnown)
 {
     QList<ToolChain *> results;
 
@@ -373,7 +390,7 @@ QList<ToolChain *> WinCEToolChainFactory::autoDetect()
             continue;
 
         const QString path = QDir::fromNativeSeparators(vsRegistry.value(vsName).toString());
-        const int version = vsName.left(dotPos).toInt();
+        const int version = vsName.leftRef(dotPos).toInt();
 
         // Check existence of various install scripts
         const QString vcvars32bat = path + QLatin1String("bin/vcvars32.bat");
@@ -397,16 +414,16 @@ QList<ToolChain *> WinCEToolChainFactory::autoDetect()
                         QString ceVer;
 
                         if (parseSDK(platformReader, theArch, thePlat, ceVer, binPath, includePath, libPath)) {
-                            WinCEToolChain *pChain = new WinCEToolChain(thePlat,
-                                                                        Abi(theArch, Abi::WindowsOS, Abi::WindowsCEFlavor, Abi::PEFormat, 32),
-                                                                        vcvars32bat,
-                                                                        msvcVer,
-                                                                        ceVer,
-                                                                        binPath,
-                                                                        includePath,
-                                                                        libPath,
-                                                                        ToolChain::AutoDetection);
-                            results.append(pChain);
+                            results.append(findOrCreateToolChain(alreadyKnown,
+                                                                 thePlat,
+                                                                 Abi(theArch, Abi::WindowsOS, Abi::WindowsCEFlavor, Abi::PEFormat, 32),
+                                                                 vcvars32bat,
+                                                                 msvcVer,
+                                                                 ceVer,
+                                                                 binPath,
+                                                                 includePath,
+                                                                 libPath,
+                                                                 ToolChain::AutoDetection));
                         }
                     }
                 }
@@ -418,7 +435,7 @@ QList<ToolChain *> WinCEToolChainFactory::autoDetect()
 }
 
 
-QString WinCEToolChain::autoDetectCdbDebugger(QStringList *checkedDirectories /* = 0 */)
+QString WinCEToolChain::autoDetectCdbDebugger(QStringList *checkedDirectories)
 {
     Q_UNUSED(checkedDirectories);
     return QString();
@@ -434,7 +451,7 @@ bool WinCEToolChain::operator ==(const ToolChain &other) const
     if (!AbstractMsvcToolChain::operator ==(other))
         return false;
 
-    const WinCEToolChain *ceTc = static_cast<const WinCEToolChain *>(&other);
+    auto ceTc = static_cast<const WinCEToolChain *>(&other);
     return m_ceVer == ceTc->m_ceVer;
 }
 
@@ -450,7 +467,7 @@ ToolChain *WinCEToolChainFactory::restore(const QVariantMap &data)
 WinCEToolChainConfigWidget::WinCEToolChainConfigWidget(ToolChain *tc) :
     ToolChainConfigWidget(tc)
 {
-    WinCEToolChain *toolChain = static_cast<WinCEToolChain *>(tc);
+    auto toolChain = static_cast<WinCEToolChain *>(tc);
     QTC_ASSERT(tc, return);
 
     m_mainLayout->addRow(tr("SDK:"), new QLabel(toolChain->displayName()));

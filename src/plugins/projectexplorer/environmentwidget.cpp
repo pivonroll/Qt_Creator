@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,34 +9,30 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "environmentwidget.h"
-#include "environmentitemswidget.h"
 
 #include <coreplugin/find/itemviewfind.h>
 
 #include <utils/detailswidget.h>
 #include <utils/environment.h>
 #include <utils/environmentmodel.h>
+#include <utils/environmentdialog.h>
 #include <utils/headerviewstretcher.h>
+#include <utils/itemviews.h>
 #include <utils/tooltip/tooltip.h>
 
 #include <QString>
@@ -52,11 +48,11 @@ namespace ProjectExplorer {
 
 class EnvironmentValidator : public QValidator
 {
+    Q_OBJECT
 public:
-    EnvironmentValidator(QWidget *parent, Utils::EnvironmentModel *model,
-                         QTreeView *view,
-                         const QModelIndex &index)
-        : QValidator(parent), m_model(model), m_view(view), m_index(index)
+    EnvironmentValidator(QWidget *parent, Utils::EnvironmentModel *model, QTreeView *view,
+                         const QModelIndex &index) :
+        QValidator(parent), m_model(model), m_view(view), m_index(index)
     {
         m_hideTipTimer.setInterval(2000);
         m_hideTipTimer.setSingleShot(true);
@@ -106,7 +102,7 @@ public:
         if (index.column() != 0)
             return w;
 
-        if (QLineEdit *edit = qobject_cast<QLineEdit *>(w))
+        if (auto edit = qobject_cast<QLineEdit *>(w))
             edit->setValidator(new EnvironmentValidator(edit, m_model, m_view, index));
         return w;
     }
@@ -139,32 +135,35 @@ EnvironmentWidget::EnvironmentWidget(QWidget *parent, QWidget *additionalDetails
     : QWidget(parent), d(new EnvironmentWidgetPrivate)
 {
     d->m_model = new Utils::EnvironmentModel();
-    connect(d->m_model, SIGNAL(userChangesChanged()),
-            this, SIGNAL(userChangesChanged()));
-    connect(d->m_model, SIGNAL(modelReset()),
-            this, SLOT(invalidateCurrentIndex()));
+    connect(d->m_model, &Utils::EnvironmentModel::userChangesChanged,
+            this, &EnvironmentWidget::userChangesChanged);
+    connect(d->m_model, &QAbstractItemModel::modelReset,
+            this, &EnvironmentWidget::invalidateCurrentIndex);
 
-    connect(d->m_model, SIGNAL(focusIndex(QModelIndex)),
-            this, SLOT(focusIndex(QModelIndex)));
+    connect(d->m_model, &Utils::EnvironmentModel::focusIndex,
+            this, &EnvironmentWidget::focusIndex);
 
-    QVBoxLayout *vbox = new QVBoxLayout(this);
+    auto vbox = new QVBoxLayout(this);
     vbox->setContentsMargins(0, 0, 0, 0);
 
     d->m_detailsContainer = new Utils::DetailsWidget(this);
 
-    QWidget *details = new QWidget(d->m_detailsContainer);
+    auto details = new QWidget(d->m_detailsContainer);
     d->m_detailsContainer->setWidget(details);
     details->setVisible(false);
 
-    QVBoxLayout *vbox2 = new QVBoxLayout(details);
+    auto vbox2 = new QVBoxLayout(details);
     vbox2->setMargin(0);
 
     if (additionalDetailsWidget)
         vbox2->addWidget(additionalDetailsWidget);
 
-    QHBoxLayout *horizontalLayout = new QHBoxLayout();
+    auto horizontalLayout = new QHBoxLayout();
     horizontalLayout->setMargin(0);
-    d->m_environmentView = new Internal::EnvironmentTreeView(this);
+    auto tree = new Utils::TreeView(this);
+    connect(tree, &QAbstractItemView::activated,
+            tree, [tree](const QModelIndex &idx) { tree->edit(idx); });
+    d->m_environmentView = tree;
     d->m_environmentView->setModel(d->m_model);
     d->m_environmentView->setItemDelegate(new EnvironmentDelegate(d->m_model, d->m_environmentView));
     d->m_environmentView->setMinimumHeight(400);
@@ -178,7 +177,7 @@ EnvironmentWidget::EnvironmentWidget(QWidget *parent, QWidget *additionalDetails
     findWrapper->setFrameStyle(QFrame::StyledPanel);
     horizontalLayout->addWidget(findWrapper);
 
-    QVBoxLayout *buttonLayout = new QVBoxLayout();
+    auto buttonLayout = new QVBoxLayout();
 
     d->m_editButton = new QPushButton(this);
     d->m_editButton->setText(tr("&Edit"));
@@ -209,32 +208,33 @@ EnvironmentWidget::EnvironmentWidget(QWidget *parent, QWidget *additionalDetails
 
     vbox->addWidget(d->m_detailsContainer);
 
-    connect(d->m_model, SIGNAL(dataChanged(QModelIndex,QModelIndex)),
-            this, SLOT(updateButtons()));
+    connect(d->m_model, &QAbstractItemModel::dataChanged,
+            this, &EnvironmentWidget::updateButtons);
 
-    connect(d->m_editButton, SIGNAL(clicked(bool)),
-            this, SLOT(editEnvironmentButtonClicked()));
-    connect(d->m_addButton, SIGNAL(clicked(bool)),
-            this, SLOT(addEnvironmentButtonClicked()));
-    connect(d->m_resetButton, SIGNAL(clicked(bool)),
-            this, SLOT(removeEnvironmentButtonClicked()));
-    connect(d->m_unsetButton, SIGNAL(clicked(bool)),
-            this, SLOT(unsetEnvironmentButtonClicked()));
-    connect(d->m_batchEditButton, SIGNAL(clicked(bool)),
-            this, SLOT(batchEditEnvironmentButtonClicked()));
-    connect(d->m_environmentView->selectionModel(), SIGNAL(currentChanged(QModelIndex,QModelIndex)),
-            this, SLOT(environmentCurrentIndexChanged(QModelIndex)));
+    connect(d->m_editButton, &QAbstractButton::clicked,
+            this, &EnvironmentWidget::editEnvironmentButtonClicked);
+    connect(d->m_addButton, &QAbstractButton::clicked,
+            this, &EnvironmentWidget::addEnvironmentButtonClicked);
+    connect(d->m_resetButton, &QAbstractButton::clicked,
+            this, &EnvironmentWidget::removeEnvironmentButtonClicked);
+    connect(d->m_unsetButton, &QAbstractButton::clicked,
+            this, &EnvironmentWidget::unsetEnvironmentButtonClicked);
+    connect(d->m_batchEditButton, &QAbstractButton::clicked,
+            this, &EnvironmentWidget::batchEditEnvironmentButtonClicked);
+    connect(d->m_environmentView->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, &EnvironmentWidget::environmentCurrentIndexChanged);
 
-    connect(d->m_detailsContainer, SIGNAL(linkActivated(QString)),
-            this, SLOT(linkActivated(QString)));
+    connect(d->m_detailsContainer, &Utils::DetailsWidget::linkActivated,
+            this, &EnvironmentWidget::linkActivated);
 
-    connect(d->m_model, SIGNAL(userChangesChanged()), this, SLOT(updateSummaryText()));
+    connect(d->m_model, &Utils::EnvironmentModel::userChangesChanged,
+            this, &EnvironmentWidget::updateSummaryText);
 }
 
 EnvironmentWidget::~EnvironmentWidget()
 {
     delete d->m_model;
-    d->m_model = 0;
+    d->m_model = nullptr;
     delete d;
 }
 
@@ -340,9 +340,11 @@ void EnvironmentWidget::batchEditEnvironmentButtonClicked()
     const QList<Utils::EnvironmentItem> changes = d->m_model->userChanges();
 
     bool ok;
-    const QList<Utils::EnvironmentItem> newChanges = EnvironmentItemsDialog::getEnvironmentItems(this, changes, &ok);
-    if (ok)
-        d->m_model->setUserChanges(newChanges);
+    const QList<Utils::EnvironmentItem> newChanges = Utils::EnvironmentDialog::getEnvironmentItems(&ok, this, changes);
+    if (!ok)
+        return;
+
+    d->m_model->setUserChanges(newChanges);
 }
 
 void EnvironmentWidget::environmentCurrentIndexChanged(const QModelIndex &current)
@@ -366,46 +368,6 @@ void EnvironmentWidget::invalidateCurrentIndex()
     environmentCurrentIndexChanged(QModelIndex());
 }
 
-Internal::EnvironmentTreeView::EnvironmentTreeView(QWidget *parent)
-    : QTreeView(parent)
-{
-
-}
-
-QModelIndex Internal::EnvironmentTreeView::moveCursor(QAbstractItemView::CursorAction cursorAction, Qt::KeyboardModifiers modifiers)
-{
-    QModelIndex idx = currentIndex();
-    int column = idx.column();
-    int row = idx.row();
-
-    if (cursorAction == QAbstractItemView::MoveNext) {
-        if (column == 0)
-            return idx.sibling(row, 1);
-        else if (row + 1 < model()->rowCount())
-            return idx.sibling(row + 1, 0);
-        else // On last column in last row
-            return idx;
-    } else if (cursorAction == QAbstractItemView::MovePrevious) {
-        if (column == 1)
-            return idx.sibling(row, 0);
-        else if (row - 1 >= 0)
-            return idx.sibling(row - 1, 1);
-        else // On first column in first row
-            return idx;
-    }
-    return QTreeView::moveCursor(cursorAction, modifiers);
-}
-
-void Internal::EnvironmentTreeView::keyPressEvent(QKeyEvent *event)
-{
-    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
-        if (!edit(currentIndex(), EditKeyPressed, event))
-            event->ignore();
-        return;
-    }
-
-    QTreeView::keyPressEvent(event);
-}
-
-
 } // namespace ProjectExplorer
+
+#include "environmentwidget.moc"

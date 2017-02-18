@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,17 +32,21 @@
 #include "modemanager.h"
 #include "infobar.h"
 #include "iwizardfactory.h"
+#include "reaper_p.h"
+#include "themechooser.h"
 
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/find/findplugin.h>
+#include <coreplugin/find/searchresultwindow.h>
 #include <coreplugin/locator/locator.h>
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/fileutils.h>
 
 #include <extensionsystem/pluginerroroverview.h>
 #include <extensionsystem/pluginmanager.h>
+#include <utils/algorithm.h>
 #include <utils/pathchooser.h>
 #include <utils/macroexpander.h>
 #include <utils/savefile.h>
@@ -58,8 +57,8 @@
 #include <QtPlugin>
 #include <QDebug>
 #include <QDateTime>
-#include <QDir>
 #include <QMenu>
+#include <QUuid>
 
 using namespace Core;
 using namespace Core::Internal;
@@ -69,17 +68,17 @@ CorePlugin::CorePlugin()
   : m_mainWindow(0)
   , m_editMode(0)
   , m_designMode(0)
-  , m_findPlugin(0)
   , m_locator(0)
 {
     qRegisterMetaType<Id>();
+    qRegisterMetaType<Core::Search::TextPosition>();
 }
 
 CorePlugin::~CorePlugin()
 {
     IWizardFactory::destroyFeatureProvider();
+    Find::destroy();
 
-    delete m_findPlugin;
     delete m_locator;
 
     if (m_editMode) {
@@ -97,89 +96,49 @@ CorePlugin::~CorePlugin()
     setCreatorTheme(0);
 }
 
-static QString absoluteThemePath(const QString &themeName, bool userProvidedTheme)
-{
-    if (themeName.isEmpty())
-        return themeName;
-    QString res = QDir::fromNativeSeparators(themeName);
-    QFileInfo fi(res);
-    bool tryRawName = userProvidedTheme || fi.isAbsolute();
-    // Try the given name
-    if (tryRawName && fi.exists())
-        return fi.absoluteFilePath();
-    const QString suffix = QLatin1String("creatortheme");
-    // Try name.creatortheme
-    if (fi.suffix() != suffix) {
-        res = themeName + QLatin1Char('.') + suffix;
-        fi.setFile(res);
-        if (tryRawName && fi.exists())
-            return fi.absoluteFilePath();
-    }
-    if (fi.path().isEmpty())
-        return QString(); // absolute/relative path, but not found
-    // If only name was given, look it up in qtcreator/themes
-    res.prepend(ICore::resourcePath() + QLatin1String("/themes/"));
-    return QFileInfo::exists(res) ? res : QString();
-}
-
-void CorePlugin::parseArguments(const QStringList &arguments)
-{
-    const QString defaultTheme = QLatin1String("default");
-    QString themeName = ICore::settings()->value(
-                QLatin1String(Constants::SETTINGS_THEME), defaultTheme).toString();
+struct CoreArguments {
     QColor overrideColor;
+    Id themeId;
     bool presentationMode = false;
-    bool userProvidedTheme = false;
+};
 
+CoreArguments parseArguments(const QStringList &arguments)
+{
+    CoreArguments args;
     for (int i = 0; i < arguments.size(); ++i) {
         if (arguments.at(i) == QLatin1String("-color")) {
             const QString colorcode(arguments.at(i + 1));
-            overrideColor = QColor(colorcode);
+            args.overrideColor = QColor(colorcode);
             i++; // skip the argument
         }
         if (arguments.at(i) == QLatin1String("-presentationMode"))
-            presentationMode = true;
+            args.presentationMode = true;
         if (arguments.at(i) == QLatin1String("-theme")) {
-            themeName = arguments.at(i + 1);
-            userProvidedTheme = true;
-            i++;
+            args.themeId = Id::fromString(arguments.at(i + 1));
+            i++; // skip the argument
         }
     }
-
-    QString themeURI = absoluteThemePath(themeName, userProvidedTheme);
-    if (themeURI.isEmpty()) {
-        themeName = defaultTheme;
-        themeURI = QStringLiteral("%1/themes/%2.creatortheme").arg(ICore::resourcePath()).arg(themeName);
-        if (themeURI.isEmpty()) {
-            qCritical("%s", qPrintable(QCoreApplication::translate("Application", "No valid theme \"%1\"")
-                                       .arg(themeName)));
-        }
-    }
-
-    QSettings themeSettings(themeURI, QSettings::IniFormat);
-    Theme *theme = new Theme(themeName, qApp);
-    theme->readSettings(themeSettings);
-    if (theme->flag(Theme::ApplyThemePaletteGlobally))
-        QApplication::setPalette(theme->palette());
-    setCreatorTheme(theme);
-
-    // defer creation of these widgets until here,
-    // because they need a valid theme set
-    m_mainWindow = new MainWindow;
-    ActionManager::setPresentationModeEnabled(presentationMode);
-    m_findPlugin = new FindPlugin;
-    m_locator = new Locator;
-
-    if (overrideColor.isValid())
-        m_mainWindow->setOverrideColor(overrideColor);
+    return args;
 }
 
 bool CorePlugin::initialize(const QStringList &arguments, QString *errorMessage)
 {
-    new ActionManager(this);
+    if (ThemeEntry::availableThemes().isEmpty()) {
+        *errorMessage = tr("No themes found in installation.");
+        return false;
+    }
+    const CoreArguments args = parseArguments(arguments);
     Theme::initialPalette(); // Initialize palette before setting it
+    Theme *themeFromArg = ThemeEntry::createTheme(args.themeId);
+    setCreatorTheme(themeFromArg ? themeFromArg
+                                 : ThemeEntry::createTheme(ThemeEntry::themeSetting()));
+    new ActionManager(this);
+    ActionManager::setPresentationModeEnabled(args.presentationMode);
+    m_mainWindow = new MainWindow;
+    if (args.overrideColor.isValid())
+        m_mainWindow->setOverrideColor(args.overrideColor);
+    m_locator = new Locator;
     qsrand(QDateTime::currentDateTime().toTime_t());
-    parseArguments(arguments);
     const bool success = m_mainWindow->init(errorMessage);
     if (success) {
         m_editMode = new EditMode;
@@ -194,7 +153,7 @@ bool CorePlugin::initialize(const QStringList &arguments, QString *errorMessage)
     // Make sure we respect the process's umask when creating new files
     SaveFile::initializeUmask();
 
-    m_findPlugin->initialize(arguments, errorMessage);
+    Find::initialize();
     m_locator->initialize(this, arguments, errorMessage);
 
     MacroExpander *expander = Utils::globalMacroExpander();
@@ -226,6 +185,8 @@ bool CorePlugin::initialize(const QStringList &arguments, QString *errorMessage)
                              [](const QString &fmt) { return QDate::currentDate().toString(fmt); });
     expander->registerPrefix("CurrentTime:", tr("The current time (QTime formatstring)."),
                              [](const QString &fmt) { return QTime::currentTime().toString(fmt); });
+    expander->registerVariable("UUID", tr("Generate a new UUID."),
+                               []() { return QUuid::createUuid().toString(); });
 
     expander->registerPrefix("#:", tr("A comment."), [](const QString &) { return QStringLiteral(""); });
 
@@ -241,7 +202,7 @@ void CorePlugin::extensionsInitialized()
 {
     if (m_designMode->designModeIsRequired())
         addObject(m_designMode);
-    m_findPlugin->extensionsInitialized();
+    Find::extensionsInitialized();
     m_locator->extensionsInitialized();
     m_mainWindow->extensionsInitialized();
     if (ExtensionSystem::PluginManager::hasError()) {
@@ -264,6 +225,13 @@ QObject *CorePlugin::remoteCommand(const QStringList & /* options */,
                                    const QString &workingDirectory,
                                    const QStringList &args)
 {
+    if (!ExtensionSystem::PluginManager::isInitializationDone()) {
+        connect(ExtensionSystem::PluginManager::instance(), &ExtensionSystem::PluginManager::initializationDone,
+                this, [this, workingDirectory, args]() {
+                    remoteCommand(QStringList(), workingDirectory, args);
+        });
+        return nullptr;
+    }
     IDocument *res = m_mainWindow->openFiles(
                 args, ICore::OpenFilesFlags(ICore::SwitchMode | ICore::CanContainLineAndColumnNumbers),
                 workingDirectory);
@@ -299,7 +267,7 @@ void CorePlugin::addToPathChooserContextMenu(Utils::PathChooser *pathChooser, QM
 
 ExtensionSystem::IPlugin::ShutdownFlag CorePlugin::aboutToShutdown()
 {
-    m_findPlugin->aboutToShutdown();
+    Find::aboutToShutdown();
     m_mainWindow->aboutToShutdown();
     return SynchronousShutdown;
 }

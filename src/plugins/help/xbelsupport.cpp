@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,25 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "xbelsupport.h"
 
 #include <bookmarkmanager.h>
+
+#include <utils/utilsicons.h>
 
 #include <QCoreApplication>
 
@@ -54,9 +51,9 @@ void XbelWriter::writeToFile(QIODevice *device)
     setDevice(device);
 
     writeStartDocument();
-    writeDTD(QLatin1String("<!DOCTYPE xbel>"));
-    writeStartElement(QLatin1String("xbel"));
-    writeAttribute(QLatin1String("version"), QLatin1String("1.0"));
+    writeDTD("<!DOCTYPE xbel>");
+    writeStartElement("xbel");
+    writeAttribute("version", "1.0");
 
     QStandardItem *root = treeModel->invisibleRootItem();
     for (int i = 0; i < root->rowCount(); ++i)
@@ -71,23 +68,23 @@ void XbelWriter::writeData(QStandardItem *child)
     entry.title = child->data(Qt::DisplayRole).toString();
     entry.url = child->data(Qt::UserRole + 10).toString();
 
-    if (entry.url == QLatin1String("Folder")) {
-        writeStartElement(QLatin1String("folder"));
+    if (entry.url == "Folder") {
+        writeStartElement("folder");
 
         entry.folded = !child->data(Qt::UserRole + 11).toBool();
-        writeAttribute(QLatin1String("folded"),
+        writeAttribute("folded",
             entry.folded ? QLatin1String("yes") : QLatin1String("no"));
 
-        writeTextElement(QLatin1String("title"), entry.title);
+        writeTextElement("title", entry.title);
 
         for (int i = 0; i < child->rowCount(); ++i)
             writeData(child->child(i));
 
         writeEndElement();
     } else {
-        writeStartElement(QLatin1String("bookmark"));
-        writeAttribute(QLatin1String("href"), entry.url);
-        writeTextElement(QLatin1String("title"), entry.title);
+        writeStartElement("bookmark");
+        writeAttribute("href", entry.url);
+        writeTextElement("title", entry.title);
         writeEndElement();
     }
 }
@@ -101,7 +98,7 @@ XbelReader::XbelReader(BookmarkModel *tree, BookmarkModel *list)
     , treeModel(tree)
     , listModel(list)
 {
-    bookmarkIcon = QIcon(QLatin1String(":/help/images/bookmark.png"));
+    bookmarkIcon = Utils::Icons::BOOKMARK.icon();
     folderIcon = QApplication::style()->standardIcon(QStyle::SP_DirClosedIcon);
 }
 
@@ -113,9 +110,9 @@ bool XbelReader::readFromFile(QIODevice *device)
         readNext();
 
         if (isStartElement()) {
-            if (name() == QLatin1String("xbel")
-                && attributes().value(QLatin1String("version"))
-                    == QLatin1String("1.0")) {
+            if (name() == "xbel"
+                && attributes().value("version")
+                    == "1.0") {
                 readXBEL();
             } else {
                 raiseError(QCoreApplication::translate("Help::Internal::XbelReader", "The file is not an XBEL version 1.0 file."));
@@ -135,9 +132,9 @@ void XbelReader::readXBEL()
             break;
 
         if (isStartElement()) {
-            if (name() == QLatin1String("folder"))
+            if (name() == "folder")
                 readFolder(0);
-            else if (name() == QLatin1String("bookmark"))
+            else if (name() == "bookmark")
                 readBookmark(0);
             else
                 readUnknownElement();
@@ -162,10 +159,10 @@ void XbelReader::readFolder(QStandardItem *item)
 {
     QStandardItem *folder = createChildItem(item);
     folder->setIcon(folderIcon);
-    folder->setData(QLatin1String("Folder"), Qt::UserRole + 10);
+    folder->setData("Folder", Qt::UserRole + 10);
 
     bool expanded =
-        (attributes().value(QLatin1String("folded")) != QLatin1String("no"));
+        (attributes().value("folded") != "no");
     folder->setData(expanded, Qt::UserRole + 11);
 
     while (!atEnd()) {
@@ -175,11 +172,11 @@ void XbelReader::readFolder(QStandardItem *item)
             break;
 
         if (isStartElement()) {
-            if (name() == QLatin1String("title"))
+            if (name() == "title")
                 folder->setText(readElementText());
-            else if (name() == QLatin1String("folder"))
+            else if (name() == "folder")
                 readFolder(folder);
-            else if (name() == QLatin1String("bookmark"))
+            else if (name() == "bookmark")
                 readBookmark(folder);
             else
                 readUnknownElement();
@@ -192,7 +189,7 @@ void XbelReader::readBookmark(QStandardItem *item)
     QStandardItem *bookmark = createChildItem(item);
     bookmark->setIcon(bookmarkIcon);
     bookmark->setText(QCoreApplication::translate("Help::Internal::XbelReader", "Unknown title"));
-    bookmark->setData(attributes().value(QLatin1String("href")).toString(),
+    bookmark->setData(attributes().value("href").toString(),
         Qt::UserRole + 10);
 
     while (!atEnd()) {
@@ -202,7 +199,7 @@ void XbelReader::readBookmark(QStandardItem *item)
             break;
 
         if (isStartElement()) {
-            if (name() == QLatin1String("title"))
+            if (name() == "title")
                 bookmark->setText(readElementText());
             else
                 readUnknownElement();

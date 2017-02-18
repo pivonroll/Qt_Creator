@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,35 +27,21 @@
 #include "selectabletexteditorwidget.h"
 #include "diffeditordocument.h"
 #include "diffutils.h"
-#include "diffeditorconstants.h"
 
-#include <coreplugin/editormanager/editormanager.h>
-
-#include <QTextBlock>
-#include <QTextCodec>
-#include <QScrollBar>
-#include <QPainter>
-#include <QDir>
-#include <QMessageBox>
 #include <QMenu>
+#include <QPainter>
+#include <QScrollBar>
+#include <QTextBlock>
 #include <QVBoxLayout>
 
-#include <texteditor/texteditor.h>
-#include <texteditor/textdocumentlayout.h>
 #include <texteditor/textdocument.h>
+#include <texteditor/textdocumentlayout.h>
 #include <texteditor/texteditorsettings.h>
 #include <texteditor/fontsettings.h>
 #include <texteditor/displaysettings.h>
-#include <texteditor/highlighterutils.h>
 
 #include <coreplugin/minisplitter.h>
-#include <coreplugin/patchtool.h>
 
-#include <cpaster/codepasterservice.h>
-
-#include <extensionsystem/pluginmanager.h>
-
-#include <utils/qtcassert.h>
 #include <utils/tooltip/tooltip.h>
 
 using namespace Core;
@@ -141,7 +122,7 @@ private:
 
     // block number, visual line number.
     QMap<int, int> m_lineNumbers;
-    int m_lineNumberDigits;
+    int m_lineNumberDigits = 1;
     // block number, fileInfo. Set for file lines only.
     QMap<int, DiffFileInfo> m_fileInfo;
     // block number, skipped lines. Set for chunk lines only.
@@ -150,7 +131,7 @@ private:
     QMap<int, QPair<int, int> > m_chunkInfo;
     // block number, separator. Set for file, chunk or span line.
     QMap<int, bool> m_separators;
-    bool m_inPaintEvent;
+    bool m_inPaintEvent = false;
     QColor m_fileLineForeground;
     QColor m_chunkLineForeground;
     QColor m_textForeground;
@@ -158,9 +139,7 @@ private:
 };
 
 SideDiffEditorWidget::SideDiffEditorWidget(QWidget *parent)
-    : SelectableTextEditorWidget("DiffEditor.SideDiffEditor", parent),
-      m_lineNumberDigits(1),
-      m_inPaintEvent(false)
+    : SelectableTextEditorWidget("DiffEditor.SideDiffEditor", parent)
 {
     DisplaySettings settings = displaySettings();
     settings.m_textWrapping = false;
@@ -444,11 +423,11 @@ void SideDiffEditorWidget::jumpToOriginalFile(const QTextCursor &cursor)
         return;
 
     const int blockNumber = cursor.blockNumber();
-    const int columnNumber = cursor.positionInBlock();
     if (!m_lineNumbers.contains(blockNumber))
         return;
 
     const int lineNumber = m_lineNumbers.value(blockNumber);
+    const int columnNumber = cursor.positionInBlock();
 
     emit jumpToOriginalFileRequested(fileIndexForBlockNumber(blockNumber),
                                      lineNumber, columnNumber);
@@ -511,12 +490,7 @@ void SideDiffEditorWidget::paintEvent(QPaintEvent *e)
 
 SideBySideDiffEditorWidget::SideBySideDiffEditorWidget(QWidget *parent)
     : QWidget(parent)
-    , m_document(0)
-    , m_ignoreCurrentIndexChange(false)
-    , m_foldingBlocker(false)
-    , m_horizontalSync(false)
-    , m_contextMenuFileIndex(-1)
-    , m_contextMenuChunkIndex(-1)
+    , m_controller(this)
 {
     m_leftEditor = new SideDiffEditorWidget(this);
     m_leftEditor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -587,17 +561,30 @@ SideBySideDiffEditorWidget::SideBySideDiffEditorWidget(QWidget *parent)
 
 void SideBySideDiffEditorWidget::setDocument(DiffEditorDocument *document)
 {
-    m_document = document;
+    m_controller.setDocument(document);
+    clear();
+    QList<FileData> diffFileList;
+    QString workingDirectory;
+    if (document) {
+        diffFileList = document->diffFiles();
+        workingDirectory = document->baseDirectory();
+    }
+    setDiff(diffFileList, workingDirectory);
+}
+
+DiffEditorDocument *SideBySideDiffEditorWidget::diffDocument() const
+{
+    return m_controller.document();
 }
 
 void SideBySideDiffEditorWidget::clear(const QString &message)
 {
-    const bool oldIgnore = m_ignoreCurrentIndexChange;
-    m_ignoreCurrentIndexChange = true;
+    const bool oldIgnore = m_controller.m_ignoreCurrentIndexChange;
+    m_controller.m_ignoreCurrentIndexChange = true;
     setDiff(QList<FileData>(), QString());
     m_leftEditor->clearAll(message);
     m_rightEditor->clearAll(message);
-    m_ignoreCurrentIndexChange = oldIgnore;
+    m_controller.m_ignoreCurrentIndexChange = oldIgnore;
 }
 
 void SideBySideDiffEditorWidget::setDiff(const QList<FileData> &diffFileList,
@@ -605,31 +592,31 @@ void SideBySideDiffEditorWidget::setDiff(const QList<FileData> &diffFileList,
 {
     Q_UNUSED(workingDirectory)
 
-    const bool oldIgnore = m_ignoreCurrentIndexChange;
-    m_ignoreCurrentIndexChange = true;
+    const bool oldIgnore = m_controller.m_ignoreCurrentIndexChange;
+    m_controller.m_ignoreCurrentIndexChange = true;
     m_leftEditor->clear();
     m_rightEditor->clear();
 
-    m_contextFileData = diffFileList;
-    if (m_contextFileData.isEmpty()) {
+    m_controller.m_contextFileData = diffFileList;
+    if (m_controller.m_contextFileData.isEmpty()) {
         const QString msg = tr("No difference");
         m_leftEditor->setPlainText(msg);
         m_rightEditor->setPlainText(msg);
     } else {
         showDiff();
     }
-    m_ignoreCurrentIndexChange = oldIgnore;
+    m_controller.m_ignoreCurrentIndexChange = oldIgnore;
 }
 
 void SideBySideDiffEditorWidget::setCurrentDiffFileIndex(int diffFileIndex)
 {
-    if (m_ignoreCurrentIndexChange)
+    if (m_controller.m_ignoreCurrentIndexChange)
         return;
 
     const int blockNumber = m_leftEditor->blockNumberForFileIndex(diffFileIndex);
 
-    const bool oldIgnore = m_ignoreCurrentIndexChange;
-    m_ignoreCurrentIndexChange = true;
+    const bool oldIgnore = m_controller.m_ignoreCurrentIndexChange;
+    m_controller.m_ignoreCurrentIndexChange = true;
     QTextBlock leftBlock = m_leftEditor->document()->findBlockByNumber(blockNumber);
     QTextCursor leftCursor = m_leftEditor->textCursor();
     leftCursor.setPosition(leftBlock.position());
@@ -642,7 +629,7 @@ void SideBySideDiffEditorWidget::setCurrentDiffFileIndex(int diffFileIndex)
     m_rightEditor->setTextCursor(rightCursor);
     m_rightEditor->verticalScrollBar()->setValue(blockNumber);
 
-    m_ignoreCurrentIndexChange = oldIgnore;
+    m_controller.m_ignoreCurrentIndexChange = oldIgnore;
 }
 
 void SideBySideDiffEditorWidget::setHorizontalSync(bool sync)
@@ -671,12 +658,12 @@ void SideBySideDiffEditorWidget::showDiff()
     QString leftTexts, rightTexts;
     int blockNumber = 0;
     QChar separator = QLatin1Char('\n');
-    for (int i = 0; i < m_contextFileData.count(); i++) {
+    for (int i = 0; i < m_controller.m_contextFileData.count(); i++) {
         QString leftText, rightText;
-        const FileData &contextFileData = m_contextFileData.at(i);
+        const FileData &contextFileData = m_controller.m_contextFileData.at(i);
 
-        leftFormats[blockNumber].append(DiffSelection(&m_fileLineFormat));
-        rightFormats[blockNumber].append(DiffSelection(&m_fileLineFormat));
+        leftFormats[blockNumber].append(DiffSelection(&m_controller.m_fileLineFormat));
+        rightFormats[blockNumber].append(DiffSelection(&m_controller.m_fileLineFormat));
         m_leftEditor->setFileInfo(blockNumber, contextFileData.leftFileInfo);
         m_rightEditor->setFileInfo(blockNumber, contextFileData.rightFileInfo);
         leftText = separator;
@@ -686,8 +673,8 @@ void SideBySideDiffEditorWidget::showDiff()
         int lastLeftLineNumber = -1;
 
         if (contextFileData.binaryFiles) {
-            leftFormats[blockNumber].append(DiffSelection(&m_chunkLineFormat));
-            rightFormats[blockNumber].append(DiffSelection(&m_chunkLineFormat));
+            leftFormats[blockNumber].append(DiffSelection(&m_controller.m_chunkLineFormat));
+            rightFormats[blockNumber].append(DiffSelection(&m_controller.m_chunkLineFormat));
             m_leftEditor->setSkippedLines(blockNumber, -2);
             m_rightEditor->setSkippedLines(blockNumber, -2);
             leftText += separator;
@@ -703,8 +690,8 @@ void SideBySideDiffEditorWidget::showDiff()
                 if (!chunkData.contextChunk) {
                     const int skippedLines = leftLineNumber - lastLeftLineNumber - 1;
                     if (skippedLines > 0) {
-                        leftFormats[blockNumber].append(DiffSelection(&m_chunkLineFormat));
-                        rightFormats[blockNumber].append(DiffSelection(&m_chunkLineFormat));
+                        leftFormats[blockNumber].append(DiffSelection(&m_controller.m_chunkLineFormat));
+                        rightFormats[blockNumber].append(DiffSelection(&m_controller.m_chunkLineFormat));
                         m_leftEditor->setSkippedLines(blockNumber, skippedLines);
                         m_rightEditor->setSkippedLines(blockNumber, skippedLines);
                         leftText += separator;
@@ -738,11 +725,11 @@ void SideBySideDiffEditorWidget::showDiff()
 
                         if (!rowData.equal) {
                             if (rowData.leftLine.textLineType == TextLineData::TextLine)
-                                leftFormats[blockNumber].append(DiffSelection(&m_leftLineFormat));
+                                leftFormats[blockNumber].append(DiffSelection(&m_controller.m_leftLineFormat));
                             else
                                 leftFormats[blockNumber].append(DiffSelection(&m_spanLineFormat));
                             if (rowData.rightLine.textLineType == TextLineData::TextLine)
-                                rightFormats[blockNumber].append(DiffSelection(&m_rightLineFormat));
+                                rightFormats[blockNumber].append(DiffSelection(&m_controller.m_rightLineFormat));
                             else
                                 rightFormats[blockNumber].append(DiffSelection(&m_spanLineFormat));
                         }
@@ -752,7 +739,7 @@ void SideBySideDiffEditorWidget::showDiff()
                             itLeft.next();
                             leftFormats[blockNumber].append(
                                         DiffSelection(itLeft.key(), itLeft.value(),
-                                                      &m_leftCharFormat));
+                                                      &m_controller.m_leftCharFormat));
                         }
 
                         QMapIterator<int, int> itRight(rightLineData.changedPositions);
@@ -760,7 +747,7 @@ void SideBySideDiffEditorWidget::showDiff()
                             itRight.next();
                             rightFormats[blockNumber].append(
                                         DiffSelection(itRight.key(), itRight.value(),
-                                                      &m_rightCharFormat));
+                                                      &m_controller.m_rightCharFormat));
                         }
 
                         leftText += separator;
@@ -782,8 +769,8 @@ void SideBySideDiffEditorWidget::showDiff()
                     }
 
                     if (skippedLines >= -1) {
-                        leftFormats[blockNumber].append(DiffSelection(&m_chunkLineFormat));
-                        rightFormats[blockNumber].append(DiffSelection(&m_chunkLineFormat));
+                        leftFormats[blockNumber].append(DiffSelection(&m_controller.m_chunkLineFormat));
+                        rightFormats[blockNumber].append(DiffSelection(&m_controller.m_chunkLineFormat));
                         m_leftEditor->setSkippedLines(blockNumber, skippedLines);
                         m_rightEditor->setSkippedLines(blockNumber, skippedLines);
                         leftText += separator;
@@ -802,13 +789,13 @@ void SideBySideDiffEditorWidget::showDiff()
     if (leftTexts.isEmpty() && rightTexts.isEmpty())
         return;
 
-    const bool oldIgnore = m_ignoreCurrentIndexChange;
-    m_ignoreCurrentIndexChange = true;
+    const bool oldIgnore = m_controller.m_ignoreCurrentIndexChange;
+    m_controller.m_ignoreCurrentIndexChange = true;
     m_leftEditor->clear();
     m_leftEditor->setPlainText(leftTexts);
     m_rightEditor->clear();
     m_rightEditor->setPlainText(rightTexts);
-    m_ignoreCurrentIndexChange = oldIgnore;
+    m_controller.m_ignoreCurrentIndexChange = oldIgnore;
 
     m_leftEditor->setSelections(leftFormats);
     m_rightEditor->setSelections(rightFormats);
@@ -818,12 +805,7 @@ void SideBySideDiffEditorWidget::setFontSettings(
         const FontSettings &fontSettings)
 {
     m_spanLineFormat  = fontSettings.toTextCharFormat(C_LINE_NUMBER);
-    m_fileLineFormat  = fontSettings.toTextCharFormat(C_DIFF_FILE_LINE);
-    m_chunkLineFormat = fontSettings.toTextCharFormat(C_DIFF_CONTEXT_LINE);
-    m_leftLineFormat  = fontSettings.toTextCharFormat(C_DIFF_SOURCE_LINE);
-    m_leftCharFormat  = fontSettings.toTextCharFormat(C_DIFF_SOURCE_CHAR);
-    m_rightLineFormat = fontSettings.toTextCharFormat(C_DIFF_DEST_LINE);
-    m_rightCharFormat = fontSettings.toTextCharFormat(C_DIFF_DEST_CHAR);
+    m_controller.setFontSettings(fontSettings);
 }
 
 void SideBySideDiffEditorWidget::slotLeftJumpToOriginalFileRequested(
@@ -831,10 +813,10 @@ void SideBySideDiffEditorWidget::slotLeftJumpToOriginalFileRequested(
         int lineNumber,
         int columnNumber)
 {
-    if (diffFileIndex < 0 || diffFileIndex >= m_contextFileData.count())
+    if (diffFileIndex < 0 || diffFileIndex >= m_controller.m_contextFileData.count())
         return;
 
-    const FileData fileData = m_contextFileData.at(diffFileIndex);
+    const FileData fileData = m_controller.m_contextFileData.at(diffFileIndex);
     const QString leftFileName = fileData.leftFileInfo.fileName;
     const QString rightFileName = fileData.rightFileInfo.fileName;
     if (leftFileName == rightFileName) {
@@ -855,14 +837,14 @@ void SideBySideDiffEditorWidget::slotLeftJumpToOriginalFileRequested(
                     rightLineNumber++;
                 if (leftLineNumber == lineNumber) {
                     int colNr = rowData.equal ? columnNumber : 0;
-                    jumpToOriginalFile(leftFileName, rightLineNumber, colNr);
+                    m_controller.jumpToOriginalFile(leftFileName, rightLineNumber, colNr);
                     return;
                 }
             }
         }
     } else {
         // different file (e.g. in Tools | Diff...)
-        jumpToOriginalFile(leftFileName, lineNumber, columnNumber);
+        m_controller.jumpToOriginalFile(leftFileName, lineNumber, columnNumber);
     }
 }
 
@@ -871,25 +853,12 @@ void SideBySideDiffEditorWidget::slotRightJumpToOriginalFileRequested(
         int lineNumber,
         int columnNumber)
 {
-    if (diffFileIndex < 0 || diffFileIndex >= m_contextFileData.count())
+    if (diffFileIndex < 0 || diffFileIndex >= m_controller.m_contextFileData.count())
         return;
 
-    const FileData fileData = m_contextFileData.at(diffFileIndex);
+    const FileData fileData = m_controller.m_contextFileData.at(diffFileIndex);
     const QString fileName = fileData.rightFileInfo.fileName;
-    jumpToOriginalFile(fileName, lineNumber, columnNumber);
-}
-
-void SideBySideDiffEditorWidget::jumpToOriginalFile(const QString &fileName,
-                                                    int lineNumber, int columnNumber)
-{
-    if (!m_document)
-        return;
-
-    const QDir dir(m_document->baseDirectory());
-    const QString absoluteFileName = dir.absoluteFilePath(fileName);
-    QFileInfo fi(absoluteFileName);
-    if (fi.exists() && !fi.isDir())
-        EditorManager::openEditorAt(absoluteFileName, lineNumber, columnNumber);
+    m_controller.jumpToOriginalFile(fileName, lineNumber, columnNumber);
 }
 
 void SideBySideDiffEditorWidget::slotLeftContextMenuRequested(QMenu *menu,
@@ -897,37 +866,9 @@ void SideBySideDiffEditorWidget::slotLeftContextMenuRequested(QMenu *menu,
                                                               int chunkIndex)
 {
     menu->addSeparator();
-    if (ExtensionSystem::PluginManager::getObject<CodePaster::Service>()) {
-        // optional code pasting service
-        QAction *sendChunkToCodePasterAction =
-                menu->addAction(tr("Send Chunk to CodePaster..."));
-        connect(sendChunkToCodePasterAction, &QAction::triggered,
-                this, &SideBySideDiffEditorWidget::slotSendChunkToCodePaster);
-        menu->addSeparator();
-    }
-    QAction *applyAction = menu->addAction(tr("Apply Chunk..."));
-    connect(applyAction, &QAction::triggered, this, &SideBySideDiffEditorWidget::slotApplyChunk);
-    applyAction->setEnabled(false);
 
-    m_contextMenuFileIndex = diffFileIndex;
-    m_contextMenuChunkIndex = chunkIndex;
-
-    if (m_contextMenuFileIndex < 0 || m_contextMenuChunkIndex < 0)
-        return;
-
-    if (m_contextMenuFileIndex >= m_contextFileData.count())
-        return;
-
-    const FileData fileData = m_contextFileData.at(m_contextMenuFileIndex);
-    if (m_contextMenuChunkIndex >= fileData.chunks.count())
-        return;
-
-    m_document->chunkActionsRequested(menu, diffFileIndex, chunkIndex);
-
-    if (fileData.leftFileInfo.fileName == fileData.rightFileInfo.fileName)
-        return;
-
-    applyAction->setEnabled(true);
+    m_controller.addCodePasterAction(menu);
+    m_controller.addApplyAction(menu, diffFileIndex, chunkIndex);
 }
 
 void SideBySideDiffEditorWidget::slotRightContextMenuRequested(QMenu *menu,
@@ -935,98 +876,9 @@ void SideBySideDiffEditorWidget::slotRightContextMenuRequested(QMenu *menu,
                                                                int chunkIndex)
 {
     menu->addSeparator();
-    if (ExtensionSystem::PluginManager::getObject<CodePaster::Service>()) {
-        // optional code pasting service
-        QAction *sendChunkToCodePasterAction =
-                menu->addAction(tr("Send Chunk to CodePaster..."));
-        connect(sendChunkToCodePasterAction, &QAction::triggered,
-                this, &SideBySideDiffEditorWidget::slotSendChunkToCodePaster);
-        menu->addSeparator();
-    }
-    QAction *revertAction = menu->addAction(tr("Revert Chunk..."));
-    connect(revertAction, &QAction::triggered, this, &SideBySideDiffEditorWidget::slotRevertChunk);
-    revertAction->setEnabled(false);
 
-    m_contextMenuFileIndex = diffFileIndex;
-    m_contextMenuChunkIndex = chunkIndex;
-
-    if (m_contextMenuFileIndex < 0 || m_contextMenuChunkIndex < 0)
-        return;
-
-    if (m_contextMenuFileIndex >= m_contextFileData.count())
-        return;
-
-    const FileData fileData = m_contextFileData.at(m_contextMenuFileIndex);
-    if (m_contextMenuChunkIndex >= fileData.chunks.count())
-        return;
-
-    m_document->chunkActionsRequested(menu, diffFileIndex, chunkIndex);
-
-    revertAction->setEnabled(true);
-}
-
-void SideBySideDiffEditorWidget::slotSendChunkToCodePaster()
-{
-    if (!m_document)
-        return;
-
-    // Retrieve service by soft dependency.
-    auto pasteService = ExtensionSystem::PluginManager::getObject<CodePaster::Service>();
-    QTC_ASSERT(pasteService, return);
-
-    const QString patch = m_document->makePatch(m_contextMenuFileIndex, m_contextMenuChunkIndex, false);
-    if (patch.isEmpty())
-        return;
-
-    pasteService->postText(patch, QLatin1String(Constants::DIFF_EDITOR_MIMETYPE));
-}
-
-void SideBySideDiffEditorWidget::slotApplyChunk()
-{
-    patch(false);
-}
-
-void SideBySideDiffEditorWidget::slotRevertChunk()
-{
-    patch(true);
-}
-
-void SideBySideDiffEditorWidget::patch(bool revert)
-{
-    if (!m_document)
-        return;
-
-    const FileData fileData = m_contextFileData.at(m_contextMenuFileIndex);
-
-    const QString title = revert ? tr("Revert Chunk") : tr("Apply Chunk");
-    const QString question = revert
-            ? tr("Would you like to revert the chunk?")
-            : tr("Would you like to apply the chunk?");
-    if (QMessageBox::No == QMessageBox::question(this, title,
-                                                 question,
-                                                 QMessageBox::Yes
-                                                 | QMessageBox::No)) {
-        return;
-    }
-
-    const int strip = m_document->baseDirectory().isEmpty() ? -1 : 0;
-
-    const QString fileName = revert
-            ? fileData.rightFileInfo.fileName
-            : fileData.leftFileInfo.fileName;
-
-    const QString workingDirectory = m_document->baseDirectory().isEmpty()
-            ? QFileInfo(fileName).absolutePath()
-            : m_document->baseDirectory();
-
-    const QString patch = m_document->makePatch(m_contextMenuFileIndex, m_contextMenuChunkIndex, revert);
-
-    if (patch.isEmpty())
-        return;
-
-    if (PatchTool::runPatch(EditorManager::defaultTextCodec()->fromUnicode(patch),
-                            workingDirectory, strip, revert))
-        m_document->reload();
+    m_controller.addCodePasterAction(menu);
+    m_controller.addRevertAction(menu, diffFileIndex, chunkIndex);
 }
 
 void SideBySideDiffEditorWidget::leftVSliderChanged()
@@ -1056,14 +908,14 @@ void SideBySideDiffEditorWidget::leftCursorPositionChanged()
     leftVSliderChanged();
     leftHSliderChanged();
 
-    if (m_ignoreCurrentIndexChange)
+    if (m_controller.m_ignoreCurrentIndexChange)
         return;
 
-    const bool oldIgnore = m_ignoreCurrentIndexChange;
-    m_ignoreCurrentIndexChange = true;
+    const bool oldIgnore = m_controller.m_ignoreCurrentIndexChange;
+    m_controller.m_ignoreCurrentIndexChange = true;
     emit currentDiffFileIndexChanged(
                 m_leftEditor->fileIndexForBlockNumber(m_leftEditor->textCursor().blockNumber()));
-    m_ignoreCurrentIndexChange = oldIgnore;
+    m_controller.m_ignoreCurrentIndexChange = oldIgnore;
 }
 
 void SideBySideDiffEditorWidget::rightCursorPositionChanged()
@@ -1071,14 +923,14 @@ void SideBySideDiffEditorWidget::rightCursorPositionChanged()
     rightVSliderChanged();
     rightHSliderChanged();
 
-    if (m_ignoreCurrentIndexChange)
+    if (m_controller.m_ignoreCurrentIndexChange)
         return;
 
-    const bool oldIgnore = m_ignoreCurrentIndexChange;
-    m_ignoreCurrentIndexChange = true;
+    const bool oldIgnore = m_controller.m_ignoreCurrentIndexChange;
+    m_controller.m_ignoreCurrentIndexChange = true;
     emit currentDiffFileIndexChanged(
                 m_rightEditor->fileIndexForBlockNumber(m_rightEditor->textCursor().blockNumber()));
-    m_ignoreCurrentIndexChange = oldIgnore;
+    m_controller.m_ignoreCurrentIndexChange = oldIgnore;
 }
 
 } // namespace Internal

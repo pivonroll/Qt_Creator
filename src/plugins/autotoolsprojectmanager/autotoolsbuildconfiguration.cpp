@@ -1,9 +1,9 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Openismus GmbH.
-** Authors: Peter Penz (ppenz@openismus.com)
-**          Patricia Santana Cruz (patriciasantanacruz@gmail.com)
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Openismus GmbH.
+** Author: Peter Penz (ppenz@openismus.com)
+** Author: Patricia Santana Cruz (patriciasantanacruz@gmail.com)
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -11,22 +11,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -46,7 +41,6 @@
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/toolchain.h>
-#include <qtsupport/customexecutablerunconfiguration.h>
 #include <utils/mimetypes/mimedatabase.h>
 #include <utils/qtcassert.h>
 
@@ -62,12 +56,17 @@ using namespace ProjectExplorer::Constants;
 //////////////////////////////////////
 // AutotoolsBuildConfiguration class
 //////////////////////////////////////
-AutotoolsBuildConfiguration::AutotoolsBuildConfiguration(Target *parent)
-    : BuildConfiguration(parent, Core::Id(AUTOTOOLS_BC_ID))
+AutotoolsBuildConfiguration::AutotoolsBuildConfiguration(Target *parent) :
+    BuildConfiguration(parent, Core::Id(AUTOTOOLS_BC_ID))
 {
-  // /<foobar> is used so the un-changed check in setBuildDirectory() works correctly.
-  // The leading / is to avoid the relative the path expansion in BuildConfiguration::buildDirectory.
-  BuildConfiguration::setBuildDirectory(Utils::FileName::fromString(QString::fromLatin1("/<foobar>")));
+    // /<foobar> is used so the un-changed check in setBuildDirectory() works correctly.
+    // The leading / is to avoid the relative the path expansion in BuildConfiguration::buildDirectory.
+    BuildConfiguration::setBuildDirectory(Utils::FileName::fromString(QString::fromLatin1("/<foobar>")));
+
+    connect(this, &BuildConfiguration::buildDirectoryChanged, this, [this] {
+        foreach (auto bs, stepList(BUILDSTEPS_BUILD)->allOfType<ConfigureStep>())
+            bs->notifyBuildDirectoryChanged();
+    });
 }
 
 NamedWidget *AutotoolsBuildConfiguration::createConfigWidget()
@@ -75,13 +74,13 @@ NamedWidget *AutotoolsBuildConfiguration::createConfigWidget()
     return new AutotoolsBuildSettingsWidget(this);
 }
 
-AutotoolsBuildConfiguration::AutotoolsBuildConfiguration(Target *parent, Core::Id id)
-    : BuildConfiguration(parent, id)
+AutotoolsBuildConfiguration::AutotoolsBuildConfiguration(Target *parent, Core::Id id) :
+    BuildConfiguration(parent, id)
 { }
 
 AutotoolsBuildConfiguration::AutotoolsBuildConfiguration(Target *parent,
-                                                         AutotoolsBuildConfiguration *source)
-    : BuildConfiguration(parent, source)
+                                                         AutotoolsBuildConfiguration *source) :
+    BuildConfiguration(parent, source)
 {
     cloneSteps(source);
 }
@@ -91,8 +90,7 @@ AutotoolsBuildConfiguration::AutotoolsBuildConfiguration(Target *parent,
 //////////////////////////////////////
 AutotoolsBuildConfigurationFactory::AutotoolsBuildConfigurationFactory(QObject *parent) :
     IBuildConfigurationFactory(parent)
-{
-}
+{ }
 
 int AutotoolsBuildConfigurationFactory::priority(const Target *parent) const
 {
@@ -228,18 +226,4 @@ BuildConfiguration::BuildType AutotoolsBuildConfiguration::buildType() const
 {
     // TODO: Should I return something different from Unknown?
     return Unknown;
-}
-
-void AutotoolsBuildConfiguration::setBuildDirectory(const Utils::FileName &directory)
-{
-    if (directory == buildDirectory())
-        return;
-    BuildConfiguration::setBuildDirectory(directory);
-    BuildStepList *bsl = stepList(BUILDSTEPS_BUILD);
-    foreach (BuildStep *bs, bsl->steps()) {
-        ConfigureStep *cs = qobject_cast<ConfigureStep *>(bs);
-        if (cs) {
-            cs->notifyBuildDirectoryChanged();
-        }
-    }
 }

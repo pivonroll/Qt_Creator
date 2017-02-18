@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,33 +9,29 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "variablechooser.h"
 #include "coreconstants.h"
 
-#include <utils/fancylineedit.h> // IconButton
+#include <utils/fancylineedit.h>
 #include <utils/headerviewstretcher.h> // IconButton
 #include <utils/macroexpander.h>
 #include <utils/treemodel.h>
 #include <utils/qtcassert.h>
+#include <utils/utilsicons.h>
 
 #include <QApplication>
 #include <QAbstractItemModel>
@@ -46,6 +42,7 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPointer>
+#include <QSortFilterProxyModel>
 #include <QTextEdit>
 #include <QTimer>
 #include <QTreeView>
@@ -83,6 +80,24 @@ private:
     VariableChooserPrivate *m_target;
 };
 
+class VariableSortFilterProxyModel : public QSortFilterProxyModel
+{
+public:
+    explicit VariableSortFilterProxyModel(QObject *parent) : QSortFilterProxyModel(parent) {}
+    bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override
+    {
+        const QModelIndex index = sourceModel()->index(sourceRow, filterKeyColumn(), sourceParent);
+        if (!index.isValid())
+            return false;
+
+        const QRegExp regexp = filterRegExp();
+        if (regexp.isEmpty() || sourceModel()->rowCount(index) > 0)
+            return true;
+
+        const QString displayText = index.data(Qt::DisplayRole).toString();
+        return displayText.contains(regexp);
+    }
+};
 
 class VariableChooserPrivate : public QObject
 {
@@ -92,7 +107,7 @@ public:
     void createIconButton()
     {
         m_iconButton = new IconButton;
-        m_iconButton->setPixmap(QPixmap(QLatin1String(":/core/images/replace.png")));
+        m_iconButton->setPixmap(Utils::Icons::REPLACE.pixmap());
         m_iconButton->setToolTip(VariableChooser::tr("Insert Variable"));
         m_iconButton->hide();
         connect(m_iconButton.data(), static_cast<void(QAbstractButton::*)(bool)>(&QAbstractButton::clicked),
@@ -104,6 +119,7 @@ public:
     void handleItemActivated(const QModelIndex &index);
     void insertText(const QString &variable);
     void updatePositionAndShow(bool);
+    void updateFilter(const QString &filterText);
 
     QWidget *currentWidget();
 
@@ -112,15 +128,17 @@ public:
 
 public:
     VariableChooser *q;
-    TreeModel m_model;
+    TreeModel<> m_model;
 
     QPointer<QLineEdit> m_lineEdit;
     QPointer<QTextEdit> m_textEdit;
     QPointer<QPlainTextEdit> m_plainTextEdit;
     QPointer<IconButton> m_iconButton;
 
+    Utils::FancyLineEdit *m_variableFilter;
     VariableTreeView *m_variableTree;
     QLabel *m_variableDescription;
+    QSortFilterProxyModel *m_sortModel;
     QString m_defaultDescription;
     QByteArray m_currentVariableName; // Prevent recursive insertion of currently expanded item
 };
@@ -164,12 +182,19 @@ public:
     MacroExpanderProvider m_provider;
 };
 
-class VariableItem : public TreeItem
+class VariableItem : public TypedTreeItem<TreeItem, VariableGroupItem>
 {
 public:
     VariableItem() {}
 
-    QVariant data(int column, int role) const
+    Qt::ItemFlags flags(int) const override
+    {
+        if (m_variable == parent()->m_chooser->m_currentVariableName)
+            return Qt::ItemIsSelectable;
+        return Qt::ItemIsSelectable|Qt::ItemIsEnabled;
+    }
+
+    QVariant data(int column, int role) const override
     {
         if (role == Qt::DisplayRole || role == Qt::EditRole) {
             if (column == 0)
@@ -177,28 +202,27 @@ public:
         }
 
         if (role == Qt::ToolTipRole) {
-            const QByteArray var = m_variable.toUtf8();
-            QString description = m_expander->variableDescription(var);
+            QString description = m_expander->variableDescription(m_variable);
             QString value;
-            if (!m_expander->isPrefixVariable(var))
-                value = m_expander->value(var).toHtmlEscaped();
+            if (!m_expander->isPrefixVariable(m_variable))
+                value = m_expander->value(m_variable).toHtmlEscaped();
             if (!value.isEmpty())
                 description += QLatin1String("<p>") + VariableChooser::tr("Current Value: %1").arg(value);
             return description;
         }
 
         if (role == UnexpandedTextRole)
-            return QString(QLatin1String("%{") + m_variable + QLatin1Char('}'));
+            return QString::fromUtf8("%{" + m_variable + '}');
 
         if (role == ExpandedTextRole)
-            return m_expander->expand(QLatin1String("%{") + m_variable + QLatin1Char('}'));
+            return m_expander->expand(QString::fromUtf8("%{" + m_variable + '}'));
 
         return QVariant();
     }
 
 public:
     MacroExpander *m_expander;
-    QString m_variable;
+    QByteArray m_variable;
 };
 
 void VariableTreeView::contextMenuEvent(QContextMenuEvent *ev)
@@ -245,14 +269,27 @@ VariableChooserPrivate::VariableChooserPrivate(VariableChooser *parent)
     : q(parent),
       m_lineEdit(0),
       m_textEdit(0),
-      m_plainTextEdit(0)
+      m_plainTextEdit(0),
+      m_iconButton(0),
+      m_variableFilter(0),
+      m_variableTree(0),
+      m_variableDescription(0)
 {
     m_defaultDescription = VariableChooser::tr("Select a variable to insert.");
 
+    m_variableFilter = new Utils::FancyLineEdit(q);
     m_variableTree = new VariableTreeView(q, this);
-    m_variableTree->setModel(&m_model);
-
     m_variableDescription = new QLabel(q);
+
+    m_variableFilter->setFiltering(true);
+
+    m_sortModel = new VariableSortFilterProxyModel(this);
+    m_sortModel->setSourceModel(&m_model);
+    m_sortModel->sort(0);
+    m_sortModel->setFilterKeyColumn(0);
+    m_sortModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    m_variableTree->setModel(m_sortModel);
+
     m_variableDescription->setText(m_defaultDescription);
     m_variableDescription->setMinimumSize(QSize(0, 60));
     m_variableDescription->setAlignment(Qt::AlignLeft|Qt::AlignTop);
@@ -262,9 +299,12 @@ VariableChooserPrivate::VariableChooserPrivate(VariableChooser *parent)
 
     QVBoxLayout *verticalLayout = new QVBoxLayout(q);
     verticalLayout->setContentsMargins(3, 3, 3, 12);
+    verticalLayout->addWidget(m_variableFilter);
     verticalLayout->addWidget(m_variableTree);
     verticalLayout->addWidget(m_variableDescription);
 
+    connect(m_variableFilter, &QLineEdit::textChanged,
+            this, &VariableChooserPrivate::updateFilter);
     connect(m_variableTree, &QTreeView::activated,
             this, &VariableChooserPrivate::handleItemActivated);
     connect(qobject_cast<QApplication *>(qApp), &QApplication::focusChanged,
@@ -279,10 +319,8 @@ void VariableGroupItem::populateGroup(MacroExpander *expander)
 
     foreach (const QByteArray &variable, expander->visibleVariables()) {
         auto item = new VariableItem;
-        item->m_variable = QString::fromUtf8(variable);
+        item->m_variable = variable;
         item->m_expander = expander;
-        if (variable == m_chooser->m_currentVariableName)
-            item->setFlags(Qt::ItemIsSelectable); // not ItemIsEnabled
         appendChild(item);
     }
 
@@ -360,6 +398,7 @@ VariableChooser::VariableChooser(QWidget *parent) :
     setWindowFlags(Qt::Tool);
     setFocusPolicy(Qt::StrongFocus);
     setFocusProxy(d->m_variableTree);
+    setGeometry(QRect(0, 0, 400, 500));
     addMacroExpanderProvider([]() { return globalMacroExpander(); });
 }
 
@@ -408,7 +447,9 @@ void VariableChooser::addSupportForChildWidgets(QWidget *parent, MacroExpander *
  */
 void VariableChooserPrivate::updateDescription(const QModelIndex &index)
 {
-    m_variableDescription->setText(m_model.data(index, Qt::ToolTipRole).toString());
+    if (m_variableDescription)
+        m_variableDescription->setText(m_model.data(m_sortModel->mapToSource(index),
+                                                    Qt::ToolTipRole).toString());
 }
 
 /*!
@@ -509,6 +550,12 @@ void VariableChooserPrivate::updatePositionAndShow(bool)
     m_variableTree->expandAll();
 }
 
+void VariableChooserPrivate::updateFilter(const QString &filterText)
+{
+    m_sortModel->setFilterWildcard(filterText);
+    m_variableTree->expandAll();
+}
+
 /*!
  * \internal
  */
@@ -526,7 +573,7 @@ QWidget *VariableChooserPrivate::currentWidget()
  */
 void VariableChooserPrivate::handleItemActivated(const QModelIndex &index)
 {
-    QString text = m_model.data(index, UnexpandedTextRole).toString();
+    QString text = m_model.data(m_sortModel->mapToSource(index), UnexpandedTextRole).toString();
     if (!text.isEmpty())
         insertText(text);
 }
@@ -555,7 +602,7 @@ static bool handleEscapePressed(QKeyEvent *ke, QWidget *widget)
 {
     if (ke->key() == Qt::Key_Escape && !ke->modifiers()) {
         ke->accept();
-        QTimer::singleShot(0, widget, SLOT(close()));
+        QTimer::singleShot(0, widget, &QWidget::close);
         return true;
     }
     return false;

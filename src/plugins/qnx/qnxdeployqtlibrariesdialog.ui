@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Deploy Qt to BlackBerry Device</string>
+   <string>Deploy Qt to QNX Device</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -112,6 +112,13 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>qtLibraryCombo</tabstop>
+  <tabstop>deployButton</tabstop>
+  <tabstop>remoteDirectory</tabstop>
+  <tabstop>deployLogWindow</tabstop>
+  <tabstop>closeButton</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

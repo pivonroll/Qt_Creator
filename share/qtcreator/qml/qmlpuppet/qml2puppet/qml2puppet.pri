@@ -20,16 +20,16 @@ QT_BREAKPAD_ROOT_PATH = $$(QT_BREAKPAD_ROOT_PATH)
 
 SOURCES +=  $$PWD/qml2puppetmain.cpp
 RESOURCES +=  $$PWD/../qmlpuppet.qrc
-DEFINES -= QT_NO_CAST_FROM_ASCII
 
 DISTFILES += Info.plist
 
-unix:!osx:LIBS += -lrt # posix shared memory
+unix:!openbsd:!osx: LIBS += -lrt # posix shared memory
 
 osx {
     CONFIG -= app_bundle
     QMAKE_LFLAGS += -Wl,-sectcreate,__TEXT,__info_plist,$$system_quote($$PWD/Info.plist)
-} else {
-    target.path  = $$INSTALL_LIBEXEC_PATH
-    INSTALLS    += target
 }
+
+osx:  target.path = $$INSTALL_LIBEXEC_PATH/qmldesigner
+else: target.path = $$INSTALL_LIBEXEC_PATH
+INSTALLS += target

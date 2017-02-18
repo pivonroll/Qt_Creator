@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -55,10 +62,9 @@
 
     \note To use the debugging tools for Windows, you must install them and add
     the Symbol Server provided by Microsoft to the symbol search path of the
-    debugger. For more information, see \l{Setting the Symbol Server in
-    Windows}.
+    debugger. For more information, see \l{Setting CDB Paths on Windows}.
 
-    \note To use the Free Software Foundation (FSF) version of GDB on OS X, you
+    \note To use the Free Software Foundation (FSF) version of GDB on \macos, you
     must sign it and modify your \l{glossary-buildandrun-kit}{kit} settings.
 
     This section explains the options you have for debugging C++ code and
@@ -73,7 +79,7 @@
     Qt Creator supports native debuggers when working with compiled code. On
     most supported platforms, the GNU Symbolic Debugger GDB can be used. On
     Microsoft Windows, when using the Microsoft tool chain the Microsoft Console
-    Debugger CDB, is needed. On OS X, the LLDB debugger can be used. Basic
+    Debugger CDB, is needed. On \macos, the LLDB debugger can be used. Basic
     support for LLDB is also available on Linux, but it is restricted by LLDB's
     capabilities there, and considered experimental.
 
@@ -93,7 +99,7 @@
             \li GCC, ICC
             \li GDB
         \row
-            \li OS X
+            \li \macos
             \li GCC, Clang
             \li LLDB, FSF GDB (experimental)
         \row
@@ -124,14 +130,14 @@
     \section2 Supported LLDB Versions
 
     The LLDB native debugger has similar functionality to the GDB debugger. LLDB
-    is the default debugger in Xcode on OS X for supporting C++ on the desktop.
+    is the default debugger in Xcode on \macos for supporting C++ on the desktop.
     LLDB is typically used with the Clang compiler (even though you can use it
     with GCC, too).
 
-    On OS X you can use the LLDB version delivered with Xcode or build from source.
+    On \macos you can use the LLDB version delivered with Xcode or build from source.
     The minimum supported version is LLDB 320.4.
 
-    On Linux, the minimum supported version is LLDB 3.7.
+    On Linux, the minimum supported version is LLDB 3.8.
 
     \omit
 
@@ -178,7 +184,7 @@
                 most Linux distributions the GDB builds shipped with the system
                 are sufficient. You can also build your own. Follow the
                 instructions in \l{http://wiki.qt.io/QtCreator_Build_Gdb}
-                {Building GDB}. Builds of GDB shipped with Xcode on OS X are no
+                {Building GDB}. Builds of GDB shipped with Xcode on \macos are no
                 longer supported.
 
         \row
@@ -202,10 +208,10 @@
                 Symbol Server provides you with debugging informaton for the
                 operating system libraries for debugging Windows applications.
                 For more information, see
-                \l{Setting the Symbol Server in Windows}.
+                \l{Setting CDB Paths on Windows}.
 
        \row
-            \li Debugging tools for OS X
+            \li Debugging tools for \macos
             \li The Qt binary distribution contains both debug and release
                 variants of the libraries. But you have to explicitly tell the
                 runtime linker that you want to use the debug libraries even if
@@ -217,7 +223,7 @@
                 \uicontrol Projects mode. In the run configuration, select
                 \uicontrol{Use debug version of frameworks}.
 
-                For more detailed information about debugging on OS X,
+                For more detailed information about debugging on \macos,
                 see: \l{http://developer.apple.com/library/mac/#technotes/tn2124/_index.html#//apple_ref/doc/uid/DTS10003391}
                 {Mac OS X Debugging Magic}.
 
@@ -230,7 +236,7 @@
 
     To enable the debugger to step into the code and display the source code
     when using a copy of the source tree at a location different from the one
-    at which the libraries where built, map the source paths to target paths:
+    at which the libraries were built, map the source paths to target paths:
 
     \list 1
 
@@ -245,7 +251,7 @@
 
     \endlist
 
-    \section1 Setting the Symbol Server in Windows
+    \section1 Setting CDB Paths on Windows
 
     To obtain debugging information for the operating system libraries for
     debugging Windows applications, add the Symbol Server provided by Microsoft
@@ -254,28 +260,31 @@
     \list 1
 
         \li Select \uicontrol Tools > \uicontrol Options > \uicontrol Debugger >
-            \uicontrol CDB.
+            \uicontrol {CDB Paths}.
 
-        \li In the \uicontrol {Symbol paths} field, open the \uicontrol Insert
-            menu and select \uicontrol{Symbol Server}.
+            \image qtcreator-debugger-cdb-paths.png
 
-        \li Select a directory where you want to store the cached information
-            and click \uicontrol OK.
+        \li In the \uicontrol {Symbol Paths} group, select \uicontrol Insert.
+
+        \li Select the directory where you want to store the cached information.
 
             Use a subfolder in a temporary directory, such as
             \c {C:\temp\symbolcache}.
+
+        \li Select \uicontrol OK.
 
     \endlist
 
     \note Populating the cache might take a long time on a slow network
     connection.
 
-    \note The first time you start debugging by using the Debugging tools for
-    Windows, \QC prompts you to add the Symbol Server.
+    To use the Source Server infrastructure for fetching missing source files
+    directly from version control or the web, enter the following string in
+    the \uicontrol {Source Paths} field: \c srv*.
 
-    \section1 Setting up FSF GDB for OS X
+    \section1 Setting up FSF GDB for \macos
 
-    To use FSF GDB on OS X, you must sign it and add it to the \QC
+    To use FSF GDB on \macos, you must sign it and add it to the \QC
     \l{glossary-buildandrun-kit}{kits}.
 
     \list 1

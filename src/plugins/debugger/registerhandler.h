@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,54 +9,32 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGER_REGISTERHANDLER_H
-#define DEBUGGER_REGISTERHANDLER_H
+#pragma once
 
 #include <utils/treemodel.h>
 
-#include <QAbstractTableModel>
 #include <QHash>
-#include <QVector>
+
+namespace Utils { class ItemViewEvent; }
 
 namespace Debugger {
 namespace Internal {
 
 class DebuggerEngine;
-
-enum RegisterColumns
-{
-    RegisterNameColumn,
-    RegisterValueColumn,
-    RegisterColumnCount
-};
-
-enum RegisterDataRole
-{
-    RegisterNameRole = Qt::UserRole,
-    RegisterIsBigRole,
-    RegisterChangedRole,
-    RegisterFormatRole,
-    RegisterAsAddressRole
-};
 
 enum RegisterKind
 {
@@ -85,9 +63,9 @@ public:
     bool operator==(const RegisterValue &other);
     bool operator!=(const RegisterValue &other) { return !operator==(other); }
 
-    void fromByteArray(const QByteArray &ba, RegisterFormat format);
-    QByteArray toByteArray(RegisterKind kind, int size, RegisterFormat format,
-                           bool forEdit = false) const;
+    void fromString(const QString &str, RegisterFormat format);
+    QString toString(RegisterKind kind, int size, RegisterFormat format,
+                     bool forEdit = false) const;
 
     RegisterValue subValue(int size, int index) const;
     void setSubValue(int size, int index, RegisterValue subValue);
@@ -108,22 +86,26 @@ public:
 class Register
 {
 public:
-    Register() { size = 0; kind = UnknownRegister; }
+    Register() {}
     void guessMissingData();
 
-    QByteArray name;
-    QByteArray reportedType;
+    QString name;
+    QString reportedType;
     RegisterValue value;
     RegisterValue previousValue;
-    QByteArray description;
-    int size;
-    RegisterKind kind;
+    QString description;
+    int size = 0;
+    RegisterKind kind = UnknownRegister;
 };
 
+class RegisterSubItem;
 class RegisterItem;
-typedef QMap<quint64, QByteArray> RegisterMap;
+using RegisterRootItem = Utils::TypedTreeItem<RegisterItem>;
+using RegisterModel = Utils::TreeModel<RegisterRootItem, RegisterItem, RegisterSubItem>;
 
-class RegisterHandler : public Utils::TreeModel
+typedef QMap<quint64, QString> RegisterMap;
+
+class RegisterHandler : public RegisterModel
 {
     Q_OBJECT
 
@@ -131,23 +113,23 @@ public:
     explicit RegisterHandler(DebuggerEngine *engine);
 
     QAbstractItemModel *model() { return this; }
-    DebuggerEngine *engine() const { return m_engine; }
 
     void updateRegister(const Register &reg);
-
-    void setNumberFormat(const QByteArray &name, RegisterFormat format);
     void commitUpdates() { emit layoutChanged(); }
     RegisterMap registerMap() const;
 
 signals:
-    void registerChanged(const QByteArray &name, quint64 value); // For memory views
+    void registerChanged(const QString &name, quint64 value); // For memory views
 
 private:
-    QHash<QByteArray, RegisterItem *> m_registerByName;
+    QVariant data(const QModelIndex &idx, int role) const override;
+    bool setData(const QModelIndex &idx, const QVariant &data, int role) override;
+
+    bool contextMenuEvent(const Utils::ItemViewEvent &ev);
+
+    QHash<QString, RegisterItem *> m_registerByName;
     DebuggerEngine * const m_engine;
 };
 
 } // namespace Internal
 } // namespace Debugger
-
-#endif // DEBUGGER_REGISTERHANDLER_H

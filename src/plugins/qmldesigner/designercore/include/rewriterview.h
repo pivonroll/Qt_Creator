@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,41 +9,37 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef REWRITERVIEW_H
-#define REWRITERVIEW_H
+#pragma once
 
 #include "qmldesignercorelib_global.h"
-#include "abstractview.h"
 #include "exception.h"
-#include <modelnodepositionstorage.h>
-#include <QMap>
+#include "abstractview.h"
+#include "documentmessage.h"
+
+#include <QScopedPointer>
+#include <QTimer>
 #include <QUrl>
 
-#include <modelnode.h>
-#include <QScopedPointer>
+#include <functional>
 
 namespace QmlJS {
-
-class DiagnosticMessage;
-class LookupContext;
 class Document;
 class ScopeChain;
 }
-
 
 namespace QmlDesigner {
 
@@ -57,43 +53,14 @@ class ModelNodePositionStorage;
 
 } //Internal
 
-class RewriterError {
-public:
-    enum Type {
-        NoError = 0,
-        InternalError = 1,
-        ParseError = 2
-    };
-
-public:
-    RewriterError();
-    RewriterError(const QmlJS::DiagnosticMessage &qmlError, const QUrl &document);
-    RewriterError(const QString &shortDescription);
-    RewriterError(Exception *exception);
-
-    Type type() const
-    { return m_type; }
-
-    int line() const
-    { return m_line; }
-
-    int column() const
-    { return m_column; }
-
-    QString description() const
-    { return m_description; }
-
-    QUrl url() const
-    { return m_url; }
-
-    QString toString() const;
-
-private:
-    Type m_type;
-    int m_line;
-    int m_column;
-    QString m_description;
-    QUrl m_url;
+struct CppTypeData
+{
+    QString superClassName;
+    QString importUrl;
+    QString versionString;
+    QString cppClassName;
+    QString typeName;
+    bool isSingleton = false;
 };
 
 class QMLDESIGNERCORE_EXPORT RewriterView : public AbstractView
@@ -125,6 +92,7 @@ public:
     void nodeIdChanged(const ModelNode& node, const QString& newId, const QString& oldId) override;
     void nodeOrderChanged(const NodeListProperty &listProperty, const ModelNode &movedNode, int oldIndex) override;
     void rootNodeTypeChanged(const QString &type, int majorVersion, int minorVersion) override;
+    void nodeTypeChanged(const ModelNode& node, const TypeName &type, int majorVersion, int minorVersion) override;
     void customNotification(const AbstractView *view, const QString &identifier,
                             const QList<ModelNode> &nodeList,
                             const QList<QVariant> &data) override;
@@ -141,13 +109,14 @@ public:
     void reactivateTextMofifierChangeSignals();
     void deactivateTextMofifierChangeSignals();
 
-    Internal::ModelNodePositionStorage *positionStorage() const
-    { return m_positionStorage; }
+    Internal::ModelNodePositionStorage *positionStorage() const;
 
-    QList<RewriterError> errors() const;
-    void clearErrors();
-    void setErrors(const QList<RewriterError> &errors);
-    void addError(const RewriterError &error);
+    QList<DocumentMessage> warnings() const;
+    QList<DocumentMessage> errors() const;
+    void clearErrorAndWarnings();
+    void setErrors(const QList<DocumentMessage> &errors);
+    void setWarnings(const QList<DocumentMessage> &warnings);
+    void addError(const DocumentMessage &error);
 
     void enterErrorState(const QString &errorMessage);
     bool inErrorState() const { return !m_rewritingErrorMessage.isEmpty(); }
@@ -181,8 +150,13 @@ public:
 
     QSet<QPair<QString, QString> > qrcMapping() const;
 
-signals:
-    void errorsChanged(const QList<RewriterError> &errors);
+    void moveToComponent(const ModelNode &modelNode);
+
+    QStringList autoComplete(const QString &text, int pos, bool explicitComplete = true);
+
+    QList<CppTypeData> getCppTypes();
+
+    void setWidgetStatusCallback(std::function<void(bool)> setWidgetStatusCallback);
 
 public slots:
     void qmlTextChanged();
@@ -198,22 +172,27 @@ protected: // functions
     void setModificationGroupActive(bool active);
     void applyModificationGroupChanges();
     void applyChanges();
+    void amendQmlText();
+    void notifyErrorsAndWarnings(const QList<DocumentMessage> &errors);
 
 private: //variables
+    TextModifier *m_textModifier = nullptr;
+    int transactionLevel = 0;
+    bool m_modificationGroupActive = false;
+    bool m_checkErrors = true;
+
     DifferenceHandling m_differenceHandling;
-    bool m_modificationGroupActive;
-    Internal::ModelNodePositionStorage *m_positionStorage;
+    QScopedPointer<Internal::ModelNodePositionStorage> m_positionStorage;
     QScopedPointer<Internal::ModelToTextMerger> m_modelToTextMerger;
     QScopedPointer<Internal::TextToModelMerger> m_textToModelMerger;
-    TextModifier *m_textModifier;
-    QList<RewriterError> m_errors;
-    int transactionLevel;
+    QList<DocumentMessage> m_errors;
+    QList<DocumentMessage> m_warnings;
     RewriterTransaction m_removeDefaultPropertyTransaction;
     QString m_rewritingErrorMessage;
-    QString lastCorrectQmlSource;
-    bool m_checkErrors;
+    QString m_lastCorrectQmlSource;
+    QTimer m_amendTimer;
+    bool m_instantQmlTextUpdate = false;
+    std::function<void(bool)> m_setWidgetStatusCallback;
 };
 
 } //QmlDesigner
-
-#endif // REWRITERVIEW_H

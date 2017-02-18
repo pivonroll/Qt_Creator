@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,60 +9,67 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef CLANGBACKEND_ECHOMESSAGE_H
-#define CLANGBACKEND_ECHOMESSAGE_H
+#pragma once
 
 #include "clangbackendipc_global.h"
 
-#include <QMetaType>
-#include <QVariant>
+#include "messageenvelop.h"
 
 namespace ClangBackEnd {
 
-class CMBIPC_EXPORT EchoMessage
+class EchoMessage
 {
-    friend CMBIPC_EXPORT QDataStream &operator>>(QDataStream &in, EchoMessage &message);
-    friend CMBIPC_EXPORT bool operator==(const EchoMessage &first, const EchoMessage &second);
-    friend CMBIPC_EXPORT bool operator<(const EchoMessage &first, const EchoMessage &second);
 public:
     EchoMessage() = default;
-    explicit EchoMessage(const QVariant &message);
+    explicit EchoMessage(const MessageEnvelop &message)
+        : message_(message)
+    {
+    }
 
-    const QVariant &message() const;
+    const MessageEnvelop &message() const
+    {
+        return message_;
+    }
+
+    friend QDataStream &operator<<(QDataStream &out, const EchoMessage &message)
+    {
+        out << message.message();
+
+        return out;
+    }
+
+    friend QDataStream &operator>>(QDataStream &in, EchoMessage &message)
+    {
+        in >> message.message_;
+
+        return in;
+    }
+
+    friend bool operator==(const EchoMessage &first, const EchoMessage &second)
+    {
+        return first.message_ == second.message_;
+    }
 
 private:
-    QVariant message_;
+    MessageEnvelop message_;
 };
-
-CMBIPC_EXPORT QDataStream &operator<<(QDataStream &out, const EchoMessage &message);
-CMBIPC_EXPORT QDataStream &operator>>(QDataStream &in, EchoMessage &message);
-CMBIPC_EXPORT bool operator==(const EchoMessage &first, const EchoMessage &second);
-CMBIPC_EXPORT bool operator<(const EchoMessage &first, const EchoMessage &second);
 
 CMBIPC_EXPORT QDebug operator<<(QDebug debug, const EchoMessage &message);
 void PrintTo(const EchoMessage &message, ::std::ostream* os);
 
+DECLARE_MESSAGE(EchoMessage)
 } // namespace ClangBackEnd
-
-Q_DECLARE_METATYPE(ClangBackEnd::EchoMessage)
-
-#endif // CLANGBACKEND_ECHOMESSAGE_H

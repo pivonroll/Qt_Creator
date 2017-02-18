@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef HELPPLUGIN_H
-#define HELPPLUGIN_H
+#pragma once
 
 #include "helpwidget.h"
 
@@ -48,7 +42,6 @@ class QUrl;
 QT_END_NAMESPACE
 
 namespace Core {
-class IMode;
 class MiniSplitter;
 class SideBar;
 class SideBarItem;
@@ -82,10 +75,12 @@ public:
     void extensionsInitialized();
     ShutdownFlag aboutToShutdown();
 
+    static HelpViewer *viewerForHelpViewerLocation(Core::HelpManager::HelpViewerLocation location);
+
     static HelpViewer *createHelpViewer(qreal zoom);
 
-private slots:
-    void modeChanged(Core::IMode *mode, Core::IMode *old);
+private:
+    void modeChanged(Core::Id mode, Core::Id old);
 
     void showContextHelp();
     void activateIndex();
@@ -96,7 +91,6 @@ private slots:
     void showLinksInHelpMode(const QMap<QString, QUrl> &links, const QString &key);
     void slotHideRightPane();
 
-    void updateSideBarSource();
     void updateSideBarSource(const QUrl &newUrl);
 
     void setupHelpEngineIfNeeded();
@@ -106,12 +100,11 @@ private slots:
 
     void slotOpenSupportPage();
     void slotReportBug();
+    void slotSystemInformation();
 
-private:
     void resetFilter();
-    void activateHelpMode();
-    bool canShowHelpSideBySide() const;
-    HelpViewer *viewerForHelpViewerLocation(Core::HelpManager::HelpViewerLocation location);
+    static void activateHelpMode();
+    static bool canShowHelpSideBySide();
     HelpViewer *viewerForContextHelp();
     HelpWidget *createHelpWidget(const Core::Context &context, HelpWidget::WidgetStyle style);
     void createRightPaneContextViewer();
@@ -119,18 +112,17 @@ private:
 
     void doSetupIfNeeded();
 
-private:
-    HelpMode *m_mode;
-    CentralWidget *m_centralWidget;
-    HelpWidget *m_rightPaneSideBarWidget;
+    HelpMode *m_mode = nullptr;
+    CentralWidget *m_centralWidget = nullptr;
+    HelpWidget *m_rightPaneSideBarWidget = nullptr;
 
-    DocSettingsPage *m_docSettingsPage;
-    FilterSettingsPage *m_filterSettingsPage;
-    SearchTaskHandler *m_searchTaskHandler;
+    DocSettingsPage *m_docSettingsPage = nullptr;
+    FilterSettingsPage *m_filterSettingsPage = nullptr;
+    SearchTaskHandler *m_searchTaskHandler = nullptr;
 
-    bool m_setupNeeded;
-    LocalHelpManager *m_helpManager;
-    OpenPagesManager *m_openPagesManager;
+    bool m_setupNeeded = true;
+    LocalHelpManager *m_helpManager = nullptr;
+    OpenPagesManager *m_openPagesManager = nullptr;
 
     QString m_contextHelpHighlightId;
 
@@ -140,5 +132,3 @@ private:
 
 } // namespace Internal
 } // namespace Help
-
-#endif // HELPPLUGIN_H

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,28 +9,25 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 import QtQuick 2.1
 import QtQuick.Controls 1.2
 import QtQuick.Controls.Styles 1.2
+
+import TimelineTheme 1.0
 
 Item {
     id: labelContainer
@@ -39,7 +36,7 @@ Item {
     property QtObject notesModel
     property string text: model ? model.displayName : ""
     property bool expanded: model && model.expanded
-    property var labels: model ? model.labels : []
+    property var labels: (expanded && model) ? model.labels : []
 
     property bool dragging
     property int visualIndex
@@ -63,6 +60,7 @@ Item {
         cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         drag.minimumY: dragging ? 0 : -dragOffset // Account for parent change below
         drag.maximumY: draggerParent.height - (dragging ? 0 : dragOffset)
+        drag.axis: Drag.YAxis
     }
 
     DropArea {
@@ -85,11 +83,13 @@ Item {
 
     TimelineText {
         id: txt
-        x: 5
+        anchors.left: parent.left
+        anchors.leftMargin: 5
+        anchors.right: notesButton.visible ? notesButton.left : notesButton.right
+
         text: labelContainer.text
-        color: "#232323"
+        color: Theme.color(Theme.PanelTextColorLight)
         height: model ? model.defaultRowHeight : 0
-        width: 140
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
     }
@@ -100,7 +100,7 @@ Item {
         anchors.top: txt.bottom
         visible: expanded
         Repeater {
-            model: labels.length
+            model: expanded ? labels.length : 0
             SynchronousReloader {
                 id: loader
                 asynchronous: dragOffset - draggerParent.contentY + y + txt.height >
@@ -128,11 +128,10 @@ Item {
         }
     }
 
-    ToolButton {
+    ImageToolButton {
         id: notesButton
         anchors.verticalCenter: txt.verticalCenter
         anchors.right: expandButton.left
-        implicitWidth: 17
         implicitHeight: txt.height - 1
         property var eventIds: []
         property var texts: []
@@ -158,7 +157,7 @@ Item {
         }
 
         visible: eventIds.length > 0
-        iconSource: "ico_note.png"
+        imageSource: "image://icons/note"
         tooltip: texts.join("\n");
         onClicked: {
             if (++currentNote >= eventIds.length)
@@ -167,14 +166,13 @@ Item {
         }
     }
 
-    ToolButton {
+    ImageToolButton {
         id: expandButton
         anchors.verticalCenter: txt.verticalCenter
         anchors.right: parent.right
-        implicitWidth: 17
         implicitHeight: txt.height - 1
         enabled: expanded || (model && !model.empty)
-        iconSource: expanded ? "arrow_down.png" : "arrow_right.png"
+        imageSource: expanded ? "image://icons/close_split" : "image://icons/split"
         tooltip: expanded ? qsTr("Collapse category") : qsTr("Expand category")
         onClicked: model.expanded = !expanded
     }
@@ -184,7 +182,7 @@ Item {
         property int visualIndex: labelContainer.visualIndex
         width: labelContainer.width
         height: 0
-        color: "black"
+        color: Theme.color(Theme.PanelStatusBarBackgroundColor)
         opacity: 0.5
         anchors.left: parent.left
 
@@ -223,7 +221,7 @@ Item {
             id: draggerText
             visible: parent.Drag.active
             x: txt.x
-            color: "white"
+            color: Theme.color(Theme.PanelTextColorLight)
             width: txt.width
             height: txt.height
             verticalAlignment: txt.verticalAlignment

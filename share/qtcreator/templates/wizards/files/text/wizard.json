@@ -1,12 +1,11 @@
 {
     "version": 1,
-    "kind": "file",
+    "supportedProjectTypes": [ ],
     "id": "F.EmptyText",
     "category": "U.General",
     "trDescription": "Creates an empty file.",
     "trDisplayName": "Empty File",
     "trDisplayCategory": "General",
-    "icon": "../../global/genericfilewizard.png",
     "platformIndependent": true,
     "enabled": "%{JS: [ %{Plugins} ].indexOf('TextEditor') >= 0}",
 

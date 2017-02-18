@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,19 +28,12 @@
 #include <coreplugin/messagebox.h>
 
 #include <debugger/debuggerprotocol.h>
-#include <debugger/debuggerstringutils.h>
 #include <debugger/debuggerstartparameters.h>
 
 #include <utils/qtcassert.h>
 
 namespace Debugger {
 namespace Internal {
-
-///////////////////////////////////////////////////////////////////////
-//
-// AttachGdbAdapter
-//
-///////////////////////////////////////////////////////////////////////
 
 GdbAttachEngine::GdbAttachEngine(const DebuggerRunParameters &startParameters)
     : GdbEngine(startParameters)
@@ -55,10 +43,7 @@ GdbAttachEngine::GdbAttachEngine(const DebuggerRunParameters &startParameters)
 void GdbAttachEngine::setupEngine()
 {
     QTC_ASSERT(state() == EngineSetupRequested, qDebug() << state());
-    showMessage(_("TRYING TO START ADAPTER"));
-
-    if (!runParameters().workingDirectory.isEmpty())
-        m_gdbProc.setWorkingDirectory(runParameters().workingDirectory);
+    showMessage("TRYING TO START ADAPTER");
 
     startGdb();
 }
@@ -75,10 +60,16 @@ void GdbAttachEngine::runEngine()
 {
     QTC_ASSERT(state() == EngineRunRequested, qDebug() << state());
     const qint64 pid = runParameters().attachPID;
-    DebuggerCommand cmd("attach " + QByteArray::number(pid));
-    cmd.callback = [this](const DebuggerResponse &r) { handleAttach(r); };
-    runCommand(cmd);
-    showStatusMessage(tr("Attached to process %1.").arg(inferiorPid()));
+    showStatusMessage(tr("Attaching to process %1.").arg(pid));
+    runCommand({"attach " + QString::number(pid),
+                [this](const DebuggerResponse &r) { handleAttach(r); }});
+    // In some cases we get only output like
+    //   "Could not attach to process.  If your uid matches the uid of the target\n"
+    //   "process, check the setting of /proc/sys/kernel/yama/ptrace_scope, or try\n"
+    //   " again as the root user.  For more details, see /etc/sysctl.d/10-ptrace.conf\n"
+    //   " ptrace: Operation not permitted.\n"
+    // but no(!) ^ response. Use a second command to force *some* output
+    runCommand({"print 24"});
 }
 
 void GdbAttachEngine::handleAttach(const DebuggerResponse &response)
@@ -88,7 +79,7 @@ void GdbAttachEngine::handleAttach(const DebuggerResponse &response)
     switch (response.resultClass) {
     case ResultDone:
     case ResultRunning:
-        showMessage(_("INFERIOR ATTACHED"));
+        showMessage("INFERIOR ATTACHED");
         if (state() == EngineRunRequested) {
             // Happens e.g. for "Attach to unstarted application"
             // We will get a '*stopped' later that we'll interpret as 'spontaneous'
@@ -114,10 +105,11 @@ void GdbAttachEngine::handleAttach(const DebuggerResponse &response)
         // if msg != "ptrace: ..." fall through
     default:
         showStatusMessage(tr("Failed to attach to application: %1")
-                          .arg(QString::fromLocal8Bit(response.data["msg"].data())));
+                          .arg(QString(response.data["msg"].data())));
         notifyEngineIll();
     }
 }
+
 
 void GdbAttachEngine::interruptInferior2()
 {

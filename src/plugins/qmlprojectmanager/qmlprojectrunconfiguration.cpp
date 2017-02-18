@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -57,7 +52,7 @@ namespace QmlProjectManager {
 const char M_CURRENT_FILE[] = "CurrentFile";
 
 QmlProjectRunConfiguration::QmlProjectRunConfiguration(Target *parent, Id id) :
-    LocalApplicationRunConfiguration(parent, id),
+    RunConfiguration(parent, id),
     m_scriptFile(QLatin1String(M_CURRENT_FILE)),
     m_isEnabled(false)
 {
@@ -66,9 +61,21 @@ QmlProjectRunConfiguration::QmlProjectRunConfiguration(Target *parent, Id id) :
     ctor();
 }
 
+Runnable QmlProjectRunConfiguration::runnable() const
+{
+    StandardRunnable r;
+    r.executable = executable();
+    r.commandLineArguments = commandLineArguments();
+    r.runMode = ApplicationLauncher::Gui;
+    r.environment = extraAspect<QmlProjectEnvironmentAspect>()->environment();
+    r.workingDirectory = canonicalCapsPath(target()->project()->projectFilePath()
+                                           .toFileInfo().absolutePath());
+    return r;
+}
+
 QmlProjectRunConfiguration::QmlProjectRunConfiguration(Target *parent,
                                                        QmlProjectRunConfiguration *source) :
-    LocalApplicationRunConfiguration(parent, source),
+    RunConfiguration(parent, source),
     m_currentFileFilename(source->m_currentFileFilename),
     m_mainScriptFilename(source->m_mainScriptFilename),
     m_scriptFile(source->m_scriptFile),
@@ -93,13 +100,13 @@ QString QmlProjectRunConfiguration::disabledReason() const
 void QmlProjectRunConfiguration::ctor()
 {
     // reset default settings in constructor
-    connect(EditorManager::instance(), SIGNAL(currentEditorChanged(Core::IEditor*)),
-            this, SLOT(changeCurrentFile(Core::IEditor*)));
-    connect(EditorManager::instance(), SIGNAL(currentDocumentStateChanged()),
-            this, SLOT(changeCurrentFile()));
+    connect(EditorManager::instance(), &EditorManager::currentEditorChanged,
+            this, &QmlProjectRunConfiguration::changeCurrentFile);
+    connect(EditorManager::instance(), &EditorManager::currentDocumentStateChanged,
+            this, [this] { changeCurrentFile(); });
 
-    connect(target(), SIGNAL(kitChanged()),
-            this, SLOT(updateEnabled()));
+    connect(target(), &Target::kitChanged,
+            this, &QmlProjectRunConfiguration::updateEnabled);
 
     if (id() == Constants::QML_SCENE_RC_ID)
         setDisplayName(tr("QML Scene", "QMLRunConfiguration display name."));
@@ -117,11 +124,6 @@ QString QmlProjectRunConfiguration::executable() const
     if (id() == Constants::QML_SCENE_RC_ID)
         return version->qmlsceneCommand();
     return version->qmlviewerCommand();
-}
-
-ApplicationLauncher::Mode QmlProjectRunConfiguration::runMode() const
-{
-    return ApplicationLauncher::Gui;
 }
 
 QString QmlProjectRunConfiguration::commandLineArguments() const
@@ -142,11 +144,6 @@ QString QmlProjectRunConfiguration::commandLineArguments() const
         Utils::QtcProcess::addArg(&args, s);
     }
     return args;
-}
-
-QString QmlProjectRunConfiguration::workingDirectory() const
-{
-    return canonicalCapsPath(target()->project()->projectFilePath().toFileInfo().absolutePath());
 }
 
 /* QtDeclarative checks explicitly that the capitalization for any URL / path

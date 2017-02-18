@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -46,7 +46,7 @@ RowLayout {
 
     signal targetChanged
 
-    property bool verticalAnchor: true
+    property bool verticalAnchor
 
     property bool invertRelativeTargets: false
 
@@ -56,6 +56,9 @@ RowLayout {
     signal centerButtonClicked
     signal oppositeEdgeButtonClicked
 
+    property alias buttonRow: buttonRow
+
+    readonly property color __defaultTextColor: creatorTheme.PanelTextColorLight
 
     IconLabel {
         id: icon
@@ -69,9 +72,9 @@ RowLayout {
 
         Controls.Label {
             text: qsTr("Target")
-            color: "#eee"
+            color: __defaultTextColor
             elide: Text.ElideRight
-            Layout.minimumWidth: Math.min(60, preferredWidth + 10)
+            Layout.minimumWidth: Math.min(60, Layout.preferredWidth + 10)
         }
 
         TargetComboBox {
@@ -83,9 +86,9 @@ RowLayout {
 
         Controls.Label {
             text: "Margin"
-            color: "#eee"
+            color: __defaultTextColor
             elide: Text.ElideRight
-            Layout.minimumWidth: Math.min(60, preferredWidth + 10)
+            Layout.minimumWidth: Math.min(60, Layout.preferredWidth + 10)
         }
 
         RowLayout {
@@ -125,7 +128,8 @@ RowLayout {
 
                 exclusive: true
                 ButtonRowButton {
-                    iconSource: verticalAnchor ? "../HelperWidgets/images/anchor-top.png" : "../HelperWidgets/images/anchor-left.png"
+                    iconSource: "image://icons/anchor-" + (verticalAnchor ? "top" : "left")
+                    tooltip: verticalAnchor ? qsTr("Anchor to the top of the target.") : qsTr("Anchor to the left of the target.")
                     onClicked: {
                         if (!invertRelativeTargets)
                             sameEdgeButtonClicked();
@@ -135,13 +139,15 @@ RowLayout {
                 }
 
                 ButtonRowButton {
-                    iconSource: verticalAnchor ? "../HelperWidgets/images/anchor-vertical.png" : "../HelperWidgets/images/anchor-horizontal.png"
+                    iconSource: "image://icons/anchor-" + (verticalAnchor ? "vertical" : "horizontal")
+                    tooltip: verticalAnchor ? qsTr("Anchor to the vertical center of the target.") : qsTr("Anchor to the horizontal center of the target.")
 
                     onClicked: centerButtonClicked();
                 }
 
                 ButtonRowButton {
-                    iconSource: verticalAnchor ? "../HelperWidgets/images/anchor-bottom.png" : "../HelperWidgets/images/anchor-right.png"
+                    iconSource: "image://icons/anchor-" + (verticalAnchor ? "bottom" : "right")
+                    tooltip: verticalAnchor ? qsTr("Anchor to the bottom of the target.") : qsTr("Anchor to the right of the target.")
                     onClicked: {
                         if (!invertRelativeTargets)
                             oppositeEdgeButtonClicked();

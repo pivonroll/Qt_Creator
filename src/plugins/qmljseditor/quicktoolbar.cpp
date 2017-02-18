@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,22 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "quicktoolbar.h"
-#include "quicktoolbarsettingspage.h"
+#include "qmljseditingsettingspage.h"
 
 #include <utils/changeset.h>
 #include <qmleditorwidgets/contextpanewidget.h>
@@ -119,7 +114,7 @@ QuickToolBar::~QuickToolBar()
 
 void QuickToolBar::apply(TextEditor::TextEditorWidget *editorWidget, Document::Ptr document, const ScopeChain *scopeChain, Node *node, bool update, bool force)
 {
-    if (!QuickToolBarSettings::get().enableContextPane && !force && !update) {
+    if (!QmlJsEditingSettings::get().enableContextPane() && !force && !update) {
         contextWidget()->hide();
         return;
     }
@@ -224,10 +219,10 @@ void QuickToolBar::apply(TextEditor::TextEditorWidget *editorWidget, Document::P
             if (!update)
                 contextWidget()->setType(m_prototypes);
             if (!update)
-                contextWidget()->activate(p3 , p1, p2, QuickToolBarSettings::get().pinContextPane);
+                contextWidget()->activate(p3 , p1, p2, QmlJsEditingSettings::get().pinContextPane());
             else
-                contextWidget()->rePosition(p3 , p1, p2, QuickToolBarSettings::get().pinContextPane);
-            contextWidget()->setOptions(QuickToolBarSettings::get().enableContextPane, QuickToolBarSettings::get().pinContextPane);
+                contextWidget()->rePosition(p3 , p1, p2, QmlJsEditingSettings::get().pinContextPane());
+            contextWidget()->setOptions(QmlJsEditingSettings::get().enableContextPane(), QmlJsEditingSettings::get().pinContextPane());
             contextWidget()->setPath(document->path());
             contextWidget()->setProperties(&propertyReader);
             m_doc = document;
@@ -409,16 +404,16 @@ void QuickToolBar::onPropertyRemovedAndChange(const QString &remove, const QStri
 
 void QuickToolBar::onPinnedChanged(bool b)
 {
-    QuickToolBarSettings settings = QuickToolBarSettings::get();
-    settings.pinContextPane = b;
+    QmlJsEditingSettings settings = QmlJsEditingSettings::get();
+    settings.setPinContextPane(b);
     settings.set();
 }
 
 void QuickToolBar::onEnabledChanged(bool b)
 {
-    QuickToolBarSettings settings = QuickToolBarSettings::get();
-    settings.pinContextPane = b;
-    settings.enableContextPane = b;
+    QmlJsEditingSettings settings = QmlJsEditingSettings::get();
+    settings.setPinContextPane(b);
+    settings.setEnableContextPane(b);
     settings.set();
 }
 
@@ -441,12 +436,17 @@ ContextPaneWidget* QuickToolBar::contextWidget()
 {
     if (m_widget.isNull()) { //lazily recreate widget
         m_widget = new ContextPaneWidget;
-        connect(m_widget.data(), SIGNAL(propertyChanged(QString,QVariant)), this, SLOT(onPropertyChanged(QString,QVariant)));
-        connect(m_widget.data(), SIGNAL(removeProperty(QString)), this, SLOT(onPropertyRemoved(QString)));
-        connect(m_widget.data(), SIGNAL(removeAndChangeProperty(QString,QString,QVariant,bool)), this, SLOT(onPropertyRemovedAndChange(QString,QString,QVariant,bool)));
-        connect(m_widget.data(), SIGNAL(enabledChanged(bool)), this, SLOT(onEnabledChanged(bool)));
-        connect(m_widget.data(), SIGNAL(pinnedChanged(bool)), this, SLOT(onPinnedChanged(bool)));
-        connect(m_widget.data(), SIGNAL(closed()), this, SIGNAL(closed()));
+        connect(m_widget.data(), &ContextPaneWidget::propertyChanged,
+                this, &QuickToolBar::onPropertyChanged);
+        connect(m_widget.data(), &ContextPaneWidget::removeProperty,
+                this, &QuickToolBar::onPropertyRemoved);
+        connect(m_widget.data(), &ContextPaneWidget::removeAndChangeProperty,
+                this, &QuickToolBar::onPropertyRemovedAndChange);
+        connect(m_widget.data(), &ContextPaneWidget::enabledChanged,
+                this, &QuickToolBar::onEnabledChanged);
+        connect(m_widget.data(), &ContextPaneWidget::pinnedChanged,
+                this, &QuickToolBar::onPinnedChanged);
+        connect(m_widget.data(), &ContextPaneWidget::closed, this, &IContextPane::closed);
     }
     return m_widget.data();
 }

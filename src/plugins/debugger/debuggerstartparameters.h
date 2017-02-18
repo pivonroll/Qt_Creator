@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,35 +9,31 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGER_DEBUGGERSTARTPARAMETERS_H
-#define DEBUGGER_DEBUGGERSTARTPARAMETERS_H
+#pragma once
 
 #include "debugger_global.h"
 #include "debuggerconstants.h"
 
 #include <ssh/sshconnection.h>
 #include <utils/environment.h>
+#include <utils/port.h>
 #include <projectexplorer/abi.h>
 #include <projectexplorer/runconfiguration.h>
+#include <projectexplorer/runnables.h>
 #include <projectexplorer/devicesupport/idevice.h>
 
 #include <QMetaType>
@@ -49,78 +45,81 @@ namespace Debugger {
 // Note: This is part of the "soft interface" of the debugger plugin.
 // Do not add anything that needs implementation in a .cpp file.
 
-const int InvalidPort = -1;
 const qint64 InvalidPid = -1;
 
 class DEBUGGER_EXPORT RemoteSetupResult
 {
 public:
-    RemoteSetupResult()
-      : gdbServerPort(InvalidPort),
-        qmlServerPort(InvalidPort),
-        inferiorPid(InvalidPid),
-        success(false)
-    {}
-
-    int gdbServerPort;
-    int qmlServerPort;
-    qint64 inferiorPid;
-    bool success;
+    Utils::Port gdbServerPort;
+    Utils::Port qmlServerPort;
+    qint64 inferiorPid = InvalidPid;
+    bool success = false;
     QString reason;
+};
+
+class DEBUGGER_EXPORT TcpServerConnection
+{
+public:
+    QString host;
+    Utils::Port port;
 };
 
 class DEBUGGER_EXPORT DebuggerStartParameters
 {
 public:
-    DebuggerStartParameters() {}
-
     DebuggerStartMode startMode = NoStartMode;
     DebuggerCloseMode closeMode = KillAtClose;
 
-    QString executable;
+    ProjectExplorer::StandardRunnable inferior;
     QString displayName; // Used in the Snapshots view.
-    QString processArgs;
-    Utils::Environment environment;
-    QString workingDirectory;
+    Utils::Environment stubEnvironment;
     qint64 attachPID = InvalidPid;
     QStringList solibSearchPath;
     bool useTerminal = false;
 
     // Used by Qml debugging.
-    QString qmlServerAddress;
-    quint16 qmlServerPort;
+    TcpServerConnection qmlServer;
 
     // Used by general remote debugging.
     QString remoteChannel;
     QSsh::SshConnectionParameters connParams;
     bool remoteSetupNeeded = false;
+    bool useExtendedRemote = false; // Whether to use GDB's target extended-remote or not.
+    QString symbolFile;
+
+    // Used by Mer plugin (3rd party)
+    QMap<QString, QString> sourcePathMap;
 
     // Used by baremetal plugin
-    QByteArray commandsForReset; // commands used for resetting the inferior
+    QString commandsForReset; // commands used for resetting the inferior
     bool useContinueInsteadOfRun = false; // if connected to a hw debugger run is not possible but continue is used
-    QByteArray commandsAfterConnect; // additional commands to post after connection to debug target
+    QString commandsAfterConnect; // additional commands to post after connection to debug target
 
     // Used by Valgrind
-    QVector<QByteArray> expectedSignals;
+    QStringList expectedSignals;
 
     // For QNX debugging
-    QString remoteExecutable;
     bool useCtrlCStub = false;
 
     // Used by Android to avoid false positives on warnOnRelease
     bool skipExecutableValidation = false;
+    bool useTargetAsync = false;
     QStringList additionalSearchDirectories;
 
     // Used by iOS.
     QString platform;
     QString deviceSymbolsRoot;
     bool continueAfterAttach = false;
+    QString sysRoot;
+
+    // Used by general core file debugging. Public access requested in QTCREATORBUG-17158.
+    QString coreFile;
+
+    // Macro-expanded and passed to debugger startup.
+    QString additionalStartupCommands;
 };
 
 } // namespace Debugger
 
 Q_DECLARE_METATYPE(Debugger::RemoteSetupResult)
 Q_DECLARE_METATYPE(Debugger::DebuggerStartParameters)
-
-#endif // DEBUGGER_DEBUGGERSTARTPARAMETERS_H
-

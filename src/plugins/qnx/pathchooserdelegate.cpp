@@ -1,8 +1,6 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2012 - 2014 BlackBerry Limited. All rights reserved.
-**
-** Contact: BlackBerry (qt@blackberry.com)
+** Copyright (C) 2016 BlackBerry Limited. All rights reserved.
 ** Contact: KDAB (info@kdab.com)
 **
 ** This file is part of Qt Creator.
@@ -11,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,8 +28,8 @@
 #include <utils/pathchooser.h>
 #include <utils/fancylineedit.h>
 
-using namespace Qnx;
-using namespace Qnx::Internal;
+namespace Qnx {
+namespace Internal {
 
 PathChooserDelegate::PathChooserDelegate(QObject *parent)
     : QStyledItemDelegate(parent)
@@ -65,7 +58,9 @@ QWidget *PathChooserDelegate::createEditor(QWidget *parent, const QStyleOptionVi
     editor->setAutoFillBackground(true); // To hide the text beneath the editor widget
     editor->lineEdit()->setMinimumWidth(0);
 
-    connect(editor, SIGNAL(browsingFinished()), this, SLOT(emitCommitData()));
+    connect(editor, &Utils::PathChooser::browsingFinished, this, [this, editor]() {
+        emit const_cast<PathChooserDelegate*>(this)->commitData(editor);
+    });
 
     return editor;
 }
@@ -104,7 +99,5 @@ void PathChooserDelegate::setHistoryCompleter(const QString &key)
     m_historyKey = key;
 }
 
-void PathChooserDelegate::emitCommitData()
-{
-    emit commitData(qobject_cast<QWidget*>(sender()));
-}
+} // namespace Internal
+} // namespace Qnx

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,6 +35,9 @@
 #include "bindingproperty.h"
 #include "nodelistproperty.h"
 #include "nodeinstanceview.h"
+#ifndef QMLDESIGNER_TEST
+#include <qmldesignerplugin.h>
+#endif
 
 namespace QmlDesigner {
 
@@ -186,7 +189,7 @@ bool QmlObjectNode::isTranslatableText(const PropertyName &name) const
     if (modelNode().metaInfo().isValid() && modelNode().metaInfo().hasProperty(name))
         if (modelNode().metaInfo().propertyTypeName(name) == "QString" || modelNode().metaInfo().propertyTypeName(name) == "string") {
             if (modelNode().hasBindingProperty(name)) {
-                static QRegExp regularExpressionPatter(QLatin1String("qsTr\\((\".*\")\\)"));
+                static QRegExp regularExpressionPatter(QLatin1String("qsTr(?:|Id)\\((\".*\")\\)"));
                 return regularExpressionPatter.exactMatch(modelNode().bindingProperty(name).expression());
             }
 
@@ -199,7 +202,7 @@ bool QmlObjectNode::isTranslatableText(const PropertyName &name) const
 QString QmlObjectNode::stripedTranslatableText(const PropertyName &name) const
 {
     if (modelNode().hasBindingProperty(name)) {
-        static QRegExp regularExpressionPatter(QLatin1String("qsTr\\(\"(.*)\"\\)"));
+        static QRegExp regularExpressionPatter(QLatin1String("qsTr(?:|Id)\\(\"(.*)\"\\)"));
         if (regularExpressionPatter.exactMatch(modelNode().bindingProperty(name).expression()))
             return regularExpressionPatter.cap(1);
     } else {
@@ -305,6 +308,35 @@ void QmlObjectNode::destroy()
     }
     removeStateOperationsForChildren(modelNode());
     modelNode().destroy();
+}
+
+void QmlObjectNode::ensureAliasExport()
+{
+    if (!isValid())
+        throw new InvalidModelNodeException(__LINE__, __FUNCTION__, __FILE__);
+
+    if (!isAliasExported()) {
+        modelNode().validId();
+        ModelNode rootModelNode = view()->rootModelNode();
+        rootModelNode.bindingProperty(modelNode().id().toUtf8()).
+            setDynamicTypeNameAndExpression("alias", modelNode().id());
+    }
+}
+
+bool QmlObjectNode::isAliasExported() const
+{
+
+    if (modelNode().isValid() && !modelNode().id().isEmpty()) {
+         PropertyName modelNodeId = modelNode().id().toUtf8();
+         ModelNode rootModelNode = view()->rootModelNode();
+         Q_ASSERT(rootModelNode.isValid());
+         if (rootModelNode.hasBindingProperty(modelNodeId)
+                 && rootModelNode.bindingProperty(modelNodeId).isDynamic()
+                 && rootModelNode.bindingProperty(modelNodeId).expression() == modelNode().id())
+             return true;
+    }
+
+    return false;
 }
 
 /*!
@@ -433,7 +465,25 @@ QVariant QmlObjectNode::instanceValue(const ModelNode &modelNode, const Property
 
 QString QmlObjectNode::generateTranslatableText(const QString &text)
 {
+#ifndef QMLDESIGNER_TEST
+
+    if (QmlDesignerPlugin::instance()->settings().value(
+            DesignerSettingsKey::TYPE_OF_QSTR_FUNCTION).toInt())
+
+        switch (QmlDesignerPlugin::instance()->settings().value(
+                    DesignerSettingsKey::TYPE_OF_QSTR_FUNCTION).toInt()) {
+        case 0: return QString(QStringLiteral("qsTr(\"%1\")")).arg(text);
+        case 1: return QString(QStringLiteral("qsTrId(\"%1\")")).arg(text);
+        case 2: return QString(QStringLiteral("qsTranslate(\"\"\"%1\")")).arg(text);
+        default:
+            break;
+
+        }
     return QString(QStringLiteral("qsTr(\"%1\")")).arg(text);
+#else
+    Q_UNUSED(text);
+    return QString();
+#endif
 }
 
 TypeName QmlObjectNode::instanceType(const PropertyName &name) const

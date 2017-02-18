@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -39,28 +34,37 @@
 #include "cppfollowsymbolundercursor.h"
 #include "cpphighlighter.h"
 #include "cpplocalrenaming.h"
+#include "cppminimizableinfobars.h"
 #include "cpppreprocessordialog.h"
 #include "cppquickfixassistant.h"
 #include "cppuseselectionsupdater.h"
+
+#include <clangbackendipc/sourcelocationscontainer.h>
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/editormanager/documentmodel.h>
+#include <coreplugin/infobar.h>
 
 #include <cpptools/cppchecksymbols.h>
 #include <cpptools/cppcodeformatter.h>
 #include <cpptools/cppcompletionassistprovider.h>
 #include <cpptools/cppeditoroutline.h>
 #include <cpptools/cppmodelmanager.h>
+#include <cpptools/cppselectionchanger.h>
 #include <cpptools/cppsemanticinfo.h>
 #include <cpptools/cpptoolsconstants.h>
 #include <cpptools/cpptoolsplugin.h>
 #include <cpptools/cpptoolsreuse.h>
+#include <cpptools/cpptoolssettings.h>
 #include <cpptools/cppworkingcopy.h>
 #include <cpptools/symbolfinder.h>
+#include <cpptools/refactoringengineinterface.h>
 
+#include <texteditor/behaviorsettings.h>
 #include <texteditor/completionsettings.h>
+#include <texteditor/convenience.h>
 #include <texteditor/textdocument.h>
 #include <texteditor/textdocumentlayout.h>
 #include <texteditor/texteditorsettings.h>
@@ -70,15 +74,20 @@
 #include <texteditor/fontsettings.h>
 #include <texteditor/refactoroverlay.h>
 
-#include <cplusplus/ASTPath.h>
-#include <utils/qtcassert.h>
+#include <projectexplorer/projecttree.h>
 
+#include <cplusplus/ASTPath.h>
+#include <cplusplus/FastPreprocessor.h>
+#include <cplusplus/MatchingText.h>
+#include <utils/qtcassert.h>
+#include <utils/utilsicons.h>
+
+#include <QApplication>
 #include <QAction>
 #include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QMenu>
 #include <QPointer>
-#include <QSignalMapper>
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
@@ -95,10 +104,8 @@ namespace Internal {
 
 CppEditor::CppEditor()
 {
-    addContext(ProjectExplorer::Constants::LANG_CXX);
+    addContext(ProjectExplorer::Constants::CXX_LANGUAGE_ID);
 }
-
-Q_GLOBAL_STATIC(CppTools::SymbolFinder, symbolFinder)
 
 class CppEditorWidgetPrivate
 {
@@ -116,7 +123,6 @@ public:
     CppLocalRenaming m_localRenaming;
 
     SemanticInfo m_lastSemanticInfo;
-    QuickFixOperations m_quickFixes;
 
     CppUseSelectionsUpdater m_useSelectionsUpdater;
 
@@ -124,7 +130,13 @@ public:
     QSharedPointer<FunctionDeclDefLink> m_declDefLink;
 
     QScopedPointer<FollowSymbolUnderCursor> m_followSymbolUnderCursor;
-    QToolButton *m_preprocessorButton;
+
+    QAction *m_parseContextAction = nullptr;
+    ParseContextWidget *m_parseContextWidget = nullptr;
+    QToolButton *m_preprocessorButton = nullptr;
+    MinimizableInfoBars::Actions m_showInfoBarActions;
+
+    CppSelectionChanger m_cppSelectionChanger;
 };
 
 CppEditorWidgetPrivate::CppEditorWidgetPrivate(CppEditorWidget *q)
@@ -135,7 +147,7 @@ CppEditorWidgetPrivate::CppEditorWidgetPrivate(CppEditorWidget *q)
     , m_useSelectionsUpdater(q)
     , m_declDefLinkFinder(new FunctionDeclDefLinkFinder(q))
     , m_followSymbolUnderCursor(new FollowSymbolUnderCursor(q))
-    , m_preprocessorButton(0)
+    , m_cppSelectionChanger()
 {
 }
 
@@ -159,65 +171,87 @@ void CppEditorWidget::finalizeInitialization()
             this, &CppEditorWidget::onCodeWarningsUpdated);
     connect(d->m_cppEditorDocument, &CppEditorDocument::ifdefedOutBlocksUpdated,
             this, &CppEditorWidget::onIfdefedOutBlocksUpdated);
-    connect(d->m_cppEditorDocument, SIGNAL(cppDocumentUpdated(CPlusPlus::Document::Ptr)),
-            this, SLOT(onCppDocumentUpdated()));
-    connect(d->m_cppEditorDocument, SIGNAL(semanticInfoUpdated(CppTools::SemanticInfo)),
-            this, SLOT(updateSemanticInfo(CppTools::SemanticInfo)));
+    connect(d->m_cppEditorDocument, &CppEditorDocument::cppDocumentUpdated,
+            this, &CppEditorWidget::onCppDocumentUpdated);
+    connect(d->m_cppEditorDocument, &CppEditorDocument::semanticInfoUpdated,
+            this, [this](const CppTools::SemanticInfo &info) { updateSemanticInfo(info); });
 
-    connect(d->m_declDefLinkFinder, SIGNAL(foundLink(QSharedPointer<FunctionDeclDefLink>)),
-            this, SLOT(onFunctionDeclDefLinkFound(QSharedPointer<FunctionDeclDefLink>)));
+    connect(d->m_declDefLinkFinder, &FunctionDeclDefLinkFinder::foundLink,
+            this, &CppEditorWidget::onFunctionDeclDefLinkFound);
 
     connect(&d->m_useSelectionsUpdater,
-            SIGNAL(selectionsForVariableUnderCursorUpdated(QList<QTextEdit::ExtraSelection>)),
+            &CppUseSelectionsUpdater::selectionsForVariableUnderCursorUpdated,
             &d->m_localRenaming,
-            SLOT(updateSelectionsForVariableUnderCursor(QList<QTextEdit::ExtraSelection>)));
+            &CppLocalRenaming::updateSelectionsForVariableUnderCursor);
 
-    connect(&d->m_useSelectionsUpdater, &CppUseSelectionsUpdater::finished,
+    connect(&d->m_useSelectionsUpdater, &CppUseSelectionsUpdater::finished, this,
             [this] (SemanticInfo::LocalUseMap localUses) {
                 QTC_CHECK(isSemanticInfoValidExceptLocalUses());
                 d->m_lastSemanticInfo.localUsesUpdated = true;
                 d->m_lastSemanticInfo.localUses = localUses;
     });
 
-    connect(document(), SIGNAL(contentsChange(int,int,int)),
-            &d->m_localRenaming, SLOT(onContentsChangeOfEditorWidgetDocument(int,int,int)));
+    connect(document(), &QTextDocument::contentsChange,
+            &d->m_localRenaming, &CppLocalRenaming::onContentsChangeOfEditorWidgetDocument);
     connect(&d->m_localRenaming, &CppLocalRenaming::finished, [this] {
         cppEditorDocument()->recalculateSemanticInfoDetached();
     });
     connect(&d->m_localRenaming, &CppLocalRenaming::processKeyPressNormally,
             this, &CppEditorWidget::processKeyNormally);
-    connect(this, SIGNAL(cursorPositionChanged()),
-            d->m_cppEditorOutline, SLOT(updateIndex()));
+    connect(this, &QPlainTextEdit::cursorPositionChanged,
+            d->m_cppEditorOutline, &CppEditorOutline::updateIndex);
 
-    connect(cppEditorDocument(), &CppEditorDocument::preprocessorSettingsChanged,
+    connect(cppEditorDocument(), &CppEditorDocument::preprocessorSettingsChanged, this,
             [this](bool customSettings) {
-        d->m_preprocessorButton->setProperty("highlightWidget", customSettings);
-        d->m_preprocessorButton->update();
+        updateWidgetHighlighting(d->m_preprocessorButton, customSettings);
     });
 
     // set up function declaration - definition link
     d->m_updateFunctionDeclDefLinkTimer.setSingleShot(true);
     d->m_updateFunctionDeclDefLinkTimer.setInterval(UPDATE_FUNCTION_DECL_DEF_LINK_INTERVAL);
-    connect(&d->m_updateFunctionDeclDefLinkTimer, SIGNAL(timeout()),
-            this, SLOT(updateFunctionDeclDefLinkNow()));
-    connect(this, SIGNAL(cursorPositionChanged()), this, SLOT(updateFunctionDeclDefLink()));
-    connect(this, SIGNAL(textChanged()), this, SLOT(updateFunctionDeclDefLink()));
+    connect(&d->m_updateFunctionDeclDefLinkTimer, &QTimer::timeout,
+            this, &CppEditorWidget::updateFunctionDeclDefLinkNow);
+    connect(this, &QPlainTextEdit::cursorPositionChanged, this, &CppEditorWidget::updateFunctionDeclDefLink);
+    connect(this, &QPlainTextEdit::textChanged, this, &CppEditorWidget::updateFunctionDeclDefLink);
 
     // set up the use highlighitng
-    connect(this, &CppEditorWidget::cursorPositionChanged, [this]() {
+    connect(this, &CppEditorWidget::cursorPositionChanged, this, [this]() {
         if (!d->m_localRenaming.isActive())
             d->m_useSelectionsUpdater.scheduleUpdate();
+
+        // Notify selection expander about the changed cursor.
+        d->m_cppSelectionChanger.onCursorPositionChanged(textCursor());
     });
 
-    // Tool bar creation
+    // Toolbar: '#' Button
     d->m_preprocessorButton = new QToolButton(this);
     d->m_preprocessorButton->setText(QLatin1String("#"));
     Command *cmd = ActionManager::command(Constants::OPEN_PREPROCESSOR_DIALOG);
-    connect(cmd, SIGNAL(keySequenceChanged()), this, SLOT(updatePreprocessorButtonTooltip()));
+    connect(cmd, &Command::keySequenceChanged, this, &CppEditorWidget::updatePreprocessorButtonTooltip);
     updatePreprocessorButtonTooltip();
-    connect(d->m_preprocessorButton, SIGNAL(clicked()), this, SLOT(showPreProcessorWidget()));
+    connect(d->m_preprocessorButton, &QAbstractButton::clicked, this, &CppEditorWidget::showPreProcessorWidget);
     insertExtraToolBarWidget(TextEditorWidget::Left, d->m_preprocessorButton);
+
+    // Toolbar: Parse context
+    ParseContextModel &parseContextModel = cppEditorDocument()->parseContextModel();
+    d->m_parseContextWidget = new ParseContextWidget(parseContextModel, this);
+    d->m_parseContextAction = insertExtraToolBarWidget(TextEditorWidget::Left,
+                                                       d->m_parseContextWidget);
+    d->m_parseContextAction->setVisible(false);
+    connect(&parseContextModel, &ParseContextModel::updated,
+            this, [this](bool areMultipleAvailable) {
+        d->m_parseContextAction->setVisible(areMultipleAvailable);
+    });
+
+    // Toolbar: Outline/Overview combo box
     insertExtraToolBarWidget(TextEditorWidget::Left, d->m_cppEditorOutline->widget());
+
+    // Toolbar: Actions to show minimized info bars
+    d->m_showInfoBarActions = MinimizableInfoBars::createShowInfoBarActions([this](QWidget *w) {
+        return this->insertExtraToolBarWidget(TextEditorWidget::Left, w);
+    });
+    connect(&cppEditorDocument()->minimizableInfoBars(), &MinimizableInfoBars::showAction,
+            this, &CppEditorWidget::onShowInfoBarAction);
 }
 
 void CppEditorWidget::finalizeInitializationAfterDuplication(TextEditorWidget *other)
@@ -231,6 +265,13 @@ void CppEditorWidget::finalizeInitializationAfterDuplication(TextEditorWidget *o
     d->m_cppEditorOutline->update();
     const Id selectionKind = CodeWarningsSelection;
     setExtraSelections(selectionKind, cppEditorWidget->extraSelections(selectionKind));
+
+    if (isWidgetHighlighted(cppEditorWidget->d->m_preprocessorButton))
+        updateWidgetHighlighting(d->m_preprocessorButton, true);
+
+    d->m_parseContextWidget->syncToModel();
+    d->m_parseContextAction->setVisible(
+                d->m_cppEditorDocument->parseContextModel().areMultipleAvailable());
 }
 
 CppEditorWidget::~CppEditorWidget()
@@ -278,11 +319,14 @@ void CppEditorWidget::onCppDocumentUpdated()
 }
 
 void CppEditorWidget::onCodeWarningsUpdated(unsigned revision,
-                                            const QList<QTextEdit::ExtraSelection> selections)
+                                            const QList<QTextEdit::ExtraSelection> selections,
+                                            const TextEditor::RefactorMarkers &refactorMarkers)
 {
     if (revision != documentRevision())
         return;
+
     setExtraSelections(TextEditorWidget::CodeWarningsSelection, selections);
+    setRefactorMarkers(refactorMarkersWithoutClangMarkers() + refactorMarkers);
 }
 
 void CppEditorWidget::onIfdefedOutBlocksUpdated(unsigned revision,
@@ -291,6 +335,13 @@ void CppEditorWidget::onIfdefedOutBlocksUpdated(unsigned revision,
     if (revision != documentRevision())
         return;
     setIfdefedOutBlocks(ifdefedOutBlocks);
+}
+
+void CppEditorWidget::onShowInfoBarAction(const Id &id, bool show)
+{
+    QAction *action = d->m_showInfoBarActions.value(id);
+    QTC_ASSERT(action, return);
+    action->setVisible(show);
 }
 
 void CppEditorWidget::findUsages()
@@ -331,14 +382,195 @@ void CppEditorWidget::renameUsages(const QString &replacement)
     }
 }
 
+bool CppEditorWidget::selectBlockUp()
+{
+    if (!behaviorSettings().m_smartSelectionChanging)
+        return TextEditorWidget::selectBlockUp();
+
+    QTextCursor cursor = textCursor();
+    d->m_cppSelectionChanger.startChangeSelection();
+    const bool changed =
+            d->m_cppSelectionChanger.changeSelection(
+                CppSelectionChanger::ExpandSelection,
+                cursor,
+                d->m_lastSemanticInfo.doc);
+    if (changed)
+        setTextCursor(cursor);
+    d->m_cppSelectionChanger.stopChangeSelection();
+
+    return changed;
+}
+
+bool CppEditorWidget::selectBlockDown()
+{
+    if (!behaviorSettings().m_smartSelectionChanging)
+        return TextEditorWidget::selectBlockDown();
+
+    QTextCursor cursor = textCursor();
+    d->m_cppSelectionChanger.startChangeSelection();
+    const bool changed =
+            d->m_cppSelectionChanger.changeSelection(
+                CppSelectionChanger::ShrinkSelection,
+                cursor,
+                d->m_lastSemanticInfo.doc);
+    if (changed)
+        setTextCursor(cursor);
+    d->m_cppSelectionChanger.stopChangeSelection();
+
+    return changed;
+}
+
+void CppEditorWidget::updateWidgetHighlighting(QWidget *widget, bool highlight)
+{
+    widget->setProperty("highlightWidget", highlight);
+    widget->update();
+}
+
+bool CppEditorWidget::isWidgetHighlighted(QWidget *widget)
+{
+    return widget->property("highlightWidget").toBool();
+}
+
 void CppEditorWidget::renameSymbolUnderCursor()
 {
+    if (refactoringEngine())
+        renameSymbolUnderCursorClang();
+    else
+        renameSymbolUnderCursorBuiltin();
+}
+
+void CppEditorWidget::renameSymbolUnderCursorBuiltin()
+{
     d->m_useSelectionsUpdater.abortSchedule();
+
     updateSemanticInfo(d->m_cppEditorDocument->recalculateSemanticInfo(),
                        /*updateUseSelectionSynchronously=*/ true);
 
     if (!d->m_localRenaming.start()) // Rename local symbol
         renameUsages(); // Rename non-local symbol or macro
+}
+
+namespace {
+
+QList<ProjectPart::Ptr> fetchProjectParts(CppTools::CppModelManager *modelManager,
+                                     const Utils::FileName &filePath)
+{
+    QList<ProjectPart::Ptr> projectParts = modelManager->projectPart(filePath);
+
+    if (projectParts.isEmpty())
+        projectParts = modelManager->projectPartFromDependencies(filePath);
+    else if (projectParts.isEmpty())
+        projectParts.append(modelManager->fallbackProjectPart());
+
+    return projectParts;
+}
+
+ProjectPart *findProjectPartForCurrentProject(const QList<ProjectPart::Ptr> &projectParts,
+                                              ProjectExplorer::Project *currentProject)
+{
+    auto found = std::find_if(projectParts.cbegin(),
+                             projectParts.cend(),
+                             [&] (const CppTools::ProjectPart::Ptr &projectPart) {
+        return projectPart->project == currentProject;
+    });
+
+    if (found != projectParts.cend())
+        return (*found).data();
+
+    return 0;
+}
+
+}
+
+ProjectPart *CppEditorWidget::projectPart() const
+{
+    auto projectParts = fetchProjectParts(d->m_modelManager, textDocument()->filePath());
+
+    return findProjectPartForCurrentProject(projectParts,
+                                            ProjectExplorer::ProjectTree::currentProject());
+}
+
+namespace {
+
+using ClangBackEnd::V2::SourceLocationContainer;
+using TextEditor::Convenience::selectAt;
+
+QTextCharFormat occurrencesTextCharFormat()
+{
+    using TextEditor::TextEditorSettings;
+
+    return TextEditorSettings::fontSettings().toTextCharFormat(TextEditor::C_OCCURRENCES);
+}
+
+QList<QTextEdit::ExtraSelection>
+sourceLocationsToExtraSelections(const std::vector<SourceLocationContainer> &sourceLocations,
+                                 uint selectionLength,
+                                 CppEditorWidget *cppEditorWidget)
+{
+    const auto textCharFormat = occurrencesTextCharFormat();
+
+    QList<QTextEdit::ExtraSelection> selections;
+    selections.reserve(int(sourceLocations.size()));
+
+    auto sourceLocationToExtraSelection = [&] (const SourceLocationContainer &sourceLocation) {
+        QTextEdit::ExtraSelection selection;
+
+        selection.cursor = selectAt(cppEditorWidget->textCursor(),
+                                    sourceLocation.line(),
+                                    sourceLocation.column(),
+                                    selectionLength);
+        selection.format = textCharFormat;
+
+        return selection;
+    };
+
+
+    std::transform(sourceLocations.begin(),
+                   sourceLocations.end(),
+                   std::back_inserter(selections),
+                   sourceLocationToExtraSelection);
+
+    return selections;
+};
+
+}
+
+void CppEditorWidget::renameSymbolUnderCursorClang()
+{
+    using ClangBackEnd::SourceLocationsContainer;
+
+    if (refactoringEngine()->isUsable()) {
+        d->m_useSelectionsUpdater.abortSchedule();
+
+        QPointer<CppEditorWidget> cppEditorWidget = this;
+
+        auto renameSymbols = [=] (const QString &symbolName,
+                                  const SourceLocationsContainer &sourceLocations,
+                                  int revision) {
+            if (cppEditorWidget) {
+                viewport()->setCursor(Qt::IBeamCursor);
+
+                if (revision == document()->revision()) {
+                    auto selections = sourceLocationsToExtraSelections(sourceLocations.sourceLocationContainers(),
+                                                                       symbolName.size(),
+                                                                       cppEditorWidget);
+                    setExtraSelections(TextEditor::TextEditorWidget::CodeSemanticsSelection,
+                                       selections);
+                    d->m_localRenaming.updateSelectionsForVariableUnderCursor(selections);
+                    if (!d->m_localRenaming.start())
+                        renameUsages();
+                }
+            }
+        };
+
+        refactoringEngine()->startLocalRenaming(textCursor(),
+                                                textDocument()->filePath(),
+                                                document()->revision(),
+                                                projectPart(),
+                                                std::move(renameSymbols));
+
+        viewport()->setCursor(Qt::BusyCursor);
+    }
 }
 
 void CppEditorWidget::updatePreprocessorButtonTooltip()
@@ -384,12 +616,12 @@ void CppEditorWidget::switchDeclarationDefinition(bool inNextSplit)
     // Link to function definition/declaration
     CppEditorWidget::Link symbolLink;
     if (functionDeclarationSymbol) {
-        symbolLink = linkToSymbol(symbolFinder()
+        symbolLink = linkToSymbol(d->m_modelManager->symbolFinder()
             ->findMatchingDefinition(functionDeclarationSymbol, d->m_modelManager->snapshot()));
     } else if (functionDefinitionSymbol) {
         const Snapshot snapshot = d->m_modelManager->snapshot();
         LookupContext context(d->m_lastSemanticInfo.doc, snapshot);
-        LookupScope *binding = context.lookupType(functionDefinitionSymbol);
+        ClassOrNamespace *binding = context.lookupType(functionDefinitionSymbol);
         const QList<LookupItem> declarations = context.lookup(functionDefinitionSymbol->name(),
             functionDefinitionSymbol->enclosingScope());
 
@@ -426,13 +658,38 @@ CppEditorWidget::Link CppEditorWidget::findLinkAt(const QTextCursor &cursor, boo
     return d->m_followSymbolUnderCursor->findLink(cursor, resolveTarget,
                                                   d->m_modelManager->snapshot(),
                                                   d->m_lastSemanticInfo.doc,
-                                                  symbolFinder(),
+                                                  d->m_modelManager->symbolFinder(),
                                                   inNextSplit);
 }
 
 unsigned CppEditorWidget::documentRevision() const
 {
     return document()->revision();
+}
+
+static bool isClangFixItAvailableMarker(const RefactorMarker &marker)
+{
+    return marker.data.toString()
+        == QLatin1String(CppTools::Constants::CPP_CLANG_FIXIT_AVAILABLE_MARKER_ID);
+}
+
+RefactorMarkers CppEditorWidget::refactorMarkersWithoutClangMarkers() const
+{
+    RefactorMarkers clearedRefactorMarkers;
+
+    foreach (const RefactorMarker &marker, refactorMarkers()) {
+        if (isClangFixItAvailableMarker(marker))
+            continue;
+
+        clearedRefactorMarkers.append(marker);
+    }
+
+    return clearedRefactorMarkers;
+}
+
+RefactoringEngineInterface *CppEditorWidget::refactoringEngine() const
+{
+    return CppTools::CppModelManager::refactoringEngine();
 }
 
 bool CppEditorWidget::isSemanticInfoValidExceptLocalUses() const
@@ -469,11 +726,6 @@ bool CppEditorWidget::event(QEvent *e)
     return TextEditorWidget::event(e);
 }
 
-void CppEditorWidget::performQuickFix(int index)
-{
-    d->m_quickFixes.at(index)->perform();
-}
-
 void CppEditorWidget::processKeyNormally(QKeyEvent *e)
 {
     TextEditorWidget::keyPressEvent(e);
@@ -492,8 +744,6 @@ void CppEditorWidget::contextMenuEvent(QContextMenuEvent *e)
     QMenu *quickFixMenu = new QMenu(tr("&Refactor"), menu);
     quickFixMenu->addAction(ActionManager::command(Constants::RENAME_SYMBOL_UNDER_CURSOR)->action());
 
-    QSignalMapper mapper;
-    connect(&mapper, SIGNAL(mapped(int)), this, SLOT(performQuickFix(int)));
     if (isSemanticInfoValidExceptLocalUses()) {
         d->m_useSelectionsUpdater.update(CppUseSelectionsUpdater::Synchronous);
         AssistInterface *interface = createAssistInterface(QuickFix, ExplicitlyInvoked);
@@ -506,10 +756,8 @@ void CppEditorWidget::contextMenuEvent(QContextMenuEvent *e)
                 for (int index = 0; index < model->size(); ++index) {
                     auto item = static_cast<AssistProposalItem *>(model->proposalItem(index));
                     QuickFixOperation::Ptr op = item->data().value<QuickFixOperation::Ptr>();
-                    d->m_quickFixes.append(op);
                     QAction *action = quickFixMenu->addAction(op->description());
-                    mapper.setMapping(action, index);
-                    connect(action, SIGNAL(triggered()), &mapper, SLOT(map()));
+                    connect(action, &QAction::triggered, this, [op] { op->perform(); });
                 }
                 delete model;
             }
@@ -527,7 +775,6 @@ void CppEditorWidget::contextMenuEvent(QContextMenuEvent *e)
     menu->exec(e->globalPos());
     if (!menu)
         return;
-    d->m_quickFixes.clear();
     delete menu;
 }
 
@@ -540,7 +787,7 @@ void CppEditorWidget::keyPressEvent(QKeyEvent *e)
         return;
 
     if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) {
-        if (trySplitComment(this)) {
+        if (trySplitComment(this, semanticInfo().snapshot)) {
             e->accept();
             return;
         }
@@ -557,7 +804,7 @@ bool CppEditorWidget::handleStringSplitting(QKeyEvent *e) const
     if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) {
         QTextCursor cursor = textCursor();
 
-        if (autoCompleter()->isInString(cursor)) {
+        if (CPlusPlus::MatchingText::isInStringHelper(cursor)) {
             cursor.beginEditBlock();
             if (cursor.positionInBlock() > 0
                     && cursor.block().text().at(cursor.positionInBlock() - 1) == QLatin1Char('\\')) {
@@ -614,7 +861,7 @@ AssistInterface *CppEditorWidget::createAssistInterface(AssistKind kind, AssistR
             LanguageFeatures features = LanguageFeatures::defaultFeatures();
             if (Document::Ptr doc = d->m_lastSemanticInfo.doc)
                 features = doc->languageFeatures();
-            features.objCEnabled = cppEditorDocument()->isObjCEnabled();
+            features.objCEnabled |= cppEditorDocument()->isObjCEnabled();
             return cap->createAssistInterface(
                             textDocument()->filePath().toString(),
                             this,
@@ -638,8 +885,15 @@ QSharedPointer<FunctionDeclDefLink> CppEditorWidget::declDefLink() const
 
 void CppEditorWidget::onRefactorMarkerClicked(const RefactorMarker &marker)
 {
-    if (marker.data.canConvert<FunctionDeclDefLink::Marker>())
+    if (marker.data.canConvert<FunctionDeclDefLink::Marker>()) {
         applyDeclDefLinkChanges(true);
+    } else if (isClangFixItAvailableMarker(marker)) {
+        int line, column;
+        if (Convenience::convertPosition(document(), marker.cursor.position(), &line, &column)) {
+            setTextCursor(marker.cursor);
+            invokeAssist(TextEditor::QuickFix);
+        }
+    }
 }
 
 void CppEditorWidget::updateFunctionDeclDefLink()
@@ -703,8 +957,8 @@ void CppEditorWidget::onFunctionDeclDefLinkFound(QSharedPointer<FunctionDeclDefL
     IDocument *targetDocument = DocumentModel::documentForFilePath( d->m_declDefLink->targetFile->fileName());
     if (textDocument() != targetDocument) {
         if (auto textDocument = qobject_cast<BaseTextDocument *>(targetDocument))
-            connect(textDocument, SIGNAL(contentsChanged()),
-                    this, SLOT(abortDeclDefLink()));
+            connect(textDocument, &IDocument::contentsChanged,
+                    this, &CppEditorWidget::abortDeclDefLink);
     }
 
 }
@@ -739,8 +993,8 @@ void CppEditorWidget::abortDeclDefLink()
     IDocument *targetDocument = DocumentModel::documentForFilePath(d->m_declDefLink->targetFile->fileName());
     if (textDocument() != targetDocument) {
         if (auto textDocument = qobject_cast<BaseTextDocument *>(targetDocument))
-            disconnect(textDocument, SIGNAL(contentsChanged()),
-                    this, SLOT(abortDeclDefLink()));
+            disconnect(textDocument, &IDocument::contentsChanged,
+                    this, &CppEditorWidget::abortDeclDefLink);
     }
 
     d->m_declDefLink->hideMarker(this);
@@ -749,20 +1003,12 @@ void CppEditorWidget::abortDeclDefLink()
 
 void CppEditorWidget::showPreProcessorWidget()
 {
-    const Utils::FileName fileName = textDocument()->filePath();
+    const QString filePath = textDocument()->filePath().toString();
 
-    // Check if this editor belongs to a project
-    QList<ProjectPart::Ptr> projectParts = d->m_modelManager->projectPart(fileName);
-    if (projectParts.isEmpty())
-        projectParts = d->m_modelManager->projectPartFromDependencies(fileName);
-    if (projectParts.isEmpty())
-        projectParts << d->m_modelManager->fallbackProjectPart();
-
-    CppPreProcessorDialog preProcessorDialog(this, textDocument()->filePath().toString(), projectParts);
-    if (preProcessorDialog.exec() == QDialog::Accepted) {
-        cppEditorDocument()->setPreprocessorSettings(
-                    preProcessorDialog.projectPart(),
-                    preProcessorDialog.additionalPreProcessorDirectives().toUtf8());
+    CppPreProcessorDialog dialog(filePath, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        const QByteArray extraDirectives = dialog.extraPreprocessorDirectives().toUtf8();
+        cppEditorDocument()->setExtraPreprocessorDirectives(extraDirectives);
         cppEditorDocument()->scheduleProcessDocument();
     }
 }

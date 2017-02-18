@@ -63,7 +63,6 @@ public:
     VcDocProjectNode *createProjectNode();
     void reloadVcDoc();
     IVisualStudioProject *visualStudioProject() const;
-    void setVisualStudioProject(IVisualStudioProject *documentModel);
     void showSettingsDialog();
     void showFileSettingsDialog(const QString &canonicalFilePath);
 

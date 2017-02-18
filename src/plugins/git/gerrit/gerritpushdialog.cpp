@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 Petar Perisin.
+** Copyright (C) 2016 Petar Perisin.
 ** Contact: petar.perisin@gmail.com
 **
 ** This file is part of Qt Creator.
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,9 @@
 
 #include "../gitplugin.h"
 #include "../gitclient.h"
+#include "../gitconstants.h"
+
+#include <utils/icon.h>
 
 #include <QDateTime>
 #include <QDir>
@@ -49,7 +47,7 @@ class PushItemDelegate : public IconItemDelegate
 {
 public:
     PushItemDelegate(LogChangeWidget *widget)
-        : IconItemDelegate(widget, QLatin1String(":/git/images/arrowup.png"))
+        : IconItemDelegate(widget, Utils::Icon(":/git/images/arrowup.png"))
     {
     }
 
@@ -66,21 +64,20 @@ QString GerritPushDialog::determineRemoteBranch(const QString &localBranch)
 
     QString output;
     QString error;
-    QStringList args;
-    args << QLatin1String("-r") << QLatin1String("--contains")
-         << earliestCommit + QLatin1Char('^');
 
-    if (!m_client->synchronousBranchCmd(m_workingDir, args, &output, &error))
+    if (!GitPlugin::client()->synchronousBranchCmd(
+                m_workingDir, { "-r", "--contains", earliestCommit + '^' }, &output, &error)) {
         return QString();
-    const QString head = QLatin1String("/HEAD");
-    QStringList refs = output.split(QLatin1Char('\n'));
+    }
+    const QString head = "/HEAD";
+    const QStringList refs = output.split('\n');
 
     QString remoteTrackingBranch;
-    if (localBranch != QLatin1String("HEAD"))
-        remoteTrackingBranch = m_client->synchronousTrackingBranch(m_workingDir, localBranch);
+    if (localBranch != "HEAD")
+        remoteTrackingBranch = GitPlugin::client()->synchronousTrackingBranch(m_workingDir, localBranch);
 
     QString remoteBranch;
-    foreach (const QString &reference, refs) {
+    for (const QString &reference : refs) {
         const QString ref = reference.trimmed();
         if (ref.contains(head) || ref.isEmpty())
             continue;
@@ -98,31 +95,30 @@ QString GerritPushDialog::determineRemoteBranch(const QString &localBranch)
 void GerritPushDialog::initRemoteBranches()
 {
     QString output;
-    QStringList args;
-    const QString head = QLatin1String("/HEAD");
+    const QString head = "/HEAD";
 
-    QString remotesPrefix(QLatin1String("refs/remotes/"));
-    args << QLatin1String("--format=%(refname)\t%(committerdate:raw)")
-         << remotesPrefix;
-    if (!m_client->synchronousForEachRefCmd(m_workingDir, args, &output))
+    QString remotesPrefix("refs/remotes/");
+    if (!GitPlugin::client()->synchronousForEachRefCmd(
+                m_workingDir, { "--format=%(refname)\t%(committerdate:raw)", remotesPrefix }, &output)) {
         return;
+    }
 
-    const QStringList refs = output.split(QLatin1String("\n"));
-    foreach (const QString &reference, refs) {
-        QStringList entries = reference.split(QLatin1Char('\t'));
+    const QStringList refs = output.split("\n");
+    for (const QString &reference : refs) {
+        QStringList entries = reference.split('\t');
         if (entries.count() < 2 || entries.first().endsWith(head))
             continue;
         const QString ref = entries.at(0).mid(remotesPrefix.size());
-        int refBranchIndex = ref.indexOf(QLatin1Char('/'));
-        int timeT = entries.at(1).left(entries.at(1).indexOf(QLatin1Char(' '))).toInt();
+        int refBranchIndex = ref.indexOf('/');
+        int timeT = entries.at(1).leftRef(entries.at(1).indexOf(' ')).toInt();
         BranchDate bd(ref.mid(refBranchIndex + 1), QDateTime::fromTime_t(timeT).date());
         m_remoteBranches.insertMulti(ref.left(refBranchIndex), bd);
     }
-    QStringList remotes = m_client->synchronousRemotesList(m_workingDir).keys();
+    QStringList remotes = GitPlugin::client()->synchronousRemotesList(m_workingDir).keys();
     remotes.removeDuplicates();
     {
-        const QString origin = QLatin1String("origin");
-        const QString gerrit = QLatin1String("gerrit");
+        const QString origin = "origin";
+        const QString gerrit = "gerrit";
         if (remotes.removeOne(origin))
             remotes.prepend(origin);
         if (remotes.removeOne(gerrit))
@@ -135,10 +131,8 @@ void GerritPushDialog::initRemoteBranches()
 GerritPushDialog::GerritPushDialog(const QString &workingDir, const QString &reviewerList, QWidget *parent) :
     QDialog(parent),
     m_workingDir(workingDir),
-    m_ui(new Ui::GerritPushDialog),
-    m_isValid(false)
+    m_ui(new Ui::GerritPushDialog)
 {
-    m_client = GitPlugin::instance()->client();
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
     m_ui->setupUi(this);
     m_ui->repositoryLabel->setText(QDir::toNativeSeparators(workingDir));
@@ -158,10 +152,13 @@ GerritPushDialog::GerritPushDialog(const QString &workingDir, const QString &rev
     connect(m_ui->targetBranchComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &GerritPushDialog::setChangeRange);
 
+    connect(m_ui->targetBranchComboBox, &QComboBox::currentTextChanged,
+            this, &GerritPushDialog::validate);
+
     updateCommits(m_ui->localBranchComboBox->currentIndex());
     setRemoteBranches();
 
-    QRegExpValidator *noSpaceValidator = new QRegExpValidator(QRegExp(QLatin1String("^\\S+$")), this);
+    QRegExpValidator *noSpaceValidator = new QRegExpValidator(QRegExp("^\\S+$"), this);
     m_ui->reviewersLineEdit->setText(reviewerList);
     m_ui->reviewersLineEdit->setValidator(noSpaceValidator);
     m_ui->topicLineEdit->setValidator(noSpaceValidator);
@@ -185,16 +182,14 @@ QString GerritPushDialog::selectedCommit() const
 QString GerritPushDialog::calculateChangeRange(const QString &branch)
 {
     QString remote = selectedRemoteName();
-    remote += QLatin1Char('/');
+    remote += '/';
     remote += selectedRemoteBranchName();
-
-    QStringList args(remote + QLatin1String("..") + branch);
-    args << QLatin1String("--count");
 
     QString number;
     QString error;
 
-    m_client->synchronousRevListCmd(m_workingDir, args, &number, &error);
+    GitPlugin::client()->synchronousRevListCmd(m_workingDir, { remote + ".." + branch, "--count" },
+                                               &number, &error);
 
     number.chop(1);
     return number;
@@ -216,7 +211,7 @@ void GerritPushDialog::setChangeRange()
         return;
     }
     m_ui->infoLabel->show();
-    const QString remote = selectedRemoteName() + QLatin1Char('/') + remoteBranchName;
+    const QString remote = selectedRemoteName() + '/' + remoteBranchName;
     m_ui->infoLabel->setText(
                 tr("Number of commits between %1 and %2: %3").arg(branch, remote, range));
 }
@@ -226,6 +221,13 @@ bool GerritPushDialog::isValid() const
     return m_isValid;
 }
 
+void GerritPushDialog::storeTopic()
+{
+    const QString branch = m_ui->localBranchComboBox->currentText();
+    GitPlugin::client()->setConfigValue(m_workingDir, QString("branch.%1.topic").arg(branch),
+                                        selectedTopic());
+}
+
 void GerritPushDialog::setRemoteBranches(bool includeOld)
 {
     bool blocked = m_ui->targetBranchComboBox->blockSignals(true);
@@ -233,16 +235,26 @@ void GerritPushDialog::setRemoteBranches(bool includeOld)
 
     const QString remoteName = selectedRemoteName();
     if (!m_remoteBranches.contains(remoteName)) {
-        foreach (const QString &branch, m_client->synchronousRepositoryBranches(remoteName, m_workingDir))
+        const QStringList remoteBranches =
+                GitPlugin::client()->synchronousRepositoryBranches(remoteName, m_workingDir);
+        for (const QString &branch : remoteBranches)
             m_remoteBranches.insertMulti(remoteName, qMakePair(branch, QDate()));
+        if (remoteBranches.isEmpty()) {
+            m_ui->targetBranchComboBox->setEditable(true);
+            m_ui->targetBranchComboBox->setToolTip(
+                        tr("No remote branches found. This is probably the initial commit."));
+            if (QLineEdit *lineEdit = m_ui->targetBranchComboBox->lineEdit())
+                lineEdit->setPlaceholderText(tr("Branch name"));
+        }
     }
 
     int i = 0;
     bool excluded = false;
-    foreach (const BranchDate &bd, m_remoteBranches.values(remoteName)) {
+    const QList<BranchDate> remoteBranches = m_remoteBranches.values(remoteName);
+    for (const BranchDate &bd : remoteBranches) {
         const bool isSuggested = bd.first == m_suggestedRemoteBranch;
         if (includeOld || isSuggested || !bd.second.isValid()
-                || bd.second.daysTo(QDate::currentDate()) <= 60) {
+                || bd.second.daysTo(QDate::currentDate()) <= Git::Constants::OBSOLETE_COMMIT_AGE_IN_DAYS) {
             m_ui->targetBranchComboBox->addItem(bd.first);
             if (isSuggested)
                 m_ui->targetBranchComboBox->setCurrentIndex(i);
@@ -255,17 +267,21 @@ void GerritPushDialog::setRemoteBranches(bool includeOld)
         m_ui->targetBranchComboBox->addItem(tr("... Include older branches ..."), 1);
     setChangeRange();
     m_ui->targetBranchComboBox->blockSignals(blocked);
+    validate();
 }
 
 void GerritPushDialog::updateCommits(int index)
 {
     const QString branch = m_ui->localBranchComboBox->itemText(index);
-    const bool hasLocalCommits = m_ui->commitView->init(m_workingDir, branch,
-                                                        LogChangeWidget::Silent);
+    m_hasLocalCommits = m_ui->commitView->init(m_workingDir, branch, LogChangeWidget::Silent);
+    QString topic = GitPlugin::client()->readConfigValue(
+                m_workingDir, QString("branch.%1.topic").arg(branch));
+    if (!topic.isEmpty())
+        m_ui->topicLineEdit->setText(topic);
 
     const QString remoteBranch = determineRemoteBranch(branch);
     if (!remoteBranch.isEmpty()) {
-        const int slash = remoteBranch.indexOf(QLatin1Char('/'));
+        const int slash = remoteBranch.indexOf('/');
 
         m_suggestedRemoteBranch = remoteBranch.mid(slash + 1);
         const QString remote = remoteBranch.left(slash);
@@ -275,8 +291,13 @@ void GerritPushDialog::updateCommits(int index)
         else
             setRemoteBranches();
     }
+    validate();
+}
 
-    m_ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(hasLocalCommits);
+void GerritPushDialog::validate()
+{
+    const bool valid = m_hasLocalCommits && !selectedRemoteBranchName().isEmpty();
+    m_ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(valid);
 }
 
 QString GerritPushDialog::selectedRemoteName() const
@@ -291,7 +312,7 @@ QString GerritPushDialog::selectedRemoteBranchName() const
 
 QString GerritPushDialog::selectedPushType() const
 {
-    return m_ui->draftCheckBox->isChecked() ? QLatin1String("drafts") : QLatin1String("for");
+    return QLatin1String(m_ui->draftCheckBox->isChecked() ? "drafts" : "for");
 }
 
 QString GerritPushDialog::selectedTopic() const

@@ -1,53 +1,53 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
+import __builtin__
 import operator
 
 # for easier re-usage (because Python hasn't an enum type)
 class Targets:
-    ALL_TARGETS = map(lambda x: 2 ** x , range(7))
+    ALL_TARGETS = map(lambda x: 2 ** x , range(6))
 
     (DESKTOP_474_GCC,
      DESKTOP_480_DEFAULT,
-     SIMULATOR,
      EMBEDDED_LINUX,
-     DESKTOP_521_DEFAULT,
      DESKTOP_531_DEFAULT,
-     DESKTOP_541_GCC) = ALL_TARGETS
+     DESKTOP_541_GCC,
+     DESKTOP_561_DEFAULT) = ALL_TARGETS
 
     @staticmethod
     def desktopTargetClasses():
-        desktopTargets = (sum(Targets.ALL_TARGETS) & ~Targets.SIMULATOR & ~Targets.EMBEDDED_LINUX)
+        desktopTargets = (sum(Targets.ALL_TARGETS) & ~Targets.EMBEDDED_LINUX)
         if platform.system() == 'Darwin':
             desktopTargets &= ~Targets.DESKTOP_541_GCC
         return desktopTargets
+
+    @staticmethod
+    def qt4Classes():
+        return (Targets.DESKTOP_474_GCC | Targets.DESKTOP_480_DEFAULT
+                | Targets.EMBEDDED_LINUX)
 
     @staticmethod
     def getStringForTarget(target):
@@ -58,16 +58,14 @@ class Targets:
                 return "Desktop 480 MSVC2010"
             else:
                 return "Desktop 480 GCC"
-        elif target == Targets.SIMULATOR:
-            return "Qt Simulator"
         elif target == Targets.EMBEDDED_LINUX:
             return "Embedded Linux"
-        elif target == Targets.DESKTOP_521_DEFAULT:
-            return "Desktop 521 default"
         elif target == Targets.DESKTOP_531_DEFAULT:
             return "Desktop 531 default"
         elif target == Targets.DESKTOP_541_GCC:
             return "Desktop 541 GCC"
+        elif target == Targets.DESKTOP_561_DEFAULT:
+            return "Desktop 561 default"
         else:
             return None
 
@@ -91,7 +89,7 @@ class Targets:
 
     @staticmethod
     def getDefaultKit():
-        return Targets.DESKTOP_521_DEFAULT
+        return Targets.DESKTOP_531_DEFAULT
 
 # this class holds some constants for easier usage inside the Projects view
 class ProjectSettings:
@@ -100,7 +98,7 @@ class ProjectSettings:
 
 # this class defines some constants for the views of the creator's MainWindow
 class ViewConstants:
-    WELCOME, EDIT, DESIGN, DEBUG, PROJECTS, ANALYZE, HELP = range(7)
+    WELCOME, EDIT, DESIGN, DEBUG, PROJECTS, HELP = range(6)
     FIRST_AVAILABLE = 0
     # always adjust the following to the highest value of the available ViewConstants when adding new
     LAST_AVAILABLE = HELP
@@ -120,8 +118,6 @@ class ViewConstants:
             toolTip = ur'Switch to <b>Debug</b> mode <span style="color: gray; font-size: small">(Ctrl\+|\u2303)%d</span>'
         elif viewTab == ViewConstants.PROJECTS:
             toolTip = ur'Switch to <b>Projects</b> mode <span style="color: gray; font-size: small">(Ctrl\+|\u2303)%d</span>'
-        elif viewTab == ViewConstants.ANALYZE:
-            toolTip = ur'Switch to <b>Analyze</b> mode <span style="color: gray; font-size: small">(Ctrl\+|\u2303)%d</span>'
         elif viewTab == ViewConstants.HELP:
             toolTip = ur'Switch to <b>Help</b> mode <span style="color: gray; font-size: small">(Ctrl\+|\u2303)%d</span>'
         else:
@@ -179,26 +175,65 @@ class Qt5Path:
 
     @staticmethod
     def getPaths(pathSpec):
+        qt5targets = [Targets.DESKTOP_531_DEFAULT, Targets.DESKTOP_561_DEFAULT]
+        if platform.system() != 'Darwin':
+            qt5targets.append(Targets.DESKTOP_541_GCC)
         if pathSpec == Qt5Path.DOCS:
-            path52 = "/doc"
-            path53 = "/Docs/Qt-5.3"
-            path54 = "/Docs/Qt-5.4"
+            return map(lambda target: Qt5Path.docsPath(target), qt5targets)
         elif pathSpec == Qt5Path.EXAMPLES:
-            path52 = "/examples"
-            path53 = "/Examples/Qt-5.3"
-            path54 = "/Examples/Qt-5.4"
+            return map(lambda target: Qt5Path.examplesPath(target), qt5targets)
         else:
             test.fatal("Unknown pathSpec given: %s" % str(pathSpec))
             return []
+
+    @staticmethod
+    def __preCheckAndExtractQtVersionStr__(target):
+        if target not in Targets.ALL_TARGETS:
+            raise Exception("Unexpected target '%s'" % str(target))
+
+        matcher = re.match("^Desktop (5\\d{2}).*$", Targets.getStringForTarget(target))
+        if matcher is None:
+            raise Exception("Currently this is supported for Desktop Qt5 only, got target '%s'"
+                            % str(Targets.getStringForTarget(target)))
+        return matcher.group(1)
+
+    @staticmethod
+    def __createPlatformQtPath__(qt5Minor):
+        # special handling for Qt5.2
+        if qt5Minor == 2:
+            if platform.system() in ('Microsoft', 'Windows'):
+                return "C:/Qt/Qt5.2.1/5.2.1/msvc2010"
+            elif platform.system() == 'Linux':
+                if __is64BitOS__():
+                    return os.path.expanduser("~/Qt5.2.1/5.2.1/gcc_64")
+                else:
+                    return os.path.expanduser("~/Qt5.2.1/5.2.1/gcc")
+            else:
+                return os.path.expanduser("~/Qt5.2.1/5.2.1/clang_64")
+        # Qt5.3+
         if platform.system() in ('Microsoft', 'Windows'):
-            return ["C:/Qt/Qt5.2.1/5.2.1/msvc2010" + path52,
-                    "C:/Qt/Qt5.3.1" + path53, "C:/Qt/Qt5.4.1" + path54]
-        elif platform.system() == 'Linux':
-            if __is64BitOS__():
-                return map(os.path.expanduser, ["~/Qt5.2.1/5.2.1/gcc_64" + path52,
-                                                "~/Qt5.3.1" + path53, "~/Qt5.4.1" + path54])
-            return map(os.path.expanduser, ["~/Qt5.2.1/5.2.1/gcc" + path52,
-                                            "~/Qt5.3.1" + path53, "~/Qt5.4.1" + path54])
+            return "C:/Qt/Qt5.%d.1" % qt5Minor
         else:
-            return map(os.path.expanduser, ["~/Qt5.2.1/5.2.1/clang_64" + path52,
-                                            "~/Qt5.3.1" + path53])
+            return os.path.expanduser("~/Qt5.%d.1" % qt5Minor)
+
+    @staticmethod
+    def examplesPath(target):
+        qtVersionStr = Qt5Path.__preCheckAndExtractQtVersionStr__(target)
+        qtMinorVersion = __builtin__.int(qtVersionStr[1])
+        if qtMinorVersion == 2:
+            path = "examples"
+        else:
+            path = "Examples/Qt-5.%d" % qtMinorVersion
+
+        return os.path.join(Qt5Path.__createPlatformQtPath__(qtMinorVersion), path)
+
+    @staticmethod
+    def docsPath(target):
+        qtVersionStr = Qt5Path.__preCheckAndExtractQtVersionStr__(target)
+        qtMinorVersion = __builtin__.int(qtVersionStr[1])
+        if qtMinorVersion == 2:
+            path = "doc"
+        else:
+            path = "Docs/Qt-5.%d" % qtMinorVersion
+
+        return os.path.join(Qt5Path.__createPlatformQtPath__(qtMinorVersion), path)

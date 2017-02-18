@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -249,10 +244,11 @@ BaseTreeView::BaseTreeView(QWidget *parent)
     setAttribute(Qt::WA_MacShowFocusRect, false);
     setFrameStyle(QFrame::NoFrame);
     setRootIsDecorated(false);
-    setIconSize(QSize(10, 10));
+    setIconSize(QSize(16, 16));
     setSelectionMode(QAbstractItemView::ExtendedSelection);
     setUniformRowHeights(true);
     setItemDelegate(new BaseTreeViewDelegate(this));
+    setAlternatingRowColors(false);
 
     QHeaderView *h = header();
     h->setDefaultAlignment(Qt::AlignLeft);
@@ -308,6 +304,13 @@ void BaseTreeView::setModel(QAbstractItemModel *m)
                 connect(model(), c[i].qsignal, c[i].receiver, c[i].qslot);
         }
         d->restoreState();
+
+        QVariant delegateBlob = m->data(QModelIndex(), ItemDelegateRole);
+        if (delegateBlob.isValid()) {
+            auto delegate = delegateBlob.value<QAbstractItemDelegate *>();
+            delegate->setParent(this);
+            setItemDelegate(delegate);
+        }
     }
 }
 
@@ -317,6 +320,54 @@ void BaseTreeView::mousePressEvent(QMouseEvent *ev)
     const QModelIndex mi = indexAt(ev->pos());
     if (!mi.isValid())
         d->toggleColumnWidth(columnAt(ev->x()));
+}
+
+void BaseTreeView::contextMenuEvent(QContextMenuEvent *ev)
+{
+    ItemViewEvent ive(ev, this);
+    if (!model()->setData(ive.index(), QVariant::fromValue(ive), ItemViewEventRole))
+        TreeView::contextMenuEvent(ev);
+}
+
+void BaseTreeView::keyPressEvent(QKeyEvent *ev)
+{
+    ItemViewEvent ive(ev, this);
+    if (!model()->setData(ive.index(), QVariant::fromValue(ive), ItemViewEventRole))
+        TreeView::keyPressEvent(ev);
+}
+
+void BaseTreeView::dragEnterEvent(QDragEnterEvent *ev)
+{
+    ItemViewEvent ive(ev, this);
+    if (!model()->setData(ive.index(), QVariant::fromValue(ive), ItemViewEventRole))
+        TreeView::dragEnterEvent(ev);
+}
+
+void BaseTreeView::dropEvent(QDropEvent *ev)
+{
+    ItemViewEvent ive(ev, this);
+    if (!model()->setData(ive.index(), QVariant::fromValue(ive), ItemViewEventRole))
+        TreeView::dropEvent(ev);
+}
+
+void BaseTreeView::dragMoveEvent(QDragMoveEvent *ev)
+{
+    ItemViewEvent ive(ev, this);
+    if (!model()->setData(ive.index(), QVariant::fromValue(ive), ItemViewEventRole))
+        TreeView::dragMoveEvent(ev);
+}
+
+void BaseTreeView::mouseDoubleClickEvent(QMouseEvent *ev)
+{
+    ItemViewEvent ive(ev, this);
+    if (!model()->setData(ive.index(), QVariant::fromValue(ive), ItemViewEventRole))
+        TreeView::mouseDoubleClickEvent(ev);
+}
+
+void BaseTreeView::showEvent(QShowEvent *ev)
+{
+    emit aboutToShow();
+    TreeView::showEvent(ev);
 }
 
 /*!
@@ -345,6 +396,16 @@ void BaseTreeView::hideProgressIndicator()
         d->m_progressIndicator->hide();
 }
 
+void BaseTreeView::rowActivated(const QModelIndex &index)
+{
+    model()->setData(index, QVariant(), ItemActivatedRole);
+}
+
+void BaseTreeView::rowClicked(const QModelIndex &index)
+{
+    model()->setData(index, QVariant(), ItemClickedRole);
+}
+
 void BaseTreeView::setSettings(QSettings *settings, const QByteArray &key)
 {
     QTC_ASSERT(!d->m_settings, qDebug() << "DUPLICATED setSettings" << key);
@@ -353,16 +414,43 @@ void BaseTreeView::setSettings(QSettings *settings, const QByteArray &key)
     d->readSettings();
 }
 
-QModelIndexList BaseTreeView::activeRows() const
+ItemViewEvent::ItemViewEvent(QEvent *ev, QAbstractItemView *view)
+    : m_event(ev), m_view(view)
 {
-    QItemSelectionModel *selection = selectionModel();
-    QModelIndexList indices = selection->selectedRows();
-    if (indices.isEmpty()) {
+    QItemSelectionModel *selection = view->selectionModel();
+    switch (ev->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonRelease:
+    case QEvent::MouseButtonDblClick:
+        m_pos = static_cast<QMouseEvent *>(ev)->pos();
+        m_index = view->indexAt(m_pos);
+        break;
+    case QEvent::ContextMenu:
+        m_pos = static_cast<QContextMenuEvent *>(ev)->pos();
+        m_index = view->indexAt(m_pos);
+        break;
+    case QEvent::DragEnter:
+    case QEvent::DragMove:
+    case QEvent::Drop:
+        m_pos = static_cast<QDropEvent *>(ev)->pos();
+        m_index = view->indexAt(m_pos);
+        break;
+    default:
+        m_index = selection->currentIndex();
+        break;
+    }
+
+    m_selectedRows = selection->selectedRows();
+    if (m_selectedRows.isEmpty()) {
         QModelIndex current = selection->currentIndex();
         if (current.isValid())
-            indices.append(current);
+            m_selectedRows.append(current);
     }
-    return indices;
+}
+
+QModelIndexList ItemViewEvent::currentOrSelectedRows() const
+{
+    return m_selectedRows.isEmpty() ? QModelIndexList() << m_index : m_selectedRows;
 }
 
 } // namespace Utils

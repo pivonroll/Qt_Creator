@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,7 +31,6 @@
 #include <android/androidqtsupport.h>
 
 #include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/coreconstants.h>
 
 #include <projectexplorer/target.h>
 
@@ -46,6 +40,8 @@
 #include <proparser/prowriter.h>
 
 #include <qtsupport/qtkitinformation.h>
+
+#include <utils/utilsicons.h>
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -95,8 +91,8 @@ ChooseProFilePage::ChooseProFilePage(CreateAndroidManifestWizard *wizard, const 
     }
 
     nodeSelected(m_comboBox->currentIndex());
-    connect(m_comboBox, SIGNAL(currentIndexChanged(int)),
-            this, SLOT(nodeSelected(int)));
+    connect(m_comboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &ChooseProFilePage::nodeSelected);
 
     fl->addRow(tr(".pro file:"), m_comboBox);
     setTitle(tr("Select a .pro File"));
@@ -130,7 +126,7 @@ ChooseDirectoryPage::ChooseDirectoryPage(CreateAndroidManifestWizard *wizard)
     m_sourceDirectoryWarning->setWordWrap(true);
     m_warningIcon = new QLabel(this);
     m_warningIcon->setVisible(false);
-    m_warningIcon->setPixmap(QPixmap(QLatin1String(Core::Constants::ICON_ERROR)));
+    m_warningIcon->setPixmap(Utils::Icons::CRITICAL.pixmap());
     m_warningIcon->setWordWrap(true);
     m_warningIcon->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
@@ -141,8 +137,8 @@ ChooseDirectoryPage::ChooseDirectoryPage(CreateAndroidManifestWizard *wizard)
 
     m_layout->addRow(hbox);
 
-    connect(m_androidPackageSourceDir, SIGNAL(pathChanged(QString)),
-            m_wizard, SLOT(setDirectory(QString)));
+    connect(m_androidPackageSourceDir, &PathChooser::pathChanged,
+            m_wizard, &CreateAndroidManifestWizard::setDirectory);
 
     if (wizard->copyGradle()) {
         QCheckBox *checkBox = new QCheckBox(this);
@@ -156,7 +152,7 @@ ChooseDirectoryPage::ChooseDirectoryPage(CreateAndroidManifestWizard *wizard)
 
 void ChooseDirectoryPage::checkPackageSourceDir()
 {
-    QString projectDir = m_wizard->node()->path().toFileInfo().absolutePath();
+    QString projectDir = m_wizard->node()->filePath().toFileInfo().absolutePath();
     QString newDir = m_androidPackageSourceDir->path();
     bool isComplete = QFileInfo(projectDir) != QFileInfo(newDir);
 
@@ -176,15 +172,15 @@ bool ChooseDirectoryPage::isComplete() const
 
 void ChooseDirectoryPage::initializePage()
 {
-    QString androidPackageDir = m_wizard->node()->singleVariableValue(QmakeProjectManager::AndroidPackageSourceDir);
+    QString androidPackageDir = m_wizard->node()->singleVariableValue(QmakeProjectManager::Variable::AndroidPackageSourceDir);
     if (androidPackageDir.isEmpty()) {
         m_label->setText(tr("Select the Android package source directory.\n\n"
                           "The files in the Android package source directory are copied to the build directory's "
                           "Android directory and the default files are overwritten."));
 
-        m_androidPackageSourceDir->setPath(m_wizard->node()->path().toFileInfo().absolutePath().append(QLatin1String("/android")));
-        connect(m_androidPackageSourceDir, SIGNAL(rawPathChanged(QString)),
-                this, SLOT(checkPackageSourceDir()));
+        m_androidPackageSourceDir->setPath(m_wizard->node()->filePath().toFileInfo().absolutePath().append(QLatin1String("/android")));
+        connect(m_androidPackageSourceDir, &PathChooser::rawPathChanged,
+                this, &ChooseDirectoryPage::checkPackageSourceDir);
     } else {
         m_label->setText(tr("The Android template files will be created in the ANDROID_PACKAGE_SOURCE_DIR set in the .pro file."));
         m_androidPackageSourceDir->setPath(androidPackageDir);
@@ -211,7 +207,7 @@ CreateAndroidManifestWizard::CreateAndroidManifestWizard(ProjectExplorer::Target
     const QmakeProFileNode *currentRunNode = 0;
     ProjectExplorer::RunConfiguration *rc = target->activeRunConfiguration();
     if (auto qrc = qobject_cast<QmakeAndroidRunConfiguration *>(rc))
-        currentRunNode = project->rootQmakeProjectNode()->findProFileFor(qrc->proFilePath());
+        currentRunNode = project->rootProjectNode()->findProFileFor(qrc->proFilePath());
 
     if (nodes.isEmpty()) {
         // oh uhm can't create anything
@@ -340,17 +336,17 @@ void CreateAndroidManifestWizard::createAndroidTemplateFiles()
     }
     m_node->addFiles(addedFiles);
 
-    if (m_node->singleVariableValue(QmakeProjectManager::AndroidPackageSourceDir).isEmpty()) {
+    if (m_node->singleVariableValue(QmakeProjectManager::Variable::AndroidPackageSourceDir).isEmpty()) {
         // and now time for some magic
         QString value = QLatin1String("$$PWD/")
-                + m_node->path().toFileInfo().absoluteDir().relativeFilePath(m_directory);
+                + m_node->filePath().toFileInfo().absoluteDir().relativeFilePath(m_directory);
         bool result =
                 m_node->setProVariable(QLatin1String("ANDROID_PACKAGE_SOURCE_DIR"), QStringList(value));
 
         if (!result) {
             QMessageBox::warning(this, tr("Project File not Updated"),
                                  tr("Could not update the .pro file %1.")
-                                 .arg(m_node->path().toUserOutput()));
+                                 .arg(m_node->filePath().toUserOutput()));
         }
     }
     Core::EditorManager::openEditor(m_directory + QLatin1String("/AndroidManifest.xml"));

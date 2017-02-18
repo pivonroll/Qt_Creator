@@ -1,39 +1,35 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
 source("../../shared/qtcreator.py")
 
 def main():
     # prepare example project
-    projectName = "declarative-music-browser"
-    sourceExample = os.path.join(sdkPath, "Examples", "QtMobility", projectName)
+    projectName = "adding"
+    sourceExample = os.path.join(Qt5Path.examplesPath(Targets.DESKTOP_561_DEFAULT),
+                                 "qml", "referenceexamples", "adding")
     proFile = projectName + ".pro"
     if not neededFilePresent(os.path.join(sourceExample, proFile)):
         return
@@ -45,25 +41,33 @@ def main():
         return
     usedProFile = os.path.join(templateDir, proFile)
     openQmakeProject(usedProFile)
+    openDocument(projectName + "." + projectName + "\\.pro")
+    typeLines(waitForObject(":Qt Creator_TextEditor::TextEditorWidget"),
+              "OTHER_FILES += example.qml")
+    invokeMenuItem("File", "Save All")
+    invokeMenuItem("File", "Close All")
     progressBarWait()
-    for filetype, filename in [["Headers", "utility.h"],
+    for filetype, filename in [["Headers", "person.h"],
                                ["Sources", "main.cpp"],
-                               ["Sources", "utility.cpp"],
-                               ["Resources", "musicbrowser.qrc"],
-                               ["QML", "musicbrowser.qml"]]:
+                               ["Sources", "person.cpp"],
+                               ["Resources", "adding.qrc"],
+                               ["QML", "example.qml"]]:
         filenames = ["ABCD" + filename.upper(), "abcd" + filename.lower(), "test", "TEST", filename]
         previous = filenames[-1]
         for filename in filenames:
             tempFiletype = filetype
-            if previous in ("test", "TEST") or filetype == "QML" and previous[-4:] != ".qml":
+            if (filetype == "Resources" and previous in ("test", "TEST")
+                or filetype == "QML" and not previous.endswith(".qml")):
                 tempFiletype = "Other files"
+            elif filetype == "Sources" and previous in ("test", "TEST"):
+                tempFiletype = "Headers"
             renameFile(templateDir, usedProFile, projectName + "." + tempFiletype,
                        previous, filename)
             # QTCREATORBUG-13176 does update the navigator async
             progressBarWait()
-            if tempFiletype == "Headers":   # QTCREATORBUG-13204
+            if filetype == "Headers":
                 verifyRenamedIncludes(templateDir, "main.cpp", previous, filename)
-                verifyRenamedIncludes(templateDir, "utility.cpp", previous, filename)
+                verifyRenamedIncludes(templateDir, "person.cpp", previous, filename)
             previous = filename
     invokeMenuItem("File", "Exit")
 

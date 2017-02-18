@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,36 +9,35 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QMLPROFILERCLIENTMANAGER_H
-#define QMLPROFILERCLIENTMANAGER_H
+#pragma once
 
-#include "qmlprofilerstatemanager.h"
-#include <qmldebug/qmlprofilereventlocation.h>
+#include "qmlprofilertraceclient.h"
 
+#include <qmldebug/qmldebugclient.h>
+#include <utils/port.h>
+
+#include <QPointer>
+#include <QTimer>
 #include <QObject>
-#include <QStringList>
+#include <QVector>
 
 namespace QmlProfiler {
 class QmlProfilerModelManager;
+class QmlProfilerStateManager;
 
 namespace Internal {
 
@@ -49,51 +48,59 @@ public:
     explicit QmlProfilerClientManager(QObject *parent = 0);
     ~QmlProfilerClientManager();
 
-    void registerProfilerStateManager(QmlProfilerStateManager *profilerState);
-    void setTcpConnection(QString host, quint64 port);
+    void setProfilerStateManager(QmlProfilerStateManager *profilerState);
+    void setTcpConnection(QString host, Utils::Port port);
+    void setLocalSocket(QString file);
+    void clearConnection();
 
     void clearBufferedData();
-    void discardPendingData();
     bool isConnected() const;
 
     void setModelManager(QmlProfilerModelManager *m);
     void setFlushInterval(quint32 flushInterval);
 
+    void setRetryParams(int interval, int maxAttempts);
+    void retryConnect();
+    void connectToTcpServer();
+    void startLocalServer();
+
+    void stopRecording();
+
 signals:
+    void connectionOpened();
     void connectionFailed();
     void connectionClosed();
 
-public slots:
-    void connectClient(quint16 port);
-    void disconnectClient();
+private:
+    QPointer<QmlProfilerStateManager> m_profilerState;
+    QPointer<QmlProfilerModelManager> m_modelManager;
+    QScopedPointer<QmlDebug::QmlDebugConnection> m_connection;
+    QScopedPointer<QmlProfilerTraceClient> m_qmlclientplugin;
 
-private slots:
-    void tryToConnect();
+    QTimer m_connectionTimer;
+
+    QString m_localSocket;
+    QString m_tcpHost;
+    Utils::Port m_tcpPort;
+    quint32 m_flushInterval = 0;
+
+    int m_retryInterval = 200;
+    int m_maximumRetries = 50;
+    int m_numRetries = 0;
+
+    void disconnectClient();
+    void stopConnectionTimer();
+
     void qmlDebugConnectionOpened();
     void qmlDebugConnectionClosed();
+    void qmlDebugConnectionFailed();
+
     void logState(const QString &);
 
-    void retryMessageBoxFinished(int result);
-
-    void qmlComplete(qint64 maximumTime);
-
-    void profilerStateChanged();
-    void clientRecordingChanged();
-
-private:
-    class QmlProfilerClientManagerPrivate;
-    QmlProfilerClientManagerPrivate *d;
-
-    void connectToClient();
-
-    void enableServices();
+    void createConnection();
     void connectClientSignals();
     void disconnectClientSignals();
-
-    void stopClientsRecording();
 };
 
-}
-}
-
-#endif // QMLPROFILERCLIENTMANAGER_H
+} // namespace Internal
+} // namespace QmlProfiler

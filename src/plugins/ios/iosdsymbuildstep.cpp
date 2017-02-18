@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,24 +9,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+
 #include "iosdsymbuildstep.h"
 
 #include "iosconstants.h"
@@ -84,11 +80,7 @@ bool IosPresetBuildStep::completeSetupWithStep(BuildStep *bs)
     return true;
 }
 
-IosPresetBuildStep::~IosPresetBuildStep()
-{
-}
-
-bool IosPresetBuildStep::init()
+bool IosPresetBuildStep::init(QList<const BuildStep *> &earlierSteps)
 {
     BuildConfiguration *bc = buildConfiguration();
     if (!bc)
@@ -98,9 +90,7 @@ bool IosPresetBuildStep::init()
     pp->setMacroExpander(bc->macroExpander());
     pp->setWorkingDirectory(bc->buildDirectory().toString());
     Utils::Environment env = bc->environment();
-    // Force output to english for the parsers. Do this here and not in the toolchain's
-    // addToEnvironment() to not screw up the users run environment.
-    env.set(QLatin1String("LC_ALL"), QLatin1String("C"));
+    Utils::Environment::setupEnglishOutput(&env);
     pp->setEnvironment(env);
     pp->setCommand(command());
     pp->setArguments(Utils::QtcProcess::joinArgs(arguments()));
@@ -115,7 +105,7 @@ bool IosPresetBuildStep::init()
     if (outputParser())
         outputParser()->setWorkingDirectory(pp->effectiveWorkingDirectory());
 
-    return AbstractProcessStep::init();
+    return AbstractProcessStep::init(earlierSteps);
 }
 
 QVariantMap IosPresetBuildStep::toMap() const
@@ -259,19 +249,18 @@ IosPresetBuildStepConfigWidget::IosPresetBuildStepConfigWidget(IosPresetBuildSte
     m_ui->resetDefaultsButton->setEnabled(!m_buildStep->isDefault());
     updateDetails();
 
-    connect(m_ui->argumentsTextEdit, SIGNAL(textChanged()),
-            SLOT(argumentsChanged()));
-    connect(m_ui->commandLineEdit, SIGNAL(editingFinished()),
-            SLOT(commandChanged()));
-    connect(m_ui->resetDefaultsButton, SIGNAL(clicked()),
-            SLOT(resetDefaults()));
+    connect(m_ui->argumentsTextEdit, &QPlainTextEdit::textChanged,
+            this, &IosPresetBuildStepConfigWidget::argumentsChanged);
+    connect(m_ui->commandLineEdit, &QLineEdit::editingFinished,
+            this, &IosPresetBuildStepConfigWidget::commandChanged);
+    connect(m_ui->resetDefaultsButton, &QAbstractButton::clicked,
+            this, &IosPresetBuildStepConfigWidget::resetDefaults);
 
-    connect(ProjectExplorerPlugin::instance(), SIGNAL(settingsChanged()),
-            SLOT(updateDetails()));
-    connect(m_buildStep->target(), SIGNAL(kitChanged()),
-            SLOT(updateDetails()));
-    connect(pro, SIGNAL(environmentChanged()),
-            SLOT(updateDetails()));
+    connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::settingsChanged,
+            this, &IosPresetBuildStepConfigWidget::updateDetails);
+    connect(m_buildStep->target(), &Target::kitChanged,
+            this, &IosPresetBuildStepConfigWidget::updateDetails);
+    connect(pro, &Project::environmentChanged, this, &IosPresetBuildStepConfigWidget::updateDetails);
 }
 
 IosPresetBuildStepConfigWidget::~IosPresetBuildStepConfigWidget()
@@ -342,8 +331,6 @@ IosPresetBuildStepFactory::IosPresetBuildStepFactory(QObject *parent) :
 
 BuildStep *IosPresetBuildStepFactory::create(BuildStepList *parent, const Id id)
 {
-    if (!canCreate(parent, id))
-        return 0;
     IosPresetBuildStep *step = createPresetStep(parent, id);
     if (step->completeSetup())
         return step;
@@ -351,15 +338,8 @@ BuildStep *IosPresetBuildStepFactory::create(BuildStepList *parent, const Id id)
     return 0;
 }
 
-bool IosPresetBuildStepFactory::canClone(BuildStepList *parent, BuildStep *source) const
-{
-    return canCreate(parent, source->id());
-}
-
 BuildStep *IosPresetBuildStepFactory::clone(BuildStepList *parent, BuildStep *source)
 {
-    if (!canClone(parent, source))
-        return 0;
     IosPresetBuildStep *old = qobject_cast<IosPresetBuildStep *>(source);
     Q_ASSERT(old);
     IosPresetBuildStep *res = createPresetStep(parent, old->id());
@@ -369,15 +349,8 @@ BuildStep *IosPresetBuildStepFactory::clone(BuildStepList *parent, BuildStep *so
     return 0;
 }
 
-bool IosPresetBuildStepFactory::canRestore(BuildStepList *parent, const QVariantMap &map) const
-{
-    return canCreate(parent, idFromMap(map));
-}
-
 BuildStep *IosPresetBuildStepFactory::restore(BuildStepList *parent, const QVariantMap &map)
 {
-    if (!canRestore(parent, map))
-        return 0;
     IosPresetBuildStep *bs = createPresetStep(parent, idFromMap(map));
     if (bs->fromMap(map))
         return bs;
@@ -385,38 +358,18 @@ BuildStep *IosPresetBuildStepFactory::restore(BuildStepList *parent, const QVari
     return 0;
 }
 
-QString IosDsymBuildStepFactory::displayNameForId(const Id id) const
-{
-    if (id == Constants::IOS_DSYM_BUILD_STEP_ID)
-        return QLatin1String("dsymutil");
-    return QString();
-}
-
-QList<Id> IosDsymBuildStepFactory::availableCreationIds(BuildStepList *parent) const
+QList<BuildStepInfo> IosDsymBuildStepFactory::availableSteps(BuildStepList *parent) const
 {
     if (parent->id() != ProjectExplorer::Constants::BUILDSTEPS_CLEAN
             && parent->id() != ProjectExplorer::Constants::BUILDSTEPS_BUILD
             && parent->id() != ProjectExplorer::Constants::BUILDSTEPS_DEPLOY)
-        return QList<Id>();
-    Kit *kit = parent->target()->kit();
-    Id deviceType = DeviceTypeKitInformation::deviceTypeId(kit);
-    if (deviceType == Constants::IOS_DEVICE_TYPE
-            || deviceType == Constants::IOS_SIMULATOR_TYPE)
-        return QList<Id>() << Id(Constants::IOS_DSYM_BUILD_STEP_ID);
-    return QList<Id>();
-}
+        return {};
 
-bool IosDsymBuildStepFactory::canCreate(BuildStepList *parent, const Id id) const
-{
-    if (parent->id() != ProjectExplorer::Constants::BUILDSTEPS_CLEAN
-            && parent->id() != ProjectExplorer::Constants::BUILDSTEPS_BUILD
-            && parent->id() != ProjectExplorer::Constants::BUILDSTEPS_DEPLOY)
-        return false;
-    Kit *kit = parent->target()->kit();
-    Id deviceType = DeviceTypeKitInformation::deviceTypeId(kit);
-    return ((deviceType == Constants::IOS_DEVICE_TYPE
-            || deviceType == Constants::IOS_SIMULATOR_TYPE)
-            && id == Constants::IOS_DSYM_BUILD_STEP_ID);
+    Id deviceType = DeviceTypeKitInformation::deviceTypeId(parent->target()->kit());
+    if (deviceType != Constants::IOS_DEVICE_TYPE && deviceType != Constants::IOS_SIMULATOR_TYPE)
+        return {};
+
+    return {{ Constants::IOS_DSYM_BUILD_STEP_ID, "dsymutil" }};
 }
 
 IosPresetBuildStep *IosDsymBuildStepFactory::createPresetStep(BuildStepList *parent, const Id id) const
@@ -434,14 +387,11 @@ QStringList IosDsymBuildStep::defaultCleanCmdList() const
 {
     IosRunConfiguration *runConf =
             qobject_cast<IosRunConfiguration *>(target()->activeRunConfiguration());
-    QTC_ASSERT(runConf, return QStringList(QLatin1String("echo")));
+    QTC_ASSERT(runConf, return QStringList("echo"));
     QString dsymPath = runConf->bundleDirectory().toUserOutput();
     dsymPath.chop(4);
     dsymPath.append(QLatin1String(".dSYM"));
-    return QStringList()
-            << QLatin1String("rm")
-            << QLatin1String("-rf")
-            << dsymPath;
+    return QStringList({ "rm", "-rf", dsymPath });
 }
 
 QStringList IosDsymBuildStep::defaultCmdList() const
@@ -457,11 +407,7 @@ QStringList IosDsymBuildStep::defaultCmdList() const
     QString dsymPath = runConf->bundleDirectory().toUserOutput();
     dsymPath.chop(4);
     dsymPath.append(QLatin1String(".dSYM"));
-    return QStringList()
-            << dsymutilCmd
-            << QLatin1String("-o")
-            << dsymPath
-            << runConf->localExecutable().toUserOutput();
+    return QStringList({ dsymutilCmd, "-o", dsymPath, runConf->localExecutable().toUserOutput() });
 }
 
 

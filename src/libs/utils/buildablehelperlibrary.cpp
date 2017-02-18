@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -45,24 +40,22 @@ bool BuildableHelperLibrary::isQtChooser(const QFileInfo &info)
 
 QString BuildableHelperLibrary::qtChooserToQmakePath(const QString &path)
 {
-    const char toolDir[] = "QTTOOLDIR=\"";
-    QProcess proc;
-    proc.start(path, QStringList(QLatin1String("-print-env")));
-    if (!proc.waitForStarted(1000))
+    const QString toolDir = QLatin1String("QTTOOLDIR=\"");
+    SynchronousProcess proc;
+    proc.setTimeoutS(1);
+    SynchronousProcessResponse response = proc.runBlocking(path, QStringList(QLatin1String("-print-env")));
+    if (response.result != SynchronousProcessResponse::Finished)
         return QString();
-    if (!proc.waitForFinished(1000))
-        return QString();
-    QByteArray output = proc.readAllStandardOutput();
+    const QString output = response.stdOut();
     int pos = output.indexOf(toolDir);
     if (pos == -1)
         return QString();
-    pos += int(sizeof(toolDir)) - 1;
+    pos += toolDir.count();
     int end = output.indexOf('\"', pos);
     if (end == -1)
         return QString();
 
-    QString result = QString::fromLocal8Bit(output.mid(pos, end - pos)) + QLatin1String("/qmake");
-    return result;
+    return output.mid(pos, end - pos) + QLatin1String("/qmake");
 }
 
 static bool isQmake(const QString &path)
@@ -109,23 +102,15 @@ QString BuildableHelperLibrary::qtVersionForQMake(const QString &qmakePath)
     if (qmakePath.isEmpty())
         return QString();
 
-    QProcess qmake;
-    qmake.start(qmakePath, QStringList(QLatin1String("--version")));
-    if (!qmake.waitForStarted()) {
-        qWarning("Cannot start '%s': %s", qPrintable(qmakePath), qPrintable(qmake.errorString()));
-        return QString();
-    }
-    if (!qmake.waitForFinished())      {
-        SynchronousProcess::stopProcess(qmake);
-        qWarning("Timeout running '%s'.", qPrintable(qmakePath));
-        return QString();
-    }
-    if (qmake.exitStatus() != QProcess::NormalExit) {
-        qWarning("'%s' crashed.", qPrintable(qmakePath));
+    SynchronousProcess qmake;
+    qmake.setTimeoutS(5);
+    SynchronousProcessResponse response = qmake.runBlocking(qmakePath, QStringList(QLatin1String("--version")));
+    if (response.result != SynchronousProcessResponse::Finished) {
+        qWarning() << response.exitMessage(qmakePath, 5);
         return QString();
     }
 
-    const QString output = QString::fromLocal8Bit(qmake.readAllStandardOutput());
+    const QString output = response.allOutput();
     static QRegExp regexp(QLatin1String("(QMake version|QMake version:)[\\s]*([\\d.]*)"),
                           Qt::CaseInsensitive);
     regexp.indexIn(output);

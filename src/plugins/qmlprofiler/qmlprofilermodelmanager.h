@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,35 +9,32 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QMLPROFILERMODELMANAGER_H
-#define QMLPROFILERMODELMANAGER_H
+#pragma once
 
 #include "qmlprofiler_global.h"
+#include "qmlprofilereventtypes.h"
+#include "qmleventlocation.h"
+#include "qmlevent.h"
+#include "qmleventtype.h"
 
-#include <qmldebug/qmlprofilereventlocation.h>
-#include <qmldebug/qmlprofilereventtypes.h>
 #include <utils/fileinprojectfinder.h>
 
 #include <QObject>
+#include <functional>
 
 namespace QmlProfiler {
 class QmlProfilerModelManager;
@@ -51,14 +48,11 @@ class QMLPROFILER_EXPORT QmlProfilerTraceTime : public QObject
     Q_OBJECT
 public:
     explicit QmlProfilerTraceTime(QObject *parent);
-    ~QmlProfilerTraceTime();
 
     qint64 startTime() const;
     qint64 endTime() const;
     qint64 duration() const;
-
-signals:
-    void timeChanged(qint64,qint64);
+    bool isRestrictedToRange() const;
 
 public slots:
     void clear();
@@ -66,10 +60,14 @@ public slots:
     void setTime(qint64 startTime, qint64 endTime);
     void decreaseStartTime(qint64 time);
     void increaseEndTime(qint64 time);
+    void restrictToRange(qint64 startTime, qint64 endTime);
 
 private:
     qint64 m_startTime;
     qint64 m_endTime;
+
+    qint64 m_restrictedStartTime;
+    qint64 m_restrictedEndTime;
 };
 
 } // End internal namespace
@@ -89,7 +87,10 @@ public:
         Done
     };
 
-    explicit QmlProfilerModelManager(Utils::FileInProjectFinder *finder, QObject *parent = 0);
+    typedef std::function<void(const QmlEvent &, const QmlEventType &)> EventLoader;
+    typedef std::function<void()> Finalizer;
+
+    explicit QmlProfilerModelManager(QObject *parent = 0);
     ~QmlProfilerModelManager();
 
     State state() const;
@@ -98,43 +99,50 @@ public:
     QmlProfilerNotesModel *notesModel() const;
 
     bool isEmpty() const;
+    uint numLoadedEvents() const;
+    uint numLoadedEventTypes() const;
 
-    double progress() const;
     int registerModelProxy();
-    void setProxyCountWeight(int proxyId, int weight);
-    void modelProxyCountUpdated(int proxyId, qint64 count, qint64 max);
-    void announceFeatures(int proxyId, quint64 features);
+    void announceFeatures(quint64 features, EventLoader eventLoader, Finalizer finalizer);
+
+    int numFinishedFinalizers() const;
+    int numRegisteredFinalizers() const;
+
+    void addEvents(const QVector<QmlEvent> &events);
+    void addEvent(const QmlEvent &event);
+
+    void addEventTypes(const QVector<QmlEventType> &types);
+    void addEventType(const QmlEventType &type);
+
     quint64 availableFeatures() const;
     quint64 visibleFeatures() const;
     void setVisibleFeatures(quint64 features);
     quint64 recordedFeatures() const;
     void setRecordedFeatures(quint64 features);
+    bool aggregateTraces() const;
+    void setAggregateTraces(bool aggregateTraces);
 
     void acquiringDone();
     void processingDone();
 
-    static const char *featureName(QmlDebug::ProfileFeature feature);
+    static const char *featureName(ProfileFeature feature);
 
 signals:
     void error(const QString &error);
     void stateChanged();
-    void progressChanged();
     void loadFinished();
     void saveFinished();
 
-    void requestDetailsForLocation(int eventType, const QmlDebug::QmlEventLocation &location);
     void availableFeaturesChanged(quint64 features);
     void visibleFeaturesChanged(quint64 features);
     void recordedFeaturesChanged(quint64 features);
 
 public slots:
     void clear();
+    void restrictToRange(qint64 startTime, qint64 endTime);
+    bool isRestrictedToRange() const;
 
-    void prepareForWriting();
-    void addQmlEvent(QmlDebug::Message message, QmlDebug::RangeType rangeType, int bindingType,
-                     qint64 startTime, qint64 length, const QString &data,
-                     const QmlDebug::QmlEventLocation &location,
-                     qint64 ndata1, qint64 ndata2, qint64 ndata3, qint64 ndata4, qint64 ndata5);
+    void startAcquiring();
 
     void save(const QString &filename);
     void load(const QString &filename);
@@ -147,6 +155,4 @@ private:
     QmlProfilerModelManagerPrivate *d;
 };
 
-}
-
-#endif
+} // namespace QmlProfiler

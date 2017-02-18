@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -47,6 +42,7 @@
 #include <QAction>
 #include <QDebug>
 #include <QMap>
+#include <QMouseEvent>
 #include <QVector>
 
 namespace Core {
@@ -62,6 +58,8 @@ namespace Core {
 
 struct ModeManagerPrivate
 {
+    void showMenu(int index, QMouseEvent *event);
+
     Internal::MainWindow *m_mainWindow;
     Internal::FancyTabWidget *m_modeStack;
     Internal::FancyActionBar *m_actionBar;
@@ -86,6 +84,12 @@ static int indexOf(Id id)
     return -1;
 }
 
+void ModeManagerPrivate::showMenu(int index, QMouseEvent *event)
+{
+    QTC_ASSERT(m_modes.at(index)->menu(), return);
+    m_modes.at(index)->menu()->popup(event->globalPos());
+}
+
 ModeManager::ModeManager(Internal::MainWindow *mainWindow,
                          Internal::FancyTabWidget *modeStack)
 {
@@ -99,16 +103,20 @@ ModeManager::ModeManager(Internal::MainWindow *mainWindow,
     d->m_modeSelectorVisible = true;
     d->m_modeStack->setSelectionWidgetVisible(d->m_modeSelectorVisible);
 
-    connect(d->m_modeStack, SIGNAL(currentAboutToShow(int)), SLOT(currentTabAboutToChange(int)));
-    connect(d->m_modeStack, SIGNAL(currentChanged(int)), SLOT(currentTabChanged(int)));
+    connect(d->m_modeStack, &Internal::FancyTabWidget::currentAboutToShow,
+            this, &ModeManager::currentTabAboutToChange);
+    connect(d->m_modeStack, &Internal::FancyTabWidget::currentChanged,
+            this, &ModeManager::currentTabChanged);
+    connect(d->m_modeStack, &Internal::FancyTabWidget::menuTriggered,
+            this, [](int index, QMouseEvent *e) { d->showMenu(index, e); });
 }
 
 void ModeManager::init()
 {
-    QObject::connect(ExtensionSystem::PluginManager::instance(), SIGNAL(objectAdded(QObject*)),
-                     m_instance, SLOT(objectAdded(QObject*)));
-    QObject::connect(ExtensionSystem::PluginManager::instance(), SIGNAL(aboutToRemoveObject(QObject*)),
-                     m_instance, SLOT(aboutToRemoveObject(QObject*)));
+    QObject::connect(ExtensionSystem::PluginManager::instance(), &ExtensionSystem::PluginManager::objectAdded,
+                     m_instance, &ModeManager::objectAdded);
+    QObject::connect(ExtensionSystem::PluginManager::instance(), &ExtensionSystem::PluginManager::aboutToRemoveObject,
+                     m_instance, &ModeManager::aboutToRemoveObject);
 }
 
 ModeManager::~ModeManager()
@@ -118,15 +126,15 @@ ModeManager::~ModeManager()
     m_instance = 0;
 }
 
-IMode *ModeManager::currentMode()
+Id ModeManager::currentMode()
 {
     int currentIndex = d->m_modeStack->currentIndex();
     if (currentIndex < 0)
-        return 0;
-    return d->m_modes.at(currentIndex);
+        return Id();
+    return d->m_modes.at(currentIndex)->id();
 }
 
-IMode *ModeManager::mode(Id id)
+static IMode *findMode(Id id)
 {
     const int index = indexOf(id);
     if (index >= 0)
@@ -136,9 +144,10 @@ IMode *ModeManager::mode(Id id)
 
 void ModeManager::activateMode(Id id)
 {
-    const int index = indexOf(id);
-    if (index >= 0)
-        d->m_modeStack->setCurrentIndex(index);
+    const int currentIndex = d->m_modeStack->currentIndex();
+    const int newIndex = indexOf(id);
+    if (newIndex != currentIndex && newIndex >= 0)
+        d->m_modeStack->setCurrentIndex(newIndex);
 }
 
 void ModeManager::objectAdded(QObject *obj)
@@ -156,7 +165,8 @@ void ModeManager::objectAdded(QObject *obj)
             ++index;
 
     d->m_modes.insert(index, mode);
-    d->m_modeStack->insertTab(index, mode->widget(), mode->icon(), mode->displayName());
+    d->m_modeStack->insertTab(index, mode->widget(), mode->icon(), mode->displayName(),
+                              mode->menu() != nullptr);
     d->m_modeStack->setTabEnabled(index, mode->isEnabled());
 
     // Register mode shortcut
@@ -165,7 +175,7 @@ void ModeManager::objectAdded(QObject *obj)
     Command *cmd = ActionManager::registerAction(action, actionId);
 
     d->m_modeCommands.insert(index, cmd);
-    connect(cmd, SIGNAL(keySequenceChanged()), m_instance, SLOT(updateModeToolTip()));
+    connect(cmd, &Command::keySequenceChanged, m_instance, &ModeManager::updateModeToolTip);
     for (int i = 0; i < d->m_modeCommands.size(); ++i) {
         Command *currentCmd = d->m_modeCommands.at(i);
         // we need this hack with currentlyHasDefaultSequence
@@ -185,8 +195,8 @@ void ModeManager::objectAdded(QObject *obj)
         ICore::raiseWindow(d->m_modeStack);
     });
 
-    connect(mode, SIGNAL(enabledStateChanged(bool)),
-            m_instance, SLOT(enabledStateChanged()));
+    connect(mode, &IMode::enabledStateChanged,
+            m_instance, &ModeManager::enabledStateChanged);
 }
 
 void ModeManager::updateModeToolTip()
@@ -208,7 +218,7 @@ void ModeManager::enabledStateChanged()
     d->m_modeStack->setTabEnabled(index, mode->isEnabled());
 
     // Make sure we leave any disabled mode to prevent possible crashes:
-    if (mode == currentMode() && !mode->isEnabled()) {
+    if (mode->id() == currentMode() && !mode->isEnabled()) {
         // This assumes that there is always at least one enabled mode.
         for (int i = 0; i < d->m_modes.count(); ++i) {
             if (d->m_modes.at(i) != mode &&
@@ -259,33 +269,36 @@ void ModeManager::currentTabAboutToChange(int index)
     if (index >= 0) {
         IMode *mode = d->m_modes.at(index);
         if (mode)
-            emit currentModeAboutToChange(mode);
+            emit currentModeAboutToChange(mode->id());
     }
 }
 
 void ModeManager::currentTabChanged(int index)
 {
     // Tab index changes to -1 when there is no tab left.
-    if (index >= 0) {
-        IMode *mode = d->m_modes.at(index);
+    if (index < 0)
+        return;
 
-        // FIXME: This hardcoded context update is required for the Debug and Edit modes, since
-        // they use the editor widget, which is already a context widget so the main window won't
-        // go further up the parent tree to find the mode context.
-        ICore::updateAdditionalContexts(d->m_addedContexts, mode->context());
-        d->m_addedContexts = mode->context();
+    IMode *mode = d->m_modes.at(index);
+    if (!mode)
+        return;
 
-        IMode *oldMode = 0;
-        if (d->m_oldCurrent >= 0)
-            oldMode = d->m_modes.at(d->m_oldCurrent);
-        d->m_oldCurrent = index;
-        emit currentModeChanged(mode, oldMode);
-    }
+    // FIXME: This hardcoded context update is required for the Debug and Edit modes, since
+    // they use the editor widget, which is already a context widget so the main window won't
+    // go further up the parent tree to find the mode context.
+    ICore::updateAdditionalContexts(d->m_addedContexts, mode->context());
+    d->m_addedContexts = mode->context();
+
+    IMode *oldMode = nullptr;
+    if (d->m_oldCurrent >= 0)
+        oldMode = d->m_modes.at(d->m_oldCurrent);
+    d->m_oldCurrent = index;
+    emit currentModeChanged(mode->id(), oldMode ? oldMode->id() : Id());
 }
 
 void ModeManager::setFocusToCurrentMode()
 {
-    IMode *mode = currentMode();
+    IMode *mode = findMode(currentMode());
     QTC_ASSERT(mode, return);
     QWidget *widget = mode->widget();
     if (widget) {

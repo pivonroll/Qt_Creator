@@ -1,7 +1,7 @@
-/***************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Jochen Becher
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Jochen Becher
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,9 +33,12 @@
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/icore.h>
+#include <utils/icon.h>
+#include <utils/utilsicons.h>
 
 #include <QAction>
 #include <QShortcut>
+#include <QMenu>
 
 namespace ModelEditor {
 namespace Internal {
@@ -57,6 +55,11 @@ public:
     QAction *deleteAction = 0;
     QAction *selectAllAction = 0;
     QAction *openParentDiagramAction = 0;
+    QAction *synchronizeBrowserAction = 0;
+    QAction *exportDiagramAction = 0;
+    QAction *zoomInAction = 0;
+    QAction *zoomOutAction = 0;
+    QAction *resetZoomAction = 0;
 };
 
 ActionHandler::ActionHandler(const Core::Context &context, QObject *parent)
@@ -116,43 +119,108 @@ QAction *ActionHandler::openParentDiagramAction() const
     return d->openParentDiagramAction;
 }
 
+QAction *ActionHandler::synchronizeBrowserAction() const
+{
+    return d->synchronizeBrowserAction;
+}
+
+QAction *ActionHandler::exportDiagramAction() const
+{
+    return d->exportDiagramAction;
+}
+
+QAction *ActionHandler::zoomInAction() const
+{
+    return d->zoomInAction;
+}
+
+QAction *ActionHandler::zoomOutAction() const
+{
+    return d->zoomOutAction;
+}
+
+QAction *ActionHandler::resetZoom() const
+{
+    return d->resetZoomAction;
+}
+
 void ActionHandler::createActions()
 {
     Core::ActionContainer *medit = Core::ActionManager::actionContainer(Core::Constants::M_EDIT);
 
-    d->undoAction = registerCommand(Core::Constants::UNDO, [this]() { undo(); })->action();
-    d->redoAction = registerCommand(Core::Constants::REDO, [this]() { redo(); })->action();
-    d->cutAction = registerCommand(Core::Constants::CUT, [this]() { cut(); })->action();
-    d->copyAction = registerCommand(Core::Constants::COPY, [this]() { copy(); })->action();
-    d->pasteAction = registerCommand(Core::Constants::PASTE, [this]() { paste(); })->action();
+    d->undoAction = registerCommand(Core::Constants::UNDO, [this]() { undo(); }, d->context)->action();
+    d->redoAction = registerCommand(Core::Constants::REDO, [this]() { redo(); }, d->context)->action();
+    d->cutAction = registerCommand(Core::Constants::CUT, [this]() { cut(); }, d->context)->action();
+    d->copyAction = registerCommand(Core::Constants::COPY, [this]() { copy(); }, d->context)->action();
+    d->pasteAction = registerCommand(Core::Constants::PASTE, [this]() { paste(); }, d->context)->action();
     Core::Command *removeCommand = registerCommand(
-                Constants::REMOVE_SELECTED_ELEMENTS, [this]() { removeSelectedElements(); }, true,
+                Constants::REMOVE_SELECTED_ELEMENTS, [this]() { removeSelectedElements(); }, d->context, true,
                 tr("&Remove"), QKeySequence::Delete);
     medit->addAction(removeCommand, Core::Constants::G_EDIT_COPYPASTE);
     d->removeAction = removeCommand->action();
     Core::Command *deleteCommand = registerCommand(
-                Constants::DELETE_SELECTED_ELEMENTS, [this]() { deleteSelectedElements(); }, true,
+                Constants::DELETE_SELECTED_ELEMENTS, [this]() { deleteSelectedElements(); }, d->context, true,
                 tr("&Delete"), QKeySequence(QStringLiteral("Ctrl+D")));
     medit->addAction(deleteCommand, Core::Constants::G_EDIT_COPYPASTE);
     d->deleteAction = deleteCommand->action();
-    d->selectAllAction = registerCommand(Core::Constants::SELECTALL, [this]() { selectAll(); })->action();
+    d->selectAllAction = registerCommand(Core::Constants::SELECTALL, [this]() { selectAll(); }, d->context)->action();
+
+    Core::ActionContainer *menuModelEditor = Core::ActionManager::createMenu(Constants::MENU_ID);
+    menuModelEditor->menu()->setTitle(tr("Model Editor"));
+    Core::ActionContainer *menuTools = Core::ActionManager::actionContainer(Core::Constants::M_TOOLS);
+    menuTools->addMenu(menuModelEditor);
+
+    Core::Command *exportDiagramCommand = registerCommand(
+                Constants::EXPORT_DIAGRAM, [this]() { exportDiagram(); }, d->context, true,
+                tr("Export Diagram..."));
+    menuModelEditor->addAction(exportDiagramCommand);
+    d->exportDiagramAction = exportDiagramCommand->action();
+
+    menuModelEditor->addSeparator(d->context);
+
+    Core::Command *zoomInCommand = registerCommand(
+                Constants::ZOOM_IN, [this]() { zoomIn(); }, d->context, true,
+                tr("Zoom In"), QKeySequence(QStringLiteral("Ctrl++")));
+    menuModelEditor->addAction(zoomInCommand);
+    d->zoomInAction = zoomInCommand->action();
+
+    Core::Command *zoomOutCommand = registerCommand(
+                Constants::ZOOM_OUT, [this]() { zoomOut(); }, d->context, true,
+                tr("Zoom Out"), QKeySequence(QStringLiteral("Ctrl+-")));
+    menuModelEditor->addAction(zoomOutCommand);
+    d->zoomOutAction = zoomOutCommand->action();
+
+    Core::Command *resetZoomCommand = registerCommand(
+                Constants::RESET_ZOOM, [this]() { resetZoom(); }, d->context, true,
+                tr("Reset Zoom"), QKeySequence(QStringLiteral("Ctrl+0")));
+    menuModelEditor->addAction(resetZoomCommand);
+    d->zoomOutAction = resetZoomCommand->action();
+
     d->openParentDiagramAction = registerCommand(
-                Constants::OPEN_PARENT_DIAGRAM, [this]() { openParentDiagram(); }, true,
+                Constants::OPEN_PARENT_DIAGRAM, [this]() { openParentDiagram(); }, Core::Context(), true,
                 tr("Open Parent Diagram"), QKeySequence(QStringLiteral("Ctrl+Shift+P")))->action();
     d->openParentDiagramAction->setIcon(QIcon(QStringLiteral(":/modeleditor/up.png")));
-    registerCommand(Constants::ACTION_ADD_PACKAGE, nullptr);
-    registerCommand(Constants::ACTION_ADD_COMPONENT, nullptr);
-    registerCommand(Constants::ACTION_ADD_CLASS, nullptr);
-    registerCommand(Constants::ACTION_ADD_CANVAS_DIAGRAM, nullptr);
-}
+    registerCommand(Constants::ACTION_ADD_PACKAGE, nullptr, Core::Context(), true, tr("Add Package"));
+    registerCommand(Constants::ACTION_ADD_COMPONENT, nullptr, Core::Context(), true, tr("Add Component"));
+    registerCommand(Constants::ACTION_ADD_CLASS, nullptr, Core::Context(), true, tr("Add Class"));
+    registerCommand(Constants::ACTION_ADD_CANVAS_DIAGRAM, nullptr, Core::Context(), true, tr("Add Canvas Diagram"));
+    d->synchronizeBrowserAction = registerCommand(
+                Constants::ACTION_SYNC_BROWSER, nullptr, Core::Context(), true,
+                tr("Synchronize Browser and Diagram<br><i><small>Press&Hold for options</small></i>"))->action();
+    d->synchronizeBrowserAction->setIcon(Utils::Icons::LINK.icon());
+    d->synchronizeBrowserAction->setCheckable(true);
 
-void ActionHandler::createEditPropertiesShortcut(const Core::Id &shortcutId)
-{
-    auto editAction = new QAction(tr("Edit selected element in properties view"), Core::ICore::mainWindow());
-    Core::Command *editCommand = Core::ActionManager::registerAction(
-                editAction, shortcutId, d->context);
-    editCommand->setDefaultKeySequence(QKeySequence(tr("Return")));
-    connect(editAction, &QAction::triggered, this, &ActionHandler::onEditProperties);
+    auto editPropertiesAction = new QAction(tr("Edit Element Properties"), Core::ICore::mainWindow());
+    Core::Command *editPropertiesCommand = Core::ActionManager::registerAction(
+                editPropertiesAction, Constants::SHORTCUT_MODEL_EDITOR_EDIT_PROPERTIES, d->context);
+    editPropertiesCommand->setDefaultKeySequence(QKeySequence(tr("Shift+Return")));
+    connect(editPropertiesAction, &QAction::triggered, this, &ActionHandler::onEditProperties);
+
+    auto editItemAction = new QAction(tr("Edit Item on Diagram"), Core::ICore::mainWindow());
+    Core::Command *editItemCommand = Core::ActionManager::registerAction(
+                editItemAction, Constants::SHORTCUT_MODEL_EDITOR_EDIT_ITEM, d->context);
+    editItemCommand->setDefaultKeySequence(QKeySequence(tr("Return")));
+    connect(editItemAction, &QAction::triggered, this, &ActionHandler::onEditItem);
 }
 
 void ActionHandler::undo()
@@ -225,12 +293,47 @@ void ActionHandler::onEditProperties()
         editor->editProperties();
 }
 
+void ActionHandler::onEditItem()
+{
+    auto editor = qobject_cast<ModelEditor *>(Core::EditorManager::currentEditor());
+    if (editor)
+        editor->editSelectedItem();
+}
+
+void ActionHandler::exportDiagram()
+{
+    auto editor = qobject_cast<ModelEditor *>(Core::EditorManager::currentEditor());
+    if (editor)
+        editor->exportDiagram();
+}
+
+void ActionHandler::zoomIn()
+{
+    auto editor = qobject_cast<ModelEditor *>(Core::EditorManager::currentEditor());
+    if (editor)
+        editor->zoomIn();
+}
+
+void ActionHandler::zoomOut()
+{
+    auto editor = qobject_cast<ModelEditor *>(Core::EditorManager::currentEditor());
+    if (editor)
+        editor->zoomOut();
+}
+
+void ActionHandler::resetZoom()
+{
+    auto editor = qobject_cast<ModelEditor *>(Core::EditorManager::currentEditor());
+    if (editor)
+        editor->resetZoom();
+}
+
 Core::Command *ActionHandler::registerCommand(const Core::Id &id, const std::function<void()> &slot,
-                                              bool scriptable, const QString &title,
+                                              const Core::Context &context, bool scriptable, const QString &title,
                                               const QKeySequence &keySequence)
 {
     auto action = new QAction(title, this);
-    Core::Command *command = Core::ActionManager::registerAction(action, id, d->context, scriptable);
+    Core::Command *command = Core::ActionManager::registerAction(action, id, context, scriptable);
     if (!keySequence.isEmpty())
         command->setDefaultKeySequence(keySequence);
     if (slot)

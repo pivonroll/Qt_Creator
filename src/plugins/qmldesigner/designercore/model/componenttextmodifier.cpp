@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,23 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "componenttextmodifier.h"
 
 using namespace QmlDesigner;
+
 ComponentTextModifier::ComponentTextModifier(TextModifier *originalModifier, int componentStartOffset, int componentEndOffset, int rootStartOffset) :
         m_originalModifier(originalModifier),
         m_componentStartOffset(componentStartOffset),
@@ -54,7 +55,34 @@ void ComponentTextModifier::move(const MoveInfo &moveInfo)
 
 void ComponentTextModifier::indent(int offset, int length)
 {
-    m_originalModifier->indent(offset, length);
+    int componentStartLine = getLineInDocument(m_originalModifier->textDocument(), m_componentStartOffset);
+    int componentEndLine = getLineInDocument(m_originalModifier->textDocument(), m_componentEndOffset);
+
+    /* Do not indent lines that contain code of the component and the surrounding QML.
+     * example:
+     * delegate: Item { //startLine
+     * ...
+     * } // endLine
+     * Indenting such lines will change the offsets of the component.
+     */
+
+    --componentStartLine;
+    --componentEndLine;
+
+    int startLine = getLineInDocument(m_originalModifier->textDocument(), offset);
+    int endLine = getLineInDocument(m_originalModifier->textDocument(), offset + length);
+
+    if (startLine < componentStartLine)
+        startLine = componentStartLine;
+    if (endLine > componentEndLine)
+        endLine = componentEndLine;
+
+    indentLines(startLine, endLine);
+}
+
+void ComponentTextModifier::indentLines(int startLine, int endLine)
+{
+    m_originalModifier->indentLines(startLine, endLine);
 }
 
 int ComponentTextModifier::indentDepth() const
@@ -72,7 +100,7 @@ void ComponentTextModifier::flushGroup()
 {
     m_originalModifier->flushGroup();
 
-    uint textLength = m_originalModifier->text().length();
+    int textLength = m_originalModifier->text().length();
     m_componentEndOffset += (textLength - m_startLength);
     m_startLength = textLength;
 
@@ -82,7 +110,7 @@ void ComponentTextModifier::commitGroup()
 {
     m_originalModifier->commitGroup();
 
-    uint textLength = m_originalModifier->text().length();
+    int textLength = m_originalModifier->text().length();
     m_componentEndOffset += (textLength - m_startLength);
     m_startLength = textLength;
 }

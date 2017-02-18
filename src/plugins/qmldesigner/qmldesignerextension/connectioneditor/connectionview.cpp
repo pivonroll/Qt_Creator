@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+
 #include "connectionview.h"
 #include "connectionviewwidget.h"
 
+#include "backendmodel.h"
 #include "bindingmodel.h"
 #include "connectionmodel.h"
 #include "dynamicpropertiesmodel.h"
@@ -41,11 +43,13 @@ ConnectionView::ConnectionView(QObject *parent) : AbstractView(parent),
     m_connectionViewWidget(new ConnectionViewWidget()),
     m_connectionModel(new ConnectionModel(this)),
     m_bindingModel(new BindingModel(this)),
-    m_dynamicPropertiesModel(new DynamicPropertiesModel(this))
+    m_dynamicPropertiesModel(new DynamicPropertiesModel(this)),
+    m_backendModel(new BackendModel(this))
 {
     connectionViewWidget()->setBindingModel(m_bindingModel);
     connectionViewWidget()->setConnectionModel(m_connectionModel);
-    connectionViewWidget()->setDynamicPropertiesModelModel(m_dynamicPropertiesModel);
+    connectionViewWidget()->setDynamicPropertiesModel(m_dynamicPropertiesModel);
+    connectionViewWidget()->setBackendModel(m_backendModel);
 }
 
 ConnectionView::~ConnectionView()
@@ -59,6 +63,7 @@ void ConnectionView::modelAttached(Model *model)
     dynamicPropertiesModel()->selectionChanged(QList<ModelNode>());
     connectionModel()->resetModel();
     connectionViewWidget()->resetItemViews();
+    backendModel()->resetModel();
 }
 
 void ConnectionView::modelAboutToBeDetached(Model *model)
@@ -92,6 +97,8 @@ void ConnectionView::nodeReparented(const ModelNode & /*node*/, const NodeAbstra
 void ConnectionView::nodeIdChanged(const ModelNode & /*node*/, const QString & /*newId*/, const QString & /*oldId*/)
 {
     connectionModel()->resetModel();
+    bindingModel()->resetModel();
+    dynamicPropertiesModel()->resetModel();
 }
 
 void ConnectionView::propertiesAboutToBeRemoved(const QList<AbstractProperty> & propertyList)
@@ -112,6 +119,8 @@ void ConnectionView::variantPropertiesChanged(const QList<VariantProperty> &prop
     foreach (const VariantProperty &variantProperty, propertyList) {
         if (variantProperty.isDynamic())
             dynamicPropertiesModel()->variantPropertyChanged(variantProperty);
+        if (variantProperty.isDynamic() && variantProperty.parentModelNode().isRootNode())
+            backendModel()->resetModel();
 
         connectionModel()->variantPropertyChanged(variantProperty);
     }
@@ -125,6 +134,8 @@ void ConnectionView::bindingPropertiesChanged(const QList<BindingProperty> &prop
         bindingModel()->bindingChanged(bindingProperty);
         if (bindingProperty.isDynamic())
             dynamicPropertiesModel()->bindingPropertyChanged(bindingProperty);
+        if (bindingProperty.isDynamic() && bindingProperty.parentModelNode().isRootNode())
+            backendModel()->resetModel();
 
         connectionModel()->bindingPropertyChanged(bindingProperty);
     }
@@ -141,6 +152,11 @@ void ConnectionView::selectedNodesChanged(const QList<ModelNode> & selectedNodeL
     if (connectionViewWidget()->currentTab() == ConnectionViewWidget::BindingTab
             || connectionViewWidget()->currentTab() == ConnectionViewWidget::DynamicPropertiesTab)
         connectionViewWidget()->setEnabledAddButton(selectedNodeList.count() == 1);
+}
+
+void ConnectionView::importsChanged(const QList<Import> & /*addedImports*/, const QList<Import> & /*removedImports*/)
+{
+    backendModel()->resetModel();
 }
 
 WidgetInfo ConnectionView::widgetInfo()
@@ -173,6 +189,11 @@ QTableView *ConnectionView::dynamicPropertiesTableView() const
     return connectionViewWidget()->dynamicPropertiesTableView();
 }
 
+QTableView *ConnectionView::backendView() const
+{
+    return connectionViewWidget()->backendView();
+}
+
 ConnectionViewWidget *ConnectionView::connectionViewWidget() const
 {
     return m_connectionViewWidget.data();
@@ -191,6 +212,11 @@ BindingModel *ConnectionView::bindingModel() const
 DynamicPropertiesModel *ConnectionView::dynamicPropertiesModel() const
 {
     return m_dynamicPropertiesModel;
+}
+
+BackendModel *ConnectionView::backendModel() const
+{
+    return m_backendModel;
 }
 
 } // namesapce Internal

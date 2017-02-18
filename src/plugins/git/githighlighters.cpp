@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include <texteditor/texteditorconstants.h>
 
+#include <utils/asconst.h>
 #include <utils/qtcassert.h>
 
 #include "githighlighters.h"
@@ -42,13 +38,11 @@ static const char CHANGE_PATTERN[] = "\\b[a-f0-9]{7,40}\\b";
 GitSubmitHighlighter::GitSubmitHighlighter(QTextEdit * parent) :
     TextEditor::SyntaxHighlighter(parent)
 {
-    static QVector<TextEditor::TextStyle> categories;
-    if (categories.isEmpty())
-        categories << TextEditor::C_COMMENT;
+    static const QVector<TextEditor::TextStyle> categories({TextEditor::C_COMMENT});
 
     setTextFormatCategories(categories);
-    m_keywordPattern.setPattern(QLatin1String("^[\\w-]+:"));
-    m_hashChar = QLatin1Char('#');
+    m_keywordPattern.setPattern("^[\\w-]+:");
+    m_hashChar = '#';
     QTC_CHECK(m_keywordPattern.isValid());
 }
 
@@ -100,29 +94,28 @@ GitRebaseHighlighter::RebaseAction::RebaseAction(const QString &regexp,
 
 GitRebaseHighlighter::GitRebaseHighlighter(QTextDocument *parent) :
     TextEditor::SyntaxHighlighter(parent),
-    m_hashChar(QLatin1Char('#')),
-    m_changeNumberPattern(QLatin1String(CHANGE_PATTERN))
+    m_hashChar('#'),
+    m_changeNumberPattern(CHANGE_PATTERN)
 {
-    static QVector<TextEditor::TextStyle> categories;
-    if (categories.isEmpty()) {
-        categories << TextEditor::C_COMMENT
-                   << TextEditor::C_DOXYGEN_COMMENT
-                   << TextEditor::C_STRING
-                   << TextEditor::C_KEYWORD
-                   << TextEditor::C_FIELD
-                   << TextEditor::C_TYPE
-                   << TextEditor::C_ENUMERATION
-                   << TextEditor::C_NUMBER
-                   << TextEditor::C_LABEL;
-    }
+    static const QVector<TextEditor::TextStyle> categories({
+        TextEditor::C_COMMENT,
+        TextEditor::C_DOXYGEN_COMMENT,
+        TextEditor::C_STRING,
+        TextEditor::C_KEYWORD,
+        TextEditor::C_FIELD,
+        TextEditor::C_TYPE,
+        TextEditor::C_ENUMERATION,
+        TextEditor::C_NUMBER,
+        TextEditor::C_LABEL
+    });
     setTextFormatCategories(categories);
 
-    m_actions << RebaseAction(QLatin1String("^(p|pick)\\b"), Format_Pick);
-    m_actions << RebaseAction(QLatin1String("^(r|reword)\\b"), Format_Reword);
-    m_actions << RebaseAction(QLatin1String("^(e|edit)\\b"), Format_Edit);
-    m_actions << RebaseAction(QLatin1String("^(s|squash)\\b"), Format_Squash);
-    m_actions << RebaseAction(QLatin1String("^(f|fixup)\\b"), Format_Fixup);
-    m_actions << RebaseAction(QLatin1String("^(x|exec)\\b"), Format_Exec);
+    m_actions << RebaseAction("^(p|pick)\\b", Format_Pick);
+    m_actions << RebaseAction("^(r|reword)\\b", Format_Reword);
+    m_actions << RebaseAction("^(e|edit)\\b", Format_Edit);
+    m_actions << RebaseAction("^(s|squash)\\b", Format_Squash);
+    m_actions << RebaseAction("^(f|fixup)\\b", Format_Fixup);
+    m_actions << RebaseAction("^(x|exec)\\b", Format_Exec);
 }
 
 void GitRebaseHighlighter::highlightBlock(const QString &text)
@@ -138,7 +131,7 @@ void GitRebaseHighlighter::highlightBlock(const QString &text)
         return;
     }
 
-    foreach (const RebaseAction &action, m_actions) {
+    for (const RebaseAction &action : Utils::asConst(m_actions)) {
         if (action.exp.indexIn(text) != -1) {
             const int len = action.exp.matchedLength();
             setFormat(0, len, formatForCategory(action.formatCategory));

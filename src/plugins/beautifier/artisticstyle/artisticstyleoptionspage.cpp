@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Lorenz Haas
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Lorenz Haas
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,31 +28,29 @@
 
 #include "artisticstyleconstants.h"
 #include "artisticstylesettings.h"
+#include "artisticstyle.h"
 
 #include "../beautifierconstants.h"
 #include "../beautifierplugin.h"
 
 #include <coreplugin/icore.h>
 
-#include <QTextStream>
-
 namespace Beautifier {
 namespace Internal {
 namespace ArtisticStyle {
 
 ArtisticStyleOptionsPageWidget::ArtisticStyleOptionsPageWidget(ArtisticStyleSettings *settings,
-                                                         QWidget *parent)
-    : QWidget(parent)
-    , ui(new Ui::ArtisticStyleOptionsPage)
-    , m_settings(settings)
+                                                               QWidget *parent) :
+    QWidget(parent),
+    ui(new Ui::ArtisticStyleOptionsPage),
+    m_settings(settings)
 {
     ui->setupUi(this);
     ui->useHomeFile->setText(ui->useHomeFile->text().replace(
-                                 QLatin1String("HOME"),
-                                 QDir::toNativeSeparators(QDir::home().absolutePath())));
+                                 "HOME", QDir::toNativeSeparators(QDir::home().absolutePath())));
     ui->command->setExpectedKind(Utils::PathChooser::ExistingCommand);
     ui->command->setPromptDialogTitle(BeautifierPlugin::msgCommandPromptDialogTitle(
-                                          QLatin1String(Constants::ArtisticStyle::DISPLAY_NAME)));
+                                          ArtisticStyle::tr(Constants::ArtisticStyle::DISPLAY_NAME)));
     connect(ui->command, &Utils::PathChooser::validChanged, ui->options, &QWidget::setEnabled);
     ui->configurations->setSettings(m_settings);
 }
@@ -70,6 +63,7 @@ ArtisticStyleOptionsPageWidget::~ArtisticStyleOptionsPageWidget()
 void ArtisticStyleOptionsPageWidget::restore()
 {
     ui->command->setPath(m_settings->command());
+    ui->mime->setText(m_settings->supportedMimeTypesAsString());
     ui->useOtherFiles->setChecked(m_settings->useOtherFiles());
     ui->useHomeFile->setChecked(m_settings->useHomeFile());
     ui->useCustomStyle->setChecked(m_settings->useCustomStyle());
@@ -79,25 +73,26 @@ void ArtisticStyleOptionsPageWidget::restore()
 void ArtisticStyleOptionsPageWidget::apply()
 {
     m_settings->setCommand(ui->command->path());
+    m_settings->setSupportedMimeTypes(ui->mime->text());
     m_settings->setUseOtherFiles(ui->useOtherFiles->isChecked());
     m_settings->setUseHomeFile(ui->useHomeFile->isChecked());
     m_settings->setUseCustomStyle(ui->useCustomStyle->isChecked());
     m_settings->setCustomStyle(ui->configurations->currentConfiguration());
     m_settings->save();
-}
 
-/* ---------------------------------------------------------------------------------------------- */
+    // update since not all MIME types are accepted (invalids or duplicates)
+    ui->mime->setText(m_settings->supportedMimeTypesAsString());
+}
 
 ArtisticStyleOptionsPage::ArtisticStyleOptionsPage(ArtisticStyleSettings *settings, QObject *parent) :
     IOptionsPage(parent),
-    m_widget(0),
     m_settings(settings)
 {
     setId(Constants::ArtisticStyle::OPTION_ID);
     setDisplayName(tr("Artistic Style"));
     setCategory(Constants::OPTION_CATEGORY);
     setDisplayCategory(QCoreApplication::translate("Beautifier", Constants::OPTION_TR_CATEGORY));
-    setCategoryIcon(QLatin1String(Constants::OPTION_CATEGORY_ICON));
+    setCategoryIcon(Utils::Icon(Constants::OPTION_CATEGORY_ICON));
 }
 
 QWidget *ArtisticStyleOptionsPage::widget()

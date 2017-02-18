@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cppeditordocument.h"
 
 #include "cppeditorconstants.h"
+#include "cppeditorplugin.h"
 #include "cpphighlighter.h"
+#include "cppquickfixassistant.h"
+
+#include <coreplugin/infobar.h>
 
 #include <cpptools/baseeditordocumentparser.h>
 #include <cpptools/builtineditordocumentprocessor.h>
@@ -63,8 +62,7 @@ CppTools::CppModelManager *mm()
 namespace CppEditor {
 namespace Internal {
 
-enum { processDocumentIntervalInMs = 150,
-       clangProcessDocumentIntervalInMs = 500 };
+enum { processDocumentIntervalInMs = 150 };
 
 class CppEditorDocumentHandleImpl : public CppTools::CppEditorDocumentHandle
 {
@@ -101,18 +99,26 @@ CppEditorDocument::CppEditorDocument()
     , m_cachedContentsRevision(-1)
     , m_processorRevision(0)
     , m_completionAssistProvider(0)
+    , m_minimizableInfoBars(*infoBar())
 {
     setId(CppEditor::Constants::CPPEDITOR_ID);
     setSyntaxHighlighter(new CppHighlighter);
     setIndenter(new CppTools::CppQtStyleIndenter);
 
-    connect(this, SIGNAL(tabSettingsChanged()), this, SLOT(invalidateFormatterCache()));
-    connect(this, SIGNAL(mimeTypeChanged()), this, SLOT(onMimeTypeChanged()));
+    connect(this, &TextEditor::TextDocument::tabSettingsChanged,
+            this, &CppEditorDocument::invalidateFormatterCache);
+    connect(this, &Core::IDocument::mimeTypeChanged,
+            this, &CppEditorDocument::onMimeTypeChanged);
 
-    connect(this, SIGNAL(aboutToReload()), this, SLOT(onAboutToReload()));
-    connect(this, SIGNAL(reloadFinished(bool)), this, SLOT(onReloadFinished()));
+    connect(this, &Core::IDocument::aboutToReload,
+            this, &CppEditorDocument::onAboutToReload);
+    connect(this, &Core::IDocument::reloadFinished,
+            this, &CppEditorDocument::onReloadFinished);
     connect(this, &IDocument::filePathChanged,
             this, &CppEditorDocument::onFilePathChanged);
+
+    connect(&m_parseContextModel, &ParseContextModel::preferredParseContextChanged,
+            this, &CppEditorDocument::reparseWithPreferredParseContext);
 
     // See also onFilePathChanged() for more initialization
 }
@@ -125,6 +131,11 @@ bool CppEditorDocument::isObjCEnabled() const
 TextEditor::CompletionAssistProvider *CppEditorDocument::completionAssistProvider() const
 {
     return m_completionAssistProvider;
+}
+
+TextEditor::QuickFixAssistProvider *CppEditorDocument::quickFixAssistProvider() const
+{
+    return CppEditorPlugin::instance()->quickFixProvider();
 }
 
 void CppEditorDocument::recalculateSemanticInfoDetached()
@@ -160,8 +171,8 @@ void CppEditorDocument::applyFontSettings()
         // Clear all additional formats since they may have changed
         QTextBlock b = document()->firstBlock();
         while (b.isValid()) {
-            QList<QTextLayout::FormatRange> noFormats;
-            highlighter->setExtraAdditionalFormats(b, noFormats);
+            QVector<QTextLayout::FormatRange> noFormats;
+            highlighter->setExtraFormats(b, noFormats);
             b = b.next();
         }
     }
@@ -181,7 +192,7 @@ void CppEditorDocument::onMimeTypeChanged()
     const QString &mt = mimeType();
     m_isObjCEnabled = (mt == QLatin1String(CppTools::Constants::OBJECTIVE_C_SOURCE_MIMETYPE)
                        || mt == QLatin1String(CppTools::Constants::OBJECTIVE_CPP_SOURCE_MIMETYPE));
-    m_completionAssistProvider = mm()->completionAssistProvider(mt);
+    m_completionAssistProvider = mm()->completionAssistProvider();
 
     initializeTimer();
 }
@@ -198,6 +209,21 @@ void CppEditorDocument::onReloadFinished()
     m_fileIsBeingReloaded = false;
 }
 
+void CppEditorDocument::reparseWithPreferredParseContext(const QString &parseContextId)
+{
+    using namespace CppTools;
+
+    // Update parser
+    setPreferredParseContext(parseContextId);
+
+    // Remember the setting
+    const QString key = Constants::PREFERRED_PARSE_CONTEXT + filePath().toString();
+    ProjectExplorer::SessionManager::setValue(key, parseContextId);
+
+    // Reprocess
+    scheduleProcessDocument();
+}
+
 void CppEditorDocument::onFilePathChanged(const Utils::FileName &oldPath,
                                           const Utils::FileName &newPath)
 {
@@ -207,15 +233,17 @@ void CppEditorDocument::onFilePathChanged(const Utils::FileName &oldPath,
         Utils::MimeDatabase mdb;
         setMimeType(mdb.mimeTypeForFile(newPath.toFileInfo()).name());
 
-        disconnect(this, SIGNAL(contentsChanged()), this, SLOT(scheduleProcessDocument()));
-        connect(this, SIGNAL(contentsChanged()), this, SLOT(scheduleProcessDocument()));
+        connect(this, &Core::IDocument::contentsChanged,
+                this, &CppEditorDocument::scheduleProcessDocument,
+                Qt::UniqueConnection);
 
         // Un-Register/Register in ModelManager
         m_editorDocumentHandle.reset();
         m_editorDocumentHandle.reset(new CppEditorDocumentHandleImpl(this));
 
         resetProcessor();
-        updatePreprocessorSettings();
+        applyPreferredParseContextFromSettings();
+        applyExtraPreprocessorDirectivesFromSettings();
         m_processorRevision = document()->revision();
         processDocument();
     }
@@ -225,12 +253,14 @@ void CppEditorDocument::scheduleProcessDocument()
 {
     m_processorRevision = document()->revision();
     m_processorTimer.start();
+    processor()->editorDocumentTimerRestarted();
 }
 
 void CppEditorDocument::processDocument()
 {
     if (processor()->isParserRunning() || m_processorRevision != contentsRevision()) {
         m_processorTimer.start();
+        processor()->editorDocumentTimerRestarted();
         return;
     }
 
@@ -247,33 +277,51 @@ void CppEditorDocument::resetProcessor()
     processor(); // creates a new processor
 }
 
-void CppEditorDocument::updatePreprocessorSettings()
+void CppEditorDocument::applyPreferredParseContextFromSettings()
 {
     if (filePath().isEmpty())
         return;
 
-    const QString prefix = QLatin1String(Constants::CPP_PREPROCESSOR_PROJECT_PREFIX);
-    const QString &projectPartId = ProjectExplorer::SessionManager::value(
-                prefix + filePath().toString()).toString();
-    const QString directivesKey = projectPartId + QLatin1Char(',') + filePath().toString();
-    const QByteArray additionalDirectives = ProjectExplorer::SessionManager::value(
-                directivesKey).toString().toUtf8();
+    const QString key = Constants::PREFERRED_PARSE_CONTEXT + filePath().toString();
+    const QString parseContextId = ProjectExplorer::SessionManager::value(key).toString();
 
-    setPreprocessorSettings(mm()->projectPartForId(projectPartId), additionalDirectives);
+    setPreferredParseContext(parseContextId);
 }
 
-void CppEditorDocument::setPreprocessorSettings(const CppTools::ProjectPart::Ptr &projectPart,
-                                                const QByteArray &defines)
+void CppEditorDocument::applyExtraPreprocessorDirectivesFromSettings()
+{
+    if (filePath().isEmpty())
+        return;
+
+    const QString key = Constants::EXTRA_PREPROCESSOR_DIRECTIVES + filePath().toString();
+    const QByteArray directives = ProjectExplorer::SessionManager::value(key).toString().toUtf8();
+
+    setExtraPreprocessorDirectives(directives);
+}
+
+void CppEditorDocument::setExtraPreprocessorDirectives(const QByteArray &directives)
 {
     const auto parser = processor()->parser();
     QTC_ASSERT(parser, return);
-    if (parser->projectPart() != projectPart || parser->configuration().editorDefines != defines) {
-        CppTools::BaseEditorDocumentParser::Configuration config = parser->configuration();
-        config.manuallySetProjectPart = projectPart;
-        config.editorDefines = defines;
-        parser->setConfiguration(config);
 
-        emit preprocessorSettingsChanged(!defines.trimmed().isEmpty());
+    CppTools::BaseEditorDocumentParser::Configuration config = parser->configuration();
+    if (config.editorDefines != directives) {
+        config.editorDefines = directives;
+        processor()->setParserConfig(config);
+
+        emit preprocessorSettingsChanged(!directives.trimmed().isEmpty());
+    }
+}
+
+void CppEditorDocument::setPreferredParseContext(const QString &parseContextId)
+{
+    const CppTools::BaseEditorDocumentParser::Ptr parser = processor()->parser();
+    QTC_ASSERT(parser, return);
+
+    CppTools::BaseEditorDocumentParser::Configuration config = parser->configuration();
+    if (config.preferredProjectPartId != parseContextId) {
+        config.preferredProjectPartId = parseContextId;
+        processor()->setParserConfig(config);
     }
 }
 
@@ -289,13 +337,27 @@ void CppEditorDocument::releaseResources()
     m_processor.reset();
 }
 
+void CppEditorDocument::showHideInfoBarAboutMultipleParseContexts(bool show)
+{
+    const Core::Id id = Constants::MULTIPLE_PARSE_CONTEXTS_AVAILABLE;
+
+    if (show) {
+        Core::InfoBarEntry info(id,
+                                tr("Note: Multiple parse contexts are available for this file. "
+                                   "Choose the preferred one from the editor toolbar."),
+                                Core::InfoBarEntry::GlobalSuppressionEnabled);
+        info.removeCancelButton();
+        if (infoBar()->canInfoBeAdded(id))
+            infoBar()->addInfo(info);
+    } else {
+        infoBar()->removeInfo(id);
+    }
+}
+
 void CppEditorDocument::initializeTimer()
 {
     m_processorTimer.setSingleShot(true);
-    if (mm()->isManagedByModelManagerSupport(this, QLatin1String(Constants::CLANG_MODELMANAGERSUPPORT_ID)))
-        m_processorTimer.setInterval(clangProcessDocumentIntervalInMs);
-    else
-        m_processorTimer.setInterval(processDocumentIntervalInMs);
+    m_processorTimer.setInterval(processDocumentIntervalInMs);
 
     connect(&m_processorTimer,
             &QTimer::timeout,
@@ -304,12 +366,39 @@ void CppEditorDocument::initializeTimer()
             Qt::UniqueConnection);
 }
 
+ParseContextModel &CppEditorDocument::parseContextModel()
+{
+    return m_parseContextModel;
+}
+
+const MinimizableInfoBars &CppEditorDocument::minimizableInfoBars() const
+{
+    return m_minimizableInfoBars;
+}
+
 CppTools::BaseEditorDocumentProcessor *CppEditorDocument::processor()
 {
     if (!m_processor) {
         m_processor.reset(mm()->editorDocumentProcessor(this));
+        connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::projectPartInfoUpdated,
+                [this] (const CppTools::ProjectPartInfo &info)
+        {
+            using namespace CppTools;
+            const bool hasProjectPart = !(info.hints & ProjectPartInfo::IsFallbackMatch);
+            m_minimizableInfoBars.processHasProjectPart(hasProjectPart);
+            m_parseContextModel.update(info);
+            const bool isAmbiguous = info.hints & ProjectPartInfo::IsAmbiguousMatch;
+            const bool isProjectFile = info.hints & ProjectPartInfo::IsFromProjectMatch;
+            showHideInfoBarAboutMultipleParseContexts(isAmbiguous && isProjectFile);
+        });
         connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::codeWarningsUpdated,
-                this, &CppEditorDocument::codeWarningsUpdated);
+                [this] (unsigned revision,
+                        const QList<QTextEdit::ExtraSelection> selections,
+                        const std::function<QWidget*()> &creator,
+                        const TextEditor::RefactorMarkers &refactorMarkers) {
+            emit codeWarningsUpdated(revision, selections, refactorMarkers);
+            m_minimizableInfoBars.processHeaderDiagnostics(creator);
+        });
         connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::ifdefedOutBlocksUpdated,
                 this, &CppEditorDocument::ifdefedOutBlocksUpdated);
         connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::cppDocumentUpdated,

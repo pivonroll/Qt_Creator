@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,26 +9,22 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "abstractremotelinuxdeployservice.h"
+#include "deploymenttimeinfo.h"
 
 #include <projectexplorer/deployablefile.h>
 #include <projectexplorer/target.h>
@@ -49,49 +45,22 @@ namespace RemoteLinux {
 namespace Internal {
 
 namespace {
-class DeployParameters
-{
-public:
-    DeployParameters(const DeployableFile &d, const QString &h, const QString &s)
-        : file(d), host(h), sysroot(s) {}
-
-    bool operator==(const DeployParameters &other) const {
-        return file == other.file && host == other.host && sysroot == other.sysroot;
-    }
-
-    DeployableFile file;
-    QString host;
-    QString sysroot;
-};
-uint qHash(const DeployParameters &p) {
-    return qHash(qMakePair(qMakePair(p.file, p.host), p.sysroot));
-}
-
 enum State { Inactive, SettingUpDevice, Connecting, Deploying };
-
-// TODO: Just change these...
-const char LastDeployedHostsKey[] = "Qt4ProjectManager.MaemoRunConfiguration.LastDeployedHosts";
-const char LastDeployedSysrootsKey[] = "Qt4ProjectManager.MaemoRunConfiguration.LastDeployedSysroots";
-const char LastDeployedFilesKey[] = "Qt4ProjectManager.MaemoRunConfiguration.LastDeployedFiles";
-const char LastDeployedRemotePathsKey[] = "Qt4ProjectManager.MaemoRunConfiguration.LastDeployedRemotePaths";
-const char LastDeployedTimesKey[] = "Qt4ProjectManager.MaemoRunConfiguration.LastDeployedTimes";
-
 } // anonymous namespace
 
 class AbstractRemoteLinuxDeployServicePrivate
 {
 public:
     AbstractRemoteLinuxDeployServicePrivate()
-        : kit(0), connection(0), state(Inactive), stopRequested(false) {}
+        : connection(0), state(Inactive), stopRequested(false) {}
 
     IDevice::ConstPtr deviceConfiguration;
     QPointer<Target> target;
-    Kit *kit;
+
+    DeploymentTimeInfo deployTimes;
     SshConnection *connection;
     State state;
     bool stopRequested;
-
-    QHash<DeployParameters, QDateTime> lastDeployed;
 };
 } // namespace Internal
 
@@ -114,7 +83,7 @@ const Target *AbstractRemoteLinuxDeployService::target() const
 
 const Kit *AbstractRemoteLinuxDeployService::profile() const
 {
-    return d->kit;
+    return d->target ? d->target->kit() : nullptr;
 }
 
 IDevice::ConstPtr AbstractRemoteLinuxDeployService::deviceConfiguration() const
@@ -129,38 +98,18 @@ SshConnection *AbstractRemoteLinuxDeployService::connection() const
 
 void AbstractRemoteLinuxDeployService::saveDeploymentTimeStamp(const DeployableFile &deployableFile)
 {
-    if (!d->target)
-        return;
-    QString systemRoot;
-    if (SysRootKitInformation::hasSysRoot(d->kit))
-        systemRoot = SysRootKitInformation::sysRoot(d->kit).toString();
-    d->lastDeployed.insert(DeployParameters(deployableFile,
-                                            deviceConfiguration()->sshParameters().host,
-                                            systemRoot),
-                           QDateTime::currentDateTime());
+    d->deployTimes.saveDeploymentTimeStamp(deployableFile, profile());
 }
 
 bool AbstractRemoteLinuxDeployService::hasChangedSinceLastDeployment(const DeployableFile &deployableFile) const
 {
-    if (!target())
-        return true;
-    QString systemRoot;
-    if (SysRootKitInformation::hasSysRoot(d->kit))
-        systemRoot = SysRootKitInformation::sysRoot(d->kit).toString();
-    const QDateTime &lastDeployed = d->lastDeployed.value(DeployParameters(deployableFile,
-        deviceConfiguration()->sshParameters().host, systemRoot));
-    return !lastDeployed.isValid()
-        || deployableFile.localFilePath().toFileInfo().lastModified() > lastDeployed;
+    return d->deployTimes.hasChangedSinceLastDeployment(deployableFile, profile());
 }
 
 void AbstractRemoteLinuxDeployService::setTarget(Target *target)
 {
     d->target = target;
-    if (target)
-        d->kit = target->kit();
-    else
-        d->kit = 0;
-    d->deviceConfiguration = DeviceKitInformation::device(d->kit);
+    d->deviceConfiguration = DeviceKitInformation::device(profile());
 }
 
 void AbstractRemoteLinuxDeployService::setDevice(const IDevice::ConstPtr &device)
@@ -223,44 +172,12 @@ bool AbstractRemoteLinuxDeployService::isDeploymentPossible(QString *whyNot) con
 
 QVariantMap AbstractRemoteLinuxDeployService::exportDeployTimes() const
 {
-    QVariantMap map;
-    QVariantList hostList;
-    QVariantList fileList;
-    QVariantList sysrootList;
-    QVariantList remotePathList;
-    QVariantList timeList;
-    typedef QHash<DeployParameters, QDateTime>::ConstIterator DepIt;
-    for (DepIt it = d->lastDeployed.constBegin(); it != d->lastDeployed.constEnd(); ++it) {
-        fileList << it.key().file.localFilePath().toString();
-        remotePathList << it.key().file.remoteDirectory();
-        hostList << it.key().host;
-        sysrootList << it.key().sysroot;
-        timeList << it.value();
-    }
-    map.insert(QLatin1String(LastDeployedHostsKey), hostList);
-    map.insert(QLatin1String(LastDeployedSysrootsKey), sysrootList);
-    map.insert(QLatin1String(LastDeployedFilesKey), fileList);
-    map.insert(QLatin1String(LastDeployedRemotePathsKey), remotePathList);
-    map.insert(QLatin1String(LastDeployedTimesKey), timeList);
-    return map;
+    return d->deployTimes.exportDeployTimes();
 }
 
 void AbstractRemoteLinuxDeployService::importDeployTimes(const QVariantMap &map)
 {
-    const QVariantList &hostList = map.value(QLatin1String(LastDeployedHostsKey)).toList();
-    const QVariantList &sysrootList = map.value(QLatin1String(LastDeployedSysrootsKey)).toList();
-    const QVariantList &fileList = map.value(QLatin1String(LastDeployedFilesKey)).toList();
-    const QVariantList &remotePathList
-        = map.value(QLatin1String(LastDeployedRemotePathsKey)).toList();
-    const QVariantList &timeList = map.value(QLatin1String(LastDeployedTimesKey)).toList();
-    const int elemCount
-        = qMin(qMin(qMin(hostList.size(), fileList.size()),
-              qMin(remotePathList.size(), timeList.size())), sysrootList.size());
-    for (int i = 0; i < elemCount; ++i) {
-        const DeployableFile df(fileList.at(i).toString(), remotePathList.at(i).toString());
-        d->lastDeployed.insert(DeployParameters(df, hostList.at(i).toString(),
-            sysrootList.at(i).toString()), timeList.at(i).toDateTime());
-    }
+    d->deployTimes.importDeployTimes(map);
 }
 
 void AbstractRemoteLinuxDeployService::handleDeviceSetupDone(bool success)

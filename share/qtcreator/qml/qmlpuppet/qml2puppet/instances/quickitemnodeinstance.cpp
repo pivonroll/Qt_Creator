@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -165,8 +165,10 @@ void QuickItemNodeInstance::initialize(const ObjectNodeInstance::Pointer &object
         quickItem()->setParentItem(qobject_cast<QQuickItem*>(nodeInstanceServer()->quickView()->rootObject()));
     }
 
-    if (s_createEffectItem || instanceId() == 0)
-        designerSupport()->refFromEffectItem(quickItem());
+    if (quickItem()->window()) {
+        if (s_createEffectItem || instanceId() == 0)
+            designerSupport()->refFromEffectItem(quickItem());
+    }
 
     ObjectNodeInstance::initialize(objectNodeInstance);
     quickItem()->update();
@@ -580,14 +582,16 @@ void QuickItemNodeInstance::reparent(const ObjectNodeInstance::Pointer &oldParen
             setPropertyVariant("y", y());
     }
 
-    refresh();
-    DesignerSupport::updateDirtyNode(quickItem());
+    if (quickItem()->parentItem()) {
+        refresh();
+        DesignerSupport::updateDirtyNode(quickItem());
 
-    if (instanceIsValidLayoutable(oldParentInstance, oldParentProperty))
-        oldParentInstance->refreshLayoutable();
+        if (instanceIsValidLayoutable(oldParentInstance, oldParentProperty))
+            oldParentInstance->refreshLayoutable();
 
-    if (instanceIsValidLayoutable(newParentInstance, newParentProperty))
-        newParentInstance->refreshLayoutable();
+        if (instanceIsValidLayoutable(newParentInstance, newParentProperty))
+            newParentInstance->refreshLayoutable();
+    }
 }
 
 void QuickItemNodeInstance::setPropertyVariant(const PropertyName &name, const QVariant &value)
@@ -643,6 +647,16 @@ void QuickItemNodeInstance::setPropertyBinding(const PropertyName &name, const Q
 
     refresh();
 
+    /* Evaluate properties of the root item in the context of the dummy context if they contain parent.
+     * This is done manually because we cannot "overwrite" the parent property
+     */
+
+    if (isRootNodeInstance() && expression.contains(QLatin1String("parent."))) {
+        QQmlExpression qmlContextExpression(context(), nodeInstanceServer()->dummyContextObject(), expression);
+        QVariant value = qmlContextExpression.evaluate();
+        setPropertyVariant(name, value);
+    }
+
     if (isInLayoutable())
         parentInstance()->refreshLayoutable();
 }
@@ -679,7 +693,7 @@ void QuickItemNodeInstance::resetProperty(const PropertyName &name)
     if (name == "y")
         m_y = 0.0;
 
-    DesignerSupport::resetAnchor(quickItem(), name);
+    DesignerSupport::resetAnchor(quickItem(), QString::fromUtf8(name));
 
     if (name == "anchors.fill") {
         resetHorizontal();
@@ -716,30 +730,31 @@ bool QuickItemNodeInstance::isAnchoredByChildren() const
 
 bool QuickItemNodeInstance::hasAnchor(const PropertyName &name) const
 {
-    return DesignerSupport::hasAnchor(quickItem(), name);
+    return DesignerSupport::hasAnchor(quickItem(), QString::fromUtf8(name));
 }
 
 static bool isValidAnchorName(const PropertyName &name)
 {
-    static PropertyNameList anchorNameList(PropertyNameList() << "anchors.top"
-                                                    << "anchors.left"
-                                                    << "anchors.right"
-                                                    << "anchors.bottom"
-                                                    << "anchors.verticalCenter"
-                                                    << "anchors.horizontalCenter"
-                                                    << "anchors.fill"
-                                                    << "anchors.centerIn"
-                                                    << "anchors.baseline");
+    static PropertyNameList anchorNameList({"anchors.top",
+                                            "anchors.left",
+                                            "anchors.right",
+                                            "anchors.bottom",
+                                            "anchors.verticalCenter",
+                                            "anchors.horizontalCenter",
+                                            "anchors.fill",
+                                            "anchors.centerIn",
+                                            "anchors.baseline"});
 
     return anchorNameList.contains(name);
 }
 
 QPair<PropertyName, ServerNodeInstance> QuickItemNodeInstance::anchor(const PropertyName &name) const
 {
-    if (!isValidAnchorName(name) || !DesignerSupport::hasAnchor(quickItem(), name))
+    if (!isValidAnchorName(name) || !DesignerSupport::hasAnchor(quickItem(), QString::fromUtf8(name)))
         return ObjectNodeInstance::anchor(name);
 
-    QPair<QString, QObject*> nameObjectPair = DesignerSupport::anchorLineTarget(quickItem(), name, context());
+    QPair<QString, QObject*> nameObjectPair =
+            DesignerSupport::anchorLineTarget(quickItem(), QString::fromUtf8(name), context());
 
     QObject *targetObject = nameObjectPair.second;
     PropertyName targetName = nameObjectPair.first.toUtf8();

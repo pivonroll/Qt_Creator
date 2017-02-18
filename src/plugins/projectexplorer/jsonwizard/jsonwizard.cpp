@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,27 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "jsonwizard.h"
 
+#include "jsonwizardfactory.h"
 #include "jsonwizardgeneratorfactory.h"
 
 #include "../project.h"
 #include "../projectexplorer.h"
-#include "../customwizard/customwizardpreprocessor.h"
 
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/messagemanager.h>
@@ -49,8 +44,7 @@
 
 namespace ProjectExplorer {
 
-JsonWizard::JsonWizard(QWidget *parent) :
-    Utils::Wizard(parent)
+JsonWizard::JsonWizard(QWidget *parent) : Utils::Wizard(parent)
 {
     setMinimumSize(800, 500);
     m_expander.registerExtraResolver([this](const QString &name, QString *ret) -> bool {
@@ -147,6 +141,35 @@ void JsonWizard::setValue(const QString &key, const QVariant &value)
     setProperty(key.toUtf8(), value);
 }
 
+QList<JsonWizard::OptionDefinition> JsonWizard::parseOptions(const QVariant &v, QString *errorMessage)
+{
+    QTC_ASSERT(errorMessage, return { });
+
+    QList<JsonWizard::OptionDefinition> result;
+    if (!v.isNull()) {
+        const QVariantList optList = JsonWizardFactory::objectOrList(v, errorMessage);
+        foreach (const QVariant &o, optList) {
+            QVariantMap optionObject = o.toMap();
+            JsonWizard::OptionDefinition odef;
+            odef.m_key = optionObject.value(QLatin1String("key")).toString();
+            odef.m_value = optionObject.value(QLatin1String("value")).toString();
+            odef.m_condition = optionObject.value(QLatin1String("condition"), true);
+            odef.m_evaluate = optionObject.value(QLatin1String("evaluate"), false);
+
+            if (odef.m_key.isEmpty()) {
+                *errorMessage = QCoreApplication::translate("ProjectExplorer::Internal::JsonWizardFileGenerator",
+                                                            "No 'key' in options object.");
+                result.clear();
+                break;
+            }
+            result.append(odef);
+        }
+    }
+
+    QTC_ASSERT(errorMessage->isEmpty() || (!errorMessage->isEmpty() && result.isEmpty()), return result);
+    return result;
+}
+
 QVariant JsonWizard::value(const QString &n) const
 {
     QVariant v = property(n.toUtf8());
@@ -198,51 +221,6 @@ QHash<QString, QVariant> JsonWizard::variables() const
     foreach (const QByteArray &p, dynamicPropertyNames()) {
         QString key = QString::fromUtf8(p);
         result.insert(key, value(key));
-    }
-    return result;
-}
-
-QString JsonWizard::processText(Utils::MacroExpander *expander, const QString &input,
-                                QString *errorMessage)
-{
-    errorMessage->clear();
-
-    if (input.isEmpty())
-        return input;
-
-    // Recursively expand macros:
-    QString in = input;
-    QString oldIn;
-    for (int i = 0; i < 5 && in != oldIn; ++i) {
-        oldIn = in;
-        in = expander->expand(oldIn);
-    }
-
-    QString out;
-    if (!Internal::customWizardPreprocess(in, &out, errorMessage))
-        return QString();
-
-    // Expand \n, \t and handle line continuation:
-    QString result;
-    result.reserve(out.count());
-    bool isEscaped = false;
-    for (int i = 0; i < out.count(); ++i) {
-        const QChar c = out.at(i);
-
-        if (isEscaped) {
-            if (c == QLatin1Char('n'))
-                result.append(QLatin1Char('\n'));
-            else if (c == QLatin1Char('t'))
-                result.append(QLatin1Char('\t'));
-            else if (c != QLatin1Char('\n'))
-                result.append(c);
-            isEscaped = false;
-        } else {
-            if (c == QLatin1Char('\\'))
-                isEscaped = true;
-            else
-                result.append(c);
-        }
     }
     return result;
 }
@@ -319,7 +297,7 @@ void JsonWizard::reject()
 
 void JsonWizard::handleNewPages(int pageId)
 {
-    Utils::WizardPage *wp = qobject_cast<Utils::WizardPage *>(page(pageId));
+    auto wp = qobject_cast<Utils::WizardPage *>(page(pageId));
     if (!wp)
         return;
 
@@ -398,6 +376,18 @@ void JsonWizard::openFiles(const JsonWizard::GeneratorFiles &files)
         msgBox.addButton(QMessageBox::Ok);
         msgBox.exec();
     }
+}
+
+QString JsonWizard::OptionDefinition::value(Utils::MacroExpander &expander) const
+{
+    if (JsonWizard::boolFromVariant(m_evaluate, &expander))
+        return expander.expand(m_value);
+    return m_value;
+}
+
+bool JsonWizard::OptionDefinition::condition(Utils::MacroExpander &expander) const
+{
+    return JsonWizard::boolFromVariant(m_condition, &expander);
 }
 
 } // namespace ProjectExplorer

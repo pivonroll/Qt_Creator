@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -42,12 +42,12 @@
 namespace QmlDesigner {
 
 IconCheckboxItemDelegate::IconCheckboxItemDelegate(QObject *parent,
-                                                   QString checkedPixmapURL,
-                                                   QString uncheckedPixmapURL,
+                                                   const QPixmap &checkedPixmap,
+                                                   const QPixmap &uncheckedPixmap,
                                                    NavigatorTreeModel *treeModel)
     : QStyledItemDelegate(parent),
-      offPixmap(uncheckedPixmapURL),
-      onPixmap(checkedPixmapURL),
+      m_checkedPixmap(checkedPixmap),
+      m_uncheckedPixmap(uncheckedPixmap),
       m_navigatorTreeModel(treeModel)
 {}
 
@@ -74,7 +74,8 @@ void IconCheckboxItemDelegate::paint(QPainter *painter,
                                      const QStyleOptionViewItem &styleOption,
                                      const QModelIndex &modelIndex) const
 {
-    const int yOffset = (styleOption.rect.height() - onPixmap.height()) / 2;
+    const int yOffset = (styleOption.rect.height()
+                         - (m_checkedPixmap.height() / painter->device()->devicePixelRatio())) / 2;
     const int xOffset = 2;
     if (indexIsHolingModelNode(modelIndex)) {
         painter->save();
@@ -86,10 +87,9 @@ void IconCheckboxItemDelegate::paint(QPainter *painter,
             if (m_navigatorTreeModel->isNodeInvisible(modelIndex))
                 painter->setOpacity(0.5);
 
-            if (isChecked(m_navigatorTreeModel, modelIndex))
-                painter->drawPixmap(styleOption.rect.x() + xOffset, styleOption.rect.y() + yOffset, onPixmap);
-            else
-                painter->drawPixmap(styleOption.rect.x() + xOffset, styleOption.rect.y() + yOffset, offPixmap);
+            const bool checked = isChecked(m_navigatorTreeModel, modelIndex);
+            painter->drawPixmap(styleOption.rect.x() + xOffset, styleOption.rect.y() + yOffset,
+                                checked ? m_checkedPixmap : m_uncheckedPixmap);
         }
 
         painter->restore();

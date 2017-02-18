@@ -1,12 +1,30 @@
 import qbs
 
 QtcProduct {
-    type: ["application"]
-    name: project.ide_app_target
-    consoleApplication: qbs.debugInformation
+    Depends { name: "bundle" }
+    Depends { name: "ib"; condition: qbs.targetOS.contains("macos") }
 
-    cpp.rpaths: qbs.targetOS.contains("osx") ? ["@executable_path/../Frameworks"]
-                                             : ["$ORIGIN/../" + project.libDirName + "/qtcreator"]
+    Properties {
+        condition: qbs.targetOS.contains("macos")
+        ib.appIconName: "qtcreator"
+    }
+
+    Properties {
+        condition: qbs.targetOS.contains("windows")
+        consoleApplication: qbs.debugInformation
+    }
+    consoleApplication: false
+
+    type: ["application"]
+    name: "qtcreator"
+    targetName: qtc.ide_app_target
+    version: qtc.qtcreator_version
+
+    installDir: qtc.ide_bin_path
+    property bool qtcRunnable: true
+
+    cpp.rpaths: qbs.targetOS.contains("macos") ? ["@executable_path/../Frameworks"]
+                                             : ["$ORIGIN/../" + qtc.libDirName + "/qtcreator"]
     cpp.includePaths: [
         project.sharedSourcesDir + "/qtsingleapplication",
         project.sharedSourcesDir + "/qtlockedfile",
@@ -18,7 +36,9 @@ QtcProduct {
     Depends { name: "ExtensionSystem" }
 
     files: [
+        "Info.plist",
         "main.cpp",
+        "qtcreator.xcassets",
         "qtcreator.rc",
         "../shared/qtsingleapplication/qtsingleapplication.h",
         "../shared/qtsingleapplication/qtsingleapplication.cpp",
@@ -31,7 +51,7 @@ QtcProduct {
 
     Group {
         name: "qtcreator.sh"
-        condition: qbs.targetOS.contains("unix") && !qbs.targetOS.contains("osx")
+        condition: qbs.targetOS.contains("unix") && !qbs.targetOS.contains("macos")
         files: "../../bin/qtcreator.sh"
         qbs.install: true
         qbs.installDir: "bin"
@@ -54,8 +74,9 @@ QtcProduct {
     }
 
     Group {
-        fileTagsFilter: product.type
+        condition: qbs.targetOS.contains("macos")
+        fileTagsFilter: ["aggregate_infoplist", "pkginfo", "compiled_assetcatalog"]
         qbs.install: true
-        qbs.installDir: project.ide_bin_path
+        qbs.installSourceBase: product.buildDirectory
     }
 }

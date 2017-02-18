@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,31 +9,26 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "commitdata.h"
+
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 
 #include <QCoreApplication>
-#include <QDebug>
 
 namespace Git {
 namespace Internal {
@@ -44,18 +39,13 @@ void GitSubmitEditorPanelInfo::clear()
     branch.clear();
 }
 
-QDebug operator<<(QDebug d, const GitSubmitEditorPanelInfo &data)
-{
-    d.nospace() << "Rep: " << data.repository << " branch: " << data.branch;
-    return d;
-}
-
 void GitSubmitEditorPanelData::clear()
 {
     author.clear();
     email.clear();
     bypassHooks = false;
     pushAction = NoPush;
+    signOff = false;
 }
 
 QString GitSubmitEditorPanelData::authorString() const
@@ -66,18 +56,10 @@ QString GitSubmitEditorPanelData::authorString() const
     if (email.isEmpty())
         return rc;
 
-    rc += QLatin1String(" <");
+    rc += " <";
     rc += email;
-    rc += QLatin1Char('>');
+    rc += '>';
     return rc;
-}
-
-QDebug operator<<(QDebug d, const GitSubmitEditorPanelData &data)
-{
-    d.nospace() << " author:" << data.author << " email: " << data.email
-                << " bypass hooks: " << data.bypassHooks
-                << " action after commit " << data.pushAction;
-    return d;
 }
 
 CommitData::CommitData(CommitType type)
@@ -114,6 +96,8 @@ static FileStates stateFor(const QChar &c)
         return CopiedFile;
     case 'U':
         return UnmergedFile;
+    case 'T':
+        return TypeChangedFile;
     case '?':
         return UntrackedFile;
     default:
@@ -134,7 +118,7 @@ bool CommitData::checkLine(const QString &stateInfo, const QString &file)
 {
     QTC_ASSERT(stateInfo.count() == 2, return false);
 
-    if (stateInfo == QLatin1String("??")) {
+    if (stateInfo == "??") {
         files.append(qMakePair(FileStates(UntrackedFile), file));
         return true;
     }
@@ -163,7 +147,7 @@ bool CommitData::checkLine(const QString &stateInfo, const QString &file)
         if (yState != EmptyFileState) {
             QString newFile = file;
             if (xState & (RenamedFile | CopiedFile))
-                newFile = file.mid(file.indexOf(QLatin1String(" -> ")) + 4);
+                newFile = file.mid(file.indexOf(" -> ") + 4);
 
             files.append(qMakePair(yState, newFile));
         }
@@ -179,20 +163,20 @@ bool CommitData::checkLine(const QString &stateInfo, const QString &file)
     \endcode */
 bool CommitData::parseFilesFromStatus(const QString &output)
 {
-    const QStringList lines = output.split(QLatin1Char('\n'));
+    const QStringList lines = output.split('\n');
 
-    foreach (const QString &line, lines) {
+    for (const QString &line : lines) {
         if (line.isEmpty())
             continue;
 
-        if (line.startsWith(QLatin1String("## "))) {
+        if (line.startsWith("## ")) {
             // Branch indication:
             panelInfo.branch = line.mid(3);
             continue;
         }
-        QTC_ASSERT(line.at(2) == QLatin1Char(' '), continue);
+        QTC_ASSERT(line.at(2) == ' ', continue);
         QString file = line.mid(3);
-        if (file.startsWith(QLatin1Char('"')))
+        if (file.startsWith('"'))
             file.remove(0, 1).chop(1);
         if (!checkLine(line.mid(0, 2), file))
             return false;
@@ -204,7 +188,7 @@ bool CommitData::parseFilesFromStatus(const QString &output)
 QStringList CommitData::filterFiles(const FileStates &state) const
 {
     QStringList result;
-    foreach (const StateFilePair &p, files) {
+    for (const StateFilePair &p : files) {
         if (state == (p.first & ~(UnmergedFile | UnmergedUs | UnmergedThem)))
             result.append(p.second);
     }
@@ -215,27 +199,29 @@ QString CommitData::stateDisplayName(const FileStates &state)
 {
     QString resultState;
     if (state == UntrackedFile)
-        return QCoreApplication::translate("Git::Internal::CommitData", "untracked");
+        return tr("untracked");
 
     if (state & StagedFile)
-        resultState = QCoreApplication::translate("Git::Internal::CommitData", "staged + ");
+        resultState = tr("staged + ");
     if (state & ModifiedFile)
-        resultState.append(QCoreApplication::translate("Git::Internal::CommitData", "modified"));
+        resultState.append(tr("modified"));
     else if (state & AddedFile)
-        resultState.append(QCoreApplication::translate("Git::Internal::CommitData", "added"));
+        resultState.append(tr("added"));
     else if (state & DeletedFile)
-        resultState.append(QCoreApplication::translate("Git::Internal::CommitData", "deleted"));
+        resultState.append(tr("deleted"));
     else if (state & RenamedFile)
-        resultState.append(QCoreApplication::translate("Git::Internal::CommitData", "renamed"));
+        resultState.append(tr("renamed"));
     else if (state & CopiedFile)
-        resultState.append(QCoreApplication::translate("Git::Internal::CommitData", "copied"));
+        resultState.append(tr("copied"));
+    else if (state & TypeChangedFile)
+        resultState.append(tr("typechange"));
     if (state & UnmergedUs) {
         if (state & UnmergedThem)
-            resultState.append(QCoreApplication::translate("Git::Internal::CommitData", " by both"));
+            resultState.append(tr(" by both"));
         else
-            resultState.append(QCoreApplication::translate("Git::Internal::CommitData", " by us"));
+            resultState.append(tr(" by us"));
     } else if (state & UnmergedThem) {
-        resultState.append(QCoreApplication::translate("Git::Internal::CommitData", " by them"));
+        resultState.append(tr(" by them"));
     }
     return resultState;
 }

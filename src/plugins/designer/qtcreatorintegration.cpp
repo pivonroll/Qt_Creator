@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -147,8 +142,8 @@ static QList<Document::Ptr> findDocumentsIncluding(const Snapshot &docTable,
 // Does klass inherit baseClass?
 static bool inherits(const Overview &o, const Class *klass, const QString &baseClass)
 {
-    const int baseClassCount = klass->baseClassCount();
-    for (int b = 0; b < baseClassCount; b++)
+    const unsigned int baseClassCount = klass->baseClassCount();
+    for (unsigned int b = 0; b < baseClassCount; ++b)
         if (o.prettyName(klass->baseClassAt(b)->name()) == baseClass)
             return true;
     return false;
@@ -160,13 +155,10 @@ QString fullyQualifiedName(const LookupContext &context, const Name *name, Scope
         return QString();
 
     const QList<LookupItem> items = context.lookup(name, scope);
-    if (items.isEmpty()) { // "ui_xxx.h" might not be generated and nothing is forward declared.
+    if (items.isEmpty()) // "ui_xxx.h" might not be generated and nothing is forward declared.
         return Overview().prettyName(name);
-    } else {
-        Symbol *symbol = items.first().declaration();
-        return Overview().prettyName(LookupContext::fullyQualifiedName(symbol));
-    }
-    return QString();
+    Symbol *symbol = items.first().declaration();
+    return Overview().prettyName(LookupContext::fullyQualifiedName(symbol));
 }
 
 // Find class definition in namespace (that is, the outer class
@@ -361,19 +353,9 @@ static QString addConstRefIfNeeded(const QString &argument)
         return argument;
 
     // for those types we don't want to add "const &"
-    static const QStringList nonConstRefs = QStringList()
-            << QLatin1String("bool")
-            << QLatin1String("int")
-            << QLatin1String("uint")
-            << QLatin1String("float")
-            << QLatin1String("double")
-            << QLatin1String("long")
-            << QLatin1String("short")
-            << QLatin1String("char")
-            << QLatin1String("signed")
-            << QLatin1String("unsigned")
-            << QLatin1String("qint64")
-            << QLatin1String("quint64");
+    static const QStringList nonConstRefs = QStringList({ "bool", "int", "uint", "float", "double",
+                                                          "long", "short", "char", "signed",
+                                                          "unsigned", "qint64", "quint64" });
 
     for (int i = 0; i < nonConstRefs.count(); i++) {
         const QString nonConstRef = nonConstRefs.at(i);
@@ -543,14 +525,11 @@ bool QtCreatorIntegration::navigateToSlot(const QString &objectName,
     } else {
         const CppTools::WorkingCopy workingCopy =
                 CppTools::CppModelManager::instance()->workingCopy();
-        const Utils::FileName configFileName =
-                Utils::FileName::fromString(CppTools::CppModelManager::configurationFileName());
         QHashIterator<Utils::FileName, QPair<QByteArray, unsigned> > it = workingCopy.iterator();
         while (it.hasNext()) {
             it.next();
             const Utils::FileName &fileName = it.key();
-            if (fileName != configFileName)
-                newDocTable.insert(docTable.document(fileName));
+            newDocTable.insert(docTable.document(fileName));
         }
     }
     docTable = newDocTable;

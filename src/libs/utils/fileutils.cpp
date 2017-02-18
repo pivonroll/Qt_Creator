@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -212,9 +207,8 @@ bool FileUtils::isFileNewerThan(const FileName &filePath, const QDateTime &timeS
 }
 
 /*!
-  Recursively resolves possibly present symlinks in \a filePath.
-  Unlike QFileInfo::canonicalFilePath(), this function will still return the expected target file
-  even if the symlink is dangling.
+  Recursively resolves symlinks if \a filePath is a symlink.
+  To resolve symlinks anywhere in the path, see canonicalPath
 
   \note Maximum recursion depth == 16.
 
@@ -229,6 +223,21 @@ FileName FileUtils::resolveSymlinks(const FileName &path)
     if (links <= 0)
         return FileName();
     return FileName::fromString(f.filePath());
+}
+
+/*!
+  Recursively resolves possibly present symlinks in \a filePath.
+  Unlike QFileInfo::canonicalFilePath(), this function will not return an empty
+  string if path doesn't exist.
+
+  Returns the canonical path.
+*/
+FileName FileUtils::canonicalPath(const FileName &path)
+{
+    const QString result = QFileInfo(path.toString()).canonicalFilePath();
+    if (result.isEmpty())
+        return path;
+    return FileName::fromString(result);
 }
 
 /*!
@@ -462,6 +471,22 @@ bool FileSaverBase::setResult(QXmlStreamWriter *stream)
 FileSaver::FileSaver(const QString &filename, QIODevice::OpenMode mode)
 {
     m_fileName = filename;
+    // Workaround an assert in Qt -- and provide a useful error message, too:
+    if (HostOsInfo::isWindowsHost()) {
+        // Taken from: https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx
+        static const QStringList reservedNames
+                = { "CON", "PRN", "AUX", "NUL",
+                    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+                    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+        const QString fn = QFileInfo(filename).baseName().toUpper();
+        for (const QString &rn : reservedNames) {
+            if (fn == rn) {
+                m_errorString = tr("%1: Is a reserved filename on Windows. Cannot save.").arg(filename);
+                m_hasError = true;
+                return;
+            }
+        }
+    }
     if (mode & (QIODevice::ReadOnly | QIODevice::Append)) {
         m_file = new QFile(filename);
         m_isSafe = false;
@@ -761,25 +786,6 @@ FileName &FileName::appendString(QChar str)
 QTextStream &operator<<(QTextStream &s, const FileName &fn)
 {
     return s << fn.toString();
-}
-
-int FileNameList::removeDuplicates()
-{
-    QSet<FileName> seen;
-    int removed = 0;
-
-    for (int i = 0; i < size(); ) {
-        const FileName &fn = at(i);
-        if (seen.contains(fn)) {
-            removeAt(i);
-            ++removed;
-        } else {
-            seen.insert(fn);
-            ++i;
-        }
-    }
-
-    return removed;
 }
 
 } // namespace Utils

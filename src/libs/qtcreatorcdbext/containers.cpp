@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -106,25 +101,22 @@ static inline std::string fixInnerType(const std::string &type,
 // Return size from an STL vector (last/first iterators).
 static inline int msvcStdVectorSize(const SymbolGroupValue &v)
 {
-    // MSVC2012 has 2 base classes, MSVC2010 1, MSVC2008 none
-    if (const SymbolGroupValue myFirstPtrV = SymbolGroupValue::findMember(v, "_Myfirst")) {
-        if (const SymbolGroupValue myLastPtrV = myFirstPtrV.parent()["_Mylast"]) {
-            const ULONG64 firstPtr = myFirstPtrV.pointerValue();
-            const ULONG64 lastPtr = myLastPtrV.pointerValue();
-            if (!firstPtr || lastPtr < firstPtr)
-                return -1;
-            if (lastPtr == firstPtr)
-                return 0;
-            // Subtract the pointers: We need to do the pointer arithmetics ourselves
-            // as we get char *pointers.
-            const std::string innerType = fixInnerType(SymbolGroupValue::stripPointerType(myFirstPtrV.type()), v);
-            const size_t size = SymbolGroupValue::sizeOf(innerType.c_str());
-            if (size == 0)
-                return -1;
-            return static_cast<int>((lastPtr - firstPtr) / size);
-        }
-    }
-    return -1;
+    const ULONG64 firstPtr = v.readPointerValueFromAncestor("_Myfirst");
+    const ULONG64 lastPtr = v.readPointerValueFromAncestor("_Mylast");
+    if (!firstPtr || lastPtr < firstPtr)
+        return -1;
+    const std::vector<std::string> innerTypes = v.innerTypes();
+    if (innerTypes.empty())
+        return -1;
+    const std::string innerType = fixInnerType(SymbolGroupValue::stripPointerType(innerTypes[0]), v);
+    const size_t size = SymbolGroupValue::sizeOf(innerType.c_str());
+    if (size == 0)
+        return -1;
+    if (lastPtr == firstPtr)
+        return 0;
+    // Subtract the pointers: We need to do the pointer arithmetics ourselves
+    // as we get char *pointers.
+    return static_cast<int>((lastPtr - firstPtr) / size);
 }
 
 // Return size of container or -1
@@ -195,12 +187,20 @@ int containerSize(KnownType kt, const SymbolGroupValue &v)
         return msvcStdVectorSize(v);
     case KT_StdDeque: // MSVC2012 has many base classes, MSVC2010 1, MSVC2008 none
     case KT_StdSet:
+    case KT_StdMultiSet:
     case KT_StdMap:
+    case KT_StdUnorderedSet:
+    case KT_StdUnorderedMultiSet:
     case KT_StdMultiMap:
-    case KT_StdList:
-        if (const SymbolGroupValue size = SymbolGroupValue::findMember(v, "_Mysize"))
-            return size.intValue();
+    case KT_StdUnorderedMap:
+    case KT_StdUnorderedMultiMap:
+    case KT_StdValArray:
+    case KT_StdList: {
+        const int size = v.readIntegerFromAncestor("_Mysize");
+        if (size >= 0)
+            return size;
         break;
+    }
     case KT_StdStack:
         if (const SymbolGroupValue deque =  v[unsigned(0)])
             return containerSize(KT_StdDeque, deque);
@@ -354,27 +354,40 @@ static inline AbstractSymbolGroupNodePtrVector
     return AbstractSymbolGroupNodePtrVector();
 }
 
+
+static inline AbstractSymbolGroupNodePtrVector
+    arrayChildListHelper(SymbolGroupNode *n, unsigned count, const SymbolGroupValueContext &ctx,
+                         std::string arrayMember)
+{
+    if (!count)
+        return AbstractSymbolGroupNodePtrVector();
+    const SymbolGroupValue val = SymbolGroupValue(n, ctx);
+    SymbolGroupValue arrayPtr = SymbolGroupValue::findMember(val, arrayMember.c_str());
+    if (!arrayPtr)
+        return AbstractSymbolGroupNodePtrVector();
+    // arrayMember is a pointer of T*. Get address element to obtain address.
+    const ULONG64 address = arrayPtr.pointerValue();
+    if (!address)
+        return AbstractSymbolGroupNodePtrVector();
+    const std::string firstType = arrayPtr.type();
+    const std::string innerType = fixInnerType(SymbolGroupValue::stripPointerType(firstType), val);
+    if (SymbolGroupValue::verbose)
+        DebugPrint() << n->name() << " inner type: '" << innerType << "' from '" << firstType << '\'';
+    return arrayChildList(n->symbolGroup(), address, n->module(), innerType, count);
+}
+
 // std::vector<T>
 static inline AbstractSymbolGroupNodePtrVector
     stdVectorChildList(SymbolGroupNode *n, unsigned count, const SymbolGroupValueContext &ctx)
 {
-    if (!count)
-        return AbstractSymbolGroupNodePtrVector();
-    // MSVC2012 has 2 base classes, MSVC2010 1, MSVC2008 none
-    const SymbolGroupValue vec = SymbolGroupValue(n, ctx);
-    SymbolGroupValue myFirst = SymbolGroupValue::findMember(vec, "_Myfirst");
-    if (!myFirst)
-        return AbstractSymbolGroupNodePtrVector();
-    // std::vector<T>: _Myfirst is a pointer of T*. Get address
-    // element to obtain address.
-    const ULONG64 address = myFirst.pointerValue();
-    if (!address)
-        return AbstractSymbolGroupNodePtrVector();
-    const std::string firstType = myFirst.type();
-    const std::string innerType = fixInnerType(SymbolGroupValue::stripPointerType(firstType), vec);
-    if (SymbolGroupValue::verbose)
-        DebugPrint() << n->name() << " inner type: '" << innerType << "' from '" << firstType << '\'';
-    return arrayChildList(n->symbolGroup(), address, n->module(), innerType, count);
+    return arrayChildListHelper(n, count, ctx, "_Myfirst");
+}
+
+// std::valarray<T>
+static inline AbstractSymbolGroupNodePtrVector stdValArrayChildList(
+        SymbolGroupNode *n, unsigned count, const SymbolGroupValueContext &ctx)
+{
+    return arrayChildListHelper(n, count, ctx, "_Myptr");
 }
 
 // Helper for std::deque<>: From the array of deque blocks, read out the values.
@@ -618,7 +631,7 @@ static inline SymbolGroupValueVector
     return rc;
 }
 
-// std::set<>: Children directly contained in list
+// std::(multi)set<>: Children directly contained in list
 static inline AbstractSymbolGroupNodePtrVector
     stdSetChildList(const SymbolGroupValue &set, unsigned count)
 {
@@ -632,7 +645,14 @@ static inline AbstractSymbolGroupNodePtrVector
     return rc;
 }
 
-// std::map<K,V>: A list of std::pair<K,V> (derived from std::pair_base<K,V>)
+static inline AbstractSymbolGroupNodePtrVector
+    stdHashChildList(const SymbolGroupValue &set, unsigned count)
+{
+    SymbolGroupValue list = set.findMember(set, "_List");
+    return stdListChildList(list.node(), count, list.context());
+}
+
+// std::(multi)map<K,V>: A list of std::pair<K,V> (derived from std::pair_base<K,V>)
 static inline AbstractSymbolGroupNodePtrVector
     stdMapChildList(const SymbolGroupValue &map, unsigned count)
 {
@@ -749,14 +769,8 @@ static inline AbstractSymbolGroupNodePtrVector
                                AddressSequence(arrayAddress, pointerSize),
                                v.module(), innerType, count);
      // Check condition for large||static.
-     bool isLargeOrStatic = innerTypeSize > pointerSize;
-     if (!isLargeOrStatic && !SymbolGroupValue::isPointerType(innerType)) {
-         const KnownType kt = knownType(innerType, false); // inner type, no 'class ' prefix.
-         if (kt != KT_Unknown && !(kt & (KT_POD_Type|KT_Qt_PrimitiveType|KT_Qt_MovableType))
-                 && !(kt == KT_QStringList && QtInfo::get(v.context()).version >= 5)) {
-             isLargeOrStatic = true;
-         }
-     }
+     const bool isLargeOrStatic = innerTypeSize > pointerSize
+             || !SymbolGroupValue::isMovable(innerType, v);
      if (SymbolGroupValue::verbose)
          DebugPrint() << "isLargeOrStatic " << isLargeOrStatic;
      if (isLargeOrStatic) {
@@ -767,7 +781,8 @@ static inline AbstractSymbolGroupNodePtrVector
                          arrayChildList(v.node()->symbolGroup(),
                                         AddressArraySequence<ULONG64>(reinterpret_cast<const ULONG64 *>(data)),
                                         v.module(), innerType, count) :
-                         arrayChildList(v.node()->symbolGroup(), AddressArraySequence<ULONG32>(reinterpret_cast<const ULONG32 *>(data)),
+                         arrayChildList(v.node()->symbolGroup(),
+                                        AddressArraySequence<ULONG32>(reinterpret_cast<const ULONG32 *>(data)),
                                         v.module(), innerType, count);
              delete [] data;
              return rc;
@@ -956,9 +971,11 @@ static inline SymbolGroupValueVector qMap4Nodes(const SymbolGroupValue &v, Vecto
     SymbolGroupValueVector rc;
     rc.reserve(count);
     SymbolGroupValue n = e["forward"][unsigned(0)];
+    const std::string &type = SymbolGroupValue::stripClassPrefixes(n.type());
     for (VectorIndexType i = 0; i < count && n && n.pointerValue() != ePtr; ++i) {
         rc.push_back(n);
-        n = n["forward"][unsigned(0)];
+        ULONG64 address = n.addressOfAncestor("forward");
+        n = n.addSymbol(address, type);
     }
     return rc;
 }
@@ -1147,6 +1164,8 @@ AbstractSymbolGroupNodePtrVector containerChildren(SymbolGroupNode *node, int ty
         return stdListChildList(node, size , ctx);
     case KT_StdArray:
         return stdArrayChildList(node, size , ctx);
+    case KT_StdValArray:
+        return stdValArrayChildList(node, size , ctx);
     case KT_StdDeque:
         return stdDequeChildList(SymbolGroupValue(node, ctx), size);
     case KT_StdStack:
@@ -1154,10 +1173,16 @@ AbstractSymbolGroupNodePtrVector containerChildren(SymbolGroupNode *node, int ty
             return stdDequeChildList(deque, size);
         break;
     case KT_StdSet:
+    case KT_StdMultiSet:
         return stdSetChildList(SymbolGroupValue(node, ctx), size);
     case KT_StdMap:
     case KT_StdMultiMap:
         return stdMapChildList(SymbolGroupValue(node, ctx), size);
+    case KT_StdUnorderedMap:
+    case KT_StdUnorderedMultiMap:
+    case KT_StdUnorderedMultiSet:
+    case KT_StdUnorderedSet:
+        return stdHashChildList(SymbolGroupValue(node, ctx), size);
     }
     return AbstractSymbolGroupNodePtrVector();
 }

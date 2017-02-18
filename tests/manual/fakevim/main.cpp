@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -41,8 +36,6 @@
 
 using namespace FakeVim::Internal;
 
-typedef QLatin1String _;
-
 /**
  * Simple editor widget.
  * @tparam TextEdit QTextEdit or QPlainTextEdit as base class
@@ -51,9 +44,10 @@ template <typename TextEdit>
 class Editor : public TextEdit
 {
 public:
-    Editor(QWidget *parent = 0) : TextEdit(parent)
+    Editor()
     {
         TextEdit::setCursorWidth(0);
+        TextEdit::setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     }
 
     void paintEvent(QPaintEvent *e)
@@ -67,7 +61,7 @@ public:
 
             if ( TextEdit::overwriteMode() ) {
                 QFontMetrics fm(TextEdit::font());
-                rect.setWidth(fm.width(QLatin1Char('m')));
+                rect.setWidth(fm.width('m'));
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(TextEdit::palette().color(QPalette::Base));
                 painter.setCompositionMode(QPainter::CompositionMode_Difference);
@@ -85,28 +79,29 @@ class Proxy : public QObject
     Q_OBJECT
 
 public:
-    Proxy(QWidget *widget, QMainWindow *mw, QObject *parent = 0)
-      : QObject(parent), m_widget(widget), m_mainWindow(mw)
+    Proxy(QMainWindow *mw)
+      : m_mainWindow(mw)
     {}
 
-public slots:
-    void changeSelection(const QList<QTextEdit::ExtraSelection> &s)
+    void changeSelection(FakeVimHandler *handler, const QList<QTextEdit::ExtraSelection> &s)
     {
-        if (QPlainTextEdit *ed = qobject_cast<QPlainTextEdit *>(m_widget))
+        QWidget *widget = handler->widget();
+        if (auto ed = qobject_cast<QPlainTextEdit *>(widget))
             ed->setExtraSelections(s);
-        else if (QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget))
+        else if (auto ed = qobject_cast<QTextEdit *>(widget))
             ed->setExtraSelections(s);
     }
 
-    void changeStatusData(const QString &info)
+    void changeStatusData(FakeVimHandler *, const QString &info)
     {
         m_statusData = info;
         updateStatusBar();
     }
 
-    void highlightMatches(const QString &pattern)
+    void highlightMatches(FakeVimHandler *handler, const QString &pattern)
     {
-        QTextEdit *ed = qobject_cast<QTextEdit *>(m_widget);
+        QWidget *widget = handler->widget();
+        auto ed = qobject_cast<QTextEdit *>(widget);
         if (!ed)
             return;
 
@@ -142,39 +137,36 @@ public slots:
         }
     }
 
-    void changeStatusMessage(const QString &contents, int cursorPos)
+    void changeStatusMessage(FakeVimHandler *, const QString &contents, int cursorPos)
     {
         m_statusMessage = cursorPos == -1 ? contents
             : contents.left(cursorPos) + QChar(10073) + contents.mid(cursorPos);
         updateStatusBar();
     }
 
-    void changeExtraInformation(const QString &info)
+    void changeExtraInformation(FakeVimHandler *handler, const QString &info)
     {
-        QMessageBox::information(m_widget, tr("Information"), info);
+        QMessageBox::information(handler->widget(), tr("Information"), info);
     }
 
     void updateStatusBar()
     {
         int slack = 80 - m_statusMessage.size() - m_statusData.size();
-        QString msg = m_statusMessage + QString(slack, QLatin1Char(' ')) + m_statusData;
+        QString msg = m_statusMessage + QString(slack, ' ') + m_statusData;
         m_mainWindow->statusBar()->showMessage(msg);
     }
 
-    void handleExCommand(bool *handled, const ExCommand &cmd)
+    void handleExCommand(FakeVimHandler *, bool *handled, const ExCommand &cmd)
     {
-        if (cmd.matches(_("q"), _("quit")) || cmd.matches(_("qa"), _("qall"))) {
+        if (cmd.matches("q", "quit") || cmd.matches("qa", "qall")) {
             QApplication::quit();
+            *handled = true;
         } else {
             *handled = false;
-            return;
         }
-
-        *handled = true;
     }
 
 private:
-    QWidget *m_widget;
     QMainWindow *m_mainWindow;
     QString m_statusMessage;
     QString m_statusData;
@@ -183,16 +175,11 @@ private:
 QWidget *createEditorWidget(bool usePlainTextEdit)
 {
     QWidget *editor = 0;
-    if (usePlainTextEdit) {
-        Editor<QPlainTextEdit> *w = new Editor<QPlainTextEdit>;
-        w->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        editor = w;
-    } else {
-        Editor<QTextEdit> *w = new Editor<QTextEdit>;
-        w->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        editor = w;
-    }
-    editor->setObjectName(_("Editor"));
+    if (usePlainTextEdit)
+        editor = new Editor<QPlainTextEdit>;
+    else
+        editor = new Editor<QTextEdit>;
+    editor->setObjectName("Editor");
     editor->setFocus();
 
     return editor;
@@ -201,13 +188,13 @@ QWidget *createEditorWidget(bool usePlainTextEdit)
 void initHandler(FakeVimHandler &handler)
 {
     // Set some Vim options.
-    handler.handleCommand(_("set expandtab"));
-    handler.handleCommand(_("set shiftwidth=8"));
-    handler.handleCommand(_("set tabstop=16"));
-    handler.handleCommand(_("set autoindent"));
+    handler.handleCommand("set expandtab");
+    handler.handleCommand("set shiftwidth=8");
+    handler.handleCommand("set tabstop=16");
+    handler.handleCommand("set autoindent");
 
     // Try to source file "fakevimrc" from current directory.
-    handler.handleCommand(_("source fakevimrc"));
+    handler.handleCommand("source fakevimrc");
 
     handler.installEventFilter();
     handler.setupWidget();
@@ -215,7 +202,7 @@ void initHandler(FakeVimHandler &handler)
 
 void initMainWindow(QMainWindow &mainWindow, QWidget *centralWidget, const QString &title)
 {
-    mainWindow.setWindowTitle(QString(_("FakeVim (%1)")).arg(title));
+    mainWindow.setWindowTitle(QString("FakeVim (%1)").arg(title));
     mainWindow.setCentralWidget(centralWidget);
     mainWindow.resize(600, 650);
     mainWindow.move(0, 0);
@@ -223,31 +210,30 @@ void initMainWindow(QMainWindow &mainWindow, QWidget *centralWidget, const QStri
 
     // Set monospace font for editor and status bar.
     QFont font = QApplication::font();
-    font.setFamily(_("Monospace"));
+    font.setFamily("Monospace");
     centralWidget->setFont(font);
     mainWindow.statusBar()->setFont(font);
 }
 
 void readFile(FakeVimHandler &handler, const QString &editFileName)
 {
-    handler.handleCommand(QString(_("r %1")).arg(editFileName));
+    handler.handleCommand("r " + editFileName);
 }
 
 void connectSignals(FakeVimHandler &handler, Proxy &proxy)
 {
-    QObject::connect(&handler, SIGNAL(commandBufferChanged(QString,int,int,int,QObject*)),
-        &proxy, SLOT(changeStatusMessage(QString,int)));
-    QObject::connect(&handler,
-        SIGNAL(selectionChanged(QList<QTextEdit::ExtraSelection>)),
-        &proxy, SLOT(changeSelection(QList<QTextEdit::ExtraSelection>)));
-    QObject::connect(&handler, SIGNAL(extraInformationChanged(QString)),
-        &proxy, SLOT(changeExtraInformation(QString)));
-    QObject::connect(&handler, SIGNAL(statusDataChanged(QString)),
-        &proxy, SLOT(changeStatusData(QString)));
-    QObject::connect(&handler, SIGNAL(highlightMatches(QString)),
-        &proxy, SLOT(highlightMatches(QString)));
-    QObject::connect(&handler, SIGNAL(handleExCommandRequested(bool*,ExCommand)),
-        &proxy, SLOT(handleExCommand(bool*,ExCommand)));
+    QObject::connect(&handler, &FakeVimHandler::commandBufferChanged,
+                     &proxy, &Proxy::changeStatusMessage);
+    QObject::connect(&handler, &FakeVimHandler::selectionChanged,
+                     &proxy, &Proxy::changeSelection);
+    QObject::connect(&handler, &FakeVimHandler::extraInformationChanged,
+                     &proxy, &Proxy::changeExtraInformation);
+    QObject::connect(&handler, &FakeVimHandler::statusDataChanged,
+                     &proxy, &Proxy::changeStatusData);
+    QObject::connect(&handler, &FakeVimHandler::highlightMatches,
+                     &proxy, &Proxy::highlightMatches);
+    QObject::connect(&handler, &FakeVimHandler::handleExCommandRequested,
+                     &proxy, &Proxy::handleExCommand);
 }
 
 int main(int argc, char *argv[])
@@ -259,20 +245,20 @@ int main(int argc, char *argv[])
     // If first argument is present use QPlainTextEdit instead on QTextEdit;
     bool usePlainTextEdit = args.size() > 1;
     // Second argument is path to file to edit.
-    const QString editFileName = args.value(2, QString(_("/usr/share/vim/vim73/tutor/tutor")));
+    const QString editFileName = args.value(2, "/usr/share/vim/vim73/tutor/tutor");
 
     // Create editor widget.
     QWidget *editor = createEditorWidget(usePlainTextEdit);
 
     // Create FakeVimHandler instance which will emulate Vim behavior in editor widget.
-    FakeVimHandler handler(editor, 0);
+    FakeVimHandler handler(editor, nullptr);
 
     // Create main window.
     QMainWindow mainWindow;
-    initMainWindow(mainWindow, editor, usePlainTextEdit ? _("QPlainTextEdit") : _("QTextEdit"));
+    initMainWindow(mainWindow, editor, usePlainTextEdit ? "QPlainTextEdit" : "QTextEdit");
 
     // Connect slots to FakeVimHandler signals.
-    Proxy proxy(editor, &mainWindow);
+    Proxy proxy(&mainWindow);
     connectSignals(handler, proxy);
 
     // Initialize FakeVimHandler.

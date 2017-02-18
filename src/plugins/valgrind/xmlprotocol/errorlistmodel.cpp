@@ -1,8 +1,8 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
 ** Author: Frank Osterfeld, KDAB (frank.osterfeld@kdab.com)
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -10,22 +10,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,7 +30,7 @@
 #include "stack.h"
 #include "modelhelpers.h"
 
-#include <analyzerbase/diagnosticlocation.h>
+#include <debugger/analyzer/diagnosticlocation.h>
 #include <utils/qtcassert.h>
 
 #include <QCoreApplication>
@@ -47,27 +42,18 @@
 namespace Valgrind {
 namespace XmlProtocol {
 
-class ErrorListModelPrivate
-{
-public:
-    QVariant errorData(const QModelIndex &index, int role) const;
-    QSharedPointer<const ErrorListModel::RelevantFrameFinder> relevantFrameFinder;
-    Frame findRelevantFrame(const Error &error) const;
-    QString errorLocation(const Error &error) const;
-};
-
 class ErrorItem : public Utils::TreeItem
 {
 public:
-    ErrorItem(const ErrorListModelPrivate *modelPrivate, const Error &error);
+    ErrorItem(const ErrorListModel *model, const Error &error);
 
-    const ErrorListModelPrivate *modelPrivate() const { return m_modelPrivate; }
+    const ErrorListModel *modelPrivate() const { return m_model; }
     Error error() const { return m_error; }
 
 private:
     QVariant data(int column, int role) const override;
 
-    const ErrorListModelPrivate * const m_modelPrivate;
+    const ErrorListModel * const m_model;
     const Error m_error;
 };
 
@@ -99,31 +85,15 @@ private:
 
 
 ErrorListModel::ErrorListModel(QObject *parent)
-    : Utils::TreeModel(parent)
-    , d(new ErrorListModelPrivate)
+    : Utils::TreeModel<>(parent)
 {
     setHeader(QStringList() << tr("Issue") << tr("Location"));
 }
 
-ErrorListModel::~ErrorListModel()
+Frame ErrorListModel::findRelevantFrame(const Error &error) const
 {
-    delete d;
-}
-
-QSharedPointer<const ErrorListModel::RelevantFrameFinder> ErrorListModel::relevantFrameFinder() const
-{
-    return d->relevantFrameFinder;
-}
-
-void ErrorListModel::setRelevantFrameFinder(const QSharedPointer<const RelevantFrameFinder> &finder)
-{
-    d->relevantFrameFinder = finder;
-}
-
-Frame ErrorListModelPrivate::findRelevantFrame(const Error &error) const
-{
-    if (relevantFrameFinder)
-        return relevantFrameFinder->findRelevant(error);
+    if (m_relevantFrameFinder)
+        return m_relevantFrameFinder(error);
     const QVector<Stack> stacks = error.stacks();
     if (stacks.isEmpty())
         return Frame();
@@ -163,7 +133,7 @@ static QString makeFrameName(const Frame &frame, bool withLocation)
     return QString::fromLatin1("0x%1").arg(frame.instructionPointer(), 0, 16);
 }
 
-QString ErrorListModelPrivate::errorLocation(const Error &error) const
+QString ErrorListModel::errorLocation(const Error &error) const
 {
     return QCoreApplication::translate("Valgrind::Internal", "in %1").
             arg(makeFrameName(findRelevantFrame(error), true));
@@ -171,12 +141,22 @@ QString ErrorListModelPrivate::errorLocation(const Error &error) const
 
 void ErrorListModel::addError(const Error &error)
 {
-    rootItem()->appendChild(new ErrorItem(d, error));
+    rootItem()->appendChild(new ErrorItem(this, error));
+}
+
+ErrorListModel::RelevantFrameFinder ErrorListModel::relevantFrameFinder() const
+{
+    return m_relevantFrameFinder;
+}
+
+void ErrorListModel::setRelevantFrameFinder(const RelevantFrameFinder &relevantFrameFinder)
+{
+    m_relevantFrameFinder = relevantFrameFinder;
 }
 
 
-ErrorItem::ErrorItem(const ErrorListModelPrivate *modelPrivate, const Error &error)
-    : m_modelPrivate(modelPrivate), m_error(error)
+ErrorItem::ErrorItem(const ErrorListModel *model, const Error &error)
+    : m_model(model), m_error(error)
 {
     QTC_ASSERT(!m_error.stacks().isEmpty(), return);
 
@@ -196,8 +176,8 @@ ErrorItem::ErrorItem(const ErrorListModelPrivate *modelPrivate, const Error &err
 static QVariant location(const Frame &frame, int role)
 {
     switch (role) {
-    case Analyzer::DetailedErrorView::LocationRole:
-        return QVariant::fromValue(Analyzer::DiagnosticLocation(frame.filePath(), frame.line(), 0));
+    case Debugger::DetailedErrorView::LocationRole:
+        return QVariant::fromValue(Debugger::DiagnosticLocation(frame.filePath(), frame.line(), 0));
     case Qt::ToolTipRole:
         return frame.filePath().isEmpty() ? QVariant() : QVariant(frame.filePath());
     default:
@@ -207,20 +187,20 @@ static QVariant location(const Frame &frame, int role)
 
 QVariant ErrorItem::data(int column, int role) const
 {
-    if (column == Analyzer::DetailedErrorView::LocationColumn) {
-        const Frame frame = m_modelPrivate->findRelevantFrame(m_error);
+    if (column == Debugger::DetailedErrorView::LocationColumn) {
+        const Frame frame = m_model->findRelevantFrame(m_error);
         return location(frame, role);
     }
 
     // DiagnosticColumn
     switch (role) {
-    case Analyzer::DetailedErrorView::FullTextRole: {
+    case Debugger::DetailedErrorView::FullTextRole: {
         QString content;
         QTextStream stream(&content);
 
         stream << m_error.what() << "\n";
         stream << "  "
-               << m_modelPrivate->errorLocation(m_error)
+               << m_model->errorLocation(m_error)
                << "\n";
 
         foreach (const Stack &stack, m_error.stacks()) {
@@ -246,7 +226,7 @@ QVariant ErrorItem::data(int column, int role) const
         return ErrorListModel::tr("%1 in function %2")
                 .arg(m_error.what(), m_error.stacks().first().frames().first().functionName());
     case Qt::ToolTipRole:
-        return toolTipForFrame(m_modelPrivate->findRelevantFrame(m_error));
+        return toolTipForFrame(m_model->findRelevantFrame(m_error));
     default:
         return QVariant();
     }
@@ -262,7 +242,7 @@ StackItem::StackItem(const Stack &stack) : m_stack(stack)
 QVariant StackItem::data(int column, int role) const
 {
     const ErrorItem * const errorItem = getErrorItem();
-    if (column == Analyzer::DetailedErrorView::LocationColumn)
+    if (column == Debugger::DetailedErrorView::LocationColumn)
         return location(errorItem->modelPrivate()->findRelevantFrame(errorItem->error()), role);
 
     // DiagnosticColumn
@@ -290,7 +270,7 @@ FrameItem::FrameItem(const Frame &frame) : m_frame(frame)
 
 QVariant FrameItem::data(int column, int role) const
 {
-    if (column == Analyzer::DetailedErrorView::LocationColumn)
+    if (column == Debugger::DetailedErrorView::LocationColumn)
         return location(m_frame, role);
 
     // DiagnosticColumn
@@ -298,8 +278,8 @@ QVariant FrameItem::data(int column, int role) const
     case ErrorListModel::ErrorRole:
         return QVariant::fromValue(getErrorItem()->error());
     case Qt::DisplayRole: {
-        const int row = parent()->children().indexOf(const_cast<FrameItem *>(this)) + 1;
-        const int padding = static_cast<int>(std::log10(parent()->rowCount()))
+        const int row = indexInParent() + 1;
+        const int padding = static_cast<int>(std::log10(parent()->childCount()))
                 - static_cast<int>(std::log10(row));
         return QString::fromLatin1("%1%2: %3")
                 .arg(QString(padding, QLatin1Char(' ')))

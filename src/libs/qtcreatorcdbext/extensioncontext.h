@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef EXTENSIONCONTEXT_H
-#define EXTENSIONCONTEXT_H
+#pragma once
 
 #include "common.h"
 #include "iinterfacepointer.h"
@@ -43,14 +37,11 @@ class OutputCallback;
 class ExtensionCommandContext;
 
 // Global parameters
-class Parameters
+struct Parameters
 {
-public:
-    Parameters();
-
-    unsigned maxStringLength;
-    unsigned maxArraySize;
-    unsigned maxStackDepth;
+    unsigned maxStringLength = 10000;
+    unsigned maxArraySize = 100;
+    unsigned maxStackDepth = 1000;
 };
 
 // Global singleton with context.
@@ -59,7 +50,7 @@ class ExtensionContext {
     ExtensionContext(const ExtensionContext&);
     ExtensionContext& operator=(const ExtensionContext&);
 
-    ExtensionContext();
+    ExtensionContext() = default;
 public:
     enum CallFlags {
         CallWithExceptionsHandled = 0x1,
@@ -124,17 +115,16 @@ public:
     const Parameters &parameters() const { return m_parameters; }
     Parameters &parameters() { return m_parameters; }
 
-    ULONG64 jsExecutionContext(ExtensionCommandContext &exc, std::string *errorMessage);
+    ULONG64 jsExecutionEngine(ExtensionCommandContext &exc, std::string *errorMessage);
 
     bool stateNotification() const { return m_stateNotification; }
     void setStateNotification(bool s) { m_stateNotification = s; }
 
     struct CdbVersion
     {
-        CdbVersion() : major(0), minor(0), patch(0) {}
-        int major;
-        int minor;
-        int patch;
+        int major = 0;
+        int minor = 0;
+        int patch = 0;
         void clear () { major = minor = patch = 0; }
     };
 
@@ -147,14 +137,14 @@ private:
     std::auto_ptr<LocalsSymbolGroup> m_symbolGroup;
     std::auto_ptr<WatchesSymbolGroup> m_watchesSymbolGroup;
 
-    CIDebugClient *m_hookedClient;
-    IDebugEventCallbacks *m_oldEventCallback;
-    IDebugOutputCallbacksWide *m_oldOutputCallback;
-    IDebugEventCallbacks *m_creatorEventCallback;
-    OutputCallback *m_creatorOutputCallback;
+    CIDebugClient *m_hookedClient = nullptr;
+    IDebugEventCallbacks *m_oldEventCallback = nullptr;
+    IDebugOutputCallbacksWide *m_oldOutputCallback = nullptr;
+    IDebugEventCallbacks *m_creatorEventCallback = nullptr;
+    OutputCallback *m_creatorOutputCallback = nullptr;
 
     StopReasonMap m_stopReason;
-    bool m_stateNotification;
+    bool m_stateNotification = true;
     Parameters m_parameters;
 };
 
@@ -192,5 +182,3 @@ private:
     IInterfacePointer<CIDebugRegisters> m_registers;
     IInterfacePointer<CIDebugDataSpaces> m_dataSpaces;
 };
-
-#endif // EXTENSIONCONTEXT_H

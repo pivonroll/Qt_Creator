@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,10 +30,9 @@
 #include <coreplugin/icore.h>
 
 #include <utils/fileutils.h>
+#include <utils/temporarydirectory.h>
 
 #include <QFileInfo>
-#include <QStringBuilder>
-#include <QDir>
 #include <QUrl>
 
 #include <QApplication>
@@ -91,10 +85,23 @@ HelpViewer::HelpViewer(QWidget *parent)
 {
 }
 
+void HelpViewer::setActionVisible(Action action, bool visible)
+{
+    if (visible)
+        m_visibleActions |= Actions(action);
+    else
+        m_visibleActions &= ~Actions(action);
+}
+
+bool HelpViewer::isActionVisible(HelpViewer::Action action)
+{
+    return (m_visibleActions & Actions(action)) != 0;
+}
+
 bool HelpViewer::isLocalUrl(const QUrl &url)
 {
-    return url.scheme() == QLatin1String("about") // "No documenation available"
-            || url.scheme() == QLatin1String("qthelp");
+    return url.scheme() == "about" // "No documenation available"
+            || url.scheme() == "qthelp";
 }
 
 bool HelpViewer::canOpenPage(const QString &url)
@@ -114,7 +121,7 @@ QString HelpViewer::mimeFromUrl(const QUrl &url)
             return QLatin1String(e->mimeType);
         ++e;
     }
-    return QLatin1String("");
+    return QString();
 }
 
 bool HelpViewer::launchWithExternalApp(const QUrl &url)
@@ -127,8 +134,8 @@ bool HelpViewer::launchWithExternalApp(const QUrl &url)
 
         const QString& path = resolvedUrl.path();
         if (!canOpenPage(path)) {
-            Utils::TempFileSaver saver(QDir::tempPath()
-                + QLatin1String("/qtchelp_XXXXXX.") + QFileInfo(path).completeSuffix());
+            Utils::TempFileSaver saver(Utils::TemporaryDirectory::masterDirectoryPath()
+                + "/qtchelp_XXXXXX." + QFileInfo(path).completeSuffix());
             saver.setAutoRemove(false);
             if (!saver.hasError())
                 saver.write(helpEngine.fileData(resolvedUrl));

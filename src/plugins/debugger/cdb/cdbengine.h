@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGER_CDBENGINE_H
-#define DEBUGGER_CDBENGINE_H
+#pragma once
 
 #include <debugger/debuggerengine.h>
 #include <debugger/breakhandler.h>
@@ -51,7 +45,7 @@ namespace Internal {
 class DisassemblerAgent;
 class CdbCommand;
 struct MemoryViewCookie;
-class ByteArrayInputStream;
+class StringInputStream;
 class GdbMi;
 
 class CdbEngine : public DebuggerEngine
@@ -63,7 +57,7 @@ public:
     typedef std::function<void(const DebuggerResponse &)> CommandHandler;
 
     CdbEngine(const DebuggerRunParameters &sp);
-    ~CdbEngine();
+    ~CdbEngine() override;
 
     // Factory function that returns 0 if the debug engine library cannot be found.
 
@@ -80,7 +74,7 @@ public:
     void detachDebugger() override;
     bool hasCapability(unsigned cap) const override;
     void watchPoint(const QPoint &) override;
-    void setRegisterValue(const QByteArray &name, const QString &value) override;
+    void setRegisterValue(const QString &name, const QString &value) override;
 
     void executeStep() override;
     void executeStepOut() override;
@@ -105,9 +99,8 @@ public:
     void attemptBreakpointSynchronization() override;
 
     void fetchDisassembler(DisassemblerAgent *agent) override;
-    void fetchMemory(MemoryAgent *, QObject *, quint64 addr, quint64 length) override;
-    void changeMemory(Internal::MemoryAgent *, QObject *, quint64 addr,
-                      const QByteArray &data) override;
+    void fetchMemory(MemoryAgent *, quint64 addr, quint64 length) override;
+    void changeMemory(MemoryAgent *, quint64 addr, const QByteArray &data) override;
 
     void reloadModules() override;
     void loadSymbols(const QString &moduleName) override;
@@ -122,14 +115,13 @@ public:
 
     static QString extensionLibraryName(bool is64Bit);
 
-private slots:
+private:
     void readyReadStandardOut();
     void readyReadStandardError();
     void processError();
     void processFinished();
-    void runCommand(const DebuggerCommand &cmd, int flags = 0);
+    void runCommand(const DebuggerCommand &cmd) override;
     void operateByInstructionTriggered(bool);
-    void verboseLogTriggered(bool);
 
     void consoleStubError(const QString &);
     void consoleStubProcessStarted();
@@ -139,7 +131,6 @@ private slots:
 
     void handleDoInterruptInferior(const QString &errorMessage);
 
-private:
     typedef QHash<BreakpointModelId, BreakpointResponse> PendingBreakPointMap;
     typedef QPair<QString, QString> SourcePathMapping;
     struct NormalizedSourceFileName // Struct for caching mapped/normalized source files.
@@ -164,9 +155,10 @@ private:
         ParseStackWow64 = 3 // Hit on a frame with 32bit emulation, switch debugger to 32 bit mode
     };
     enum CommandFlags {
-        NoCallBack = 0,
+        NoFlags = 0,
         BuiltinCommand,
         ExtensionCommand,
+        ScriptCommand
     };
 
     bool startConsole(const DebuggerRunParameters &sp, QString *errorMessage);
@@ -176,20 +168,19 @@ private:
                                bool conditionalBreakPointTriggered = false);
     void processStop(const GdbMi &stopReason, bool conditionalBreakPointTriggered = false);
     bool commandsPending() const;
-    void handleExtensionMessage(char t, int token, const QByteArray &what, const QByteArray &message);
+    void handleExtensionMessage(char t, int token, const QString &what, const QString &message);
     bool doSetupEngine(QString *errorMessage);
     bool launchCDB(const DebuggerRunParameters &sp, QString *errorMessage);
     void handleSessionAccessible(unsigned long cdbExState);
     void handleSessionInaccessible(unsigned long cdbExState);
-    void handleSessionIdle(const QByteArray &message);
+    void handleSessionIdle(const QString &message);
     void doInterruptInferior(SpecialStopMode sm);
     void doInterruptInferiorCustomSpecialStop(const QVariant &v);
     void doContinueInferior();
-    inline void parseOutputLine(QByteArray line);
-    inline bool isCdbProcessRunning() const { return m_process.state() != QProcess::NotRunning; }
+    void parseOutputLine(QString line);
+    bool isCdbProcessRunning() const { return m_process.state() != QProcess::NotRunning; }
     bool canInterruptInferior() const;
     void syncOperateByInstruction(bool operateByInstruction);
-    void syncVerboseLog(bool verboseLog);
     void postWidgetAtCommand();
     void handleCustomSpecialStop(const QVariant &v);
     void postFetchMemory(const MemoryViewCookie &c);
@@ -220,6 +211,7 @@ private:
     void handleWidgetAt(const DebuggerResponse &response);
     void handleBreakPoints(const DebuggerResponse &response);
     void handleAdditionalQmlStack(const DebuggerResponse &response);
+    void setupScripting(const DebuggerResponse &response);
     NormalizedSourceFileName sourceMapNormalizeFileNameFromDebugger(const QString &f);
     void doUpdateLocals(const UpdateParameters &params) override;
     void updateAll() override;
@@ -227,7 +219,7 @@ private:
     unsigned parseStackTrace(const GdbMi &data, bool sourceStepInto);
     void mergeStartParametersSourcePathMap();
 
-    const QByteArray m_tokenPrefix;
+    const QString m_tokenPrefix;
 
     QProcess m_process;
     QScopedPointer<Utils::ConsoleProcess> m_consoleStub;
@@ -239,14 +231,12 @@ private:
     ProjectExplorer::DeviceProcessSignalOperation::Ptr m_signalOperation;
     int m_nextCommandToken;
     QHash<int, DebuggerCommand> m_commandForToken;
-    QByteArray m_currentBuiltinResponse;
+    QString m_currentBuiltinResponse;
     int m_currentBuiltinResponseToken;
     QMap<QString, NormalizedSourceFileName> m_normalizedFileCache;
-    const QByteArray m_extensionCommandPrefixBA; //!< Library name used as prefix
+    const QString m_extensionCommandPrefix; //!< Library name used as prefix
     bool m_operateByInstructionPending; //!< Creator operate by instruction action changed.
     bool m_operateByInstruction;
-    bool m_verboseLogPending; //!< Creator verbose log action changed.
-    bool m_verboseLog;
     bool m_hasDebuggee;
     enum Wow64State {
         wow64Uninitialized,
@@ -256,7 +246,7 @@ private:
     } m_wow64State;
     QTime m_logTime;
     mutable int m_elapsedLogTime;
-    QByteArray m_extensionMessageBuffer;
+    QString m_extensionMessageBuffer;
     bool m_sourceStepInto;
     int m_watchPointX;
     int m_watchPointY;
@@ -270,9 +260,8 @@ private:
     QVariantList m_customSpecialStopData;
     QList<SourcePathMapping> m_sourcePathMappings;
     QScopedPointer<GdbMi> m_coreStopReason;
+    int m_pythonVersion = 0; // 0xMMmmpp MM = major; mm = minor; pp = patch
 };
 
 } // namespace Internal
 } // namespace Debugger
-
-#endif // DEBUGGER_CDBENGINE_H

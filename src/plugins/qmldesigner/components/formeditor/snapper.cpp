@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -299,10 +299,6 @@ QLineF Snapper::createSnapLine(Qt::Orientation orientation,
 
 static bool  compareLines(double snapLine, double lineToSnap)
 {
-//    if (qAbs(snapLine - lineToSnap) < 1.0)
-//        return true;
-//
-//    return false;
     return qFuzzyCompare(snapLine, lineToSnap);
 }
 
@@ -649,8 +645,8 @@ static void adjustAnchorLine(const QmlItemNode &sourceQmlItemNode,
 
 void Snapper::adjustAnchoringOfItem(FormEditorItem *formEditorItem)
 {
-    QmlItemNode qmlItemNode = formEditorItem->qmlItemNode();
-    QmlAnchors qmlAnchors = qmlItemNode.anchors();
+    const QmlItemNode qmlItemNode = formEditorItem->qmlItemNode();
+    const QmlAnchors qmlAnchors = qmlItemNode.anchors();
 
     if (!qmlAnchors.instanceHasAnchor(AnchorLineHorizontalCenter)) {
         adjustAnchorLine(qmlItemNode,
@@ -705,14 +701,6 @@ void Snapper::adjustAnchoringOfItem(FormEditorItem *formEditorItem)
     }
 }
 
-//static void alignLine(QLineF &line)
-//{
-//    line.setP1(QPointF(std::floor(line.p1().x()) + 0.5,
-//                       std::floor(line.p1().y()) + 0.5));
-//    line.setP2(QPointF(std::floor(line.p2().x()) + 0.5,
-//                       std::floor(line.p2().y()) + 0.5));
-//}
-
 QList<QGraphicsItem*> Snapper::generateSnappingLines(const QList<QRectF> &boundingRectList,
                                                      QGraphicsItem *layerItem,
                                                      const QTransform &transform)
@@ -723,31 +711,14 @@ QList<QGraphicsItem*> Snapper::generateSnappingLines(const QList<QRectF> &boundi
         QList<QRectF> snappedBoundingRectList;
         lineList += mergedHorizontalLines(horizontalSnappedLines(boundingRect, &snappedBoundingRectList));
         lineList += mergedVerticalLines(verticalSnappedLines(boundingRect, &snappedBoundingRectList));
-
-//        snappedBoundingRectList.append(boundingRect);
-//        foreach (const QRectF &snappedBoundingRect, snappedBoundingRectList) {
-//            QPolygonF rect = transform.map(snappedBoundingRect);
-//            alignVertices(rect);
-//            QGraphicsPolygonItem * item = new QGraphicsPolygonItem(rect, layerItem);
-//            item->setZValue(20);
-
-//            QColor brushColor(QApplication::palette().highlight().color());
-//            QColor brushColor(Qt::gray);
-//            brushColor.setAlphaF(0.25);
-//            QBrush brush(brushColor);
-//            item->setBrush(brush);
-//            item->setPen(Qt::NoPen);
-//            graphicsItemList.append(item);
-//        }
     }
 
     foreach (const QLineF &line, lineList) {
         QLineF lineInTransformationSpace = transform.map(line);
-//        alignLine(lineInTransformationSpace);
         QGraphicsLineItem * lineItem = new QGraphicsLineItem(lineInTransformationSpace, layerItem);
         lineItem->setZValue(40);
         QPen linePen;
-//        linePen.setStyle(Qt::DashLine);
+        linePen.setCosmetic(true);
         linePen.setColor("#5d2dd7");
         lineItem->setPen(linePen);
 

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef SYMBOLGROUPVALUE_H
-#define SYMBOLGROUPVALUE_H
+#pragma once
 
 #include "common.h"
 #include "knowntype.h"
@@ -46,10 +40,17 @@ class MemoryHandle;
 struct SymbolGroupValueContext
 {
     SymbolGroupValueContext(CIDebugDataSpaces *ds, CIDebugSymbols *s) : dataspaces(ds), symbols(s) {}
-    SymbolGroupValueContext::SymbolGroupValueContext() : dataspaces(0), symbols(0) {}
+    SymbolGroupValueContext() = default;
 
-    CIDebugDataSpaces *dataspaces;
-    CIDebugSymbols *symbols;
+    CIDebugDataSpaces *dataspaces = nullptr;
+    CIDebugSymbols *symbols = nullptr;
+};
+
+struct SymbolAncestorInfo
+{
+    bool isValid() const { return offset >= 0 && !type.empty(); }
+    std::string type;
+    LONG64 offset = -1;
 };
 
 class SymbolGroupValue
@@ -70,6 +71,7 @@ public:
     SymbolGroupValue operator[](const char *name) const;
     SymbolGroupValue operator[](unsigned) const;
     unsigned childCount() const;
+    ULONG64 offsetOfChild(const SymbolGroupValue &child) const;
     SymbolGroupValue parent() const;
     // take address and cast to desired (pointer) type
     SymbolGroupValue typeCast(const char *type) const;
@@ -85,6 +87,17 @@ public:
     std::vector<std::string>  innerTypes() const { return innerTypesOf(type()); }
     std::wstring value() const;
     unsigned size() const;
+
+    //offset based access to ancestors
+    SymbolGroupValue addSymbolForAncestor(const std::string &ancestorName) const;
+    ULONG64 readPointerValueFromAncestor(const std::string &name) const;
+    int readIntegerFromAncestor(const std::string &name, int defaultValue = -1) const;
+    LONG64 offsetOfAncestor(const std::string &name) const;
+    ULONG64 addressOfAncestor(const std::string &name) const;
+    std::string typeOfAncestor(const std::string &childName) const;
+    SymbolAncestorInfo infoOfAncestor(const std::string &name) const;
+
+    SymbolGroupValue addSymbol(const ULONG64 address, const std::string &type) const;
 
     SymbolGroupNode *node() const { return m_node; }
     SymbolGroupValueContext context() const { return m_context; }
@@ -118,6 +131,7 @@ public:
     static std::string moduleOfType(const std::string &type);
     // pointer type, return number of characters to strip
     static unsigned isPointerType(const std::string &);
+    static unsigned isMovable(const std::string &, const SymbolGroupValue &v);
     static bool isArrayType(const std::string &);
     static bool isVTableType(const std::string &t);
     // add pointer type 'Foo' -> 'Foo *', 'Foo *' -> 'Foo **'
@@ -175,8 +189,9 @@ public:
 private:
     bool ensureExpanded() const;
     SymbolGroupValue typeCastedValue(ULONG64 address, const char *type) const;
+    template<class POD> POD readPODFromAncestor(const std::string &name, POD defaultValue) const;
 
-    SymbolGroupNode *m_node;
+    SymbolGroupNode *m_node = 0;
     SymbolGroupValueContext m_context;
     mutable std::string m_errorMessage;
 };
@@ -190,8 +205,6 @@ struct QtInfo
     {
         Core, Gui, Widgets, Network, Script, Qml
     };
-
-    QtInfo() : version(0), isStatic(false) {}
 
     static const QtInfo &get(const SymbolGroupValueContext &ctx);
 
@@ -219,8 +232,8 @@ struct QtInfo
 
     std::string moduleName(Module m) const;
 
-    int version;
-    bool isStatic;
+    int version = 0;
+    bool isStatic = false;
     std::string nameSpace;
     std::string libInfix;
     // Fully qualified types with module and namespace
@@ -255,14 +268,14 @@ void formatKnownTypeFlags(std::ostream &os, KnownType kt);
 // complex dumpers
 unsigned dumpSimpleType(SymbolGroupNode  *n, const SymbolGroupValueContext &ctx,
                         std::wstring *s,
-                        int *encoding = 0,
+                        std::string *encoding,
                         int *knownType = 0,
                         int *containerSizeIn = 0,
                         void **specialInfoIn = 0,
                         MemoryHandle **memoryHandleIn = 0);
 
-bool dumpEditValue(const SymbolGroupNode *n, const SymbolGroupValueContext &,
-                   int desiredFormat, std::ostream &str);
+void dumpEditValue(const SymbolGroupNode *n, const SymbolGroupValueContext &,
+                   const std::string &desiredFormat, std::ostream &str);
 
 enum AssignEncoding
 {
@@ -279,5 +292,3 @@ bool assignType(SymbolGroupNode  *n, int valueEncoding, const std::string &value
 std::vector<AbstractSymbolGroupNode *>
     dumpComplexType(SymbolGroupNode *node, int type, void *specialInfo,
                     const SymbolGroupValueContext &ctx);
-
-#endif // SYMBOLGROUPVALUE_H

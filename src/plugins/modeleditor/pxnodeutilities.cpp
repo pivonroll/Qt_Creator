@@ -1,7 +1,7 @@
-/***************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Jochen Becher
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Jochen Becher
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -74,18 +69,18 @@ QString PxNodeUtilities::calcRelativePath(const ProjectExplorer::Node *node,
     QString nodePath;
 
     switch (node->nodeType()) {
-    case ProjectExplorer::FileNodeType:
+    case ProjectExplorer::NodeType::File:
     {
-        QFileInfo fileInfo(node->path().toString());
+        QFileInfo fileInfo = node->filePath().toFileInfo();
         nodePath = fileInfo.path();
         break;
     }
-    case ProjectExplorer::FolderNodeType:
-    case ProjectExplorer::VirtualFolderNodeType:
-    case ProjectExplorer::ProjectNodeType:
-        nodePath = node->path().toString();
+    case ProjectExplorer::NodeType::Folder:
+    case ProjectExplorer::NodeType::VirtualFolder:
+    case ProjectExplorer::NodeType::Project:
+        nodePath = node->filePath().toString();
         break;
-    case ProjectExplorer::SessionNodeType:
+    case ProjectExplorer::NodeType::Session:
         QTC_ASSERT(false, return QString());
         break;
     }
@@ -100,11 +95,11 @@ qmt::MPackage *PxNodeUtilities::createBestMatchingPackagePath(
     qmt::MPackage *suggestedParent = suggestedParentPackage;
     while (suggestedParent) {
         suggestedParents.insert(suggestedParent);
-        suggestedParent = dynamic_cast<qmt::MPackage *>(suggestedParent->getOwner());
+        suggestedParent = dynamic_cast<qmt::MPackage *>(suggestedParent->owner());
     }
 
     QQueue<QPair<qmt::MPackage *, int> > roots;
-    roots.append(qMakePair(d->diagramSceneController->getModelController()->getRootPackage(), 0));
+    roots.append(qMakePair(d->diagramSceneController->modelController()->rootPackage(), 0));
 
     int maxChainLength = -1;
     int minChainDepth = -1;
@@ -116,9 +111,9 @@ qmt::MPackage *PxNodeUtilities::createBestMatchingPackagePath(
         roots.takeFirst();
 
         // append all sub-packages of the same level as next root packages
-        foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+        foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
             if (handle.hasTarget()) {
-                if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.getTarget())) {
+                if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.target())) {
                     // only accept root packages in the same path as the suggested parent package
                     if (suggestedParents.contains(childPackage)) {
                         roots.append(qMakePair(childPackage, depth + 1));
@@ -135,10 +130,10 @@ qmt::MPackage *PxNodeUtilities::createBestMatchingPackagePath(
             QString relativeSearchId = qmt::NameController::calcElementNameSearchId(
                         relativeElements.at(relativeIndex));
             found = false;
-            foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+            foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
                 if (handle.hasTarget()) {
-                    if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.getTarget())) {
-                        if (qmt::NameController::calcElementNameSearchId(childPackage->getName()) == relativeSearchId) {
+                    if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.target())) {
+                        if (qmt::NameController::calcElementNameSearchId(childPackage->name()) == relativeSearchId) {
                             package = childPackage;
                             ++relativeIndex;
                             found = true;
@@ -175,9 +170,9 @@ qmt::MPackage *PxNodeUtilities::createBestMatchingPackagePath(
     int i = maxChainLength;
     while (i < relativeElements.size()) {
         auto newPackage = new qmt::MPackage();
-        newPackage->setFlags(qmt::MElement::REVERSE_ENGINEERED);
+        newPackage->setFlags(qmt::MElement::ReverseEngineered);
         newPackage->setName(relativeElements.at(i));
-        d->diagramSceneController->getModelController()->addObject(bestParentPackage, newPackage);
+        d->diagramSceneController->modelController()->addObject(bestParentPackage, newPackage);
         bestParentPackage = newPackage;
         ++i;
     }
@@ -188,15 +183,15 @@ qmt::MObject *PxNodeUtilities::findSameObject(const QStringList &relativeElement
                                               const qmt::MObject *object)
 {
     QQueue<qmt::MPackage *> roots;
-    roots.append(d->diagramSceneController->getModelController()->getRootPackage());
+    roots.append(d->diagramSceneController->modelController()->rootPackage());
 
     while (!roots.isEmpty()) {
         qmt::MPackage *package = roots.takeFirst();
 
         // append all sub-packages of the same level as next root packages
-        foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+        foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
             if (handle.hasTarget()) {
-                if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.getTarget()))
+                if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.target()))
                     roots.append(childPackage);
             }
         }
@@ -208,10 +203,10 @@ qmt::MObject *PxNodeUtilities::findSameObject(const QStringList &relativeElement
             QString relativeSearchId = qmt::NameController::calcElementNameSearchId(
                         relativeElements.at(relativeIndex));
             found = false;
-            foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+            foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
                 if (handle.hasTarget()) {
-                    if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.getTarget())) {
-                        if (qmt::NameController::calcElementNameSearchId(childPackage->getName()) == relativeSearchId) {
+                    if (auto childPackage = dynamic_cast<qmt::MPackage *>(handle.target())) {
+                        if (qmt::NameController::calcElementNameSearchId(childPackage->name()) == relativeSearchId) {
                             package = childPackage;
                             ++relativeIndex;
                             found = true;
@@ -225,12 +220,12 @@ qmt::MObject *PxNodeUtilities::findSameObject(const QStringList &relativeElement
         if (found) {
             QTC_CHECK(relativeIndex >= relativeElements.size());
             // chain was found so check for given object within deepest package
-            QString objectSearchId = qmt::NameController::calcElementNameSearchId(object->getName());
-            foreach (const qmt::Handle<qmt::MObject> &handle, package->getChildren()) {
+            QString objectSearchId = qmt::NameController::calcElementNameSearchId(object->name());
+            foreach (const qmt::Handle<qmt::MObject> &handle, package->children()) {
                 if (handle.hasTarget()) {
-                    qmt::MObject *target = handle.getTarget();
+                    qmt::MObject *target = handle.target();
                     if (typeid(*target) == typeid(*object)
-                            && qmt::NameController::calcElementNameSearchId(target->getName()) == objectSearchId) {
+                            && qmt::NameController::calcElementNameSearchId(target->name()) == objectSearchId) {
                         return target;
                     }
                 }

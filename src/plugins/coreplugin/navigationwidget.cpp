@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,13 +27,14 @@
 #include "navigationsubwidget.h"
 #include "icontext.h"
 #include "icore.h"
-#include "coreconstants.h"
 #include "inavigationwidgetfactory.h"
 #include "modemanager.h"
 #include "actionmanager/actionmanager.h"
 #include "actionmanager/command.h"
 #include "id.h"
 #include "imode.h"
+
+#include <utils/utilsicons.h>
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -60,7 +56,7 @@ NavigationWidgetPlaceHolder* NavigationWidgetPlaceHolder::current()
     return m_current;
 }
 
-NavigationWidgetPlaceHolder::NavigationWidgetPlaceHolder(IMode *mode, QWidget *parent)
+NavigationWidgetPlaceHolder::NavigationWidgetPlaceHolder(Id mode, QWidget *parent)
     :QWidget(parent), m_mode(mode)
 {
     setLayout(new QVBoxLayout);
@@ -109,7 +105,7 @@ void NavigationWidgetPlaceHolder::applyStoredSize(int width)
 // m_current points to the current PlaceHolder, or zero if there
 // is no PlaceHolder in this mode
 // And that the parent of the NavigationWidget gets the correct parent
-void NavigationWidgetPlaceHolder::currentModeAboutToChange(IMode *mode)
+void NavigationWidgetPlaceHolder::currentModeAboutToChange(Id mode)
 {
     NavigationWidget *navigationWidget = NavigationWidget::instance();
 
@@ -186,10 +182,10 @@ void NavigationWidget::setFactories(const QList<INavigationWidgetFactory *> &fac
 
     foreach (INavigationWidgetFactory *factory, factories) {
         const Id id = factory->id();
-
         QAction *action = new QAction(tr("Activate %1 View").arg(factory->displayName()), this);
-        connect(action, SIGNAL(triggered()), this, SLOT(activateSubWidget()));
         d->m_actionMap.insert(action, id);
+        connect(action, &QAction::triggered,
+                this, [this, action]() { activateSubWidget(d->m_actionMap[action]); });
 
         Command *cmd = ActionManager::registerAction(action,
             id.withPrefix("QtCreator.Sidebar."), navicontext);
@@ -248,26 +244,18 @@ Internal::NavigationSubWidget *NavigationWidget::insertSubItem(int position,int 
     }
 
     if (!d->m_subWidgets.isEmpty()) // Make all icons the bottom icon
-        d->m_subWidgets.at(0)->setCloseIcon(QIcon(QLatin1String(Constants::ICON_CLOSE_SPLIT_BOTTOM)));
+        d->m_subWidgets.at(0)->setCloseIcon(Utils::Icons::CLOSE_SPLIT_BOTTOM.icon());
 
     Internal::NavigationSubWidget *nsw = new Internal::NavigationSubWidget(this, position, index);
     connect(nsw, &Internal::NavigationSubWidget::splitMe,
             this, &NavigationWidget::splitSubWidget);
-    connect(nsw, SIGNAL(closeMe()), this, SLOT(closeSubWidget()));
+    connect(nsw, &Internal::NavigationSubWidget::closeMe, this, &NavigationWidget::closeSubWidget);
     insertWidget(position, nsw);
     d->m_subWidgets.insert(position, nsw);
-    if (d->m_subWidgets.size() == 1)
-        d->m_subWidgets.at(0)->setCloseIcon(QIcon(QLatin1String(Constants::ICON_CLOSE_SPLIT_LEFT)));
-    else
-        d->m_subWidgets.at(0)->setCloseIcon(QIcon(QLatin1String(Constants::ICON_CLOSE_SPLIT_TOP)));
+    d->m_subWidgets.at(0)->setCloseIcon(d->m_subWidgets.size() == 1
+                                        ? Utils::Icons::CLOSE_SPLIT_LEFT.icon()
+                                        : Utils::Icons::CLOSE_SPLIT_TOP.icon());
     return nsw;
-}
-
-void NavigationWidget::activateSubWidget()
-{
-    QAction *original = qobject_cast<QAction *>(sender());
-    Id id = d->m_actionMap[original];
-    activateSubWidget(id);
 }
 
 QWidget *NavigationWidget::activateSubWidget(Id factoryId)
@@ -308,9 +296,9 @@ void NavigationWidget::closeSubWidget()
         subWidget->deleteLater();
         // update close button of top item
         if (d->m_subWidgets.size() == 1)
-            d->m_subWidgets.at(0)->setCloseIcon(QIcon(QLatin1String(Constants::ICON_CLOSE_SPLIT_LEFT)));
-        else
-            d->m_subWidgets.at(0)->setCloseIcon(QIcon(QLatin1String(Constants::ICON_CLOSE_SPLIT_TOP)));
+            d->m_subWidgets.at(0)->setCloseIcon(d->m_subWidgets.size() == 1
+                                                ? Utils::Icons::CLOSE_SPLIT_LEFT.icon()
+                                                : Utils::Icons::CLOSE_SPLIT_TOP.icon());
     } else {
         setShown(false);
     }

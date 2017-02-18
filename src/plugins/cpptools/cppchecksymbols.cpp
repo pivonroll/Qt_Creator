@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -351,9 +346,9 @@ void CheckSymbols::run()
             _usages << QVector<Result>::fromList(_macroUses);
             flush();
         }
-    }
 
-    emit codeWarningsUpdated(_doc, _diagMsgs);
+        emit codeWarningsUpdated(_doc, _diagMsgs);
+    }
 
     reportFinished();
 }
@@ -522,15 +517,16 @@ bool CheckSymbols::visit(SimpleDeclarationAST *ast)
                     if (funTy->isVirtual()
                             || (nameAST->asDestructorName()
                                 && hasVirtualDestructor(_context.lookupType(funTy->enclosingScope())))) {
-                        addUse(nameAST, SemanticHighlighter::VirtualMethodUse);
+                        addUse(nameAST, SemanticHighlighter::VirtualFunctionDeclarationUse);
                         declrIdNameAST = nameAST;
                     } else if (maybeAddFunction(_context.lookup(decl->name(),
                                                                 decl->enclosingScope()),
-                                                nameAST, funTy->argumentCount())) {
+                                                nameAST, funTy->argumentCount(),
+                                                FunctionDeclaration)) {
                         declrIdNameAST = nameAST;
 
                         // Add a diagnostic message if non-virtual function has override/final marker
-                        if ((_usages.back().kind != SemanticHighlighter::VirtualMethodUse)) {
+                        if ((_usages.back().kind != SemanticHighlighter::VirtualFunctionDeclarationUse)) {
                             if (funTy->isOverride())
                                 warning(declrIdNameAST, QCoreApplication::translate(
                                             "CPlusplus::CheckSymbols", "Only virtual functions can be marked 'override'"));
@@ -569,6 +565,58 @@ bool CheckSymbols::visit(ElaboratedTypeSpecifierAST *ast)
     accept(ast->attribute_list);
     accept(ast->name);
     addUse(ast->name, SemanticHighlighter::TypeUse);
+    return false;
+}
+
+bool CheckSymbols::visit(ObjCProtocolDeclarationAST *ast)
+{
+    accept(ast->attribute_list);
+    accept(ast->name);
+    accept(ast->protocol_refs);
+    accept(ast->member_declaration_list);
+    addUse(ast->name, SemanticHighlighter::TypeUse);
+    return false;
+}
+
+bool CheckSymbols::visit(ObjCProtocolForwardDeclarationAST *ast)
+{
+    accept(ast->attribute_list);
+    accept(ast->identifier_list);
+    for (NameListAST *i = ast->identifier_list; i; i = i->next)
+        addUse(i->value, SemanticHighlighter::TypeUse);
+    return false;
+}
+
+bool CheckSymbols::visit(ObjCClassDeclarationAST *ast)
+{
+    accept(ast->attribute_list);
+    accept(ast->class_name);
+    accept(ast->category_name);
+    accept(ast->superclass);
+    accept(ast->protocol_refs);
+    accept(ast->inst_vars_decl);
+    accept(ast->member_declaration_list);
+    addUse(ast->class_name, SemanticHighlighter::TypeUse);
+    if (ast->superclass && maybeType(ast->superclass->name))
+        addUse(ast->superclass, SemanticHighlighter::TypeUse);
+    return false;
+}
+
+bool CheckSymbols::visit(ObjCClassForwardDeclarationAST *ast)
+{
+    accept(ast->attribute_list);
+    accept(ast->identifier_list);
+    for (NameListAST *i = ast->identifier_list ; i != 0; i = i->next)
+        addUse(i->value, SemanticHighlighter::TypeUse);
+    return false;
+}
+
+bool CheckSymbols::visit(ObjCProtocolRefsAST *ast)
+{
+    accept(ast->identifier_list);
+    for (NameListAST *i = ast->identifier_list; i; i = i->next)
+        if (maybeType(i->value->name))
+            addUse(i->value, SemanticHighlighter::TypeUse);
     return false;
 }
 
@@ -623,7 +671,7 @@ bool CheckSymbols::visit(CallAST *ast)
                         accept(tId->template_argument_list);
                     }
 
-                    if (!maybeAddFunction(candidates, memberName, argumentCount)
+                    if (!maybeAddFunction(candidates, memberName, argumentCount, FunctionCall)
                             && highlightCtorDtorAsType) {
                         expr = ast->base_expression;
                     }
@@ -646,7 +694,7 @@ bool CheckSymbols::visit(CallAST *ast)
                         typeOfExpression(textOf(idExpr), enclosingScope(),
                                          TypeOfExpression::Preprocess);
 
-                    if (!maybeAddFunction(candidates, exprName, argumentCount)
+                    if (!maybeAddFunction(candidates, exprName, argumentCount, FunctionCall)
                             && highlightCtorDtorAsType) {
                         expr = ast->base_expression;
                     }
@@ -661,6 +709,12 @@ bool CheckSymbols::visit(CallAST *ast)
     return false;
 }
 
+bool CheckSymbols::visit(ObjCSelectorArgumentAST *ast)
+{
+    addUse(ast->firstToken(), SemanticHighlighter::FunctionUse);
+    return true;
+}
+
 bool CheckSymbols::visit(NewExpressionAST *ast)
 {
     accept(ast->new_placement);
@@ -669,7 +723,7 @@ bool CheckSymbols::visit(NewExpressionAST *ast)
     if (highlightCtorDtorAsType) {
         accept(ast->new_type_id);
     } else {
-        LookupScope *binding = 0;
+        ClassOrNamespace *binding = 0;
         NameAST *nameAST = 0;
         if (ast->new_type_id) {
             for (SpecifierListAST *it = ast->new_type_id->type_specifier_list; it; it = it->next) {
@@ -709,7 +763,8 @@ bool CheckSymbols::visit(NewExpressionAST *ast)
                 }
             }
 
-            maybeAddFunction(_context.lookup(nameAST->name, scope), nameAST, arguments);
+            maybeAddFunction(_context.lookup(nameAST->name, scope), nameAST, arguments,
+                             FunctionCall);
         }
     }
 
@@ -735,7 +790,7 @@ void CheckSymbols::checkNamespace(NameAST *name)
     unsigned line, column;
     getTokenStartPosition(name->firstToken(), &line, &column);
 
-    if (LookupScope *b = _context.lookupType(name->name, enclosingScope())) {
+    if (ClassOrNamespace *b = _context.lookupType(name->name, enclosingScope())) {
         foreach (Symbol *s, b->symbols()) {
             if (s->isNamespace())
                 return;
@@ -768,14 +823,14 @@ bool CheckSymbols::hasVirtualDestructor(Class *klass) const
     return false;
 }
 
-bool CheckSymbols::hasVirtualDestructor(LookupScope *binding) const
+bool CheckSymbols::hasVirtualDestructor(ClassOrNamespace *binding) const
 {
-    QSet<LookupScope *> processed;
-    QList<LookupScope *> todo;
+    QSet<ClassOrNamespace *> processed;
+    QList<ClassOrNamespace *> todo;
     todo.append(binding);
 
     while (!todo.isEmpty()) {
-        LookupScope *b = todo.takeFirst();
+        ClassOrNamespace *b = todo.takeFirst();
         if (b && !processed.contains(b)) {
             processed.insert(b);
             foreach (Symbol *s, b->symbols()) {
@@ -805,7 +860,7 @@ void CheckSymbols::checkName(NameAST *ast, Scope *scope)
 
             if (klass) {
                 if (hasVirtualDestructor(_context.lookupType(klass))) {
-                    addUse(ast, SemanticHighlighter::VirtualMethodUse);
+                    addUse(ast, SemanticHighlighter::VirtualFunctionDeclarationUse);
                 } else {
                     bool added = false;
                     if (highlightCtorDtorAsType && maybeType(ast->name))
@@ -857,12 +912,12 @@ bool CheckSymbols::visit(QualifiedNameAST *ast)
 {
     if (ast->name) {
 
-        LookupScope *binding = checkNestedName(ast);
+        ClassOrNamespace *binding = checkNestedName(ast);
 
         if (binding && ast->unqualified_name) {
             if (ast->unqualified_name->asDestructorName() != 0) {
                 if (hasVirtualDestructor(binding)) {
-                    addUse(ast->unqualified_name, SemanticHighlighter::VirtualMethodUse);
+                    addUse(ast->unqualified_name, SemanticHighlighter::VirtualFunctionDeclarationUse);
                 } else {
                     bool added = false;
                     if (highlightCtorDtorAsType && maybeType(ast->name))
@@ -886,9 +941,9 @@ bool CheckSymbols::visit(QualifiedNameAST *ast)
     return false;
 }
 
-LookupScope *CheckSymbols::checkNestedName(QualifiedNameAST *ast)
+ClassOrNamespace *CheckSymbols::checkNestedName(QualifiedNameAST *ast)
 {
-    LookupScope *binding = 0;
+    ClassOrNamespace *binding = 0;
 
     if (ast->name) {
         if (NestedNameSpecifierListAST *it = ast->nested_name_specifier_list) {
@@ -954,7 +1009,7 @@ bool CheckSymbols::visit(MemInitializerAST *ast)
 {
     if (FunctionDefinitionAST *enclosingFunction = enclosingFunctionDefinition()) {
         if (ast->name && enclosingFunction->symbol) {
-            if (LookupScope *binding = _context.lookupType(enclosingFunction->symbol)) {
+            if (ClassOrNamespace *binding = _context.lookupType(enclosingFunction->symbol)) {
                 foreach (Symbol *s, binding->symbols()) {
                     if (Class *klass = s->asClass()) {
                         NameAST *nameAST = ast->name;
@@ -979,7 +1034,8 @@ bool CheckSymbols::visit(MemInitializerAST *ast)
                                 for (ExpressionListAST *it = expr_list; it; it = it->next)
                                     ++arguments;
                             }
-                            maybeAddFunction(_context.lookup(nameAST->name, klass), nameAST, arguments);
+                            maybeAddFunction(_context.lookup(nameAST->name, klass),
+                                             nameAST, arguments, FunctionCall);
                         }
 
                         break;
@@ -1062,10 +1118,9 @@ bool CheckSymbols::visit(FunctionDefinitionAST *ast)
             if (fun->isVirtual()
                     || (declId->asDestructorName()
                         && hasVirtualDestructor(_context.lookupType(fun->enclosingScope())))) {
-                addUse(declId, SemanticHighlighter::VirtualMethodUse);
-            } else if (!maybeAddFunction(_context.lookup(fun->name(),
-                                                         fun->enclosingScope()),
-                                         declId, fun->argumentCount())) {
+                addUse(declId, SemanticHighlighter::VirtualFunctionDeclarationUse);
+            } else if (!maybeAddFunction(_context.lookup(fun->name(), fun->enclosingScope()),
+                                         declId, fun->argumentCount(), FunctionDeclaration)) {
                 processEntireDeclr = true;
             }
         }
@@ -1157,7 +1212,7 @@ void CheckSymbols::addUse(const Result &use)
     _usages.append(use);
 }
 
-void CheckSymbols::addType(LookupScope *b, NameAST *ast)
+void CheckSymbols::addType(ClassOrNamespace *b, NameAST *ast)
 {
     unsigned startToken;
     if (!b || !acceptName(ast, &startToken))
@@ -1264,7 +1319,8 @@ bool CheckSymbols::maybeAddField(const QList<LookupItem> &candidates, NameAST *a
     return false;
 }
 
-bool CheckSymbols::maybeAddFunction(const QList<LookupItem> &candidates, NameAST *ast, unsigned argumentCount)
+bool CheckSymbols::maybeAddFunction(const QList<LookupItem> &candidates, NameAST *ast,
+                                    unsigned argumentCount, FunctionKind functionKind)
 {
     unsigned startToken = ast->firstToken();
     bool isDestructor = false;
@@ -1280,7 +1336,9 @@ bool CheckSymbols::maybeAddFunction(const QList<LookupItem> &candidates, NameAST
         return false;
 
     enum { Match_None, Match_TooManyArgs, Match_TooFewArgs, Match_Ok } matchType = Match_None;
-    Kind kind = SemanticHighlighter::FunctionUse;
+
+    Kind kind = functionKind == FunctionDeclaration ? SemanticHighlighter::FunctionDeclarationUse
+                                                    : SemanticHighlighter::FunctionUse;
     foreach (const LookupItem &r, candidates) {
         Symbol *c = r.declaration();
 
@@ -1296,29 +1354,40 @@ bool CheckSymbols::maybeAddFunction(const QList<LookupItem> &candidates, NameAST
         isConstructor = isConstructorDeclaration(c);
 
         Function *funTy = c->type()->asFunctionType();
-        if (!funTy) // Template function has an overridden type
-            funTy = r.type()->asFunctionType();
-        if (!funTy)
+        if (!funTy) {
+            //Try to find a template function
+            if (Template * t = r.type()->asTemplateType())
+                if ((c = t->declaration()))
+                    funTy = c->type()->asFunctionType();
+        }
+        if (!funTy || funTy->isAmbiguous())
             continue; // TODO: add diagnostic messages and color call-operators calls too?
 
+        const bool isVirtual = funTy->isVirtual();
+        Kind matchingKind;
+        if (functionKind == FunctionDeclaration) {
+            matchingKind = isVirtual ? SemanticHighlighter::VirtualFunctionDeclarationUse
+                                     : SemanticHighlighter::FunctionDeclarationUse;
+        } else {
+            matchingKind = isVirtual ? SemanticHighlighter::VirtualMethodUse
+                                     : SemanticHighlighter::FunctionUse;
+        }
         if (argumentCount < funTy->minimumArgumentCount()) {
             if (matchType != Match_Ok) {
-                kind = funTy->isVirtual() ? SemanticHighlighter::VirtualMethodUse : SemanticHighlighter::FunctionUse;
+                kind = matchingKind;
                 matchType = Match_TooFewArgs;
             }
         } else if (argumentCount > funTy->argumentCount() && !funTy->isVariadic()) {
             if (matchType != Match_Ok) {
                 matchType = Match_TooManyArgs;
-                kind = funTy->isVirtual() ? SemanticHighlighter::VirtualMethodUse : SemanticHighlighter::FunctionUse;
+                kind = matchingKind;
             }
-        } else if (!funTy->isVirtual()) {
-            matchType = Match_Ok;
-            kind = SemanticHighlighter::FunctionUse;
-            //continue, to check if there is a matching candidate which is virtual
         } else {
             matchType = Match_Ok;
-            kind = SemanticHighlighter::VirtualMethodUse;
-            break;
+            kind = matchingKind;
+            if (isVirtual)
+                break;
+            // else continue, to check if there is a matching candidate which is virtual
         }
     }
 
@@ -1327,7 +1396,7 @@ bool CheckSymbols::maybeAddFunction(const QList<LookupItem> &candidates, NameAST
         if (highlightCtorDtorAsType
                 && (isConstructor || isDestructor)
                 && maybeType(ast->name)
-                && kind == SemanticHighlighter::FunctionUse) {
+                && kind == SemanticHighlighter::FunctionDeclarationUse) {
             return false;
         }
 

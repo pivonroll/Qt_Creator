@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QBSPROJECTMANAGERCONSTANTS_H
-#define QBSPROJECTMANAGERCONSTANTS_H
+#pragma once
 
 #include <QtGlobal>
 
@@ -63,15 +57,37 @@ static const char QBS_VARIANT_RELEASE[] = "release";
 
 static const char QBS_CONFIG_VARIANT_KEY[] = "qbs.buildVariant";
 static const char QBS_CONFIG_PROFILE_KEY[] = "qbs.profile";
+static const char QBS_INSTALL_ROOT_KEY[] = "qbs.installRoot";
 static const char QBS_CONFIG_DECLARATIVE_DEBUG_KEY[] = "Qt.declarative.qmlDebugging";
 static const char QBS_CONFIG_QUICK_DEBUG_KEY[] = "Qt.quick.qmlDebugging";
+const char QBS_FORCE_PROBES_KEY[] = "qbspm.forceProbes";
 
 // Icons:
 static const char QBS_GROUP_ICON[] = ":/qbsprojectmanager/images/groups.png";
 static const char QBS_PRODUCT_OVERLAY_ICON[] = ":/qbsprojectmanager/images/productgear.png";
 
+// Toolchain related settings:
+const char QBS_TARGETOS[] = "qbs.targetOS";
+const char QBS_SYSROOT[] = "qbs.sysroot";
+const char QBS_ARCHITECTURE[] = "qbs.architecture";
+const char QBS_TOOLCHAIN[] = "qbs.toolchain";
+const char CPP_TOOLCHAINPATH[] = "cpp.toolchainInstallPath";
+const char CPP_TOOLCHAINPREFIX[] = "cpp.toolchainPrefix";
+const char CPP_COMPILERNAME[] = "cpp.compilerName";
+const char CPP_CXXCOMPILERNAME[] = "cpp.cxxCompilerName";
+const char CPP_PLATFORMCOMMONCOMPILERFLAGS[] = "cpp.platformCommonCompilerFlags";
+const char CPP_PLATFORMLINKERFLAGS[] = "cpp.platformLinkerFlags";
+const char XCODE_DEVELOPERPATH[] = "xcode.developerPath";
+const char XCODE_SDK[] = "xcode.sdk";
+
+// Settings page
+const char QBS_SETTINGS_CATEGORY[]  = "YM.qbs";
+const char QBS_SETTINGS_TR_CATEGORY[] = QT_TRANSLATE_NOOP("QbsProjectManager", "Qbs");
+const char QBS_SETTINGS_CATEGORY_ICON[]  = ":/projectexplorer/images/build.png";
+
+const char QBS_PROPERTIES_KEY_FOR_KITS[] = "QbsProjectManager.qbs-properties";
+
+const char QBS_PROFILING_ENV[] = "QTC_QBS_PROFILING";
+
 } // namespace Constants
 } // namespace QbsProjectManager
-
-#endif // QBSPROJECTMANAGERCONSTANTS_H
-

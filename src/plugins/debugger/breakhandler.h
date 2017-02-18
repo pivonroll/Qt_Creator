@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGER_BREAKHANDLER_H
-#define DEBUGGER_BREAKHANDLER_H
+#pragma once
 
 #include "breakpoint.h"
 #include "debuggerprotocol.h"
@@ -39,15 +33,12 @@
 #include <QCoreApplication>
 #include <QPointer>
 
-//////////////////////////////////////////////////////////////////
-//
-// BreakHandler
-//
-//////////////////////////////////////////////////////////////////
+namespace Utils { class ItemViewEvent; }
 
 namespace Debugger {
 namespace Internal {
 
+class LocationItem;
 class BreakpointItem;
 class BreakHandler;
 class DebuggerCommand;
@@ -105,8 +96,8 @@ public:
     // obtained the BreakpointItem pointer.
     BreakpointPathUsage pathUsage() const;
     void setPathUsage(const BreakpointPathUsage &u);
-    QByteArray condition() const;
-    void setCondition(const QByteArray &condition);
+    QString condition() const;
+    void setCondition(const QString &condition);
     int ignoreCount() const;
     void setIgnoreCount(const int &count);
     int threadSpec() const;
@@ -118,6 +109,8 @@ public:
     QString expression() const;
     void setExpression(const QString &expression);
     QString message() const;
+    QString command() const;
+    void setCommand(const QString &command);
     void setMessage(const QString &m);
     BreakpointType type() const;
     void setType(const BreakpointType &type);
@@ -166,7 +159,9 @@ inline uint qHash(const Debugger::Internal::Breakpoint &b) { return b.hash(); }
 
 typedef QList<Breakpoint> Breakpoints;
 
-class BreakHandler : public Utils::TreeModel
+using BreakModel = Utils::TreeModel<Utils::TypedTreeItem<BreakpointItem>, BreakpointItem, LocationItem>;
+
+class BreakHandler : public BreakModel
 {
     Q_OBJECT
 
@@ -196,13 +191,6 @@ public:
     Breakpoints findBreakpointsByIndex(const QList<QModelIndex> &list) const;
     void updateMarkers();
 
-    static QIcon breakpointIcon();
-    static QIcon disabledBreakpointIcon();
-    static QIcon pendingBreakpointIcon();
-    static QIcon emptyIcon();
-    static QIcon watchpointIcon();
-    static QIcon tracepointIcon();
-
     Breakpoint findBreakpointByFileAndLine(const QString &fileName,
         int lineNumber, bool useMarkerPosition = true);
     Breakpoint findBreakpointByAddress(quint64 address) const;
@@ -216,8 +204,15 @@ public:
     void setWatchpointAtExpression(const QString &exp);
 
     Breakpoint breakpointById(BreakpointModelId id) const;
+    void editBreakpoint(Breakpoint bp, QWidget *parent);
 
 private:
+    QVariant data(const QModelIndex &idx, int role) const override;
+    bool setData(const QModelIndex &idx, const QVariant &value, int role) override;
+    void timerEvent(QTimerEvent *event) override;
+
+    bool contextMenuEvent(const Utils::ItemViewEvent &ev);
+
     friend class BreakpointItem;
     friend class Breakpoint;
 
@@ -225,12 +220,17 @@ private:
     void saveBreakpoints();
 
     void appendBreakpointInternal(const BreakpointParameters &data);
+    void deleteBreakpoints(const Breakpoints &bps);
+    void deleteAllBreakpoints();
+    void setBreakpointsEnabled(const Breakpoints &bps, bool enabled);
+    void addBreakpoint();
+    void editBreakpoints(const Breakpoints &bps, QWidget *parent);
 
     Q_SLOT void changeLineNumberFromMarkerHelper(Debugger::Internal::BreakpointModelId id);
     Q_SLOT void deletionHelper(Debugger::Internal::BreakpointModelId id);
 
     void scheduleSynchronization();
-    void timerEvent(QTimerEvent *event);
+
     int m_syncTimerId;
 };
 
@@ -238,5 +238,3 @@ private:
 } // namespace Debugger
 
 Q_DECLARE_METATYPE(Debugger::Internal::Breakpoint)
-
-#endif // DEBUGGER_BREAKHANDLER_H

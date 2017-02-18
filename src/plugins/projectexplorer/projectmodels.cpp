@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,7 @@
 #include "projectnodes.h"
 #include "projectexplorer.h"
 #include "projecttree.h"
+#include "session.h"
 
 #include <coreplugin/fileiconprovider.h>
 #include <utils/algorithm.h>
@@ -45,208 +41,70 @@
 #include <QMimeData>
 #include <QLoggingCategory>
 
+using namespace Utils;
+
 namespace ProjectExplorer {
 
 using namespace Internal;
 
-namespace {
-
-// sorting helper function
-
-bool sortNodes(Node *n1, Node *n2)
+static bool sortNodes(const Node *n1, const Node *n2)
 {
-    // Ordering is: project files, project, folder, file
-
-    const NodeType n1Type = n1->nodeType();
-    const NodeType n2Type = n2->nodeType();
-
-    // project files
-    FileNode *file1 = n1->asFileNode();
-    FileNode *file2 = n2->asFileNode();
-    if (file1 && file1->fileType() == ProjectFileType) {
-        if (file2 && file2->fileType() == ProjectFileType) {
-            const QString fileName1 = file1->path().fileName();
-            const QString fileName2 = file2->path().fileName();
-
-            int result = caseFriendlyCompare(fileName1, fileName2);
-            if (result != 0)
-                return result < 0;
-            else
-                return file1 < file2;
-        } else {
-            return true; // project file is before everything else
-        }
-    } else {
-        if (file2 && file2->fileType() == ProjectFileType)
-            return false;
-    }
-
-    // projects
-    if (n1Type == ProjectNodeType) {
-        if (n2Type == ProjectNodeType) {
-            ProjectNode *project1 = static_cast<ProjectNode*>(n1);
-            ProjectNode *project2 = static_cast<ProjectNode*>(n2);
-
-            int result = caseFriendlyCompare(project1->displayName(), project2->displayName());
-            if (result != 0)
-                return result < 0;
-
-            result = caseFriendlyCompare(project1->path().toString(), project2->path().toString());
-            if (result != 0)
-                return result < 0;
-            return project1 < project2; // sort by pointer value
-        } else {
-           return true; // project is before folder & file
-       }
-    }
-    if (n2Type == ProjectNodeType)
+    if (n1->priority() > n2->priority())
+        return true;
+    if (n1->priority() < n2->priority())
         return false;
 
-    if (n1Type == VirtualFolderNodeType) {
-        if (n2Type == VirtualFolderNodeType) {
-            VirtualFolderNode *folder1 = static_cast<VirtualFolderNode *>(n1);
-            VirtualFolderNode *folder2 = static_cast<VirtualFolderNode *>(n2);
+    const int displayNameResult = caseFriendlyCompare(n1->displayName(), n2->displayName());
+    if (displayNameResult != 0)
+        return displayNameResult < 0;
 
-            if (folder1->priority() > folder2->priority())
-                return true;
-            if (folder1->priority() < folder2->priority())
-                return false;
-            int result = caseFriendlyCompare(folder1->path().toString(), folder2->path().toString());
-            if (result != 0)
-                return result < 0;
-            else
-                return folder1 < folder2;
-        } else {
-            return true; // virtual folder is before folder
-        }
-    }
-
-    if (n2Type == VirtualFolderNodeType)
-        return false;
-
-
-    if (n1Type == FolderNodeType) {
-        if (n2Type == FolderNodeType) {
-            FolderNode *folder1 = static_cast<FolderNode*>(n1);
-            FolderNode *folder2 = static_cast<FolderNode*>(n2);
-
-            int result = caseFriendlyCompare(folder1->path().toString(), folder2->path().toString());
-            if (result != 0)
-                return result < 0;
-            else
-                return folder1 < folder2;
-        } else {
-            return true; // folder is before file
-        }
-    }
-    if (n2Type == FolderNodeType)
-        return false;
-
-    // must be file nodes
-    {
-        int result = caseFriendlyCompare(n1->displayName(), n2->displayName());
-        if (result != 0)
-            return result < 0;
-
-        const QString filePath1 = n1->path().toString();
-        const QString filePath2 = n2->path().toString();
-
-        const QString fileName1 = Utils::FileName::fromString(filePath1).fileName();
-        const QString fileName2 = Utils::FileName::fromString(filePath2).fileName();
-
-        result = caseFriendlyCompare(fileName1, fileName2);
-        if (result != 0) {
-            return result < 0; // sort by filename
-        } else {
-            result = caseFriendlyCompare(filePath1, filePath2);
-            if (result != 0)
-                return result < 0; // sort by filepath
-
-            if (n1->line() != n2->line())
-                return n1->line() < n2->line(); // sort by line numbers
-            return n1 < n2; // sort by pointer value
-        }
-    }
-    return false;
+    const int filePathResult = caseFriendlyCompare(n1->filePath().toString(),
+                                 n2->filePath().toString());
+    if (filePathResult != 0)
+        return filePathResult < 0;
+    return n1 < n2; // sort by pointer value
 }
 
-} // namespace anon
-
-FlatModel::FlatModel(SessionNode *rootNode, QObject *parent)
-        : QAbstractItemModel(parent),
-          m_filterProjects(false),
-          m_filterGeneratedFiles(true),
-          m_rootNode(rootNode),
-          m_startupProject(0),
-          m_parentFolderForChange(0)
+static bool sortWrapperNodes(const WrapperNode *w1, const WrapperNode *w2)
 {
+    return sortNodes(w1->m_node, w2->m_node);
+}
+
+FlatModel::FlatModel(QObject *parent)
+    : TreeModel<WrapperNode, WrapperNode>(new WrapperNode(SessionManager::sessionNode()), parent)
+{
+    m_timer.setInterval(200);
+    connect(&m_timer, &QTimer::timeout, this, &FlatModel::doUpdate);
+
     ProjectTree *tree = ProjectTree::instance();
+    connect(tree, &ProjectTree::dataChanged, this, &FlatModel::update);
+    connect(tree, &ProjectTree::nodeUpdated, this, &FlatModel::nodeUpdated);
 
-    connect(tree, &ProjectTree::aboutToChangeShowInSimpleTree,
-            this, &FlatModel::aboutToShowInSimpleTreeChanged);
+    SessionManager *sm = SessionManager::instance();
+    connect(sm, &SessionManager::projectRemoved, this, &FlatModel::update);
+    connect(sm, &SessionManager::startupProjectChanged, this, &FlatModel::startupProjectChanged);
 
-    connect(tree, &ProjectTree::showInSimpleTreeChanged,
-            this, &FlatModel::showInSimpleTreeChanged);
-
-    connect(tree, &ProjectTree::foldersAboutToBeAdded,
-            this, &FlatModel::foldersAboutToBeAdded);
-    connect(tree, &ProjectTree::foldersAdded,
-            this, &FlatModel::foldersAdded);
-
-    connect(tree, &ProjectTree::foldersAboutToBeRemoved,
-            this, &FlatModel::foldersAboutToBeRemoved);
-    connect(tree, &ProjectTree::foldersRemoved,
-            this, &FlatModel::foldersRemoved);
-
-    connect(tree, &ProjectTree::filesAboutToBeAdded,
-            this, &FlatModel::filesAboutToBeAdded);
-    connect(tree, &ProjectTree::filesAdded,
-            this, &FlatModel::filesAdded);
-
-    connect(tree, &ProjectTree::filesAboutToBeRemoved,
-            this, &FlatModel::filesAboutToBeRemoved);
-    connect(tree, &ProjectTree::filesRemoved,
-            this, &FlatModel::filesRemoved);
-
-    connect(tree, &ProjectTree::nodeSortKeyAboutToChange,
-            this, &FlatModel::nodeSortKeyAboutToChange);
-    connect(tree, &ProjectTree::nodeSortKeyChanged,
-            this, &FlatModel::nodeSortKeyChanged);
-
-    connect(tree, &ProjectTree::nodeUpdated,
-            this, &FlatModel::nodeUpdated);
+    connect(sm, &SessionManager::sessionLoaded, this, &FlatModel::loadExpandData);
+    connect(sm, &SessionManager::aboutToSaveSession, this, &FlatModel::saveExpandData);
+    connect(sm, &SessionManager::projectAdded, this, &FlatModel::handleProjectAdded);
+    update();
 }
 
-QModelIndex FlatModel::index(int row, int column, const QModelIndex &parent) const
+void FlatModel::setView(QTreeView *view)
 {
-    QModelIndex result;
-    if (!parent.isValid() && row == 0 && column == 0) { // session
-        result = createIndex(0, 0, m_rootNode);
-    } else if (parent.isValid() && column == 0) {
-        FolderNode *parentNode = nodeForIndex(parent)->asFolderNode();
-        Q_ASSERT(parentNode);
-        QHash<FolderNode*, QList<Node*> >::const_iterator it = m_childNodes.constFind(parentNode);
-        if (it == m_childNodes.constEnd()) {
-            fetchMore(parentNode);
-            it = m_childNodes.constFind(parentNode);
-        }
-
-        if (row < it.value().size())
-            result = createIndex(row, 0, it.value().at(row));
-    }
-//    qDebug() << "index of " << row << column << parent.data(Project::FilePathRole) << " is " << result.data(Project::FilePathRole);
-    return result;
+    QTC_CHECK(!m_view);
+    m_view = view;
+    connect(m_view, &QTreeView::expanded, this, &FlatModel::onExpanded);
+    connect(m_view, &QTreeView::collapsed, this, &FlatModel::onCollapsed);
 }
 
-QModelIndex FlatModel::parent(const QModelIndex &idx) const
+void FlatModel::startupProjectChanged(Project *project)
 {
-    QModelIndex parentIndex;
-    if (Node *node = nodeForIndex(idx)) {
-        FolderNode *parentNode = visibleFolderNode(node->parentFolderNode());
-        if (parentNode)
-            return indexForNode(parentNode);
-    }
-    return parentIndex;
+    ProjectNode *projectNode = project ? project->rootProjectNode() : nullptr;
+    if (m_startupProject == projectNode)
+        return;
+    m_startupProject = projectNode;
+    layoutChanged();
 }
 
 QVariant FlatModel::data(const QModelIndex &index, int role) const
@@ -258,10 +116,9 @@ QVariant FlatModel::data(const QModelIndex &index, int role) const
         switch (role) {
         case Qt::DisplayRole: {
             QString name = node->displayName();
-
-            if (node->nodeType() == ProjectNodeType
+            if (node->nodeType() == NodeType::Project
                     && node->parentFolderNode()
-                    && node->parentFolderNode()->nodeType() == SessionNodeType) {
+                    && node->parentFolderNode()->nodeType() == NodeType::Session) {
                 const QString vcsTopic = static_cast<ProjectNode *>(node)->vcsTopic();
 
                 if (!vcsTopic.isEmpty())
@@ -272,7 +129,7 @@ QVariant FlatModel::data(const QModelIndex &index, int role) const
             break;
         }
         case Qt::EditRole: {
-            result = node->path().fileName();
+            result = node->filePath().fileName();
             break;
         }
         case Qt::ToolTipRole: {
@@ -283,7 +140,7 @@ QVariant FlatModel::data(const QModelIndex &index, int role) const
             if (folderNode)
                 result = folderNode->icon();
             else
-                result = Core::FileIconProvider::icon(node->path().toString());
+                result = Core::FileIconProvider::icon(node->filePath().toString());
             break;
         }
         case Qt::FontRole: {
@@ -294,7 +151,7 @@ QVariant FlatModel::data(const QModelIndex &index, int role) const
             break;
         }
         case Project::FilePathRole: {
-            result = node->path().toString();
+            result = node->filePath().toString();
             break;
         }
         case Project::EnabledRole: {
@@ -316,7 +173,7 @@ Qt::ItemFlags FlatModel::flags(const QModelIndex &index) const
     // We control the only view, and that one does the checks
     Qt::ItemFlags f = Qt::ItemIsSelectable|Qt::ItemIsEnabled|Qt::ItemIsDragEnabled;
     if (Node *node = nodeForIndex(index)) {
-        if (node == m_rootNode)
+        if (node->asSessionNode())
             return 0; // no flags for session node...
         if (!node->asProjectNode()) {
             // either folder or file node
@@ -335,8 +192,9 @@ bool FlatModel::setData(const QModelIndex &index, const QVariant &value, int rol
         return false;
 
     Node *node = nodeForIndex(index);
+    QTC_ASSERT(node, return false);
 
-    Utils::FileName orgFilePath = node->path();
+    Utils::FileName orgFilePath = node->filePath();
     Utils::FileName newFilePath = orgFilePath.parentDir().appendPath(value.toString());
 
     ProjectExplorerPlugin::renameFile(node, newFilePath.toString());
@@ -344,142 +202,117 @@ bool FlatModel::setData(const QModelIndex &index, const QVariant &value, int rol
     return true;
 }
 
-int FlatModel::rowCount(const QModelIndex &parent) const
+void FlatModel::update()
 {
-    int rows = 0;
-    if (!parent.isValid()) {
-        rows = 1;
-    } else {
-        FolderNode *folderNode = nodeForIndex(parent)->asFolderNode();
-        if (folderNode && m_childNodes.contains(folderNode))
-            rows = m_childNodes.value(folderNode).size();
+    m_timer.start(300);
+}
+
+void FlatModel::doUpdate()
+{
+    m_timer.stop();
+    rebuildModel();
+}
+
+void FlatModel::rebuildModel()
+{
+    QSet<Node *> seen;
+
+    rootItem()->removeChildren();
+    const QList<ProjectNode *> projectNodes = SessionManager::sessionNode()->projectNodes();
+    for (ProjectNode *projectNode : projectNodes) {
+        if (!seen.contains(projectNode))
+            addProjectNode(rootItem(), projectNode, &seen);
     }
-    return rows;
+    rootItem()->sortChildren(&sortWrapperNodes);
+
+    forAllItems([this](WrapperNode *node) {
+        const QString path = node->m_node->filePath().toString();
+        const QString displayName = node->m_node->displayName();
+        ExpandData ed(path, displayName);
+        if (m_toExpand.contains(ed))
+            m_view->expand(node->index());
+    });
 }
 
-int FlatModel::columnCount(const QModelIndex &/*parent*/) const
+void FlatModel::onCollapsed(const QModelIndex &idx)
 {
-    return 1;
+    m_toExpand.remove(expandDataForNode(nodeForIndex(idx)));
 }
 
-bool FlatModel::hasChildren(const QModelIndex &parent) const
+void FlatModel::onExpanded(const QModelIndex &idx)
 {
-    if (!parent.isValid())
-        return true;
+    m_toExpand.insert(expandDataForNode(nodeForIndex(idx)));
+}
 
-    FolderNode *folderNode = nodeForIndex(parent)->asFolderNode();
-    if (!folderNode)
-        return false;
+ExpandData FlatModel::expandDataForNode(const Node *node) const
+{
+    QTC_ASSERT(node, return ExpandData());
+    const QString path = node->filePath().toString();
+    const QString displayName = node->displayName();
+    return ExpandData(path, displayName);
+}
 
-    QHash<FolderNode*, QList<Node*> >::const_iterator it = m_childNodes.constFind(folderNode);
-    if (it == m_childNodes.constEnd()) {
-        fetchMore(folderNode);
-        it = m_childNodes.constFind(folderNode);
+void FlatModel::handleProjectAdded(Project *project)
+{
+    Node *node = project->rootProjectNode();
+    m_toExpand.insert(expandDataForNode(node));
+    if (WrapperNode *wrapper = wrapperForNode(node)) {
+        wrapper->forFirstLevelChildren([this](WrapperNode *child) {
+            m_toExpand.insert(expandDataForNode(child->m_node));
+        });
     }
-    return !it.value().isEmpty();
+    doUpdate();
 }
 
-bool FlatModel::canFetchMore(const QModelIndex & parent) const
+void FlatModel::loadExpandData()
 {
-    if (!parent.isValid()) {
-        return false;
-    } else {
-        if (FolderNode *folderNode = nodeForIndex(parent)->asFolderNode())
-            return !m_childNodes.contains(folderNode);
-        else
-            return false;
+    const QList<QVariant> data = SessionManager::value("ProjectTree.ExpandData").value<QList<QVariant>>();
+    m_toExpand = Utils::transform<QSet>(data, [](const QVariant &v) { return ExpandData::fromSettings(v); });
+    m_toExpand.remove(ExpandData());
+}
+
+void FlatModel::saveExpandData()
+{
+    // TODO if there are multiple ProjectTreeWidgets, the last one saves the data
+    QList<QVariant> data = Utils::transform<QList>(m_toExpand, &ExpandData::toSettings);
+    SessionManager::setValue(QLatin1String("ProjectTree.ExpandData"), data);
+}
+
+void FlatModel::addProjectNode(WrapperNode *parent, ProjectNode *projectNode, QSet<Node *> *seen)
+{
+    seen->insert(projectNode);
+    auto node = new WrapperNode(projectNode);
+    parent->appendChild(node);
+    addFolderNode(node, projectNode, seen);
+    const QList<ProjectNode *> subProjectNodes = projectNode->projectNodes();
+    for (ProjectNode *subProjectNode : subProjectNodes) {
+        if (!seen->contains(subProjectNode))
+            addProjectNode(node, subProjectNode, seen);
     }
+    node->sortChildren(&sortWrapperNodes);
 }
 
-void FlatModel::recursiveAddFolderNodes(FolderNode *startNode, QList<Node *> *list, const QSet<Node *> &blackList) const
+void FlatModel::addFolderNode(WrapperNode *parent, FolderNode *folderNode, QSet<Node *> *seen)
 {
-    foreach (FolderNode *folderNode, startNode->subFolderNodes()) {
-        if (folderNode && !blackList.contains(folderNode))
-            recursiveAddFolderNodesImpl(folderNode, list, blackList);
-    }
-}
-
-void FlatModel::recursiveAddFolderNodesImpl(FolderNode *startNode, QList<Node *> *list, const QSet<Node *> &blackList) const
-{
-    if (!filter(startNode)) {
-        if (!blackList.contains(startNode))
-            list->append(startNode);
-    } else {
-        foreach (FolderNode *folderNode, startNode->subFolderNodes()) {
-            if (folderNode && !blackList.contains(folderNode))
-                recursiveAddFolderNodesImpl(folderNode, list, blackList);
+    const QList<FolderNode *> subFolderNodes = folderNode->folderNodes();
+    for (FolderNode *subFolderNode : subFolderNodes) {
+        if (!filter(subFolderNode) && !seen->contains(subFolderNode)) {
+            seen->insert(subFolderNode);
+            auto node = new WrapperNode(subFolderNode);
+            parent->appendChild(node);
+            addFolderNode(node, subFolderNode, seen);
+            node->sortChildren(&sortWrapperNodes);
+        } else {
+            addFolderNode(parent, subFolderNode, seen);
         }
     }
-}
-
-void FlatModel::recursiveAddFileNodes(FolderNode *startNode, QList<Node *> *list, const QSet<Node *> &blackList) const
-{
-    foreach (FolderNode *subFolderNode, startNode->subFolderNodes()) {
-        if (!blackList.contains(subFolderNode))
-            recursiveAddFileNodes(subFolderNode, list, blackList);
-    }
-    foreach (Node *node, startNode->fileNodes()) {
-        if (!blackList.contains(node) && !filter(node))
-            list->append(node);
-    }
-}
-
-QList<Node*> FlatModel::childNodes(FolderNode *parentNode, const QSet<Node*> &blackList) const
-{
-    qCDebug(logger()) << "    FlatModel::childNodes for " << parentNode->path();
-    QList<Node*> nodeList;
-
-    if (parentNode->nodeType() == SessionNodeType) {
-        SessionNode *sessionNode = static_cast<SessionNode*>(parentNode);
-        QList<ProjectNode*> projectList = sessionNode->projectNodes();
-        for (int i = 0; i < projectList.size(); ++i) {
-            if (!blackList.contains(projectList.at(i)))
-                nodeList << projectList.at(i);
+    const QList<FileNode *> fileNodes = folderNode->fileNodes();
+    for (FileNode *fileNode : fileNodes) {
+        if (!filter(fileNode) && !seen->contains(fileNode)) {
+            seen->insert(fileNode);
+            parent->appendChild(new WrapperNode(fileNode));
         }
-    } else {
-        recursiveAddFolderNodes(parentNode, &nodeList, blackList);
-        recursiveAddFileNodes(parentNode, &nodeList, blackList + nodeList.toSet());
     }
-    Utils::sort(nodeList, sortNodes);
-    qCDebug(logger()) << "      found" << nodeList.size() << "nodes";
-    return nodeList;
-}
-
-void FlatModel::fetchMore(FolderNode *folderNode) const
-{
-    Q_ASSERT(folderNode);
-    Q_ASSERT(!m_childNodes.contains(folderNode));
-
-    QList<Node*> nodeList = childNodes(folderNode);
-    m_childNodes.insert(folderNode, nodeList);
-}
-
-void FlatModel::fetchMore(const QModelIndex &parent)
-{
-    FolderNode *folderNode = nodeForIndex(parent)->asFolderNode();
-    Q_ASSERT(folderNode);
-
-    fetchMore(folderNode);
-}
-
-void FlatModel::setStartupProject(ProjectNode *projectNode)
-{
-    if (m_startupProject != projectNode) {
-        QModelIndex oldIndex = (m_startupProject ? indexForNode(m_startupProject) : QModelIndex());
-        QModelIndex newIndex = (projectNode ? indexForNode(projectNode) : QModelIndex());
-        m_startupProject = projectNode;
-        if (oldIndex.isValid())
-            emit dataChanged(oldIndex, oldIndex);
-        if (newIndex.isValid())
-            emit dataChanged(newIndex, newIndex);
-    }
-}
-
-void FlatModel::reset()
-{
-    beginResetModel();
-    m_childNodes.clear();
-    endResetModel();
 }
 
 Qt::DropActions FlatModel::supportedDragActions() const
@@ -496,40 +329,26 @@ QMimeData *FlatModel::mimeData(const QModelIndexList &indexes) const
 {
     auto data = new Utils::DropMimeData;
     foreach (const QModelIndex &index, indexes) {
-        Node *node = nodeForIndex(index);
-        if (node->asFileNode())
-            data->addFile(node->path().toString());
-        data->addValue(QVariant::fromValue(node));
+        if (Node *node = nodeForIndex(index)) {
+            if (node->asFileNode())
+                data->addFile(node->filePath().toString());
+            data->addValue(QVariant::fromValue(node));
+        }
     }
     return data;
 }
 
-QModelIndex FlatModel::indexForNode(const Node *node_) const
+WrapperNode *FlatModel::wrapperForNode(const Node *node) const
 {
-    // We assume that we are only called for nodes that are represented
+    return findNonRooItem([this, node](WrapperNode *item) {
+        return item->m_node == node;
+    });
+}
 
-    // we use non-const pointers internally
-    Node *node = const_cast<Node*>(node_);
-    if (!node)
-        return QModelIndex();
-
-    if (node == m_rootNode)
-        return createIndex(0, 0, m_rootNode);
-
-    FolderNode *parentNode = visibleFolderNode(node->parentFolderNode());
-
-    // Do we have the parent mapped?
-    QHash<FolderNode*, QList<Node*> >::const_iterator it = m_childNodes.constFind(parentNode);
-    if (it == m_childNodes.constEnd()) {
-        fetchMore(parentNode);
-        it = m_childNodes.constFind(parentNode);
-    }
-    if (it != m_childNodes.constEnd()) {
-        const int row = it.value().indexOf(node);
-        if (row != -1)
-            return createIndex(row, 0, node);
-    }
-    return QModelIndex();
+QModelIndex FlatModel::indexForNode(const Node *node) const
+{
+    WrapperNode *wrapper = wrapperForNode(node);
+    return wrapper ? indexForItem(wrapper) : QModelIndex();
 }
 
 void FlatModel::setProjectFilterEnabled(bool filter)
@@ -537,13 +356,13 @@ void FlatModel::setProjectFilterEnabled(bool filter)
     if (filter == m_filterProjects)
         return;
     m_filterProjects = filter;
-    reset();
+    rebuildModel();
 }
 
 void FlatModel::setGeneratedFilesFilterEnabled(bool filter)
 {
     m_filterGeneratedFiles = filter;
-    reset();
+    rebuildModel();
 }
 
 bool FlatModel::projectFilterEnabled()
@@ -558,28 +377,8 @@ bool FlatModel::generatedFilesFilterEnabled()
 
 Node *FlatModel::nodeForIndex(const QModelIndex &index) const
 {
-    if (index.isValid())
-        return (Node*)index.internalPointer();
-    return 0;
-}
-
-/*
-  Returns the first folder node in the ancestors
-  for the given node that is not filtered
-  out by the Flat Model.
-*/
-FolderNode *FlatModel::visibleFolderNode(FolderNode *node) const
-{
-    if (!node)
-        return 0;
-
-    for (FolderNode *folderNode = node;
-         folderNode;
-         folderNode = folderNode->parentFolderNode()) {
-        if (!filter(folderNode))
-            return folderNode;
-    }
-    return 0;
+    WrapperNode *flatNode = itemForIndex(index);
+    return flatNode ? flatNode->m_node : nullptr;
 }
 
 bool FlatModel::filter(Node *node) const
@@ -611,345 +410,9 @@ bool isSorted(const QList<Node *> &nodes)
     return true;
 }
 
-/// slots and all the fun
-void FlatModel::added(FolderNode* parentNode, const QList<Node*> &newNodeList)
+void FlatModel::nodeUpdated(Node *)
 {
-    qCDebug(logger()) << "FlatModel::added" << parentNode->path() << newNodeList.size() << "nodes";
-    QModelIndex parentIndex = indexForNode(parentNode);
-    // Old  list
-
-    if (newNodeList.isEmpty()) {
-        qCDebug(logger()) << "  newNodeList empty";
-        return;
-    }
-
-    QHash<FolderNode*, QList<Node*> >::const_iterator it = m_childNodes.constFind(parentNode);
-    if (it == m_childNodes.constEnd()) {
-        if (!parentIndex.isValid()) {
-            qCDebug(logger()) << "  parent not mapped returning";
-            return;
-        }
-        qCDebug(logger()) << "  updated m_childNodes";
-        beginInsertRows(parentIndex, 0, newNodeList.size() - 1);
-        m_childNodes.insert(parentNode, newNodeList);
-        endInsertRows();
-        return;
-    }
-    QList<Node *> oldNodeList = it.value();
-
-    // Compare lists and emit signals, and modify m_childNodes on the fly
-    QList<Node *>::const_iterator oldIter = oldNodeList.constBegin();
-    QList<Node *>::const_iterator newIter = newNodeList.constBegin();
-
-    Q_ASSERT(isSorted(oldNodeList));
-    Q_ASSERT(isSorted(newNodeList));
-
-    QSet<Node *> emptyDifference;
-    emptyDifference = oldNodeList.toSet();
-    emptyDifference.subtract(newNodeList.toSet());
-    if (!emptyDifference.isEmpty()) {
-        // This should not happen...
-        qDebug() << "FlatModel::added, old Node list should be subset of newNode list, found files in old list which were not part of new list";
-        foreach (Node *n, emptyDifference) {
-            qDebug()<<n->path();
-        }
-        Q_ASSERT(false);
-    }
-
-    // optimization, check for old list is empty
-    if (oldIter == oldNodeList.constEnd()) {
-        // New Node List is empty, nothing added which intrest us
-        if (newIter == newNodeList.constEnd())
-            return;
-        // So all we need to do is easy
-        beginInsertRows(parentIndex, 0, newNodeList.size() - 1);
-        m_childNodes.insert(parentNode, newNodeList);
-        endInsertRows();
-        qCDebug(logger()) << "  updated m_childNodes";
-        return;
-    }
-
-    while (true) {
-        // Skip all that are the same
-        while (*oldIter == *newIter) {
-            ++oldIter;
-            ++newIter;
-            if (oldIter == oldNodeList.constEnd()) {
-                // At end of oldNodeList, sweep up rest of newNodeList
-                QList<Node *>::const_iterator startOfBlock = newIter;
-                newIter = newNodeList.constEnd();
-                int pos = oldIter - oldNodeList.constBegin();
-                int count = newIter - startOfBlock;
-                if (count > 0) {
-                    beginInsertRows(parentIndex, pos, pos+count-1);
-                    while (startOfBlock != newIter) {
-                        oldNodeList.insert(pos, *startOfBlock);
-                        ++pos;
-                        ++startOfBlock;
-                    }
-                    m_childNodes.insert(parentNode, oldNodeList);
-                    endInsertRows();
-                }
-                return; // Done with the lists, leave the function
-            }
-        }
-
-        QList<Node *>::const_iterator startOfBlock = newIter;
-        while (*oldIter != *newIter)
-            ++newIter;
-        // startOfBlock is the first that was diffrent
-        // newIter points to the new position of oldIter
-        // newIter - startOfBlock is number of new items
-        // oldIter is the position where those are...
-        int pos = oldIter - oldNodeList.constBegin();
-        int count = newIter - startOfBlock;
-        beginInsertRows(parentIndex, pos, pos + count - 1);
-        while (startOfBlock != newIter) {
-            oldNodeList.insert(pos, *startOfBlock);
-            ++pos;
-            ++startOfBlock;
-        }
-        m_childNodes.insert(parentNode, oldNodeList);
-        endInsertRows();
-        oldIter = oldNodeList.constBegin() + pos;
-    }
-    qCDebug(logger()) << "  updated m_childNodes";
-}
-
-void FlatModel::removed(FolderNode* parentNode, const QList<Node*> &newNodeList)
-{
-    qCDebug(logger()) << "FlatModel::removed" << parentNode->path() << newNodeList.size() << "nodes";
-    QModelIndex parentIndex = indexForNode(parentNode);
-    // Old  list
-    QHash<FolderNode*, QList<Node*> >::const_iterator it = m_childNodes.constFind(parentNode);
-    if (it == m_childNodes.constEnd()) {
-        qCDebug(logger()) << "  unmapped node";
-        return;
-    }
-
-    QList<Node *> oldNodeList = it.value();
-    // Compare lists and emit signals, and modify m_childNodes on the fly
-    QList<Node *>::const_iterator oldIter = oldNodeList.constBegin();
-    QList<Node *>::const_iterator newIter = newNodeList.constBegin();
-
-    Q_ASSERT(isSorted(newNodeList));
-
-    QSet<Node *> emptyDifference;
-    emptyDifference = newNodeList.toSet();
-    emptyDifference.subtract(oldNodeList.toSet());
-    if (!emptyDifference.isEmpty()) {
-        // This should not happen...
-        qDebug() << "FlatModel::removed, new Node list should be subset of oldNode list, found files in new list which were not part of old list";
-        foreach (Node *n, emptyDifference) {
-            qDebug()<<n->path();
-        }
-        Q_ASSERT(false);
-    }
-
-    // optimization, check for new list is empty
-    if (newIter == newNodeList.constEnd()) {
-        // New Node List is empty, everything removed
-        if (oldIter == oldNodeList.constEnd())
-            return;
-        // So all we need to do is easy
-        beginRemoveRows(parentIndex, 0, oldNodeList.size() - 1);
-        m_childNodes.insert(parentNode, newNodeList);
-        endRemoveRows();
-        qCDebug(logger()) << "  updated m_childNodes";
-        return;
-    }
-
-    while (true) {
-        // Skip all that are the same
-        while (*oldIter == *newIter) {
-            ++oldIter;
-            ++newIter;
-            if (newIter == newNodeList.constEnd()) {
-                // At end of newNodeList, sweep up rest of oldNodeList
-                QList<Node *>::const_iterator startOfBlock = oldIter;
-                oldIter = oldNodeList.constEnd();
-                int pos = startOfBlock - oldNodeList.constBegin();
-                int count = oldIter - startOfBlock;
-                if (count > 0) {
-                    beginRemoveRows(parentIndex, pos, pos+count-1);
-                    while (startOfBlock != oldIter) {
-                        ++startOfBlock;
-                        oldNodeList.removeAt(pos);
-                    }
-
-                    m_childNodes.insert(parentNode, oldNodeList);
-                    endRemoveRows();
-                }
-                return; // Done with the lists, leave the function
-            }
-        }
-
-        QList<Node *>::const_iterator startOfBlock = oldIter;
-        while (*oldIter != *newIter)
-            ++oldIter;
-        // startOfBlock is the first that was diffrent
-        // oldIter points to the new position of newIter
-        // oldIter - startOfBlock is number of new items
-        // newIter is the position where those are...
-        int pos = startOfBlock - oldNodeList.constBegin();
-        int count = oldIter - startOfBlock;
-        beginRemoveRows(parentIndex, pos, pos + count - 1);
-        while (startOfBlock != oldIter) {
-            ++startOfBlock;
-            oldNodeList.removeAt(pos);
-        }
-        m_childNodes.insert(parentNode, oldNodeList);
-        endRemoveRows();
-        oldIter = oldNodeList.constBegin() + pos;
-    }
-    qCDebug(logger()) << "  updated m_childNodes";
-}
-
-void FlatModel::aboutToShowInSimpleTreeChanged(FolderNode* node)
-{
-    if (!m_filterProjects)
-        return;
-    FolderNode *folder = visibleFolderNode(node->parentFolderNode());
-    QList<Node *> newNodeList = childNodes(folder, QSet<Node *>() << node);
-    removed(folder, newNodeList);
-
-    QList<Node *> staleFolders;
-    recursiveAddFolderNodesImpl(node, &staleFolders);
-    foreach (Node *n, staleFolders)
-        if (FolderNode *fn = n->asFolderNode())
-            m_childNodes.remove(fn);
-}
-
-void FlatModel::showInSimpleTreeChanged(FolderNode *node)
-{
-    if (!m_filterProjects)
-        return;
-    // we are only interested if we filter
-    FolderNode *folder = visibleFolderNode(node->parentFolderNode());
-    QList<Node *> newNodeList = childNodes(folder);
-    added(folder, newNodeList);
-}
-
-void FlatModel::foldersAboutToBeAdded(FolderNode *parentFolder, const QList<FolderNode*> &newFolders)
-{
-    qCDebug(logger()) << "FlatModel::foldersAboutToBeAdded";
-    Q_UNUSED(newFolders)
-    m_parentFolderForChange = parentFolder;
-}
-
-void FlatModel::foldersAdded()
-{
-    // First found out what the folder is that we are adding the files to
-    FolderNode *folderNode = visibleFolderNode(m_parentFolderForChange);
-
-    // Now get the new list for that folder
-    QList<Node *> newNodeList = childNodes(folderNode);
-
-    added(folderNode, newNodeList);
-}
-
-void FlatModel::foldersAboutToBeRemoved(FolderNode *parentFolder, const QList<FolderNode*> &staleFolders)
-{
-    QSet<Node *> blackList;
-    foreach (FolderNode *node, staleFolders)
-        blackList.insert(node);
-
-    FolderNode *folderNode = visibleFolderNode(parentFolder);
-    QList<Node *> newNodeList = childNodes(folderNode, blackList);
-
-    removed(folderNode, newNodeList);
-    removeFromCache(staleFolders);
-}
-
-void FlatModel::removeFromCache(QList<FolderNode *> list)
-{
-    foreach (FolderNode *fn, list) {
-        removeFromCache(fn->subFolderNodes());
-        m_childNodes.remove(fn);
-    }
-}
-
-void FlatModel::changedSortKey(FolderNode *folderNode, Node *node)
-{
-    if (!m_childNodes.contains(folderNode))
-        return; // The directory was not yet mapped, so there is no need to sort it.
-
-    QList<Node *> nodes = m_childNodes.value(folderNode);
-    int oldIndex = nodes.indexOf(node);
-
-    nodes.removeAt(oldIndex);
-    QList<Node *>::iterator newPosIt = qLowerBound(nodes.begin(), nodes.end(), node, sortNodes);
-    int newIndex = newPosIt - nodes.begin();
-
-    if (newIndex == oldIndex)
-        return;
-
-    nodes.insert(newPosIt, node);
-
-    QModelIndex parentIndex = indexForNode(folderNode);
-    if (newIndex > oldIndex)
-        ++newIndex; // see QAbstractItemModel::beginMoveRows
-    beginMoveRows(parentIndex, oldIndex, oldIndex, parentIndex, newIndex);
-    m_childNodes[folderNode] = nodes;
-    endMoveRows();
-}
-
-void FlatModel::foldersRemoved()
-{
-    // Do nothing
-}
-
-void FlatModel::filesAboutToBeAdded(FolderNode *folder, const QList<FileNode*> &newFiles)
-{
-    qCDebug(logger()) << "FlatModel::filesAboutToBeAdded";
-    Q_UNUSED(newFiles)
-    m_parentFolderForChange = folder;
-}
-
-void FlatModel::filesAdded()
-{
-    // First find out what the folder is that we are adding the files to
-    FolderNode *folderNode = visibleFolderNode(m_parentFolderForChange);
-
-    // Now get the new List for that folder
-    QList<Node *> newNodeList = childNodes(folderNode);
-    added(folderNode, newNodeList);
-}
-
-void FlatModel::filesAboutToBeRemoved(FolderNode *folder, const QList<FileNode*> &staleFiles)
-{
-    // First found out what the folder (that is the project) is that we are adding the files to
-    FolderNode *folderNode = visibleFolderNode(folder);
-
-    QSet<Node *> blackList;
-    foreach (Node *node, staleFiles)
-        blackList.insert(node);
-
-    // Now get the new List for that folder
-    QList<Node *> newNodeList = childNodes(folderNode, blackList);
-    removed(folderNode, newNodeList);
-}
-
-void FlatModel::filesRemoved()
-{
-    // Do nothing
-}
-
-void FlatModel::nodeSortKeyAboutToChange(Node *node)
-{
-    m_nodeForSortKeyChange = node;
-}
-
-void FlatModel::nodeSortKeyChanged()
-{
-    FolderNode *folderNode = visibleFolderNode(m_nodeForSortKeyChange->parentFolderNode());
-    changedSortKey(folderNode, m_nodeForSortKeyChange);
-}
-
-void FlatModel::nodeUpdated(Node *node)
-{
-    QModelIndex idx = indexForNode(node);
-    emit dataChanged(idx, idx);
+    update();
 }
 
 namespace Internal {

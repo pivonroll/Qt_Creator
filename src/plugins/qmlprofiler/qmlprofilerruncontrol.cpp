@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,41 +9,42 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "qmlprofilerruncontrol.h"
-
 #include "localqmlprofilerrunner.h"
+#include "qmlprofilertool.h"
 
-#include <analyzerbase/analyzermanager.h>
+#include <debugger/analyzer/analyzermanager.h>
+#include <debugger/analyzer/analyzerstartparameters.h>
+
 #include <coreplugin/icore.h>
-#include <utils/qtcassert.h>
 #include <coreplugin/helpmanager.h>
-#include <projectexplorer/projectexplorerconstants.h>
-#include <projectexplorer/kitinformation.h>
-#include <projectexplorer/target.h>
+
 #include <projectexplorer/environmentaspect.h>
+#include <projectexplorer/kitinformation.h>
 #include <projectexplorer/localapplicationruncontrol.h>
-#include <projectexplorer/localapplicationrunconfiguration.h>
+#include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/projectexplorericons.h>
+#include <projectexplorer/runnables.h>
+#include <projectexplorer/target.h>
+
 #include <qtsupport/qtsupportconstants.h>
 #include <qmldebug/qmloutputparser.h>
+
+#include <utils/qtcassert.h>
 
 #include <QMainWindow>
 #include <QMessageBox>
@@ -53,7 +54,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 
-using namespace Analyzer;
+using namespace Debugger;
 using namespace Core;
 using namespace ProjectExplorer;
 
@@ -66,69 +67,71 @@ namespace QmlProfiler {
 class QmlProfilerRunControl::QmlProfilerRunControlPrivate
 {
 public:
-    QmlProfilerRunControlPrivate() : m_running(false) {}
-
-    QmlProfilerStateManager *m_profilerState;
+    Internal::QmlProfilerTool *m_tool = 0;
+    QmlProfilerStateManager *m_profilerState = 0;
     QTimer m_noDebugOutputTimer;
-    QmlDebug::QmlOutputParser m_outputParser;
-    bool m_running;
+    bool m_running = false;
 };
 
 //
 // QmlProfilerRunControl
 //
 
-QmlProfilerRunControl::QmlProfilerRunControl(const AnalyzerStartParameters &sp,
-                                             RunConfiguration *runConfiguration) :
-    AnalyzerRunControl(sp, runConfiguration), d(new QmlProfilerRunControlPrivate)
+QmlProfilerRunControl::QmlProfilerRunControl(RunConfiguration *runConfiguration,
+                                             Internal::QmlProfilerTool *tool)
+    : AnalyzerRunControl(runConfiguration, ProjectExplorer::Constants::QML_PROFILER_RUN_MODE)
+    , d(new QmlProfilerRunControlPrivate)
 {
-    d->m_profilerState = 0;
+    setIcon(ProjectExplorer::Icons::ANALYZER_START_SMALL_TOOLBAR);
 
+    d->m_tool = tool;
     // Only wait 4 seconds for the 'Waiting for connection' on application output, then just try to connect
     // (application output might be redirected / blocked)
     d->m_noDebugOutputTimer.setSingleShot(true);
     d->m_noDebugOutputTimer.setInterval(4000);
-    connect(&d->m_noDebugOutputTimer, SIGNAL(timeout()), this, SLOT(processIsRunning()));
-
-    d->m_outputParser.setNoOutputText(ApplicationLauncher::msgWinCannotRetrieveDebuggingOutput());
-    connect(&d->m_outputParser, SIGNAL(waitingForConnectionOnPort(quint16)),
-            this, SLOT(processIsRunning(quint16)));
-    connect(&d->m_outputParser, SIGNAL(noOutputMessage()),
-            this, SLOT(processIsRunning()));
-    connect(&d->m_outputParser, SIGNAL(errorMessage(QString)),
-            this, SLOT(wrongSetupMessageBox(QString)));
+    connect(&d->m_noDebugOutputTimer, &QTimer::timeout, this, [this]() {
+        notifyRemoteSetupDone(Utils::Port());
+    });
 }
 
 QmlProfilerRunControl::~QmlProfilerRunControl()
 {
-    if (d->m_profilerState)
-        stopEngine();
+    if (d->m_running && d->m_profilerState)
+        stop();
     delete d;
 }
 
-bool QmlProfilerRunControl::startEngine()
+void QmlProfilerRunControl::start()
 {
-    QTC_ASSERT(d->m_profilerState, return false);
+    d->m_tool->finalizeRunControl(this);
+    QTC_ASSERT(d->m_profilerState, finished(); return);
 
-    if (startParameters().analyzerPort != 0)
-        emit processRunning(startParameters().analyzerPort);
-    else
+    QTC_ASSERT(connection().is<AnalyzerConnection>(), finished(); return);
+    auto conn = connection().as<AnalyzerConnection>();
+
+    if (conn.analyzerPort.isValid())
+        emit processRunning(conn.analyzerPort);
+    else if (conn.analyzerSocket.isEmpty())
         d->m_noDebugOutputTimer.start();
 
     d->m_profilerState->setCurrentState(QmlProfilerStateManager::AppRunning);
-    emit starting(this);
-    return true;
+    d->m_running = true;
+    emit starting();
 }
 
-void QmlProfilerRunControl::stopEngine()
+RunControl::StopResult QmlProfilerRunControl::stop()
 {
-    QTC_ASSERT(d->m_profilerState, return);
+    d->m_running = false;
+    QTC_ASSERT(d->m_profilerState, return RunControl::StoppedSynchronously);
 
     switch (d->m_profilerState->currentState()) {
-    case QmlProfilerStateManager::AppRunning : {
+    case QmlProfilerStateManager::AppRunning:
         d->m_profilerState->setCurrentState(QmlProfilerStateManager::AppStopRequested);
         break;
-    }
+    case QmlProfilerStateManager::AppStopRequested:
+        // Pressed "stop" a second time. Kill the application without collecting data
+        d->m_profilerState->setCurrentState(QmlProfilerStateManager::Idle);
+        break;
     case QmlProfilerStateManager::Idle:
     case QmlProfilerStateManager::AppDying:
         // valid, but no further action is needed
@@ -140,6 +143,13 @@ void QmlProfilerRunControl::stopEngine()
     }
         break;
     }
+
+    return RunControl::StoppedSynchronously;
+}
+
+bool QmlProfilerRunControl::isRunning() const
+{
+    return d->m_running;
 }
 
 void QmlProfilerRunControl::notifyRemoteFinished()
@@ -149,7 +159,7 @@ void QmlProfilerRunControl::notifyRemoteFinished()
     switch (d->m_profilerState->currentState()) {
     case QmlProfilerStateManager::AppRunning:
         d->m_profilerState->setCurrentState(QmlProfilerStateManager::AppDying);
-        AnalyzerManager::stopTool();
+        d->m_running = false;
         emit finished();
         break;
     case QmlProfilerStateManager::Idle:
@@ -179,16 +189,11 @@ void QmlProfilerRunControl::cancelProcess()
         return;
     }
     }
+    d->m_running = false;
     emit finished();
 }
 
-void QmlProfilerRunControl::logApplicationMessage(const QString &msg, Utils::OutputFormat format)
-{
-    appendMessage(msg, format);
-    d->m_outputParser.processOutput(msg);
-}
-
-void QmlProfilerRunControl::wrongSetupMessageBox(const QString &errorMessage)
+void QmlProfilerRunControl::notifyRemoteSetupFailed(const QString &errorMessage)
 {
     QMessageBox *infoBox = new QMessageBox(ICore::mainWindow());
     infoBox->setIcon(QMessageBox::Critical);
@@ -200,14 +205,15 @@ void QmlProfilerRunControl::wrongSetupMessageBox(const QString &errorMessage)
     infoBox->setDefaultButton(QMessageBox::Ok);
     infoBox->setModal(true);
 
-    connect(infoBox, SIGNAL(finished(int)),
-            this, SLOT(wrongSetupMessageBoxFinished(int)));
+    connect(infoBox, &QDialog::finished,
+            this, &QmlProfilerRunControl::wrongSetupMessageBoxFinished);
 
     infoBox->show();
 
     // KILL
     d->m_profilerState->setCurrentState(QmlProfilerStateManager::AppDying);
-    AnalyzerManager::stopTool();
+    d->m_noDebugOutputTimer.stop();
+    d->m_running = false;
     emit finished();
 }
 
@@ -219,19 +225,15 @@ void QmlProfilerRunControl::wrongSetupMessageBoxFinished(int button)
     }
 }
 
-void QmlProfilerRunControl::notifyRemoteSetupDone(quint16 port)
-{
-    d->m_noDebugOutputTimer.stop();
-    emit processRunning(port);
-}
-
-void QmlProfilerRunControl::processIsRunning(quint16 port)
+void QmlProfilerRunControl::notifyRemoteSetupDone(Utils::Port port)
 {
     d->m_noDebugOutputTimer.stop();
 
-    if (port == 0)
-        port = startParameters().analyzerPort;
-    if (port != 0)
+    if (!port.isValid()) {
+        QTC_ASSERT(connection().is<AnalyzerConnection>(), return);
+        port = connection().as<AnalyzerConnection>().analyzerPort;
+    }
+    if (port.isValid())
         emit processRunning(port);
 }
 
@@ -239,19 +241,22 @@ void QmlProfilerRunControl::registerProfilerStateManager( QmlProfilerStateManage
 {
     // disconnect old
     if (d->m_profilerState)
-        disconnect(d->m_profilerState, SIGNAL(stateChanged()), this, SLOT(profilerStateChanged()));
+        disconnect(d->m_profilerState, &QmlProfilerStateManager::stateChanged,
+                   this, &QmlProfilerRunControl::profilerStateChanged);
 
     d->m_profilerState = profilerState;
 
     // connect
     if (d->m_profilerState)
-        connect(d->m_profilerState, SIGNAL(stateChanged()), this, SLOT(profilerStateChanged()));
+        connect(d->m_profilerState, &QmlProfilerStateManager::stateChanged,
+                this, &QmlProfilerRunControl::profilerStateChanged);
 }
 
 void QmlProfilerRunControl::profilerStateChanged()
 {
     switch (d->m_profilerState->currentState()) {
     case QmlProfilerStateManager::Idle:
+        d->m_running = false;
         emit finished();
         d->m_noDebugOutputTimer.stop();
         break;

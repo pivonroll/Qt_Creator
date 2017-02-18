@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_CPLUSPLUSFORWARDDECLARATIONS_H
-#define CPLUSPLUS_CPLUSPLUSFORWARDDECLARATIONS_H
+#pragma once
 
 #include <cstdlib>
 #include <cstddef>
@@ -112,7 +111,6 @@ class Function;
 class Namespace;
 class NamespaceAlias;
 class Template;
-class ExplicitInstantiation;
 class BaseClass;
 class Block;
 class Class;
@@ -137,5 +135,3 @@ class ObjCMethod;
 class ObjCPropertyDeclaration;
 
 } // namespace CPlusPlus
-
-#endif // CPLUSPLUS_CPLUSPLUSFORWARDDECLARATIONS_H

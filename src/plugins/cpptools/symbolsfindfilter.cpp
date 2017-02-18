@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -65,10 +60,10 @@ SymbolsFindFilter::SymbolsFindFilter(CppModelManager *manager)
       m_scope(SymbolSearcher::SearchProjectsOnly)
 {
     // for disabling while parser is running
-    connect(ProgressManager::instance(), SIGNAL(taskStarted(Core::Id)),
-            this, SLOT(onTaskStarted(Core::Id)));
-    connect(ProgressManager::instance(), SIGNAL(allTasksFinished(Core::Id)),
-            this, SLOT(onAllTasksFinished(Core::Id)));
+    connect(ProgressManager::instance(), &ProgressManager::taskStarted,
+            this, &SymbolsFindFilter::onTaskStarted);
+    connect(ProgressManager::instance(), &ProgressManager::allTasksFinished,
+            this, &SymbolsFindFilter::onAllTasksFinished);
 }
 
 QString SymbolsFindFilter::id() const
@@ -115,12 +110,12 @@ void SymbolsFindFilter::findAll(const QString &txt, FindFlags findFlags)
     SearchResultWindow *window = SearchResultWindow::instance();
     SearchResult *search = window->startNewSearch(label(), toolTip(findFlags), txt);
     search->setSearchAgainSupported(true);
-    connect(search, SIGNAL(activated(Core::SearchResultItem)),
-            this, SLOT(openEditor(Core::SearchResultItem)));
-    connect(search, SIGNAL(cancelled()), this, SLOT(cancel()));
-    connect(search, SIGNAL(paused(bool)), this, SLOT(setPaused(bool)));
-    connect(search, SIGNAL(searchAgainRequested()), this, SLOT(searchAgain()));
-    connect(this, SIGNAL(enabledChanged(bool)), search, SLOT(setSearchAgainEnabled(bool)));
+    connect(search, &SearchResult::activated,
+            this, &SymbolsFindFilter::openEditor);
+    connect(search, &SearchResult::cancelled, this, &SymbolsFindFilter::cancel);
+    connect(search, &SearchResult::paused, this, &SymbolsFindFilter::setPaused);
+    connect(search, &SearchResult::searchAgainRequested, this, &SymbolsFindFilter::searchAgain);
+    connect(this, &IFindFilter::enabledChanged, search, &SearchResult::setSearchAgainEnabled);
     window->popup(IOutputPane::ModeSwitch | IOutputPane::WithFocus);
 
     SymbolSearcher::Parameters parameters;
@@ -143,17 +138,18 @@ void SymbolsFindFilter::startSearch(SearchResult *search)
 
     QFutureWatcher<SearchResultItem> *watcher = new QFutureWatcher<SearchResultItem>();
     m_watchers.insert(watcher, search);
-    connect(watcher, SIGNAL(finished()),
-            this, SLOT(finish()));
-    connect(watcher, SIGNAL(resultsReadyAt(int,int)),
-            this, SLOT(addResults(int,int)));
+    connect(watcher, &QFutureWatcherBase::finished,
+            this, &SymbolsFindFilter::finish);
+    connect(watcher, &QFutureWatcherBase::resultsReadyAt,
+            this, &SymbolsFindFilter::addResults);
     SymbolSearcher *symbolSearcher = m_manager->indexingSupport()->createSymbolSearcher(parameters, projectFileNames);
-    connect(watcher, SIGNAL(finished()),
-            symbolSearcher, SLOT(deleteLater()));
-    watcher->setFuture(QtConcurrent::run(&SymbolSearcher::runSearch, symbolSearcher));
+    connect(watcher, &QFutureWatcherBase::finished,
+            symbolSearcher, &QObject::deleteLater);
+    watcher->setFuture(Utils::runAsync(m_manager->sharedThreadPool(),
+                                       &SymbolSearcher::runSearch, symbolSearcher));
     FutureProgress *progress = ProgressManager::addTask(watcher->future(), tr("Searching for Symbol"),
                                                         Core::Constants::TASK_SEARCH);
-    connect(progress, SIGNAL(clicked()), search, SLOT(popup()));
+    connect(progress, &FutureProgress::clicked, search, &SearchResult::popup);
 }
 
 void SymbolsFindFilter::addResults(int begin, int end)
@@ -266,7 +262,8 @@ QString SymbolsFindFilter::toolTip(FindFlags findFlags) const
 SymbolsFindFilterConfigWidget::SymbolsFindFilterConfigWidget(SymbolsFindFilter *filter)
     : m_filter(filter)
 {
-    connect(m_filter, SIGNAL(symbolsToSearchChanged()), this, SLOT(getState()));
+    connect(m_filter, &SymbolsFindFilter::symbolsToSearchChanged,
+            this, &SymbolsFindFilterConfigWidget::getState);
 
     QGridLayout *layout = new QGridLayout(this);
     setLayout(layout);
@@ -293,10 +290,14 @@ SymbolsFindFilterConfigWidget::SymbolsFindFilterConfigWidget(SymbolsFindFilter *
     m_typeClasses->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_typeMethods->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    connect(m_typeClasses, SIGNAL(clicked(bool)), this, SLOT(setState()));
-    connect(m_typeMethods, SIGNAL(clicked(bool)), this, SLOT(setState()));
-    connect(m_typeEnums, SIGNAL(clicked(bool)), this, SLOT(setState()));
-    connect(m_typeDeclarations, SIGNAL(clicked(bool)), this, SLOT(setState()));
+    connect(m_typeClasses, &QAbstractButton::clicked,
+            this, &SymbolsFindFilterConfigWidget::setState);
+    connect(m_typeMethods, &QAbstractButton::clicked,
+            this, &SymbolsFindFilterConfigWidget::setState);
+    connect(m_typeEnums, &QAbstractButton::clicked,
+            this, &SymbolsFindFilterConfigWidget::setState);
+    connect(m_typeDeclarations, &QAbstractButton::clicked,
+            this, &SymbolsFindFilterConfigWidget::setState);
 
     m_searchProjectsOnly = new QRadioButton(tr("Projects only"));
     layout->addWidget(m_searchProjectsOnly, 2, 1);
@@ -308,10 +309,10 @@ SymbolsFindFilterConfigWidget::SymbolsFindFilterConfigWidget(SymbolsFindFilter *
     m_searchGroup->addButton(m_searchProjectsOnly);
     m_searchGroup->addButton(m_searchGlobal);
 
-    connect(m_searchProjectsOnly, SIGNAL(clicked(bool)),
-            this, SLOT(setState()));
-    connect(m_searchGlobal, SIGNAL(clicked(bool)),
-            this, SLOT(setState()));
+    connect(m_searchProjectsOnly, &QAbstractButton::clicked,
+            this, &SymbolsFindFilterConfigWidget::setState);
+    connect(m_searchGlobal, &QAbstractButton::clicked,
+            this, &SymbolsFindFilterConfigWidget::setState);
 }
 
 void SymbolsFindFilterConfigWidget::getState()

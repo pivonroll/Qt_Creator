@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef NODEINSTANCEVIEW_H
-#define NODEINSTANCEVIEW_H
+#pragma once
 
 #include "qmldesignercorelib_global.h"
 #include "abstractview.h"
@@ -49,6 +48,7 @@ QT_END_NAMESPACE
 
 namespace ProjectExplorer {
 class Kit;
+class Project;
 }
 
 namespace QmlDesigner {
@@ -91,6 +91,7 @@ public:
                         const NodeAbstractProperty &oldPropertyParent,
                         AbstractView::PropertyChangeFlags propertyChange) override;
     void rootNodeTypeChanged(const QString &type, int majorVersion, int minorVersion) override;
+    void nodeTypeChanged(const ModelNode& node, const TypeName &type, int majorVersion, int minorVersion) override;
     void fileUrlChanged(const QUrl &oldUrl, const QUrl &newUrl) override;
     void nodeIdChanged(const ModelNode& node, const QString& newId, const QString& oldId) override;
     void nodeOrderChanged(const NodeListProperty &listProperty, const ModelNode &movedNode, int oldIndex) override;
@@ -128,12 +129,9 @@ public:
     QImage statePreviewImage(const ModelNode &stateNode) const;
 
     void setKit(ProjectExplorer::Kit *kit);
+    void setProject(ProjectExplorer::Project *project);
 
     void sendToken(const QString &token, int number, const QVector<ModelNode> &nodeVector);
-
-signals:
-    void qmlPuppetCrashed();
-    void qmlPuppetError(const QString &errorMessage);
 
 protected:
     void timerEvent(QTimerEvent *event) override;
@@ -186,7 +184,7 @@ private: // functions
     void delayedRestartProcess();
 
 private slots:
-    void handleChrash();
+    void handleCrash();
 
 private: //variables
     NodeInstance m_rootNodeInstance;
@@ -200,10 +198,9 @@ private: //variables
     QImage m_baseStatePreviewImage;
     QTime m_lastCrashTime;
     NodeInstanceServerInterface::RunModus m_runModus;
-    ProjectExplorer::Kit *m_currentKit;
+    ProjectExplorer::Kit *m_currentKit = nullptr;
+    ProjectExplorer::Project *m_currentProject = nullptr;
     int m_restartProcessTimerId;
 };
 
 } // namespace ProxyNodeInstanceView
-
-#endif // NODEINSTANCEVIEW_H

@@ -1,18 +1,25 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
-**
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
 ****************************************************************************/
 
@@ -70,8 +77,8 @@
 
         \li the local user's configuration folder,
             \c {$HOME/.config/QtProject/qtcreator/templates/wizards} on Linux
-            and OS X or \c {%APPDATA%\QtProject\qtcreator\templates\wizards} on
-            windows
+            and \macos or \c {%APPDATA%\QtProject\qtcreator\templates\wizards} on
+            Windows
 
     \endlist
 
@@ -107,9 +114,34 @@
                 a wizard definition to become visible.
     \endtable
 
-    \note When developing custom wizards (both JSON as well as XML based), it is
-    recommended to start \QC with the \c {-customwizard-verbose} argument. See
-    \l{Using Command Line Options} for more information about command line
-    arguments.
+    \section2 Verbose Output
 
+    When developing custom wizards (both JSON as well as XML based), it is
+    recommended to start \QC with the \c {-customwizard-verbose} argument. It
+    causes each correctly set up wizard to produce output along the following
+    lines:
+
+    \code
+    Checking "/home/jsmith/.config/QtProject/qtcreator/templates/wizards/mywizard"
+    for wizard.json.
+    * Configuration found and parsed.
+    \endcode
+
+    The output includes the name of the directory that was checked for a
+    \c wizard.json file. If the file is not found, the message is not displayed.
+
+    If the file contains errors, such as an invalid icon path, the following
+    types of messages are displayed:
+
+    \code
+    Checking "/home/jsmith/.config/QtProject/qtcreator/templates/wizards/mywizard"
+    for wizard.json.
+    * Configuration found and parsed.
+    * Failed to create: Icon file
+    "/home/jsmith/.config/QtProject/qtcreator/templates/wizards/mywizard/../..
+    /global/genericfilewizard.png" not found.
+    \endcode
+
+    See \l{Using Command Line Options} for more information about command line
+    arguments.
 */

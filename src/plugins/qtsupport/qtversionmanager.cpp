@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -69,15 +64,14 @@ const char QTVERSION_DATA_KEY[] = "QtVersion.";
 const char QTVERSION_TYPE_KEY[] = "QtVersion.Type";
 const char QTVERSION_FILE_VERSION_KEY[] = "Version";
 const char QTVERSION_FILENAME[] = "/qtcreator/qtversion.xml";
-const char QTVERSION_LEGACY_FILENAME[] = "/qtversion.xml"; // TODO: pre 2.6, remove later
 
 static QMap<int, BaseQtVersion *> m_versions;
 static int m_idcount = 0;
 // managed by QtProjectManagerPlugin
-static QtVersionManager *m_instance = 0;
-static FileSystemWatcher *m_configFileWatcher = 0;
-static QTimer *m_fileWatcherTimer = 0;
-static PersistentSettingsWriter *m_writer = 0;
+static QtVersionManager *m_instance = nullptr;
+static FileSystemWatcher *m_configFileWatcher = nullptr;
+static QTimer *m_fileWatcherTimer = nullptr;
+static PersistentSettingsWriter *m_writer = nullptr;
 
 enum { debug = 0 };
 
@@ -114,22 +108,22 @@ static void updateDocumentation();
 QtVersionManager::QtVersionManager()
 {
     m_instance = this;
-    m_configFileWatcher = 0;
+    m_configFileWatcher = nullptr;
     m_fileWatcherTimer = new QTimer(this);
-    m_writer = 0;
+    m_writer = nullptr;
     m_idcount = 1;
 
     qRegisterMetaType<FileName>();
 
     // Give the file a bit of time to settle before reading it...
     m_fileWatcherTimer->setInterval(2000);
-    connect(m_fileWatcherTimer, SIGNAL(timeout()), SLOT(updateFromInstaller()));
+    connect(m_fileWatcherTimer, &QTimer::timeout, this, [this] { updateFromInstaller(); });
 }
 
 void QtVersionManager::triggerQtVersionRestore()
 {
-    disconnect(ProjectExplorer::ToolChainManager::instance(), SIGNAL(toolChainsLoaded()),
-               this, SLOT(triggerQtVersionRestore()));
+    disconnect(ProjectExplorer::ToolChainManager::instance(), &ProjectExplorer::ToolChainManager::toolChainsLoaded,
+               this, &QtVersionManager::triggerQtVersionRestore);
 
     bool success = restoreQtVersions();
     m_instance->updateFromInstaller(false);
@@ -147,17 +141,13 @@ void QtVersionManager::triggerQtVersionRestore()
     const FileName configFileName = globalSettingsFileName();
     if (configFileName.exists()) {
         m_configFileWatcher = new FileSystemWatcher(m_instance);
-        connect(m_configFileWatcher, SIGNAL(fileChanged(QString)),
-                m_fileWatcherTimer, SLOT(start()));
+        connect(m_configFileWatcher, &FileSystemWatcher::fileChanged,
+                m_fileWatcherTimer, static_cast<void (QTimer::*)()>(&QTimer::start));
         m_configFileWatcher->addFile(configFileName.toString(),
                                      FileSystemWatcher::WatchModifiedDate);
     } // exists
-}
 
-bool QtVersionManager::delayedInitialize()
-{
     updateDocumentation();
-    return true;
 }
 
 bool QtVersionManager::isLoaded()
@@ -174,8 +164,8 @@ QtVersionManager::~QtVersionManager()
 
 void QtVersionManager::initialized()
 {
-    connect(ProjectExplorer::ToolChainManager::instance(), SIGNAL(toolChainsLoaded()),
-            QtVersionManager::instance(), SLOT(triggerQtVersionRestore()));
+    connect(ProjectExplorer::ToolChainManager::instance(), &ProjectExplorer::ToolChainManager::toolChainsLoaded,
+            QtVersionManager::instance(), &QtVersionManager::triggerQtVersionRestore);
 }
 
 QtVersionManager *QtVersionManager::instance()
@@ -194,9 +184,6 @@ static bool restoreQtVersions()
     PersistentSettingsReader reader;
     FileName filename = settingsFileName(QLatin1String(QTVERSION_FILENAME));
 
-    // Read Qt Creator 2.5 qtversions.xml once:
-    if (!filename.exists())
-        filename = settingsFileName(QLatin1String(QTVERSION_LEGACY_FILENAME));
     if (!reader.load(filename))
         return false;
     QVariantMap data = reader.restoreValues();
@@ -213,7 +200,7 @@ static bool restoreQtVersions()
         if (!key.startsWith(keyPrefix))
             continue;
         bool ok;
-        int count = key.mid(keyPrefix.count()).toInt(&ok);
+        int count = key.midRef(keyPrefix.count()).toInt(&ok);
         if (!ok || count < 0)
             continue;
 
@@ -287,7 +274,7 @@ void QtVersionManager::updateFromInstaller(bool emitSignal)
         if (!key.startsWith(keyPrefix))
             continue;
         bool ok;
-        int count = key.mid(keyPrefix.count()).toInt(&ok);
+        int count = key.midRef(keyPrefix.count()).toInt(&ok);
         if (!ok || count < 0)
             continue;
 
@@ -296,7 +283,7 @@ void QtVersionManager::updateFromInstaller(bool emitSignal)
         const QString autoDetectionSource = qtversionMap.value(QLatin1String("autodetectionSource")).toString();
         sdkVersions << autoDetectionSource;
         int id = -1; // see BaseQtVersion::fromMap()
-        QtVersionFactory *factory = 0;
+        QtVersionFactory *factory = nullptr;
         foreach (QtVersionFactory *f, factories) {
             if (f->canRestore(type))
                 factory = f;
@@ -431,7 +418,7 @@ static FileNameList gatherQmakePathsFromQtChooser()
     if (qtchooser.isEmpty())
         return FileNameList();
 
-    QList<QByteArray> versions = runQtChooser(qtchooser, QStringList() << QStringLiteral("-l"));
+    QList<QByteArray> versions = runQtChooser(qtchooser, QStringList("-l"));
     QSet<FileName> foundQMakes;
     foreach (const QByteArray &version, versions) {
         FileName possibleQMake = FileName::fromString(
@@ -450,9 +437,8 @@ static void findSystemQt()
         systemQMakes << systemQMakePath;
 
     systemQMakes.append(gatherQmakePathsFromQtChooser());
-    systemQMakes.removeDuplicates();
 
-    foreach (const FileName &qmakePath, systemQMakes) {
+    foreach (const FileName &qmakePath, Utils::filteredUnique(systemQMakes)) {
         BaseQtVersion *version
                 = QtVersionFactory::createQtVersionFromQMakePath(qmakePath, false, QLatin1String("PATH"));
         if (version) {
@@ -465,7 +451,7 @@ static void findSystemQt()
 void QtVersionManager::addVersion(BaseQtVersion *version)
 {
     QTC_ASSERT(m_writer, return);
-    QTC_ASSERT(version != 0, return);
+    QTC_ASSERT(version, return);
     if (m_versions.contains(version->uniqueId()))
         return;
 
@@ -478,7 +464,7 @@ void QtVersionManager::addVersion(BaseQtVersion *version)
 
 void QtVersionManager::removeVersion(BaseQtVersion *version)
 {
-    QTC_ASSERT(version != 0, return);
+    QTC_ASSERT(version, return);
     m_versions.remove(version->uniqueId());
     emit m_instance->qtVersionsChanged(QList<int>(), QList<int>() << version->uniqueId(), QList<int>());
     saveQtVersions();
@@ -489,12 +475,12 @@ static void updateDocumentation()
 {
     QStringList files;
     foreach (BaseQtVersion *v, m_versions) {
-        const QStringList docPaths = QStringList() << v->documentationPath() + QLatin1Char('/')
-                                                   << v->documentationPath() + QLatin1String("/qch/");
+        const QStringList docPaths = QStringList({ v->documentationPath() + QChar('/'),
+                                                   v->documentationPath() + "/qch/" });
         foreach (const QString &docPath, docPaths) {
             const QDir versionHelpDir(docPath);
             foreach (const QString &helpFile,
-                     versionHelpDir.entryList(QStringList() << QLatin1String("*.qch"), QDir::Files))
+                     versionHelpDir.entryList(QStringList("*.qch"), QDir::Files))
                 files << docPath + helpFile;
         }
     }
@@ -515,33 +501,21 @@ int QtVersionManager::getUniqueId()
     return m_idcount++;
 }
 
-QList<BaseQtVersion *> QtVersionManager::unsortedVersions()
+QList<BaseQtVersion *> QtVersionManager::versions(const BaseQtVersion::Predicate &predicate)
 {
     QList<BaseQtVersion *> versions;
     QTC_ASSERT(isLoaded(), return versions);
-    return m_versions.values();
+    if (predicate)
+        return Utils::filtered(m_versions.values(), predicate);
+    else
+        return m_versions.values();
 }
 
-QList<BaseQtVersion *> QtVersionManager::versions()
+QList<BaseQtVersion *> QtVersionManager::sortVersions(const QList<BaseQtVersion *> &input)
 {
-    QList<BaseQtVersion *> versions;
-    QTC_ASSERT(isLoaded(), return versions);
-    foreach (BaseQtVersion *version, m_versions)
-        versions << version;
-    Utils::sort(versions, qtVersionNumberCompare);
-    return versions;
-}
-
-QList<BaseQtVersion *> QtVersionManager::validVersions()
-{
-    QList<BaseQtVersion *> results;
-    QTC_ASSERT(isLoaded(), return results);
-    foreach (BaseQtVersion *v, m_versions) {
-        if (v->isValid())
-            results.append(v);
-    }
-    Utils::sort(results, qtVersionNumberCompare);
-    return results;
+    QList<BaseQtVersion *> result = input;
+    Utils::sort(result, qtVersionNumberCompare);
+    return result;
 }
 
 bool QtVersionManager::isValidId(int id)
@@ -552,11 +526,16 @@ bool QtVersionManager::isValidId(int id)
 
 BaseQtVersion *QtVersionManager::version(int id)
 {
-    QTC_ASSERT(isLoaded(), return 0);
+    QTC_ASSERT(isLoaded(), return nullptr);
     QMap<int, BaseQtVersion *>::const_iterator it = m_versions.constFind(id);
     if (it == m_versions.constEnd())
-        return 0;
+        return nullptr;
     return it.value();
+}
+
+BaseQtVersion *QtVersionManager::version(const BaseQtVersion::Predicate &predicate)
+{
+    return Utils::findOrDefault(m_versions.values(), predicate);
 }
 
 // This function is really simplistic...
@@ -570,9 +549,7 @@ void QtVersionManager::setNewQtVersions(QList<BaseQtVersion *> newVersions)
     // We want to preserve the same order as in the settings dialog
     // so we sort a copy
     QList<BaseQtVersion *> sortedNewVersions = newVersions;
-    Utils::sort(sortedNewVersions, [](const BaseQtVersion *l, const BaseQtVersion *r) {
-        return l->uniqueId() < r->uniqueId();
-    });
+    Utils::sort(sortedNewVersions, &BaseQtVersion::uniqueId);
 
     QList<int> addedVersions;
     QList<int> removedVersions;
@@ -631,7 +608,7 @@ void QtVersionManager::setNewQtVersions(QList<BaseQtVersion *> newVersions)
 
 BaseQtVersion *QtVersionManager::qtVersionForQMakeBinary(const FileName &qmakePath)
 {
-    return Utils::findOrDefault(versions(), Utils::equal(&BaseQtVersion::qmakeCommand, qmakePath));
+    return version(Utils::equal(&BaseQtVersion::qmakeCommand, qmakePath));
 }
 
 } // namespace QtVersion

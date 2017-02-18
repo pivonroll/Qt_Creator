@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -45,6 +40,9 @@
 #include "cppprojectfile.h"
 #include "cpplocatordata.h"
 #include "cppincludesfilter.h"
+#include "cpptoolsbridge.h"
+#include "projectinfo.h"
+#include "cpptoolsbridgeqtcreatorimplementation.h"
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
@@ -88,6 +86,8 @@ CppToolsPlugin::CppToolsPlugin()
     , m_codeModelSettings(new CppCodeModelSettings)
 {
     m_instance = this;
+    auto bridgeImplementation = std::unique_ptr<CppToolsBridgeQtCreatorImplementation>(new CppToolsBridgeQtCreatorImplementation);
+    CppToolsBridge::setCppToolsBridgeImplementation(std::move(bridgeImplementation));
 }
 
 CppToolsPlugin::~CppToolsPlugin()
@@ -140,14 +140,16 @@ bool CppToolsPlugin::initialize(const QStringList &arguments, QString *error)
     Q_UNUSED(arguments)
     Q_UNUSED(error)
 
+    Utils::MimeDatabase::addMimeTypes(QLatin1String(":/cpptools/CppTools.mimetypes.xml"));
+
     CppModelManager::instance()->setParent(this);
 
     m_settings = new CppToolsSettings(this); // force registration of cpp tools settings
 
     // Objects
     CppModelManager *modelManager = CppModelManager::instance();
-    connect(VcsManager::instance(), SIGNAL(repositoryChanged(QString)),
-            modelManager, SLOT(updateModifiedSourceFiles()));
+    connect(VcsManager::instance(), &VcsManager::repositoryChanged,
+            modelManager, &CppModelManager::updateModifiedSourceFiles);
     connect(DocumentManager::instance(), &DocumentManager::filesChangedInternally,
             [=](const QStringList &files) {
         modelManager->updateSourceFiles(files.toSet());
@@ -277,7 +279,7 @@ static QStringList matchingCandidateSuffixes(ProjectFile::Kind kind)
 {
     Utils::MimeDatabase mdb;
     switch (kind) {
-     // Note that C/C++ headers are undistinguishable
+    case ProjectFile::AmbiguousHeader:
     case ProjectFile::CHeader:
     case ProjectFile::CXXHeader:
     case ProjectFile::ObjCHeader:
@@ -402,7 +404,7 @@ QString correspondingHeaderOrSource(const QString &fileName, bool *wasHeader)
     if (debug)
         qDebug() << Q_FUNC_INFO << fileName <<  kind;
 
-    if (kind == ProjectFile::Unclassified)
+    if (kind == ProjectFile::Unsupported)
         return QString();
 
     const QString baseName = fi.completeBaseName();

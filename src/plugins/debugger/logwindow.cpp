@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,6 +28,7 @@
 #include "debuggeractions.h"
 #include "debuggercore.h"
 #include "debuggerengine.h"
+#include "debuggericons.h"
 
 #include <QDebug>
 #include <QTime>
@@ -179,7 +175,6 @@ public:
         menu->addAction(m_clearContentsAction);
         menu->addAction(m_saveContentsAction); // X11 clipboard is unreliable for long texts
         menu->addAction(action(LogTimeStamps));
-        menu->addAction(action(VerboseLog));
         menu->addAction(m_reloadDebuggingHelpersAction);
         menu->addSeparator();
         menu->addAction(action(SettingsDialog));
@@ -315,7 +310,6 @@ public:
         (void) new OutputHighlighter(this);
     }
 
-public slots:
     void gotoResult(int i)
     {
         QString needle = QString::number(i) + QLatin1Char('^');
@@ -379,8 +373,8 @@ LogWindow::LogWindow(QWidget *parent)
     m_commandEdit->setHistoryCompleter(QLatin1String("DebuggerInput"));
 
     auto repeatButton = new QToolButton(this);
-    repeatButton->setIcon(QIcon(QLatin1String(":/debugger/images/debugger_stepover_small.png")));
-    repeatButton->setIconSize(QSize(12, 12));
+    repeatButton->setIcon(Icons::STEP_OVER.icon());
+    repeatButton->setFixedSize(QSize(18, 18));
     repeatButton->setToolTip(tr("Repeat last command for debug reasons."));
 
     auto commandBox = new QHBoxLayout;
@@ -419,14 +413,14 @@ LogWindow::LogWindow(QWidget *parent)
     aggregate->add(m_inputText);
     aggregate->add(new Core::BaseTextFind(m_inputText));
 
-    connect(m_inputText, SIGNAL(statusMessageRequested(QString,int)),
-        SIGNAL(statusMessageRequested(QString,int)));
-    connect(m_inputText, SIGNAL(commandSelected(int)),
-        m_combinedText, SLOT(gotoResult(int)));
+    connect(m_inputText, &InputPane::statusMessageRequested,
+            this, &LogWindow::statusMessageRequested);
+    connect(m_inputText, &InputPane::commandSelected,
+            m_combinedText, &CombinedPane::gotoResult);
     connect(m_commandEdit, &QLineEdit::returnPressed,
             this, &LogWindow::sendCommand);
-    connect(m_inputText, SIGNAL(executeLineRequested()),
-        SLOT(executeLine()));
+    connect(m_inputText, &InputPane::executeLineRequested,
+            this, &LogWindow::executeLine);
     connect(repeatButton, &QAbstractButton::clicked,
             this, &LogWindow::repeatLastCommand);
 
@@ -434,6 +428,16 @@ LogWindow::LogWindow(QWidget *parent)
             this, &LogWindow::doOutput);
 
     setMinimumHeight(60);
+
+    showOutput(LogWarning,
+        tr("NOTE: This log contains possibly confidential information about your machine, "
+           "environment variables, in-memory data of the processes you are debugging, and more. "
+           "It is never transferred over the internet by Qt Creator, and only stored "
+           "to disk if you manually use the respective option from the context menu, or through "
+           "mechanisms that are not under Qt Creator's control, for instance in swap files.\n"
+           "You may be asked to share the contents of this log when reporting bugs related "
+           "to debugger operation. In this case, make sure your submission does not "
+           "contain data you do not want to or you are not allowed to share.\n\n"));
 }
 
 void LogWindow::executeLine()

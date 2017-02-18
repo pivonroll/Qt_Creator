@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef SYNCHRONOUSPROCESS_H
-#define SYNCHRONOUSPROCESS_H
+#pragma once
 
 #include "utils_global.h"
 
@@ -37,15 +31,18 @@
 #include <QSharedPointer>
 #include <QTextCodec>
 
+#include <functional>
+
 QT_FORWARD_DECLARE_CLASS(QDebug)
 
 namespace Utils {
 
-struct SynchronousProcessPrivate;
+class SynchronousProcessPrivate;
 
 /* Result of SynchronousProcess execution */
-struct QTCREATOR_UTILS_EXPORT SynchronousProcessResponse
+class QTCREATOR_UTILS_EXPORT SynchronousProcessResponse
 {
+public:
     enum Result {
         // Finished with return code 0
         Finished,
@@ -58,27 +55,29 @@ struct QTCREATOR_UTILS_EXPORT SynchronousProcessResponse
         // Hang, no output after time out
         Hang };
 
-    SynchronousProcessResponse();
     void clear();
 
     // Helper to format an exit message.
     QString exitMessage(const QString &binary, int timeoutS) const;
 
-    Result result;
-    int exitCode;
-    QString stdOut;
-    QString stdErr;
+    QByteArray allRawOutput() const;
+    QString allOutput() const;
+
+    QString stdOut() const;
+    QString stdErr() const;
+
+    Result result = StartFailed;
+    int exitCode = -1;
+
+    QByteArray rawStdOut;
+    QByteArray rawStdErr;
+    QTextCodec *codec = QTextCodec::codecForLocale();
 };
 
 QTCREATOR_UTILS_EXPORT QDebug operator<<(QDebug str, const SynchronousProcessResponse &);
 
-class QTCREATOR_UTILS_EXPORT ExitCodeInterpreter : public QObject
-{
-    Q_OBJECT
-public:
-    ExitCodeInterpreter(QObject *parent) : QObject(parent) {}
-    virtual SynchronousProcessResponse::Result interpretExitCode(int code) const;
-};
+using ExitCodeInterpreter = std::function<SynchronousProcessResponse::Result(int /*exitCode*/)>;
+QTCREATOR_UTILS_EXPORT SynchronousProcessResponse::Result defaultExitCodeInterpreter(int code);
 
 class QTCREATOR_UTILS_EXPORT SynchronousProcess : public QObject
 {
@@ -124,10 +123,13 @@ public:
     unsigned flags() const;
     void setFlags(unsigned);
 
-    void setExitCodeInterpreter(ExitCodeInterpreter *interpreter);
-    ExitCodeInterpreter *exitCodeInterpreter() const;
+    void setExitCodeInterpreter(const ExitCodeInterpreter &interpreter);
+    ExitCodeInterpreter exitCodeInterpreter() const;
 
+    // Starts an nested event loop and runs the binary with the arguments
     SynchronousProcessResponse run(const QString &binary, const QStringList &args);
+    // Starts the binary with the arguments blocking the UI fully
+    SynchronousProcessResponse runBlocking(const QString &binary, const QStringList &args);
 
     // Create a (derived) processes with flags applied.
     static QSharedPointer<QProcess> createProcess(unsigned flags);
@@ -137,7 +139,7 @@ public:
     // occurs on stderr/stdout as opposed to waitForFinished()). Returns false if a timeout
     // occurs. Checking of the process' exit state/code still has to be done.
     static bool readDataFromProcess(QProcess &p, int timeoutS,
-                                    QByteArray *stdOut = 0, QByteArray *stdErr = 0,
+                                    QByteArray *rawStdOut = 0, QByteArray *rawStdErr = 0,
                                     bool timeOutMessageBox = false);
     // Stop a process by first calling terminate() (allowing for signal handling) and
     // then kill().
@@ -151,30 +153,20 @@ public:
     static QString normalizeNewlines(const QString &text);
 
 signals:
-    void stdOut(const QString &text, bool firstTime);
-    void stdErr(const QString &text, bool firstTime);
-
-    void stdOutBuffered(const QString &data, bool firstTime);
-    void stdErrBuffered(const QString &data, bool firstTime);
+    void stdOutBuffered(const QString &lines, bool firstTime);
+    void stdErrBuffered(const QString &lines, bool firstTime);
 
 public slots:
     bool terminate();
 
-private slots:
+private:
     void slotTimeout();
     void finished(int exitCode, QProcess::ExitStatus e);
     void error(QProcess::ProcessError);
-    void stdOutReady();
-    void stdErrReady();
-
-private:
     void processStdOut(bool emitSignals);
     void processStdErr(bool emitSignals);
-    QString convertOutput(const QByteArray &, QTextCodec::ConverterState *state) const;
 
     SynchronousProcessPrivate *d;
 };
 
 } // namespace Utils
-
-#endif

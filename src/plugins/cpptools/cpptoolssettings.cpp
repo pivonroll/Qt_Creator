@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,10 +28,10 @@
 #include "cpptoolsconstants.h"
 #include "cppcodestylepreferences.h"
 #include "cppcodestylepreferencesfactory.h"
-#include "commentssettings.h"
-#include "completionsettingspage.h"
 
 #include <coreplugin/icore.h>
+#include <texteditor/commentssettings.h>
+#include <texteditor/completionsettingspage.h>
 #include <texteditor/codestylepool.h>
 #include <texteditor/tabsettings.h>
 #include <texteditor/texteditorsettings.h>
@@ -62,12 +57,10 @@ class CppToolsSettingsPrivate
 public:
     CppToolsSettingsPrivate()
         : m_globalCodeStyle(0)
-        , m_completionSettingsPage(0)
     {}
 
     CommentsSettings m_commentsSettings;
     CppCodeStylePreferences *m_globalCodeStyle;
-    CompletionSettingsPage *m_completionSettingsPage;
 };
 
 } // namespace Internal
@@ -84,10 +77,9 @@ CppToolsSettings::CppToolsSettings(QObject *parent)
 
     qRegisterMetaType<CppTools::CppCodeStyleSettings>("CppTools::CppCodeStyleSettings");
 
-    QSettings *s = ICore::settings();
-    d->m_commentsSettings.fromSettings(QLatin1String(Constants::CPPTOOLS_SETTINGSGROUP), s);
-    d->m_completionSettingsPage = new CompletionSettingsPage(this);
-    ExtensionSystem::PluginManager::addObject(d->m_completionSettingsPage);
+    d->m_commentsSettings = TextEditorSettings::commentsSettings();
+    connect(TextEditorSettings::instance(), &TextEditorSettings::commentsSettingsChanged,
+            this, &CppToolsSettings::setCommentsSettings);
 
     // code style factory
     ICodeStylePreferencesFactory *factory = new CppCodeStylePreferencesFactory();
@@ -168,6 +160,7 @@ CppToolsSettings::CppToolsSettings(QObject *parent)
 
     pool->loadCustomCodeStyles();
 
+    QSettings *s = ICore::settings();
     // load global settings (after built-in settings are added to the pool)
     d->m_globalCodeStyle->fromSettings(QLatin1String(CppTools::Constants::CPP_SETTINGS_ID), s);
 
@@ -228,8 +221,6 @@ CppToolsSettings::CppToolsSettings(QObject *parent)
 
 CppToolsSettings::~CppToolsSettings()
 {
-    ExtensionSystem::PluginManager::removeObject(d->m_completionSettingsPage);
-
     TextEditorSettings::unregisterCodeStyle(Constants::CPP_SETTINGS_ID);
     TextEditorSettings::unregisterCodeStylePool(Constants::CPP_SETTINGS_ID);
     TextEditorSettings::unregisterCodeStyleFactory(Constants::CPP_SETTINGS_ID);
@@ -256,12 +247,7 @@ const CommentsSettings &CppToolsSettings::commentsSettings() const
 
 void CppToolsSettings::setCommentsSettings(const CommentsSettings &commentsSettings)
 {
-    if (d->m_commentsSettings == commentsSettings)
-        return;
-
     d->m_commentsSettings = commentsSettings;
-    d->m_commentsSettings.toSettings(QLatin1String(Constants::CPPTOOLS_SETTINGSGROUP),
-                                     ICore::settings());
 }
 
 static QString sortEditorDocumentOutlineKey()
@@ -280,4 +266,40 @@ void CppToolsSettings::setSortedEditorDocumentOutline(bool sorted)
 {
     ICore::settings()->setValue(sortEditorDocumentOutlineKey(), sorted);
     emit editorDocumentOutlineSortingChanged(sorted);
+}
+
+static QString showHeaderErrorInfoBarKey()
+{
+    return QLatin1String(CppTools::Constants::CPPTOOLS_SETTINGSGROUP)
+         + QLatin1Char('/')
+         + QLatin1String(CppTools::Constants::CPPTOOLS_SHOW_INFO_BAR_FOR_HEADER_ERRORS);
+}
+
+bool CppToolsSettings::showHeaderErrorInfoBar() const
+{
+    return ICore::settings()->value(showHeaderErrorInfoBarKey(), true).toBool();
+}
+
+void CppToolsSettings::setShowHeaderErrorInfoBar(bool show)
+{
+    ICore::settings()->setValue(showHeaderErrorInfoBarKey(), show);
+    emit showHeaderErrorInfoBarChanged(show);
+}
+
+static QString showNoProjectInfoBarKey()
+{
+    return QLatin1String(CppTools::Constants::CPPTOOLS_SETTINGSGROUP)
+         + QLatin1Char('/')
+         + QLatin1String(CppTools::Constants::CPPTOOLS_SHOW_INFO_BAR_FOR_FOR_NO_PROJECT);
+}
+
+bool CppToolsSettings::showNoProjectInfoBar() const
+{
+    return ICore::settings()->value(showNoProjectInfoBarKey(), true).toBool();
+}
+
+void CppToolsSettings::setShowNoProjectInfoBar(bool show)
+{
+    ICore::settings()->setValue(showNoProjectInfoBarKey(), show);
+    emit showNoProjectInfoBarChanged(show);
 }

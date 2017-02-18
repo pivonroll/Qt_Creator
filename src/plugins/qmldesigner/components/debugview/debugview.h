@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGVIEW_H
-#define DEBUGVIEW_H
+#pragma once
 
 #include <abstractview.h>
 #include <QPointer>
@@ -66,6 +65,7 @@ public:
     void propertiesRemoved(const QList<AbstractProperty> &propertyList) override;
 
     void auxiliaryDataChanged(const ModelNode &node, const PropertyName &name, const QVariant &data) override;
+    void documentMessagesChanged(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings) override;
 
     void rewriterBeginTransaction() override;
     void rewriterEndTransaction() override;
@@ -73,10 +73,10 @@ public:
     WidgetInfo widgetInfo() override;
     bool hasWidget() const override;
 
-    void instancePropertyChange(const QList<QPair<ModelNode, PropertyName> > &propertyList) override;
-    void instanceErrorChange(const QVector<ModelNode> &errorNodeList) override;
+    void instancePropertyChanged(const QList<QPair<ModelNode, PropertyName> > &propertyList) override;
+    void instanceErrorChanged(const QVector<ModelNode> &errorNodeList) override;
     void instancesCompleted(const QVector<ModelNode> &completedNodeList) override;
-    void instanceInformationsChange(const QMultiHash<ModelNode, InformationName> &informationChangeHash) override;
+    void instanceInformationsChanged(const QMultiHash<ModelNode, InformationName> &informationChangedHash) override;
     void instancesRenderImageChanged(const QVector<ModelNode> &nodeList) override;
     void instancesPreviewImageChanged(const QVector<ModelNode> &nodeList) override;
     void instancesChildrenChanged(const QVector<ModelNode> &nodeList) override;
@@ -101,5 +101,3 @@ private: //variables
 } // namespace Internal
 
 } // namespace QmlDesigner
-
-#endif // DEBUGVIEW_H

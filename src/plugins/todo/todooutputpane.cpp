@@ -1,8 +1,8 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Dmitry Savchenko
-** Copyright (C) 2015 Vasiliy Sorokin
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Dmitry Savchenko
+** Copyright (C) 2016 Vasiliy Sorokin
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -10,22 +10,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,24 +29,29 @@
 #include "todoitemsmodel.h"
 #include "todooutputtreeview.h"
 
+#include <aggregation/aggregate.h>
+#include <coreplugin/find/itemviewfind.h>
+
 #include <QIcon>
 #include <QHeaderView>
 #include <QToolButton>
 #include <QButtonGroup>
+#include <QSortFilterProxyModel>
 
 namespace Todo {
 namespace Internal {
 
-TodoOutputPane::TodoOutputPane(TodoItemsModel *todoItemsModel, QObject *parent) :
+TodoOutputPane::TodoOutputPane(TodoItemsModel *todoItemsModel, const Settings *settings, QObject *parent) :
     IOutputPane(parent),
-    m_todoItemsModel(todoItemsModel)
+    m_todoItemsModel(todoItemsModel),
+    m_settings(settings)
 {
     createTreeView();
     createScopeButtons();
     setScanningScope(ScanningScopeCurrentFile); // default
-    connect(m_todoItemsModel, &TodoItemsModel::layoutChanged,
+    connect(m_todoTreeView->model(), &TodoItemsModel::layoutChanged,
             this, &TodoOutputPane::navigateStateUpdate);
-    connect(m_todoItemsModel, &TodoItemsModel::layoutChanged,
+    connect(m_todoTreeView->model(), &TodoItemsModel::layoutChanged,
             this, &TodoOutputPane::updateTodoCount);
 }
 
@@ -69,11 +69,14 @@ QWidget *TodoOutputPane::outputWidget(QWidget *parent)
 
 QList<QWidget*> TodoOutputPane::toolBarWidgets() const
 {
-    return QList<QWidget*>()
-        << m_spacer
-        << m_currentFileButton
-        << m_wholeProjectButton
-        << m_subProjectButton;
+    QWidgetList widgets;
+
+    for (QToolButton *btn: m_filterButtons)
+        widgets << btn;
+
+    widgets << m_spacer << m_currentFileButton << m_wholeProjectButton << m_subProjectButton;
+
+    return widgets;
 }
 
 QString TodoOutputPane::displayName() const
@@ -88,6 +91,7 @@ int TodoOutputPane::priorityInStatusBar() const
 
 void TodoOutputPane::clearContents()
 {
+    clearFilter();
 }
 
 void TodoOutputPane::visibilityChanged(bool visible)
@@ -117,19 +121,19 @@ bool TodoOutputPane::canNavigate() const
 
 bool TodoOutputPane::canNext() const
 {
-    return m_todoTreeView->model()->rowCount() > 1;
+    return m_todoTreeView->model()->rowCount() > 0;
 }
 
 bool TodoOutputPane::canPrevious() const
 {
-    return m_todoTreeView->model()->rowCount() > 1;
+    return m_todoTreeView->model()->rowCount() > 0;
 }
 
 void TodoOutputPane::goToNext()
 {
     const QModelIndex nextIndex = nextModelIndex();
     m_todoTreeView->selectionModel()->setCurrentIndex(nextIndex, QItemSelectionModel::SelectCurrent
-                                                      | QItemSelectionModel::Rows);
+                                                      | QItemSelectionModel::Rows | QItemSelectionModel::Clear);
     todoTreeViewClicked(nextIndex);
 }
 
@@ -137,7 +141,7 @@ void TodoOutputPane::goToPrev()
 {
     const QModelIndex prevIndex = previousModelIndex();
     m_todoTreeView->selectionModel()->setCurrentIndex(prevIndex, QItemSelectionModel::SelectCurrent
-                                                      | QItemSelectionModel::Rows);
+                                                      | QItemSelectionModel::Rows | QItemSelectionModel::Clear);
     todoTreeViewClicked(prevIndex);
 }
 
@@ -153,7 +157,7 @@ void TodoOutputPane::setScanningScope(ScanningScope scanningScope)
         Q_ASSERT_X(false, "Updating scanning scope buttons", "Unknown scanning scope enum value");
 }
 
-void TodoOutputPane::scopeButtonClicked(QAbstractButton* button)
+void TodoOutputPane::scopeButtonClicked(QAbstractButton *button)
 {
     if (button == m_currentFileButton)
         emit scanningScopeChanged(ScanningScopeCurrentFile);
@@ -161,7 +165,7 @@ void TodoOutputPane::scopeButtonClicked(QAbstractButton* button)
         emit scanningScopeChanged(ScanningScopeSubProject);
     else if (button == m_wholeProjectButton)
         emit scanningScopeChanged(ScanningScopeProject);
-    setBadgeNumber(m_todoItemsModel->rowCount());
+    setBadgeNumber(m_todoTreeView->model()->rowCount());
 }
 
 void TodoOutputPane::todoTreeViewClicked(const QModelIndex &index)
@@ -172,23 +176,58 @@ void TodoOutputPane::todoTreeViewClicked(const QModelIndex &index)
 
     TodoItem item;
     item.text = index.sibling(row, Constants::OUTPUT_COLUMN_TEXT).data().toString();
-    item.file = index.sibling(row, Constants::OUTPUT_COLUMN_FILE).data().toString();
+    item.file = Utils::FileName::fromUserInput(index.sibling(row, Constants::OUTPUT_COLUMN_FILE).data().toString());
     item.line = index.sibling(row, Constants::OUTPUT_COLUMN_LINE).data().toInt();
     item.color = index.data(Qt::BackgroundColorRole).value<QColor>();
-    item.iconResource = index.sibling(row, Constants::OUTPUT_COLUMN_TEXT).data(Qt::DecorationRole).toString();
+    item.iconType = static_cast<IconType>(index.sibling(row, Constants::OUTPUT_COLUMN_TEXT)
+                                          .data(Qt::UserRole).toInt());
 
     emit todoItemClicked(item);
 }
 
 void TodoOutputPane::updateTodoCount()
 {
-    setBadgeNumber(m_todoItemsModel->rowCount());
+    setBadgeNumber(m_todoTreeView->model()->rowCount());
+}
+
+void TodoOutputPane::updateFilter()
+{
+    QStringList keywords;
+    for (QToolButton *btn: m_filterButtons) {
+        if (btn->isChecked())
+            keywords.append(btn->property(Constants::FILTER_KEYWORD_NAME).toString());
+    }
+
+    QString pattern = keywords.isEmpty() ? QString() : QString("^(%1).*").arg(keywords.join('|'));
+    int sortColumn = m_todoTreeView->header()->sortIndicatorSection();
+    Qt::SortOrder sortOrder = m_todoTreeView->header()->sortIndicatorOrder();
+
+    m_filteredTodoItemsModel->setFilterRegExp(pattern);
+    m_filteredTodoItemsModel->sort(sortColumn, sortOrder);
+
+    updateTodoCount();
+}
+
+void TodoOutputPane::clearFilter()
+{
+    for (QToolButton *btn: m_filterButtons)
+        btn->setChecked(false);
+
+    updateFilter();
 }
 
 void TodoOutputPane::createTreeView()
 {
+    m_filteredTodoItemsModel = new QSortFilterProxyModel();
+    m_filteredTodoItemsModel->setSourceModel(m_todoItemsModel);
+    m_filteredTodoItemsModel->setDynamicSortFilter(false);
+    m_filteredTodoItemsModel->setFilterKeyColumn(Constants::OUTPUT_COLUMN_TEXT);
+
     m_todoTreeView = new TodoOutputTreeView();
-    m_todoTreeView->setModel(m_todoItemsModel);
+    m_todoTreeView->setModel(m_filteredTodoItemsModel);
+    Aggregation::Aggregate *agg = new Aggregation::Aggregate;
+    agg->add(m_todoTreeView);
+    agg->add(new Core::ItemViewFind(m_todoTreeView));
 
     connect(m_todoTreeView, &TodoOutputTreeView::activated, this, &TodoOutputPane::todoTreeViewClicked);
 }
@@ -196,6 +235,19 @@ void TodoOutputPane::createTreeView()
 void TodoOutputPane::freeTreeView()
 {
     delete m_todoTreeView;
+    delete m_filteredTodoItemsModel;
+}
+
+QToolButton *TodoOutputPane::createCheckableToolButton(const QString &text, const QString &toolTip, const QIcon &icon)
+{
+    QToolButton *button = new QToolButton();
+
+    button->setCheckable(true);
+    button->setText(text);
+    button->setToolTip(toolTip);
+    button->setIcon(icon);
+
+    return button;
 }
 
 void TodoOutputPane::createScopeButtons()
@@ -224,6 +276,16 @@ void TodoOutputPane::createScopeButtons()
 
     m_spacer = new QWidget;
     m_spacer->setMinimumWidth(Constants::OUTPUT_TOOLBAR_SPACER_WIDTH);
+
+    QString tooltip = tr("Show \"%1\" entries");
+    for (const Keyword &keyword: m_settings->keywords) {
+        QToolButton *button = createCheckableToolButton(keyword.name, tooltip.arg(keyword.name), toolBarIcon(keyword.iconType));
+        button->setProperty(Constants::FILTER_KEYWORD_NAME, keyword.name);
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        connect(button, &QToolButton::clicked, this, &TodoOutputPane::updateFilter);
+
+        m_filterButtons.append(button);
+    }
 }
 
 void TodoOutputPane::freeScopeButtons()
@@ -233,6 +295,8 @@ void TodoOutputPane::freeScopeButtons()
     delete m_subProjectButton;
     delete m_scopeButtons;
     delete m_spacer;
+
+    qDeleteAll(m_filterButtons);
 }
 
 QModelIndex TodoOutputPane::selectedModelIndex()

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,7 +29,7 @@
 #include "qbsbuildstep.h"
 #include "qbscleanstep.h"
 #include "qbsdeployconfigurationfactory.h"
-#include "qbsinstallstep.h"
+#include "qbsinfopage.h"
 #include "qbsnodes.h"
 #include "qbsprofilessettingspage.h"
 #include "qbsproject.h"
@@ -98,17 +93,17 @@ bool QbsProjectManagerPlugin::initialize(const QStringList &arguments, QString *
 
     const Core::Context projectContext(::QbsProjectManager::Constants::PROJECT_ID);
 
-    Core::FileIconProvider::registerIconOverlayForSuffix(QtSupport::Constants::ICON_QT_PROJECT, "qbs");
+    Core::FileIconProvider::registerIconOverlayForSuffix(ProjectExplorer::Constants::FILEOVERLAY_QT, "qbs");
 
     //create and register objects
     addAutoReleasedObject(new QbsManager);
     addAutoReleasedObject(new QbsBuildConfigurationFactory);
     addAutoReleasedObject(new QbsBuildStepFactory);
     addAutoReleasedObject(new QbsCleanStepFactory);
-    addAutoReleasedObject(new QbsInstallStepFactory);
     addAutoReleasedObject(new QbsDeployConfigurationFactory);
     addAutoReleasedObject(new QbsRunConfigurationFactory);
     addAutoReleasedObject(new QbsProfilesSettingsPage);
+    addAutoReleasedObject(new QbsInfoPage);
 
     //menus
     // Build Menu:
@@ -130,19 +125,22 @@ bool QbsProjectManagerPlugin::initialize(const QStringList &arguments, QString *
     command = Core::ActionManager::registerAction(m_reparseQbs, Constants::ACTION_REPARSE_QBS, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_BUILD);
-    connect(m_reparseQbs, SIGNAL(triggered()), this, SLOT(reparseCurrentProject()));
+    connect(m_reparseQbs, &QAction::triggered,
+            this, &QbsProjectManagerPlugin::reparseCurrentProject);
 
     m_reparseQbsCtx = new QAction(tr("Reparse Qbs"), this);
     command = Core::ActionManager::registerAction(m_reparseQbsCtx, Constants::ACTION_REPARSE_QBS_CONTEXT, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     mproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
-    connect(m_reparseQbsCtx, SIGNAL(triggered()), this, SLOT(reparseSelectedProject()));
+    connect(m_reparseQbsCtx, &QAction::triggered,
+            this, &QbsProjectManagerPlugin::reparseSelectedProject);
 
     m_buildFileCtx = new QAction(tr("Build"), this);
     command = Core::ActionManager::registerAction(m_buildFileCtx, Constants::ACTION_BUILD_FILE_CONTEXT, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     mfile->addAction(command, ProjectExplorer::Constants::G_FILE_OTHER);
-    connect(m_buildFileCtx, SIGNAL(triggered()), this, SLOT(buildFileContextMenu()));
+    connect(m_buildFileCtx, &QAction::triggered,
+            this, &QbsProjectManagerPlugin::buildFileContextMenu);
 
     m_buildFile = new Utils::ParameterAction(tr("Build File"), tr("Build File \"%1\""),
                                                    Utils::ParameterAction::AlwaysEnabled, this);
@@ -152,13 +150,14 @@ bool QbsProjectManagerPlugin::initialize(const QStringList &arguments, QString *
     command->setDescription(m_buildFile->text());
     command->setDefaultKeySequence(QKeySequence(tr("Ctrl+Alt+B")));
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_BUILD);
-    connect(m_buildFile, SIGNAL(triggered()), this, SLOT(buildFile()));
+    connect(m_buildFile, &QAction::triggered, this, &QbsProjectManagerPlugin::buildFile);
 
     m_buildProductCtx = new QAction(tr("Build"), this);
     command = Core::ActionManager::registerAction(m_buildProductCtx, Constants::ACTION_BUILD_PRODUCT_CONTEXT, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     msubproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
-    connect(m_buildProductCtx, SIGNAL(triggered()), this, SLOT(buildProductContextMenu()));
+    connect(m_buildProductCtx, &QAction::triggered,
+            this, &QbsProjectManagerPlugin::buildProductContextMenu);
 
     m_buildProduct = new Utils::ParameterAction(tr("Build Product"), tr("Build Product \"%1\""),
                                                 Utils::ParameterAction::AlwaysEnabled, this);
@@ -168,13 +167,14 @@ bool QbsProjectManagerPlugin::initialize(const QStringList &arguments, QString *
     command->setDescription(m_buildFile->text());
     command->setDefaultKeySequence(QKeySequence(tr("Ctrl+Alt+Shift+B")));
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_BUILD);
-    connect(m_buildProduct, SIGNAL(triggered()), this, SLOT(buildProduct()));
+    connect(m_buildProduct, &QAction::triggered, this, &QbsProjectManagerPlugin::buildProduct);
 
     m_buildSubprojectCtx = new QAction(tr("Build"), this);
     command = Core::ActionManager::registerAction(m_buildSubprojectCtx, Constants::ACTION_BUILD_SUBPROJECT_CONTEXT, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     msubproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
-    connect(m_buildSubprojectCtx, SIGNAL(triggered()), this, SLOT(buildSubprojectContextMenu()));
+    connect(m_buildSubprojectCtx, &QAction::triggered,
+            this, &QbsProjectManagerPlugin::buildSubprojectContextMenu);
 
     m_buildSubproject = new Utils::ParameterAction(tr("Build Subproject"), tr("Build Subproject \"%1\""),
                                                 Utils::ParameterAction::AlwaysEnabled, this);
@@ -184,24 +184,24 @@ bool QbsProjectManagerPlugin::initialize(const QStringList &arguments, QString *
     command->setDescription(m_buildFile->text());
     command->setDefaultKeySequence(QKeySequence(tr("Ctrl+Shift+B")));
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_BUILD);
-    connect(m_buildSubproject, SIGNAL(triggered()), this, SLOT(buildSubproject()));
+    connect(m_buildSubproject, &QAction::triggered, this, &QbsProjectManagerPlugin::buildSubproject);
 
     // Connect
     connect(ProjectTree::instance(), &ProjectTree::currentNodeChanged,
             this, &QbsProjectManagerPlugin::nodeSelectionChanged);
 
-    connect(BuildManager::instance(), SIGNAL(buildStateChanged(ProjectExplorer::Project*)),
-            this, SLOT(buildStateChanged(ProjectExplorer::Project*)));
+    connect(BuildManager::instance(), &BuildManager::buildStateChanged,
+            this, &QbsProjectManagerPlugin::buildStateChanged);
 
-    connect(Core::EditorManager::instance(), SIGNAL(currentEditorChanged(Core::IEditor*)),
-            this, SLOT(currentEditorChanged()));
+    connect(Core::EditorManager::instance(), &Core::EditorManager::currentEditorChanged,
+            this, &QbsProjectManagerPlugin::currentEditorChanged);
 
-    connect(SessionManager::instance(), SIGNAL(projectAdded(ProjectExplorer::Project*)),
-            this, SLOT(projectWasAdded(ProjectExplorer::Project*)));
-    connect(SessionManager::instance(), SIGNAL(projectRemoved(ProjectExplorer::Project*)),
-            this, SLOT(projectWasRemoved()));
-    connect(SessionManager::instance(), SIGNAL(startupProjectChanged(ProjectExplorer::Project*)),
-            this, SLOT(currentProjectWasChanged(ProjectExplorer::Project*)));
+    connect(SessionManager::instance(), &SessionManager::projectAdded,
+            this, &QbsProjectManagerPlugin::projectWasAdded);
+    connect(SessionManager::instance(), &SessionManager::projectRemoved,
+            this, &QbsProjectManagerPlugin::projectWasRemoved);
+    connect(SessionManager::instance(), &SessionManager::startupProjectChanged,
+            this, &QbsProjectManagerPlugin::currentProjectWasChanged);
 
     // Run initial setup routines
     updateContextActions();
@@ -221,8 +221,10 @@ void QbsProjectManagerPlugin::projectWasAdded(Project *project)
     if (!qbsProject)
         return;
 
-    connect(qbsProject, SIGNAL(projectParsingStarted()), this, SLOT(parsingStateChanged()));
-    connect(qbsProject, SIGNAL(projectParsingDone(bool)), this, SLOT(parsingStateChanged()));
+    connect(qbsProject, &QbsProject::projectParsingStarted,
+            this, &QbsProjectManagerPlugin::parsingStateChanged);
+    connect(qbsProject, &QbsProject::projectParsingDone,
+            this, &QbsProjectManagerPlugin::parsingStateChanged);
 }
 
 void QbsProjectManagerPlugin::currentProjectWasChanged(Project *project)
@@ -254,8 +256,10 @@ void QbsProjectManagerPlugin::updateContextActions()
             && m_selectedProject && !m_selectedProject->isParsing()
             && m_selectedNode && m_selectedNode->isEnabled();
 
-    bool isFile = m_selectedProject && m_selectedNode && (m_selectedNode->nodeType() == FileNodeType);
-    bool isProduct = m_selectedProject && m_selectedNode && dynamic_cast<QbsProductNode *>(m_selectedNode->projectNode());
+    bool isFile = m_selectedProject && m_selectedNode && (m_selectedNode->nodeType() == NodeType::File);
+    bool isProduct = m_selectedProject
+            && m_selectedNode
+            && dynamic_cast<QbsProductNode *>(m_selectedNode->parentProjectNode());
     QbsProjectNode *subproject = dynamic_cast<QbsProjectNode *>(m_selectedNode);
     bool isSubproject = m_selectedProject && subproject && subproject != m_selectedProject->rootProjectNode();
 
@@ -288,11 +292,11 @@ void QbsProjectManagerPlugin::updateBuildActions()
                 && !BuildManager::isBuilding(m_editorProject)
                 && !m_editorProject->isParsing();
 
-        fileName = m_editorNode->path().fileName();
-        fileVisible = m_editorProject && m_editorNode && dynamic_cast<QbsBaseProjectNode *>(m_editorNode->projectNode());
+        fileName = m_editorNode->filePath().fileName();
+        fileVisible = m_editorProject && m_editorNode && dynamic_cast<QbsBaseProjectNode *>(m_editorNode->parentProjectNode());
 
         QbsProductNode *productNode
-                = dynamic_cast<QbsProductNode *>(m_editorNode ? m_editorNode->projectNode() : 0);
+                = dynamic_cast<QbsProductNode *>(m_editorNode ? m_editorNode->parentProjectNode() : 0);
         if (productNode) {
             productVisible = true;
             productName = productNode->displayName();
@@ -361,7 +365,7 @@ void QbsProjectManagerPlugin::buildFileContextMenu()
     QTC_ASSERT(m_selectedNode, return);
     QTC_ASSERT(m_selectedProject, return);
 
-    buildSingleFile(m_selectedProject, m_selectedNode->path().toString());
+    buildSingleFile(m_selectedProject, m_selectedNode->filePath().toString());
 }
 
 void QbsProjectManagerPlugin::buildFile()
@@ -369,7 +373,7 @@ void QbsProjectManagerPlugin::buildFile()
     if (!m_editorProject || !m_editorNode)
         return;
 
-    buildSingleFile(m_editorProject, m_editorNode->path().toString());
+    buildSingleFile(m_editorProject, m_editorNode->filePath().toString());
 }
 
 void QbsProjectManagerPlugin::buildProductContextMenu()
@@ -389,7 +393,7 @@ void QbsProjectManagerPlugin::buildProduct()
     if (!m_editorProject || !m_editorNode)
         return;
 
-    QbsProductNode *product = dynamic_cast<QbsProductNode *>(m_editorNode->projectNode());
+    QbsProductNode *product = dynamic_cast<QbsProductNode *>(m_editorNode->parentProjectNode());
 
     if (!product)
         return;
@@ -419,7 +423,7 @@ void QbsProjectManagerPlugin::buildSubproject()
         return;
 
     QbsProjectNode *subproject = 0;
-    QbsBaseProjectNode *start = dynamic_cast<QbsBaseProjectNode *>(m_editorNode->projectNode());
+    QbsBaseProjectNode *start = dynamic_cast<QbsBaseProjectNode *>(m_editorNode->parentProjectNode());
     while (start && start != m_editorProject->rootProjectNode()) {
         QbsProjectNode *tmp = dynamic_cast<QbsProjectNode *>(start);
         if (tmp) {
@@ -470,8 +474,7 @@ void QbsProjectManagerPlugin::buildFiles(QbsProject *project, const QStringList 
 
 void QbsProjectManagerPlugin::buildSingleFile(QbsProject *project, const QString &file)
 {
-    buildFiles(project, QStringList(file), QStringList()
-               << QLatin1String("obj") << QLatin1String("hpp"));
+    buildFiles(project, QStringList(file), QStringList({ "obj", "hpp" }));
 }
 
 void QbsProjectManagerPlugin::buildProducts(QbsProject *project, const QStringList &products)

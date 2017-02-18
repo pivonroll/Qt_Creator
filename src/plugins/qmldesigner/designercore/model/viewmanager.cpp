@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,41 +9,45 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "viewmanager.h"
 
+#ifndef QMLDESIGNER_TEST
+
+#include <componentaction.h>
+#include <designmodewidget.h>
+#include <crumblebar.h>
+#include <abstractview.h>
 #include <rewriterview.h>
 #include <nodeinstanceview.h>
 #include <itemlibraryview.h>
 #include <navigatorview.h>
 #include <stateseditorview.h>
 #include <formeditorview.h>
+#include <texteditorview.h>
 #include <propertyeditorview.h>
 #include <componentview.h>
 #include <debugview.h>
 #include <importmanagerview.h>
 #include <designeractionmanagerview.h>
+#include <qmldesignerplugin.h>
 
-#include "componentaction.h"
-#include "designmodewidget.h"
-#include "crumblebar.h"
-
-#include <qmldesigner/qmldesignerplugin.h>
 #include <utils/algorithm.h>
 
+#include <QTabWidget>
 
 namespace QmlDesigner {
 
@@ -52,14 +56,15 @@ class ViewManagerData
 public:
     QmlModelState savedState;
     Internal::DebugView debugView;
+    DesignerActionManagerView designerActionManagerView;
+    NodeInstanceView nodeInstanceView;
     ComponentView componentView;
     FormEditorView formEditorView;
+    TextEditorView textEditorView;
     ItemLibraryView itemLibraryView;
     NavigatorView navigatorView;
     PropertyEditorView propertyEditorView;
     StatesEditorView statesEditorView;
-    NodeInstanceView nodeInstanceView;
-    DesignerActionManagerView designerActionManagerView;
 
     QList<QPointer<AbstractView> > additionalViews;
 };
@@ -72,6 +77,13 @@ static CrumbleBar *crumbleBar() {
 ViewManager::ViewManager()
     : d(new ViewManagerData)
 {
+    d->formEditorView.setGotoErrorCallback([this](int line, int column) {
+        d->textEditorView.gotoCursorPosition(line, column);
+        if (Internal::DesignModeWidget *designModeWidget = QmlDesignerPlugin::instance()->mainWidget()) {
+            if (QTabWidget *centralTabWidget = designModeWidget->centralTabWidget())
+                centralTabWidget->setCurrentIndex(1);
+        }
+    });
 }
 
 ViewManager::~ViewManager()
@@ -95,16 +107,23 @@ void ViewManager::attachNodeInstanceView()
 
 void ViewManager::attachRewriterView()
 {
-    if (currentDesignDocument()->rewriterView()) {
-        currentModel()->setRewriterView(currentDesignDocument()->rewriterView());
-        currentDesignDocument()->rewriterView()->reactivateTextMofifierChangeSignals();
+    if (RewriterView *view = currentDesignDocument()->rewriterView()) {
+        view->setWidgetStatusCallback([this](bool enable) {
+            if (enable)
+                enableWidgets();
+            else
+                disableWidgets();
+        });
+
+        currentModel()->setRewriterView(view);
+        view->reactivateTextMofifierChangeSignals();
     }
 }
 
 void ViewManager::detachRewriterView()
 {
-    if (currentDesignDocument()->rewriterView()) {
-        currentDesignDocument()->rewriterView()->deactivateTextMofifierChangeSignals();
+    if (RewriterView *view = currentDesignDocument()->rewriterView()) {
+        view->deactivateTextMofifierChangeSignals();
         currentModel()->setRewriterView(0);
     }
 }
@@ -144,6 +163,7 @@ void ViewManager::detachViewsExceptRewriterAndComponetView()
     detachAdditionalViews();
     currentModel()->detachView(&d->designerActionManagerView);
     currentModel()->detachView(&d->formEditorView);
+    currentModel()->detachView(&d->textEditorView);
     currentModel()->detachView(&d->navigatorView);
     currentModel()->detachView(&d->itemLibraryView);
     currentModel()->detachView(&d->statesEditorView);
@@ -190,16 +210,18 @@ void ViewManager::detachComponentView()
 
 void ViewManager::attachViewsExceptRewriterAndComponetView()
 {
-    if (QmlDesignerPlugin::instance()->settings().enableDebugView)
+    if (QmlDesignerPlugin::instance()->settings().value(
+            DesignerSettingsKey::ENABLE_DEBUGVIEW).toBool())
         currentModel()->attachView(&d->debugView);
 
     attachNodeInstanceView();
+    currentModel()->attachView(&d->designerActionManagerView);
     currentModel()->attachView(&d->formEditorView);
+    currentModel()->attachView(&d->textEditorView);
     currentModel()->attachView(&d->navigatorView);
     attachItemLibraryView();
     currentModel()->attachView(&d->statesEditorView);
     currentModel()->attachView(&d->propertyEditorView);
-    currentModel()->attachView(&d->designerActionManagerView);
     attachAdditionalViews();
     switchStateEditorViewToSavedState();
 }
@@ -224,11 +246,17 @@ void ViewManager::setNodeInstanceViewKit(ProjectExplorer::Kit *kit)
     d->nodeInstanceView.setKit(kit);
 }
 
+void QmlDesigner::ViewManager::setNodeInstanceViewProject(ProjectExplorer::Project *project)
+{
+    d->nodeInstanceView.setProject(project);
+}
+
 QList<WidgetInfo> ViewManager::widgetInfos()
 {
     QList<WidgetInfo> widgetInfoList;
 
     widgetInfoList.append(d->formEditorView.widgetInfo());
+    widgetInfoList.append(d->textEditorView.widgetInfo());
     widgetInfoList.append(d->itemLibraryView.widgetInfo());
     widgetInfoList.append(d->navigatorView.widgetInfo());
     widgetInfoList.append(d->propertyEditorView.widgetInfo());
@@ -251,16 +279,18 @@ QList<WidgetInfo> ViewManager::widgetInfos()
 void ViewManager::disableWidgets()
 {
     foreach (const WidgetInfo &widgetInfo, widgetInfos())
-        widgetInfo.widget->setEnabled(false);
+        if (widgetInfo.widgetFlags == DesignerWidgetFlags::DisableOnError)
+            widgetInfo.widget->setEnabled(false);
 }
 
 void ViewManager::enableWidgets()
 {
     foreach (const WidgetInfo &widgetInfo, widgetInfos())
-        widgetInfo.widget->setEnabled(true);
+        if (widgetInfo.widgetFlags == DesignerWidgetFlags::DisableOnError)
+            widgetInfo.widget->setEnabled(true);
 }
 
-void ViewManager::pushFileOnCrumbleBar(const QString &fileName)
+void ViewManager::pushFileOnCrumbleBar(const Utils::FileName &fileName)
 {
     crumbleBar()->pushFile(fileName);
 }
@@ -295,6 +325,11 @@ const DesignerActionManager &ViewManager::designerActionManager() const
     return d->designerActionManagerView.designerActionManager();
 }
 
+void ViewManager::toggleStatesViewExpanded()
+{
+    d->statesEditorView.toggleStatesViewExpanded();
+}
+
 Model *ViewManager::currentModel() const
 {
     return currentDesignDocument()->currentModel();
@@ -305,4 +340,16 @@ Model *ViewManager::documentModel() const
     return currentDesignDocument()->documentModel();
 }
 
+void ViewManager::exportAsImage()
+{
+    d->formEditorView.exportAsImage();
+}
+
+void ViewManager::reformatFileUsingTextEditorView()
+{
+    d->textEditorView.reformatFile();
+}
+
 } // namespace QmlDesigner
+
+#endif //QMLDESIGNER_TEST

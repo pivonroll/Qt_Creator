@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,7 +28,7 @@
 #include "baseannotationhighlighter.h"
 #include "basevcseditorfactory.h"
 #include "vcsbaseplugin.h"
-#include "vcsbaseeditorparameterwidget.h"
+#include "vcsbaseeditorconfig.h"
 #include "vcscommand.h"
 
 #include <coreplugin/icore.h>
@@ -161,13 +156,7 @@ VcsBaseEditor::VcsBaseEditor()
 
 void VcsBaseEditor::finalizeInitialization()
 {
-    auto widget = qobject_cast<VcsBaseEditorWidget *>(editorWidget());
-    QTC_ASSERT(widget, return);
-    // Pass on signals.
-    connect(widget, &VcsBaseEditorWidget::describeRequested,
-            this, &VcsBaseEditor::describeRequested);
-    connect(widget, &VcsBaseEditorWidget::annotateRevisionRequested,
-            this, &VcsBaseEditor::annotateRevisionRequested);
+    QTC_CHECK(qobject_cast<VcsBaseEditorWidget *>(editorWidget()));
 }
 
 // ----------- VcsBaseEditorPrivate
@@ -558,43 +547,34 @@ public:
     QComboBox *entriesComboBox();
 
     TextEditorWidget *q;
-    const VcsBaseEditorParameters *m_parameters;
+    const VcsBaseEditorParameters *m_parameters = nullptr;
 
     QString m_workingDirectory;
 
     QRegExp m_diffFilePattern;
     QRegExp m_logEntryPattern;
     QList<int> m_entrySections; // line number where this section starts
-    int m_cursorLine;
+    int m_cursorLine = -1;
+    int m_firstLineNumber = -1;
     QString m_annotateRevisionTextFormat;
     QString m_annotatePreviousRevisionTextFormat;
     QString m_copyRevisionTextFormat;
-    bool m_fileLogAnnotateEnabled;
-    VcsBaseEditorParameterWidget *m_configurationWidget;
-    bool m_mouseDragging;
+    bool m_configurationAdded = false;
     QList<AbstractTextCursorHandler *> m_textCursorHandlers;
     QPointer<VcsCommand> m_command;
-    QObject *m_describeReceiver;
-    const char *m_describeSlot;
-    Utils::ProgressIndicator *m_progressIndicator;
+    VcsBaseEditorWidget::DescribeFunc m_describeFunc = nullptr;
+    Utils::ProgressIndicator *m_progressIndicator = nullptr;
+    bool m_fileLogAnnotateEnabled = false;
+    bool m_mouseDragging = false;
 
 private:
-    QComboBox *m_entriesComboBox;
+    QComboBox *m_entriesComboBox = nullptr;
 };
 
 VcsBaseEditorWidgetPrivate::VcsBaseEditorWidgetPrivate(VcsBaseEditorWidget *editorWidget)  :
     q(editorWidget),
-    m_parameters(0),
-    m_cursorLine(-1),
     m_annotateRevisionTextFormat(VcsBaseEditorWidget::tr("Annotate \"%1\"")),
-    m_copyRevisionTextFormat(VcsBaseEditorWidget::tr("Copy \"%1\"")),
-    m_fileLogAnnotateEnabled(false),
-    m_configurationWidget(0),
-    m_mouseDragging(false),
-    m_describeReceiver(0),
-    m_describeSlot(0),
-    m_progressIndicator(0),
-    m_entriesComboBox(0)
+    m_copyRevisionTextFormat(VcsBaseEditorWidget::tr("Copy \"%1\""))
 {
     m_textCursorHandlers.append(new ChangeTextCursorHandler(editorWidget));
     m_textCursorHandlers.append(new UrlTextCursorHandler(editorWidget));
@@ -695,17 +675,45 @@ QString VcsBaseEditorWidget::fileNameForLine(int line) const
     return source();
 }
 
-void VcsBaseEditorWidget::setDescribeSlot(QObject *describeReceiver, const char *describeSlot)
+int VcsBaseEditorWidget::firstLineNumber() const
 {
-    d->m_describeReceiver = describeReceiver;
-    d->m_describeSlot = describeSlot;
+    return d->m_firstLineNumber;
+}
+
+void VcsBaseEditorWidget::setFirstLineNumber(int firstLineNumber)
+{
+    d->m_firstLineNumber = firstLineNumber;
+}
+
+QString VcsBaseEditorWidget::lineNumber(int blockNumber) const
+{
+    if (d->m_firstLineNumber > 0)
+        return QString::number(d->m_firstLineNumber + blockNumber);
+    return TextEditorWidget::lineNumber(blockNumber);
+}
+
+int VcsBaseEditorWidget::lineNumberDigits() const
+{
+    if (d->m_firstLineNumber <= 0)
+        return TextEditorWidget::lineNumberDigits();
+
+    int digits = 2;
+    int max = qMax(1, d->m_firstLineNumber + blockCount());
+    while (max >= 100) {
+        max /= 10;
+        ++digits;
+    }
+    return digits;
+}
+
+void VcsBaseEditorWidget::setDescribeFunc(DescribeFunc describeFunc)
+{
+    d->m_describeFunc = describeFunc;
 }
 
 void VcsBaseEditorWidget::finalizeInitialization()
 {
-    if (d->m_describeReceiver)
-        connect(this, SIGNAL(describeRequested(QString,QString)), d->m_describeReceiver, d->m_describeSlot);
-
+    connect(this, &VcsBaseEditorWidget::describeRequested, this, d->m_describeFunc);
     init();
 }
 
@@ -1204,10 +1212,15 @@ DiffChunk VcsBaseEditorWidget::diffChunk(QTextCursor cursor) const
 void VcsBaseEditorWidget::reportCommandFinished(bool ok, int exitCode, const QVariant &data)
 {
     Q_UNUSED(exitCode);
-    Q_UNUSED(data);
 
-    if (!ok)
+    hideProgressIndicator();
+    if (!ok) {
         textDocument()->setPlainText(tr("Failed to retrieve data."));
+    } else if (data.type() == QVariant::Int) {
+        const int line = data.toInt();
+        if (line >= 0)
+            gotoLine(line);
+    }
 }
 
 const VcsBaseEditorParameters *VcsBaseEditor::findType(const VcsBaseEditorParameters *array,
@@ -1367,20 +1380,14 @@ QString VcsBaseEditor::getTitleId(const QString &workingDirectory,
     return rc;
 }
 
-bool VcsBaseEditorWidget::setConfigurationWidget(VcsBaseEditorParameterWidget *w)
+void VcsBaseEditorWidget::setConfigurationAdded()
 {
-    if (d->m_configurationWidget)
-        return false;
-
-    d->m_configurationWidget = w;
-    insertExtraToolBarWidget(TextEditorWidget::Right, w);
-
-    return true;
+    d->m_configurationAdded = true;
 }
 
-VcsBaseEditorParameterWidget *VcsBaseEditorWidget::configurationWidget() const
+bool VcsBaseEditorWidget::configurationAdded() const
 {
-    return d->m_configurationWidget;
+    return d->m_configurationAdded;
 }
 
 void VcsBaseEditorWidget::setCommand(VcsCommand *command)
@@ -1390,12 +1397,11 @@ void VcsBaseEditorWidget::setCommand(VcsCommand *command)
         hideProgressIndicator();
     }
     d->m_command = command;
-    if (d->m_command) {
+    if (command) {
         d->m_progressIndicator = new Utils::ProgressIndicator(Utils::ProgressIndicator::Large);
         d->m_progressIndicator->attachToWidget(this);
-        connect(d->m_command.data(), &VcsCommand::finished,
-                this, &VcsBaseEditorWidget::hideProgressIndicator);
-        QTimer::singleShot(100, this, SLOT(showProgressIndicator()));
+        connect(command, &VcsCommand::finished, this, &VcsBaseEditorWidget::reportCommandFinished);
+        QTimer::singleShot(100, this, &VcsBaseEditorWidget::showProgressIndicator);
     }
 }
 
@@ -1635,6 +1641,8 @@ void VcsBase::VcsBaseEditorWidget::testDiffFileResolving(const char *id)
     QFETCH(QByteArray, fileName);
     QTextDocument doc(QString::fromLatin1(header));
     QTextBlock block = doc.lastBlock();
+    // set source root for shadow builds
+    widget->setSource(QString::fromLatin1(SRC_DIR));
     QVERIFY(widget->fileNameFromDiffSpecification(block).endsWith(QString::fromLatin1(fileName)));
 
     delete editor;

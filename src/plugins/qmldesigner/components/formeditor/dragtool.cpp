@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -28,13 +28,17 @@
 #include "formeditorscene.h"
 #include "formeditorview.h"
 #include <metainfo.h>
+#include <nodehints.h>
 #include <rewritingexception.h>
 
-#include <QGraphicsSceneMouseEvent>
 #include <QDebug>
+#include <QGraphicsSceneMouseEvent>
+#include <QLoggingCategory>
 #include <QMimeData>
 #include <QTimer>
 #include <QWidget>
+
+static Q_LOGGING_CATEGORY(dragToolInfo, "qtc.qmldesigner.formeditor");
 
 namespace QmlDesigner {
 
@@ -196,6 +200,10 @@ void DragTool::clearMoveDelay()
     }
 }
 
+void DragTool::focusLost()
+{
+}
+
 void DragTool::abort()
 {
     if (!m_isAborted) {
@@ -203,40 +211,6 @@ void DragTool::abort()
 
         if (m_dragNode.isValid())
             m_dragNode.destroy();
-    }
-}
-
-static bool canHandleMimeData(const QMimeData *mimeData)
-{
-    return mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.itemlibraryinfo"))
-          || mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.libraryresource"));
-}
-
-static bool hasItemLibraryInfo(const QMimeData *mimeData)
-{
-    return mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.itemlibraryinfo"));
-}
-
-static bool hasLibraryResources(const QMimeData *mimeData)
-{
-    return mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.libraryresource"));
-}
-
-void DragTool::dropEvent(const QList<QGraphicsItem*> &/*itemList*/, QGraphicsSceneDragDropEvent *event)
-{
-    if (canHandleMimeData(event->mimeData())) {
-        event->accept();
-        end(generateUseSnapping(event->modifiers()));
-
-        commitTransaction();
-
-        if (m_dragNode.isValid())
-            view()->setSelectedModelNode(m_dragNode);
-
-
-        m_dragNode = QmlItemNode();
-
-        view()->changeToSelectionTool();
     }
 }
 
@@ -252,11 +226,57 @@ static ItemLibraryEntry itemLibraryEntryFromMimeData(const QMimeData *mimeData)
     return itemLibraryEntry;
 }
 
+static bool canBeDropped(const QMimeData *mimeData)
+{
+    return NodeHints::fromItemLibraryEntry(itemLibraryEntryFromMimeData(mimeData)).canBeDroppedInFormEditor();
+}
+
+static bool canHandleMimeData(const QMimeData *mimeData)
+{
+    return mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.itemlibraryinfo"))
+          || mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.libraryresource"));
+}
+
+static bool dragAndDropPossible(const QMimeData *mimeData)
+{
+    return canHandleMimeData(mimeData) && canBeDropped(mimeData);
+}
+
+static bool hasItemLibraryInfo(const QMimeData *mimeData)
+{
+    return mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.itemlibraryinfo"));
+}
+
+static bool hasLibraryResources(const QMimeData *mimeData)
+{
+    return mimeData->hasFormat(QStringLiteral("application/vnd.bauhaus.libraryresource"));
+}
+
+void DragTool::dropEvent(const QList<QGraphicsItem*> &/*itemList*/, QGraphicsSceneDragDropEvent *event)
+{
+    if (dragAndDropPossible(event->mimeData())) {
+        event->accept();
+        end(generateUseSnapping(event->modifiers()));
+
+        commitTransaction();
+
+        if (m_dragNode.isValid())
+            view()->setSelectedModelNode(m_dragNode);
+
+
+        m_dragNode = QmlItemNode();
+
+        view()->changeToSelectionTool();
+    }
+}
+
 void DragTool::dragEnterEvent(const QList<QGraphicsItem*> &/*itemList*/, QGraphicsSceneDragDropEvent *event)
 {
-    if (canHandleMimeData(event->mimeData())) {
+    if (dragAndDropPossible(event->mimeData())) {
         m_blockMove = false;
+
         if (hasItemLibraryInfo(event->mimeData())) {
+
             view()->widgetInfo().widget->setFocus();
             m_isAborted = false;
         }
@@ -270,7 +290,7 @@ void DragTool::dragEnterEvent(const QList<QGraphicsItem*> &/*itemList*/, QGraphi
 
 void DragTool::dragLeaveEvent(const QList<QGraphicsItem*> &/*itemList*/, QGraphicsSceneDragDropEvent *event)
 {
-    if (canHandleMimeData(event->mimeData())) {
+    if (dragAndDropPossible(event->mimeData())) {
         event->accept();
 
         m_moveManipulator.end();
@@ -311,7 +331,7 @@ void DragTool::createDragNode(const QMimeData *mimeData, const QPointF &scenePos
 
 void DragTool::dragMoveEvent(const QList<QGraphicsItem*> &itemList, QGraphicsSceneDragDropEvent *event)
 {
-    if (!m_blockMove && !m_isAborted && canHandleMimeData(event->mimeData())) {
+    if (!m_blockMove && !m_isAborted && dragAndDropPossible(event->mimeData())) {
         event->accept();
         if (m_dragNode.isValid()) {
             FormEditorItem *targetContainerItem = targetContainerOrRootItem(itemList);
@@ -348,7 +368,13 @@ void  DragTool::move(const QPointF &scenePosition, const QList<QGraphicsItem*> &
         if (containerItem && m_movingItem->parentItem() &&
                 containerItem != m_movingItem->parentItem()) {
 
-            m_moveManipulator.reparentTo(containerItem);
+            const QmlItemNode movingNode = m_movingItem->qmlItemNode();
+            const QmlItemNode containerNode = containerItem->qmlItemNode();
+
+            qCInfo(dragToolInfo()) << Q_FUNC_INFO << movingNode << containerNode << movingNode.canBereparentedTo(containerNode);
+
+            if (movingNode.canBereparentedTo(containerNode))
+                m_moveManipulator.reparentTo(containerItem);
         }
 
         Snapper::Snapping useSnapping = Snapper::UseSnapping;

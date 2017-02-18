@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 Thorben Kroeger <thorbenkroeger@gmail.com>.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Thorben Kroeger <thorbenkroeger@gmail.com>.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -44,7 +39,6 @@ namespace Utils {
 static Theme *m_creatorTheme = 0;
 
 ThemePrivate::ThemePrivate()
-    : widgetStyle(Theme::StyleDefault)
 {
     const QMetaObject &m = Theme::staticMetaObject;
     colors.resize        (m.enumerator(m.indexOfEnumerator("Color")).keyCount());
@@ -58,19 +52,30 @@ Theme *creatorTheme()
     return m_creatorTheme;
 }
 
+Theme *proxyTheme()
+{
+    return new Theme(*(new ThemePrivate(*(m_creatorTheme->d))));
+}
+
 void setCreatorTheme(Theme *theme)
 {
     if (m_creatorTheme == theme)
         return;
     delete m_creatorTheme;
     m_creatorTheme = theme;
+    if (theme && theme->flag(Theme::ApplyThemePaletteGlobally))
+        QApplication::setPalette(theme->palette());
 }
 
-Theme::Theme(const QString &name, QObject *parent)
+Theme::Theme(const QString &id, QObject *parent)
   : QObject(parent)
   , d(new ThemePrivate)
 {
-    d->name = name;
+    d->id = id;
+}
+
+Theme::Theme(ThemePrivate &dd, QObject *parent) : QObject(parent), d(&dd)
+{
 }
 
 Theme::~Theme()
@@ -78,14 +83,19 @@ Theme::~Theme()
     delete d;
 }
 
-Theme::WidgetStyle Theme::widgetStyle() const
-{
-    return d->widgetStyle;
-}
-
 QStringList Theme::preferredStyles() const
 {
     return d->preferredStyles;
+}
+
+QString Theme::defaultTextEditorColorScheme() const
+{
+    return d->defaultTextEditorColorScheme;
+}
+
+QString Theme::id() const
+{
+    return d->id;
 }
 
 bool Theme::flag(Theme::Flag f) const
@@ -130,40 +140,37 @@ QString Theme::filePath() const
     return d->fileName;
 }
 
-QString Theme::name() const
+QString Theme::displayName() const
 {
-    return d->name;
+    return d->displayName;
 }
 
-void Theme::setName(const QString &name)
+void Theme::setDisplayName(const QString &name)
 {
-    d->name = name;
+    d->displayName = name;
 }
 
-QVariantHash Theme::values() const
+const QVariantMap &Theme::values() const
 {
-    QVariantHash result;
-    const QMetaObject &m = *metaObject();
-    {
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("Color"));
-        for (int i = 0, total = e.keyCount(); i < total; ++i) {
-            const QString key = QLatin1String(e.key(i));
-            const QPair<QColor, QString> &var = d->colors.at(i);
-            result.insert(key, var.first);
+    if (d->values.isEmpty()) {
+        const QMetaObject &m = *metaObject();
+        {
+            const QMetaEnum e = m.enumerator(m.indexOfEnumerator("Color"));
+            for (int i = 0, total = e.keyCount(); i < total; ++i) {
+                const QString key = QLatin1String(e.key(i));
+                const QPair<QColor, QString> &var = d->colors.at(i);
+                d->values.insert(key, var.first);
+            }
+        }
+        {
+            const QMetaEnum e = m.enumerator(m.indexOfEnumerator("Flag"));
+            for (int i = 0, total = e.keyCount(); i < total; ++i) {
+                const QString key = QLatin1String(e.key(i));
+                d->values.insert(key, flag(static_cast<Theme::Flag>(i)));
+            }
         }
     }
-    {
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("Flag"));
-        for (int i = 0, total = e.keyCount(); i < total; ++i) {
-            const QString key = QLatin1String(e.key(i));
-            result.insert(key, flag(static_cast<Theme::Flag>(i)));
-        }
-    }
-    {
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("WidgetStyle"));
-        result.insert(QLatin1String("WidgetStyle"), QLatin1String(e.valueToKey(widgetStyle())));
-    }
-    return result;
+    return d->values;
 }
 
 static QColor readColor(const QString &color)
@@ -173,114 +180,22 @@ static QColor readColor(const QString &color)
     return QColor::fromRgba(rgba);
 }
 
-static QString writeColor(const QColor &color)
-{
-    return QString::number(color.rgba(), 16);
-}
-
-// reading, writing of .creatortheme ini file ////////////////////////////////
-void Theme::writeSettings(const QString &filename) const
-{
-    QSettings settings(filename, QSettings::IniFormat);
-
-    const QMetaObject &m = *metaObject();
-    {
-        settings.setValue(QLatin1String("ThemeName"), d->name);
-        settings.setValue(QLatin1String("PreferredStyles"), d->preferredStyles);
-    }
-    {
-        settings.beginGroup(QLatin1String("Palette"));
-        for (int i = 0, total = d->colors.size(); i < total; ++i) {
-            const QPair<QColor, QString> var = d->colors[i];
-            if (var.second.isEmpty())
-                continue;
-            settings.setValue(var.second, writeColor(var.first));
-        }
-        settings.endGroup();
-    }
-    {
-        settings.beginGroup(QLatin1String("Colors"));
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("Color"));
-        for (int i = 0, total = e.keyCount(); i < total; ++i) {
-            const QString key = QLatin1String(e.key(i));
-            const QPair<QColor, QString> var = d->colors[i];
-            if (!var.second.isEmpty())
-                settings.setValue(key, var.second); // named color
-            else
-                settings.setValue(key, writeColor(var.first));
-        }
-        settings.endGroup();
-    }
-    {
-        settings.beginGroup(QLatin1String("ImageFiles"));
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("ImageFile"));
-        for (int i = 0, total = e.keyCount(); i < total; ++i) {
-            const QString key = QLatin1String(e.key(i));
-            const QString &var = d->imageFiles.at(i);
-            if (!var.isEmpty())
-                settings.setValue(key, var);
-        }
-        settings.endGroup();
-    }
-    {
-        settings.beginGroup(QLatin1String("Gradients"));
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("Gradient"));
-        for (int i = 0, total = e.keyCount(); i < total; ++i) {
-            const QString key = QLatin1String(e.key(i));
-            QGradientStops stops = gradient(static_cast<Theme::Gradient>(i));
-            settings.beginWriteArray(key);
-            int k = 0;
-            foreach (const QGradientStop stop, stops) {
-                settings.setArrayIndex(k);
-                settings.setValue(QLatin1String("pos"), stop.first);
-                settings.setValue(QLatin1String("color"), writeColor(stop.second));
-                ++k;
-            }
-            settings.endArray();
-        }
-        settings.endGroup();
-    }
-    {
-        settings.beginGroup(QLatin1String("Flags"));
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("Flag"));
-        for (int i = 0, total = e.keyCount(); i < total; ++i) {
-            const QString key = QLatin1String(e.key(i));
-            settings.setValue(key, flag(static_cast<Theme::Flag>(i)));
-        }
-        settings.endGroup();
-    }
-
-    {
-        settings.beginGroup(QLatin1String("Style"));
-        const QMetaEnum e = m.enumerator(m.indexOfEnumerator("WidgetStyle"));
-        settings.setValue(QLatin1String("WidgetStyle"), QLatin1String(e.valueToKey(widgetStyle ())));
-        settings.endGroup();
-    }
-}
-
 void Theme::readSettings(QSettings &settings)
 {
     d->fileName = settings.fileName();
     const QMetaObject &m = *metaObject();
 
     {
-        d->name = settings.value(QLatin1String("ThemeName"), QLatin1String("unnamed")).toString();
+        d->displayName = settings.value(QLatin1String("ThemeName"), QLatin1String("unnamed")).toString();
         d->preferredStyles = settings.value(QLatin1String("PreferredStyles")).toStringList();
         d->preferredStyles.removeAll(QLatin1String(""));
+        d->defaultTextEditorColorScheme =
+                settings.value(QLatin1String("DefaultTextEditorColorScheme")).toString();
     }
     {
         settings.beginGroup(QLatin1String("Palette"));
-        foreach (const QString &key, settings.allKeys()) {
-            QColor c = readColor(settings.value(key).toString());
-            d->palette[key] = c;
-        }
-        settings.endGroup();
-    }
-    {
-        settings.beginGroup(QLatin1String("Style"));
-        QMetaEnum e = m.enumerator(m.indexOfEnumerator("WidgetStyle"));
-        QString val = settings.value(QLatin1String("WidgetStyle")).toString();
-        d->widgetStyle = static_cast<Theme::WidgetStyle>(e.keysToValue (val.toLatin1().data()));
+        foreach (const QString &key, settings.allKeys())
+            d->palette[key] = readNamedColor(settings.value(key).toString()).first;
         settings.endGroup();
     }
     {
@@ -289,8 +204,9 @@ void Theme::readSettings(QSettings &settings)
         for (int i = 0, total = e.keyCount(); i < total; ++i) {
             const QString key = QLatin1String(e.key(i));
             if (!settings.contains(key)) {
-                qWarning("Theme \"%s\" misses color setting for key \"%s\".",
-                         qPrintable(d->fileName), qPrintable(key));
+                if (i < PaletteWindow || i > PaletteShadowDisabled)
+                    qWarning("Theme \"%s\" misses color setting for key \"%s\".",
+                             qPrintable(d->fileName), qPrintable(key));
                 continue;
             }
             d->colors[i] = readNamedColor(settings.value(key).toString());
@@ -350,27 +266,64 @@ QPalette Theme::palette() const
     if (!flag(DerivePaletteFromTheme))
         return pal;
 
-    // FIXME: introduce some more color roles for this
+    const static struct {
+        Color themeColor;
+        QPalette::ColorRole paletteColorRole;
+        QPalette::ColorGroup paletteColorGroup;
+        bool setColorRoleAsBrush;
+    } mapping[] = {
+        { PaletteWindow,                    QPalette::Window,           QPalette::All,      false},
+        { PaletteWindowDisabled,            QPalette::Window,           QPalette::Disabled, false},
+        { PaletteWindowText,                QPalette::WindowText,       QPalette::All,      true},
+        { PaletteWindowTextDisabled,        QPalette::WindowText,       QPalette::Disabled, true},
+        { PaletteBase,                      QPalette::Base,             QPalette::All,      false},
+        { PaletteBaseDisabled,              QPalette::Base,             QPalette::Disabled, false},
+        { PaletteAlternateBase,             QPalette::AlternateBase,    QPalette::All,      false},
+        { PaletteAlternateBaseDisabled,     QPalette::AlternateBase,    QPalette::Disabled, false},
+        { PaletteToolTipBase,               QPalette::ToolTipBase,      QPalette::All,      true},
+        { PaletteToolTipBaseDisabled,       QPalette::ToolTipBase,      QPalette::Disabled, true},
+        { PaletteToolTipText,               QPalette::ToolTipText,      QPalette::All,      false},
+        { PaletteToolTipTextDisabled,       QPalette::ToolTipText,      QPalette::Disabled, false},
+        { PaletteText,                      QPalette::Text,             QPalette::All,      true},
+        { PaletteTextDisabled,              QPalette::Text,             QPalette::Disabled, true},
+        { PaletteButton,                    QPalette::Button,           QPalette::All,      false},
+        { PaletteButtonDisabled,            QPalette::Button,           QPalette::Disabled, false},
+        { PaletteButtonText,                QPalette::ButtonText,       QPalette::All,      true},
+        { PaletteButtonTextDisabled,        QPalette::ButtonText,       QPalette::Disabled, true},
+        { PaletteBrightText,                QPalette::BrightText,       QPalette::All,      false},
+        { PaletteBrightTextDisabled,        QPalette::BrightText,       QPalette::Disabled, false},
+        { PaletteHighlight,                 QPalette::Highlight,        QPalette::All,      true},
+        { PaletteHighlightDisabled,         QPalette::Highlight,        QPalette::Disabled, true},
+        { PaletteHighlightedText,           QPalette::HighlightedText,  QPalette::All,      true},
+        { PaletteHighlightedTextDisabled,   QPalette::HighlightedText,  QPalette::Disabled, true},
+        { PaletteLink,                      QPalette::Link,             QPalette::All,      false},
+        { PaletteLinkDisabled,              QPalette::Link,             QPalette::Disabled, false},
+        { PaletteLinkVisited,               QPalette::LinkVisited,      QPalette::All,      false},
+        { PaletteLinkVisitedDisabled,       QPalette::LinkVisited,      QPalette::Disabled, false},
+        { PaletteLight,                     QPalette::Light,            QPalette::All,      false},
+        { PaletteLightDisabled,             QPalette::Light,            QPalette::Disabled, false},
+        { PaletteMidlight,                  QPalette::Midlight,         QPalette::All,      false},
+        { PaletteMidlightDisabled,          QPalette::Midlight,         QPalette::Disabled, false},
+        { PaletteDark,                      QPalette::Dark,             QPalette::All,      false},
+        { PaletteDarkDisabled,              QPalette::Dark,             QPalette::Disabled, false},
+        { PaletteMid,                       QPalette::Mid,              QPalette::All,      false},
+        { PaletteMidDisabled,               QPalette::Mid,              QPalette::Disabled, false},
+        { PaletteShadow,                    QPalette::Shadow,           QPalette::All,      false},
+        { PaletteShadowDisabled,            QPalette::Shadow,           QPalette::Disabled, false}
+    };
 
-    pal.setColor(QPalette::Window,          color(Theme::BackgroundColorNormal));
-    pal.setBrush(QPalette::WindowText,      color(Theme::TextColorNormal));
-    pal.setColor(QPalette::Base,            color(Theme::BackgroundColorNormal));
-    pal.setColor(QPalette::AlternateBase,   color(Theme::BackgroundColorAlternate));
-    pal.setColor(QPalette::Button,          color(Theme::BackgroundColorDark));
-    pal.setColor(QPalette::BrightText,      Qt::red);
-    pal.setBrush(QPalette::Text,            color(Theme::TextColorNormal));
-    pal.setBrush(QPalette::ButtonText,      color(Theme::TextColorNormal));
-    pal.setBrush(QPalette::ToolTipBase,     color(Theme::BackgroundColorSelected));
-    pal.setColor(QPalette::Highlight,       color(Theme::BackgroundColorSelected));
-    pal.setColor(QPalette::Dark,            color(Theme::BackgroundColorDark));
-    pal.setColor(QPalette::HighlightedText, Qt::white);
-    pal.setColor(QPalette::ToolTipText,     color(Theme::TextColorNormal));
-    pal.setColor(QPalette::Link,            color(Theme::TextColorLink));
-    pal.setColor(QPalette::LinkVisited,     color(Theme::TextColorLinkVisited));
-    pal.setColor(QPalette::Disabled, QPalette::Window,     color(Theme::BackgroundColorDisabled));
-    pal.setBrush(QPalette::Disabled, QPalette::WindowText, color(Theme::TextColorDisabled));
-    pal.setColor(QPalette::Disabled, QPalette::Base,       color(Theme::BackgroundColorDisabled));
-    pal.setBrush(QPalette::Disabled, QPalette::Text,       color(Theme::TextColorDisabled));
+    for (auto entry: mapping) {
+        const QColor themeColor = color(entry.themeColor);
+        // Use original color if color is not defined in theme.
+        if (themeColor.isValid()) {
+            if (entry.setColorRoleAsBrush)
+                // TODO: Find out why sometimes setBrush is used
+                pal.setBrush(entry.paletteColorGroup, entry.paletteColorRole, themeColor);
+            else
+                pal.setColor(entry.paletteColorGroup, entry.paletteColorRole, themeColor);
+        }
+    }
+
     return pal;
 }
 

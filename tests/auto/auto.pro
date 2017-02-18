@@ -1,8 +1,10 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
+    algorithm \
     aggregation \
     changeset \
+    clangstaticanalyzer \
     cplusplus \
     debugger \
     diff \
@@ -12,12 +14,14 @@ SUBDIRS += \
     generichighlighter \
     profilewriter \
     treeviewfind \
-    ioutils \
     qtcprocess \
+    json \
     utils \
     filesearch \
+    mapreduce \
+    runextensions \
     sdktool \
     valgrind
 
 qtHaveModule(qml): SUBDIRS += qml
-qtHaveModule(quick): SUBDIRS += timeline
+qtHaveModule(quick): SUBDIRS += flamegraph timeline

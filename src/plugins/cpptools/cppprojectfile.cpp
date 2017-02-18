@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,53 +9,51 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cppprojectfile.h"
-
 #include "cpptoolsconstants.h"
 
 #include <coreplugin/icore.h>
 #include <utils/mimetypes/mimedatabase.h>
-#
+
 #include <QDebug>
 
 namespace CppTools {
 
-ProjectFile::ProjectFile()
-    : kind(CHeader)
-{
-}
-
-ProjectFile::ProjectFile(const QString &file, Kind kind)
-    : path(file)
+ProjectFile::ProjectFile(const QString &filePath, Kind kind)
+    : path(filePath)
     , kind(kind)
 {
 }
 
-ProjectFile::Kind ProjectFile::classify(const QString &file)
+bool ProjectFile::operator==(const ProjectFile &other) const
 {
+    return path == other.path
+        && kind == other.kind;
+}
+
+ProjectFile::Kind ProjectFile::classify(const QString &filePath)
+{
+    if (isAmbiguousHeader(filePath))
+        return AmbiguousHeader;
+
     Utils::MimeDatabase mdb;
-    const Utils::MimeType mimeType = mdb.mimeTypeForFile(file);
+    const Utils::MimeType mimeType = mdb.mimeTypeForFile(filePath);
     if (!mimeType.isValid())
-        return Unclassified;
+        return Unsupported;
     const QString mt = mimeType.name();
     if (mt == QLatin1String(CppTools::Constants::C_SOURCE_MIMETYPE))
         return CSource;
@@ -69,10 +67,18 @@ ProjectFile::Kind ProjectFile::classify(const QString &file)
         return ObjCSource;
     if (mt == QLatin1String(CppTools::Constants::OBJECTIVE_CPP_SOURCE_MIMETYPE))
         return ObjCXXSource;
-    return Unclassified;
+    if (mt == QLatin1String(CppTools::Constants::QDOC_MIMETYPE))
+        return CXXSource;
+    if (mt == QLatin1String(CppTools::Constants::MOC_MIMETYPE))
+        return CXXSource;
+    return Unsupported;
 }
 
-/// @return True if file is header or cannot be classified (i.e has no file extension)
+bool ProjectFile::isAmbiguousHeader(const QString &filePath)
+{
+    return filePath.endsWith(".h");
+}
+
 bool ProjectFile::isHeader(ProjectFile::Kind kind)
 {
     switch (kind) {
@@ -80,14 +86,14 @@ bool ProjectFile::isHeader(ProjectFile::Kind kind)
     case ProjectFile::CXXHeader:
     case ProjectFile::ObjCHeader:
     case ProjectFile::ObjCXXHeader:
-    case ProjectFile::Unclassified:
+    case ProjectFile::Unsupported: // no file extension, e.g. stl headers
+    case ProjectFile::AmbiguousHeader:
         return true;
     default:
         return false;
     }
 }
 
-/// @return True if file is correctly classified source
 bool ProjectFile::isSource(ProjectFile::Kind kind)
 {
     switch (kind) {
@@ -103,62 +109,43 @@ bool ProjectFile::isSource(ProjectFile::Kind kind)
     }
 }
 
-QDebug operator<<(QDebug stream, const CppTools::ProjectFile &cxxFile)
+bool ProjectFile::isHeader() const
 {
-    const char *kind;
-    switch (cxxFile.kind) {
-    case CppTools::ProjectFile::CHeader: kind = "CHeader"; break;
-    case CppTools::ProjectFile::CSource: kind = "CSource"; break;
-    case CppTools::ProjectFile::CXXHeader: kind = "CXXHeader"; break;
-    case CppTools::ProjectFile::CXXSource: kind = "CXXSource"; break;
-    case CppTools::ProjectFile::ObjCHeader: kind = "ObjCHeader"; break;
-    case CppTools::ProjectFile::ObjCSource: kind = "ObjCSource"; break;
-    case CppTools::ProjectFile::ObjCXXHeader: kind = "ObjCXXHeader"; break;
-    case CppTools::ProjectFile::ObjCXXSource: kind = "ObjCXXSource"; break;
-    case CppTools::ProjectFile::CudaSource: kind = "CudaSource"; break;
-    case CppTools::ProjectFile::OpenCLSource: kind = "OpenCLSource"; break;
-    default: kind = "INVALID"; break;
+    return isHeader(kind);
+}
+
+bool ProjectFile::isSource() const
+{
+    return isSource(kind);
+}
+
+#define RETURN_TEXT_FOR_CASE(enumValue) case ProjectFile::enumValue: return #enumValue
+const char *projectFileKindToText(ProjectFile::Kind kind)
+{
+    switch (kind) {
+        RETURN_TEXT_FOR_CASE(Unclassified);
+        RETURN_TEXT_FOR_CASE(Unsupported);
+        RETURN_TEXT_FOR_CASE(AmbiguousHeader);
+        RETURN_TEXT_FOR_CASE(CHeader);
+        RETURN_TEXT_FOR_CASE(CSource);
+        RETURN_TEXT_FOR_CASE(CXXHeader);
+        RETURN_TEXT_FOR_CASE(CXXSource);
+        RETURN_TEXT_FOR_CASE(ObjCHeader);
+        RETURN_TEXT_FOR_CASE(ObjCSource);
+        RETURN_TEXT_FOR_CASE(ObjCXXHeader);
+        RETURN_TEXT_FOR_CASE(ObjCXXSource);
+        RETURN_TEXT_FOR_CASE(CudaSource);
+        RETURN_TEXT_FOR_CASE(OpenCLSource);
     }
-    stream << cxxFile.path << QLatin1String(", ") << kind;
+
+    return "UnhandledProjectFileKind";
+}
+#undef RETURN_TEXT_FOR_CASE
+
+QDebug operator<<(QDebug stream, const CppTools::ProjectFile &projectFile)
+{
+    stream << projectFile.path << QLatin1String(", ") << projectFileKindToText(projectFile.kind);
     return stream;
 }
 
-namespace Internal {
-
-ProjectFileAdder::ProjectFileAdder(QList<ProjectFile> &files)
-    : m_files(files)
-{
-    addMapping(CppTools::Constants::C_SOURCE_MIMETYPE, ProjectFile::CSource);
-    addMapping(CppTools::Constants::C_HEADER_MIMETYPE, ProjectFile::CHeader);
-    addMapping(CppTools::Constants::CPP_SOURCE_MIMETYPE, ProjectFile::CXXSource);
-    addMapping(CppTools::Constants::CPP_HEADER_MIMETYPE, ProjectFile::CXXHeader);
-    addMapping(CppTools::Constants::OBJECTIVE_C_SOURCE_MIMETYPE, ProjectFile::ObjCSource);
-    addMapping(CppTools::Constants::OBJECTIVE_CPP_SOURCE_MIMETYPE, ProjectFile::ObjCXXSource);
-}
-
-ProjectFileAdder::~ProjectFileAdder()
-{
-}
-
-bool ProjectFileAdder::maybeAdd(const QString &path)
-{
-    Utils::MimeDatabase mdb;
-    const Utils::MimeType mt = mdb.mimeTypeForFile(path);
-    if (m_mimeNameMapping.contains(mt.name())) {
-        m_files << ProjectFile(path, m_mimeNameMapping.value(mt.name()));
-        return true;
-    }
-    return false;
-}
-
-void ProjectFileAdder::addMapping(const char *mimeName, ProjectFile::Kind kind)
-{
-    Utils::MimeDatabase mdb;
-    Utils::MimeType mimeType = mdb.mimeTypeForName(QLatin1String(mimeName));
-    if (mimeType.isValid())
-        m_mimeNameMapping.insert(mimeType.name(), kind);
-}
-
-} // namespace Internal
 } // namespace CppTools
-

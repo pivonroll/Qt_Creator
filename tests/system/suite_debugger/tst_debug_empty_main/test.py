@@ -1,32 +1,27 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
 source("../../shared/qtcreator.py")
 
@@ -60,7 +55,7 @@ def main():
     editor = waitForObject(":Qt Creator_CppEditor::Internal::CPPEditorWidget")
     typeLines(editor, ["int main() {"])
     invokeMenuItem("File", "Save All")
-    performDebugging(workingDir, projectName, checkedTargets)
+    performDebugging(projectName, checkedTargets)
     invokeMenuItem("File", "Close All Projects and Editors")
     # C/C++
     targets = Targets.intToArray(Targets.desktopTargetClasses())
@@ -80,7 +75,7 @@ def main():
             invokeMenuItem("File", "Save All")
             progressBarWait(15000)
             setRunInTerminal(1, 0, False)
-            performDebugging(workingDir, projectName, [singleTarget])
+            performDebugging(projectName, [singleTarget])
             invokeMenuItem("File", "Close All Projects and Editors")
     invokeMenuItem("File", "Exit")
 
@@ -94,15 +89,21 @@ def __handleAppOutputWaitForDebuggerFinish__():
         invokeMenuItem("Debug", "Abort Debugging")
         waitFor("str(appOutput.plainText).endswith('Debugging has finished')", 5000)
 
-def performDebugging(workingDir, projectName, checkedTargets):
+def performDebugging(projectName, checkedTargets):
     for kit, config in iterateBuildConfigs(len(checkedTargets), "Debug"):
         test.log("Selecting '%s' as build config" % config)
-        verifyBuildConfig(len(checkedTargets), kit, config, True)
-        progressBarWait(10000)
+        verifyBuildConfig(len(checkedTargets), kit, config, True, True)
+        waitForObject(":*Qt Creator.Build Project_Core::Internal::FancyToolButton")
         invokeMenuItem("Build", "Rebuild All")
         waitForCompile()
         isMsvc = isMsvcConfig(len(checkedTargets), kit)
-        allowAppThroughWinFW(workingDir, projectName, False)
+        if platform.system() in ('Microsoft' 'Windows'):
+            switchViewTo(ViewConstants.PROJECTS)
+            switchToBuildOrRunSettingsFor(len(checkedTargets), kit, ProjectSettings.BUILD)
+            buildDir = os.path.join(str(waitForObject(":Qt Creator_Utils::BuildDirectoryLineEdit").text),
+                                    "debug")
+            switchViewTo(ViewConstants.EDIT)
+            allowAppThroughWinFW(buildDir, projectName, None)
         clickButton(waitForObject(":*Qt Creator.Start Debugging_Core::Internal::FancyToolButton"))
         handleDebuggerWarnings(config, isMsvc)
         waitForObject(":Qt Creator.DebugModeWidget_QSplitter")
@@ -117,4 +118,5 @@ def performDebugging(workingDir, projectName, checkedTargets):
         clickButton(waitForObject(":*Qt Creator.Continue_Core::Internal::FancyToolButton"))
         __handleAppOutputWaitForDebuggerFinish__()
         removeOldBreakpoints()
-        deleteAppFromWinFW(workingDir, projectName, False)
+        if platform.system() in ('Microsoft' 'Windows'):
+            deleteAppFromWinFW(buildDir, projectName, None)

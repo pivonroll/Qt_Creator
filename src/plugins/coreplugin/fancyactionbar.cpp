@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -44,6 +39,7 @@
 #include <QStyleOption>
 #include <QMouseEvent>
 #include <QEvent>
+#include <QPixmapCache>
 #include <QPropertyAnimation>
 #include <QDebug>
 
@@ -52,9 +48,13 @@ using namespace Utils;
 namespace Core {
 namespace Internal {
 
-FancyToolButton::FancyToolButton(QWidget *parent)
+FancyToolButton::FancyToolButton(QAction *action, QWidget *parent)
     : QToolButton(parent), m_fader(0)
 {
+    setDefaultAction(action);
+    connect(action, &QAction::changed, this, &FancyToolButton::actionChanged);
+    actionChanged();
+
     setAttribute(Qt::WA_Hover, true);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 }
@@ -116,8 +116,7 @@ static QVector<QString> splitInTwoLines(const QString &text, const QFontMetrics 
     if (splitPos < 0) {
         splitLines[0] = fontMetrics.elidedText(text, Qt::ElideRight,
                                                        availableWidth);
-        QString common = Utils::commonPrefix(QStringList()
-                                             << splitLines[0] << text);
+        QString common = Utils::commonPrefix(QStringList({ splitLines[0], text }));
         splitLines[1] = text.mid(common.length());
         // elide the second line even if it fits, since it is cut off in mid-word
         while (fontMetrics.width(QChar(0x2026) /*'...'*/ + splitLines[1]) > availableWidth
@@ -145,44 +144,40 @@ void FancyToolButton::paintEvent(QPaintEvent *event)
     if (!HostOsInfo::isMacHost() // Mac UIs usually don't hover
             && m_fader > 0 && isEnabled() && !isDown() && !isChecked()) {
         painter.save();
-        const QColor hoverColor = creatorTheme()->color(Theme::FancyToolButtonHoverColor);
-        QColor fadedHoverColor = hoverColor;
-        fadedHoverColor.setAlpha(int(m_fader * hoverColor.alpha()));
-        if (creatorTheme()->widgetStyle() == Theme::StyleDefault) {
-            QLinearGradient grad(rect().topLeft(), rect().topRight());
-            grad.setColorAt(0, Qt::transparent);
-            grad.setColorAt(0.5, fadedHoverColor);
-            grad.setColorAt(1, Qt::transparent);
-            painter.fillRect(rect(), grad);
-            painter.setPen(QPen(grad, 1.0));
-            painter.drawLine(rect().topLeft(), rect().topRight());
-            painter.drawLine(rect().bottomLeft(), rect().bottomRight());
-        } else {
+        if (creatorTheme()->flag(Theme::FlatToolBars)) {
+            const QColor hoverColor = creatorTheme()->color(Theme::FancyToolButtonHoverColor);
+            QColor fadedHoverColor = hoverColor;
+            fadedHoverColor.setAlpha(int(m_fader * hoverColor.alpha()));
             painter.fillRect(rect(), fadedHoverColor);
+        } else {
+            painter.setOpacity(m_fader);
+            FancyToolButton::hoverOverlay(&painter, rect());
         }
         painter.restore();
     } else if (isDown() || isChecked()) {
         painter.save();
         const QColor selectedColor = creatorTheme()->color(Theme::FancyToolButtonSelectedColor);
-        if (creatorTheme()->widgetStyle() == Theme::StyleDefault) {
+        if (creatorTheme()->flag(Theme::FlatToolBars)) {
+            painter.fillRect(rect(), selectedColor);
+        } else {
             QLinearGradient grad(rect().topLeft(), rect().topRight());
             grad.setColorAt(0, Qt::transparent);
             grad.setColorAt(0.5, selectedColor);
             grad.setColorAt(1, Qt::transparent);
             painter.fillRect(rect(), grad);
             painter.setPen(QPen(grad, 1.0));
-            painter.drawLine(rect().topLeft(), rect().topRight());
-            painter.drawLine(rect().topLeft(), rect().topRight());
-            painter.drawLine(rect().topLeft() + QPoint(0,1), rect().topRight() + QPoint(0,1));
-            painter.drawLine(rect().bottomLeft(), rect().bottomRight());
-            painter.drawLine(rect().bottomLeft(), rect().bottomRight());
-            painter.drawLine(rect().topLeft() - QPoint(0,1), rect().topRight() - QPoint(0,1));
-        } else {
-            painter.fillRect(rect(), selectedColor);
+            const QRectF borderRectF(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
+            painter.drawLine(borderRectF.topLeft(), borderRectF.topRight());
+            painter.drawLine(borderRectF.topLeft(), borderRectF.topRight());
+            painter.drawLine(borderRectF.topLeft() + QPointF(0, 1), borderRectF.topRight() + QPointF(0, 1));
+            painter.drawLine(borderRectF.bottomLeft(), borderRectF.bottomRight());
+            painter.drawLine(borderRectF.bottomLeft(), borderRectF.bottomRight());
         }
         painter.restore();
     }
 
+    const QIcon::Mode iconMode = isEnabled() ? ((isDown() || isChecked()) ? QIcon::Active : QIcon::Normal)
+                                             : QIcon::Disabled;
     QRect iconRect(0, 0, Constants::TARGET_ICON_SIZE, Constants::TARGET_ICON_SIZE);
     // draw popup texts
     if (isTitledAction) {
@@ -204,29 +199,20 @@ void FancyToolButton::paintEvent(QPaintEvent *event)
         centerRect.adjust(0, 0, 0, -lineHeight*2 - 4);
 
         iconRect.moveCenter(centerRect.center());
-        StyleHelper::drawIconWithShadow(icon(), iconRect, &painter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
+        StyleHelper::drawIconWithShadow(icon(), iconRect, &painter, iconMode);
         painter.setFont(normalFont);
 
         QPoint textOffset = centerRect.center() - QPoint(iconRect.width()/2, iconRect.height()/2);
         textOffset = textOffset - QPoint(0, lineHeight + 4);
         QRectF r(0, textOffset.y(), rect().width(), lineHeight);
-        QColor penColor;
-        if (isEnabled())
-            penColor = Qt::white;
-        else
-            penColor = Qt::gray;
-        painter.setPen(penColor);
+        painter.setPen(creatorTheme()->color(isEnabled()
+                                             ? Theme::PanelTextColorLight
+                                             : Theme::IconsDisabledColor));
 
         // draw project name
         const int margin = 6;
         const qreal availableWidth = r.width() - margin;
         QString ellidedProjectName = fm.elidedText(projectName, Qt::ElideMiddle, availableWidth);
-        if (isEnabled()) {
-            const QRectF shadowR = r.translated(0, 1);
-            painter.setPen(QColor(30, 30, 30, 80));
-            painter.drawText(shadowR, textFlags, ellidedProjectName);
-            painter.setPen(penColor);
-        }
         painter.drawText(r, textFlags, ellidedProjectName);
 
         // draw build configuration name
@@ -243,21 +229,23 @@ void FancyToolButton::paintEvent(QPaintEvent *event)
         } else {
             splitBuildConfiguration = splitInTwoLines(buildConfiguration, boldFm, availableWidth);
         }
-        // draw the two lines for the build configuration
+
+        // draw the two text lines for the build configuration
+        painter.setPen(creatorTheme()->color(isEnabled()
+                                             // Intentionally using the "Unselected" colors,
+                                             // because the text color won't change in the pressed
+                                             // state as they would do on the mode buttons.
+                                             ? Theme::FancyTabWidgetEnabledUnselectedTextColor
+                                             : Theme::FancyTabWidgetDisabledUnselectedTextColor));
+
         for (int i = 0; i < 2; ++i) {
             if (splitBuildConfiguration[i].isEmpty())
                 continue;
-            if (isEnabled()) {
-                const QRectF shadowR = buildConfigRect[i].translated(0, 1);
-                painter.setPen(QColor(30, 30, 30, 80));
-                painter.drawText(shadowR, textFlags, splitBuildConfiguration[i]);
-                painter.setPen(penColor);
-            }
             painter.drawText(buildConfigRect[i], textFlags, splitBuildConfiguration[i]);
         }
 
         // pop up arrow next to icon
-        if (!icon().isNull()) {
+        if (isEnabled() && !icon().isNull()) {
             QStyleOption opt;
             opt.initFrom(this);
             opt.rect = rect().adjusted(rect().width() - 16, 0, -8, 0);
@@ -265,26 +253,26 @@ void FancyToolButton::paintEvent(QPaintEvent *event)
         }
     } else {
         iconRect.moveCenter(rect().center());
-        StyleHelper::drawIconWithShadow(icon(), iconRect, &painter, isEnabled() ? QIcon::Normal : QIcon::Disabled);
+        StyleHelper::drawIconWithShadow(icon(), iconRect, &painter, iconMode);
     }
 }
 
 void FancyActionBar::paintEvent(QPaintEvent *event)
 {
     QPainter painter(this);
-
-    if (creatorTheme()->widgetStyle () == Theme::StyleFlat) {
+    const QRectF borderRect = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    if (creatorTheme()->flag(Theme::FlatToolBars)) {
         // this paints the background of the bottom portion of the
         // left tab bar
-        painter.fillRect(event->rect(), creatorTheme()->color(Theme::FancyTabBarBackgroundColor));
+        painter.fillRect(event->rect(), StyleHelper::baseColor());
+        painter.setPen(creatorTheme()->color(Theme::FancyToolBarSeparatorColor));
+        painter.drawLine(borderRect.topLeft(), borderRect.topRight());
+    } else {
+        painter.setPen(StyleHelper::sidebarShadow());
+        painter.drawLine(borderRect.topLeft(), borderRect.topRight());
+        painter.setPen(StyleHelper::sidebarHighlight());
+        painter.drawLine(borderRect.topLeft() + QPointF(1, 1), borderRect.topRight() + QPointF(0, 1));
     }
-
-    QColor light = StyleHelper::sidebarHighlight();
-    QColor dark = StyleHelper::sidebarShadow();
-    painter.setPen(dark);
-    painter.drawLine(rect().topLeft(), rect().topRight());
-    painter.setPen(light);
-    painter.drawLine(rect().topLeft() + QPoint(1,1), rect().topRight() + QPoint(0,1));
 }
 
 QSize FancyToolButton::sizeHint() const
@@ -309,6 +297,39 @@ QSize FancyToolButton::sizeHint() const
 QSize FancyToolButton::minimumSizeHint() const
 {
     return QSize(8, 8);
+}
+
+void FancyToolButton::hoverOverlay(QPainter *painter, const QRect &spanRect)
+{
+    const QSize logicalSize = spanRect.size();
+    const QString cacheKey = QLatin1String(Q_FUNC_INFO) + QString::number(logicalSize.width())
+            + QLatin1Char('x') + QString::number(logicalSize.height());
+    QPixmap overlay;
+    if (!QPixmapCache::find(cacheKey, &overlay)) {
+        const int dpr = painter->device()->devicePixelRatio();
+        overlay = QPixmap(logicalSize * dpr);
+        overlay.fill(Qt::transparent);
+        overlay.setDevicePixelRatio(dpr);
+
+        const QColor hoverColor = creatorTheme()->color(Theme::FancyToolButtonHoverColor);
+        const QRect rect(QPoint(), logicalSize);
+        const QRectF borderRect = QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5);
+
+        QLinearGradient grad(rect.topLeft(), rect.topRight());
+        grad.setColorAt(0, Qt::transparent);
+        grad.setColorAt(0.5, hoverColor);
+        grad.setColorAt(1, Qt::transparent);
+
+        QPainter p(&overlay);
+        p.fillRect(rect, grad);
+        p.setPen(QPen(grad, 1.0));
+        p.drawLine(borderRect.topLeft(), borderRect.topRight());
+        p.drawLine(borderRect.bottomLeft(), borderRect.bottomRight());
+        p.end();
+
+        QPixmapCache::insert(cacheKey, overlay);
+    }
+    painter->drawPixmap(spanRect.topLeft(), overlay);
 }
 
 void FancyToolButton::actionChanged()
@@ -336,18 +357,12 @@ FancyActionBar::FancyActionBar(QWidget *parent)
 
 void FancyActionBar::addProjectSelector(QAction *action)
 {
-    FancyToolButton* toolButton = new FancyToolButton(this);
-    toolButton->setDefaultAction(action);
-    connect(action, SIGNAL(changed()), toolButton, SLOT(actionChanged()));
-    m_actionsLayout->insertWidget(0, toolButton);
+    m_actionsLayout->insertWidget(0, new FancyToolButton(action, this));
 
 }
 void FancyActionBar::insertAction(int index, QAction *action)
 {
-    FancyToolButton *toolButton = new FancyToolButton(this);
-    toolButton->setDefaultAction(action);
-    connect(action, SIGNAL(changed()), toolButton, SLOT(actionChanged()));
-    m_actionsLayout->insertWidget(index, toolButton);
+    m_actionsLayout->insertWidget(index, new FancyToolButton(action, this));
 }
 
 QLayout *FancyActionBar::actionsLayout() const

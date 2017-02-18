@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,25 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef ANDROIDCONFIGURATIONS_H
-#define ANDROIDCONFIGURATIONS_H
+#pragma once
 
 #include "android_global.h"
+
+#include <projectexplorer/toolchain.h>
 
 #include <QObject>
 #include <QString>
@@ -57,19 +53,22 @@ namespace Utils { class Environment; }
 namespace Android {
 class AndroidPlugin;
 
-struct AndroidDeviceInfo
+class AndroidDeviceInfo
 {
+public:
     QString serialNumber;
     QString avdname;
     QStringList cpuAbi;
-    int sdk;
+    int sdk = -1;
     enum State { OkState, UnAuthorizedState, OfflineState };
-    State state;
-    bool unauthorized;
+    State state = OfflineState;
+    bool unauthorized = false;
     enum AndroidDeviceType { Hardware, Emulator };
-    AndroidDeviceType type;
+    AndroidDeviceType type = Emulator;
 
     static QStringList adbSelector(const QString &serialNumber);
+
+    bool isValid() { return !serialNumber.isEmpty() || !avdname.isEmpty(); }
 };
 
 class SdkPlatform
@@ -86,8 +85,6 @@ public:
 class ANDROID_EXPORT AndroidConfig
 {
 public:
-    AndroidConfig();
-
     void load(const QSettings &settings);
     void save(QSettings &settings) const;
 
@@ -129,7 +126,8 @@ public:
     Utils::FileName emulatorToolPath() const;
 
 
-    Utils::FileName gccPath(const ProjectExplorer::Abi &abi, const QString &ndkToolChainVersion) const;
+    Utils::FileName gccPath(const ProjectExplorer::Abi &abi, Core::Id lang,
+                            const QString &ndkToolChainVersion) const;
     Utils::FileName gdbPath(const ProjectExplorer::Abi &abi, const QString &ndkToolChainVersion) const;
 
     Utils::FileName keytoolPath() const;
@@ -140,7 +138,7 @@ public:
         QString target;
         QString name;
         QString abi;
-        int sdcardSize;
+        int sdcardSize = 0;
         QString error; // only used in the return value of createAVD
     };
 
@@ -151,7 +149,7 @@ public:
     QVector<AndroidDeviceInfo> connectedDevices(QString *error = 0) const;
     static QVector<AndroidDeviceInfo> connectedDevices(const QString &adbToolPath, QString *error = 0);
 
-    QFuture<QVector<AndroidDeviceInfo> > androidVirtualDevicesFuture();
+    QFuture<QVector<AndroidDeviceInfo> > androidVirtualDevicesFuture() const;
     static QVector<AndroidDeviceInfo> androidVirtualDevices(const QString &androidTool, const Utils::Environment &environment);
 
     QString startAVD(const QString &name) const;
@@ -196,16 +194,16 @@ private:
     Utils::FileName m_openJDKLocation;
     Utils::FileName m_keystoreLocation;
     QStringList m_makeExtraSearchDirectories;
-    unsigned m_partitionSize;
-    bool m_automaticKitCreation;
-    bool m_useGradle;
+    unsigned m_partitionSize = 1024;
+    bool m_automaticKitCreation = true;
+    bool m_useGradle = false;
 
     //caches
-    mutable bool m_availableSdkPlatformsUpToDate;
+    mutable bool m_availableSdkPlatformsUpToDate = false;
     mutable QVector<SdkPlatform> m_availableSdkPlatforms;
     static bool sortSdkPlatformByApiLevel(const SdkPlatform &a, const SdkPlatform &b);
 
-    mutable bool m_NdkInformationUpToDate;
+    mutable bool m_NdkInformationUpToDate = false;
     mutable QString m_toolchainHost;
     mutable QVector<int> m_availableNdkPlatforms;
 
@@ -227,7 +225,6 @@ public:
     static AndroidDeviceInfo showDeviceDialog(ProjectExplorer::Project *project, int apiLevel, const QString &abi, Options options);
     static void setDefaultDevice(ProjectExplorer::Project *project, const QString &abi, const QString &serialNumber); // serial number or avd name
     static QString defaultDevice(ProjectExplorer::Project *project, const QString &abi); // serial number or avd name
-public slots:
     static void clearDefaultDevices(ProjectExplorer::Project *project);
     static void registerNewToolChains();
     static void removeOldToolChains();
@@ -250,5 +247,3 @@ private:
 };
 
 } // namespace Android
-
-#endif // ANDROIDCONFIGURATIONS_H

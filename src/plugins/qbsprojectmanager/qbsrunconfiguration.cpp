@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,26 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "qbsrunconfiguration.h"
 
 #include "qbsdeployconfigurationfactory.h"
-#include "qbsinstallstep.h"
 #include "qbsproject.h"
 
-#include <coreplugin/coreconstants.h>
+#include <coreplugin/messagemanager.h>
 #include <projectexplorer/buildmanager.h>
 #include <projectexplorer/buildstep.h>
 #include <projectexplorer/buildsteplist.h>
@@ -44,6 +38,7 @@
 #include <projectexplorer/runconfigurationaspects.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/runconfigurationaspects.h>
+#include <utils/algorithm.h>
 #include <utils/qtcprocess.h>
 #include <utils/pathchooser.h>
 #include <utils/detailswidget.h>
@@ -53,6 +48,7 @@
 #include <qtsupport/qtsupportconstants.h>
 #include <qtsupport/qtkitinformation.h>
 #include <utils/hostosinfo.h>
+#include <utils/utilsicons.h>
 
 #include "api/runenvironment.h"
 
@@ -66,6 +62,7 @@
 #include <QDir>
 
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace QbsProjectManager {
 namespace Internal {
@@ -111,12 +108,13 @@ const qbs::ProductData findProduct(const qbs::ProjectData &pro, const QString &u
 // --------------------------------------------------------------------
 
 QbsRunConfiguration::QbsRunConfiguration(Target *parent, Core::Id id) :
-    LocalApplicationRunConfiguration(parent, id),
+    RunConfiguration(parent, id),
     m_uniqueProductName(uniqueProductNameFromId(id)),
-    m_currentInstallStep(0),
     m_currentBuildStepList(0)
 {
-    addExtraAspect(new LocalEnvironmentAspect(this));
+    addExtraAspect(new LocalEnvironmentAspect(this, [](RunConfiguration *rc, Environment &env) {
+                       static_cast<QbsRunConfiguration *>(rc)->addToBaseEnvironment(env);
+                   }));
     addExtraAspect(new ArgumentsAspect(this, QStringLiteral("Qbs.RunConfiguration.CommandLineArguments")));
     addExtraAspect(new WorkingDirectoryAspect(this, QStringLiteral("Qbs.RunConfiguration.WorkingDirectory")));
 
@@ -128,9 +126,8 @@ QbsRunConfiguration::QbsRunConfiguration(Target *parent, Core::Id id) :
 }
 
 QbsRunConfiguration::QbsRunConfiguration(Target *parent, QbsRunConfiguration *source) :
-    LocalApplicationRunConfiguration(parent, source),
+    RunConfiguration(parent, source),
     m_uniqueProductName(source->m_uniqueProductName),
-    m_currentInstallStep(0), // no need to copy this, we will get if from the DC anyway.
     m_currentBuildStepList(0) // ditto
 {
     ctor();
@@ -179,46 +176,44 @@ void QbsRunConfiguration::ctor()
 
 QWidget *QbsRunConfiguration::createConfigurationWidget()
 {
-    return new QbsRunConfigurationWidget(this, 0);
+    return new QbsRunConfigurationWidget(this);
 }
 
 void QbsRunConfiguration::installStepChanged()
 {
-    if (m_currentInstallStep)
-        disconnect(m_currentInstallStep, SIGNAL(changed()), this, SIGNAL(targetInformationChanged()));
     if (m_currentBuildStepList) {
-        disconnect(m_currentBuildStepList, SIGNAL(stepInserted(int)), this, SLOT(installStepChanged()));
-        disconnect(m_currentBuildStepList, SIGNAL(stepRemoved(int)), this, SLOT(installStepChanged()));
-        disconnect(m_currentBuildStepList, SIGNAL(stepMoved(int,int)), this, SLOT(installStepChanged()));
+        disconnect(m_currentBuildStepList, &BuildStepList::stepInserted,
+                   this, &QbsRunConfiguration::installStepChanged);
+        disconnect(m_currentBuildStepList, &BuildStepList::stepRemoved,
+                   this, &QbsRunConfiguration::installStepChanged);
+        disconnect(m_currentBuildStepList, &BuildStepList::stepMoved,
+                   this, &QbsRunConfiguration::installStepChanged);
     }
 
     QbsDeployConfiguration *activeDc = qobject_cast<QbsDeployConfiguration *>(target()->activeDeployConfiguration());
     m_currentBuildStepList = activeDc ? activeDc->stepList() : 0;
-    m_currentInstallStep = activeDc ? activeDc->qbsInstallStep() : 0;
-
-    if (m_currentInstallStep)
-        connect(m_currentInstallStep, SIGNAL(changed()), this, SIGNAL(targetInformationChanged()));
 
     if (m_currentBuildStepList) {
-        connect(m_currentBuildStepList, SIGNAL(stepInserted(int)), this, SLOT(installStepChanged()));
-        connect(m_currentBuildStepList, SIGNAL(aboutToRemoveStep(int)), this,
-                SLOT(installStepToBeRemoved(int)));
-        connect(m_currentBuildStepList, SIGNAL(stepRemoved(int)), this, SLOT(installStepChanged()));
-        connect(m_currentBuildStepList, SIGNAL(stepMoved(int,int)), this, SLOT(installStepChanged()));
+        connect(m_currentBuildStepList, &BuildStepList::stepInserted,
+                this, &QbsRunConfiguration::installStepChanged);
+        connect(m_currentBuildStepList, &BuildStepList::stepRemoved,
+                this, &QbsRunConfiguration::installStepChanged);
+        connect(m_currentBuildStepList, &BuildStepList::stepMoved,
+                this, &QbsRunConfiguration::installStepChanged);
     }
 
     emit targetInformationChanged();
 }
 
-void QbsRunConfiguration::installStepToBeRemoved(int pos)
+Runnable QbsRunConfiguration::runnable() const
 {
-    QTC_ASSERT(m_currentBuildStepList, return);
-    // TODO: Our logic is rather broken. Users can create as many qbs install steps as they want,
-    // but we ignore all but the first one.
-    if (m_currentBuildStepList->steps().at(pos) != m_currentInstallStep)
-        return;
-    disconnect(m_currentInstallStep, SIGNAL(changed()), this, SIGNAL(targetInformationChanged()));
-    m_currentInstallStep = 0;
+    StandardRunnable r;
+    r.executable = executable();
+    r.workingDirectory = extraAspect<WorkingDirectoryAspect>()->workingDirectory().toString();
+    r.commandLineArguments = extraAspect<ArgumentsAspect>()->arguments();
+    r.runMode = extraAspect<TerminalAspect>()->runMode();
+    r.environment = extraAspect<LocalEnvironmentAspect>()->environment();
+    return r;
 }
 
 QString QbsRunConfiguration::executable() const
@@ -229,12 +224,7 @@ QString QbsRunConfiguration::executable() const
     if (!product.isValid() || !pro->qbsProject().isValid())
         return QString();
 
-    return pro->qbsProject().targetExecutable(product, installOptions());
-}
-
-ApplicationLauncher::Mode QbsRunConfiguration::runMode() const
-{
-    return extraAspect<TerminalAspect>()->runMode();
+    return product.targetExecutable();
 }
 
 bool QbsRunConfiguration::isConsoleApplication() const
@@ -244,42 +234,30 @@ bool QbsRunConfiguration::isConsoleApplication() const
     return product.properties().value(QLatin1String("consoleApplication"), false).toBool();
 }
 
-QString QbsRunConfiguration::workingDirectory() const
-{
-    const auto *wdAspect = extraAspect<WorkingDirectoryAspect>();
-    QTC_ASSERT(wdAspect, return baseWorkingDirectory());
-    return wdAspect->workingDirectory();
-}
-
 QString QbsRunConfiguration::baseWorkingDirectory() const
 {
     const QString exe = executable();
     if (!exe.isEmpty())
-        return QFileInfo(executable()).absolutePath();
+        return QFileInfo(exe).absolutePath();
     return QString();
-}
-
-QString QbsRunConfiguration::commandLineArguments() const
-{
-    return extraAspect<ArgumentsAspect>()->arguments();
-}
-
-void QbsRunConfiguration::setRunMode(ApplicationLauncher::Mode runMode)
-{
-    extraAspect<TerminalAspect>()->setRunMode(runMode);
 }
 
 void QbsRunConfiguration::addToBaseEnvironment(Utils::Environment &env) const
 {
     QbsProject *project = static_cast<QbsProject *>(target()->project());
-    if (project) {
+    if (project && project->qbsProject().isValid()) {
         const qbs::ProductData product = findProduct(project->qbsProjectData(), m_uniqueProductName);
         if (product.isValid()) {
             QProcessEnvironment procEnv = env.toProcessEnvironment();
             procEnv.insert(QLatin1String("QBS_RUN_FILE_PATH"), executable());
-            qbs::RunEnvironment qbsRunEnv = project->qbsProject().getRunEnvironment(product, installOptions(),
-                    procEnv, QbsManager::settings());
-            procEnv = qbsRunEnv.runEnvironment();
+            qbs::RunEnvironment qbsRunEnv = project->qbsProject().getRunEnvironment(product,
+                    qbs::InstallOptions(), procEnv, QbsManager::settings());
+            qbs::ErrorInfo error;
+            procEnv = qbsRunEnv.runEnvironment(&error);
+            if (error.hasError()) {
+                Core::MessageManager::write(tr("Error retrieving run environment: %1")
+                                            .arg(error.toString()));
+            }
             if (!procEnv.isEmpty()) {
                 env = Utils::Environment();
                 foreach (const QString &key, procEnv.keys())
@@ -293,7 +271,7 @@ void QbsRunConfiguration::addToBaseEnvironment(Utils::Environment &env) const
         env.prependOrSetLibrarySearchPath(qtVersion->qmakeProperty("QT_INSTALL_LIBS"));
 }
 
-QString QbsRunConfiguration::uniqueProductName() const
+QString QbsRunConfiguration::buildSystemTarget() const
 {
     return m_uniqueProductName;
 }
@@ -306,20 +284,6 @@ QString QbsRunConfiguration::defaultDisplayName()
     return defaultName;
 }
 
-qbs::InstallOptions QbsRunConfiguration::installOptions() const
-{
-    if (m_currentInstallStep)
-        return m_currentInstallStep->installOptions();
-    return qbs::InstallOptions();
-}
-
-QString QbsRunConfiguration::installRoot() const
-{
-    if (m_currentInstallStep)
-        return m_currentInstallStep->absoluteInstallRoot();
-    return QString();
-}
-
 Utils::OutputFormatter *QbsRunConfiguration::createOutputFormatter() const
 {
     return new QtSupport::QtOutputFormatter(target()->project());
@@ -329,19 +293,16 @@ Utils::OutputFormatter *QbsRunConfiguration::createOutputFormatter() const
 // QbsRunConfigurationWidget:
 // --------------------------------------------------------------------
 
-QbsRunConfigurationWidget::QbsRunConfigurationWidget(QbsRunConfiguration *rc, QWidget *parent)
-    : QWidget(parent),
-    m_rc(rc),
-    m_ignoreChange(false),
-    m_isShown(false)
+QbsRunConfigurationWidget::QbsRunConfigurationWidget(QbsRunConfiguration *rc)
+    : m_rc(rc)
 {
-    QVBoxLayout *vboxTopLayout = new QVBoxLayout(this);
+    auto vboxTopLayout = new QVBoxLayout(this);
     vboxTopLayout->setMargin(0);
 
-    QHBoxLayout *hl = new QHBoxLayout();
+    auto hl = new QHBoxLayout();
     hl->addStretch();
     m_disabledIcon = new QLabel(this);
-    m_disabledIcon->setPixmap(QPixmap(QLatin1String(Core::Constants::ICON_WARNING)));
+    m_disabledIcon->setPixmap(Utils::Icons::WARNING.pixmap());
     hl->addWidget(m_disabledIcon);
     m_disabledReason = new QLabel(this);
     m_disabledReason->setVisible(false);
@@ -349,12 +310,12 @@ QbsRunConfigurationWidget::QbsRunConfigurationWidget(QbsRunConfiguration *rc, QW
     hl->addStretch();
     vboxTopLayout->addLayout(hl);
 
-    m_detailsContainer = new Utils::DetailsWidget(this);
-    m_detailsContainer->setState(Utils::DetailsWidget::NoSummary);
-    vboxTopLayout->addWidget(m_detailsContainer);
-    QWidget *detailsWidget = new QWidget(m_detailsContainer);
-    m_detailsContainer->setWidget(detailsWidget);
-    QFormLayout *toplayout = new QFormLayout(detailsWidget);
+    auto detailsContainer = new Utils::DetailsWidget(this);
+    detailsContainer->setState(Utils::DetailsWidget::NoSummary);
+    vboxTopLayout->addWidget(detailsContainer);
+    auto detailsWidget = new QWidget(detailsContainer);
+    detailsContainer->setWidget(detailsWidget);
+    auto toplayout = new QFormLayout(detailsWidget);
     toplayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     toplayout->setMargin(0);
 
@@ -370,11 +331,11 @@ QbsRunConfigurationWidget::QbsRunConfigurationWidget(QbsRunConfiguration *rc, QW
 
     runConfigurationEnabledChange();
 
-    connect(m_rc, SIGNAL(targetInformationChanged()),
-            this, SLOT(targetInformationHasChanged()), Qt::QueuedConnection);
+    connect(m_rc, &QbsRunConfiguration::targetInformationChanged,
+            this, &QbsRunConfigurationWidget::targetInformationHasChanged, Qt::QueuedConnection);
 
-    connect(m_rc, SIGNAL(enabledChanged()),
-            this, SLOT(runConfigurationEnabledChange()));
+    connect(m_rc, &RunConfiguration::enabledChanged,
+            this, &QbsRunConfigurationWidget::runConfigurationEnabledChange);
 }
 
 void QbsRunConfigurationWidget::runConfigurationEnabledChange()
@@ -393,7 +354,7 @@ void QbsRunConfigurationWidget::targetInformationHasChanged()
     setExecutableLineText(m_rc->executable());
 
     WorkingDirectoryAspect *aspect = m_rc->extraAspect<WorkingDirectoryAspect>();
-    aspect->setDefaultWorkingDirectory(m_rc->baseWorkingDirectory());
+    aspect->setDefaultWorkingDirectory(Utils::FileName::fromString(m_rc->baseWorkingDirectory()));
     aspect->pathChooser()->setBaseFileName(m_rc->target()->project()->projectDirectory());
     m_ignoreChange = false;
 }
@@ -413,9 +374,6 @@ QbsRunConfigurationFactory::QbsRunConfigurationFactory(QObject *parent) :
 {
     setObjectName(QLatin1String("QbsRunConfigurationFactory"));
 }
-
-QbsRunConfigurationFactory::~QbsRunConfigurationFactory()
-{ }
 
 bool QbsRunConfigurationFactory::canCreate(Target *parent, Core::Id id) const
 {
@@ -458,21 +416,32 @@ RunConfiguration *QbsRunConfigurationFactory::clone(Target *parent, RunConfigura
 
 QList<Core::Id> QbsRunConfigurationFactory::availableCreationIds(Target *parent, CreationMode mode) const
 {
-    Q_UNUSED(mode)
-    QList<Core::Id> result;
+    QList<qbs::ProductData> products;
+
     if (!canHandle(parent))
-        return result;
+        return QList<Core::Id>();
 
     QbsProject *project = static_cast<QbsProject *>(parent->project());
     if (!project || !project->qbsProject().isValid())
-        return result;
+        return QList<Core::Id>();
 
     foreach (const qbs::ProductData &product, project->qbsProjectData().allProducts()) {
         if (product.isRunnable() && product.isEnabled())
-            result << idFromProduct(project, product);
+            products << product;
     }
 
-    return result;
+    if (mode == AutoCreate) {
+        std::function<bool (const qbs::ProductData &)> hasQtcRunnable = [](const qbs::ProductData &product) {
+            return product.properties().value("qtcRunnable").toBool();
+        };
+
+        if (Utils::anyOf(products, hasQtcRunnable))
+            Utils::erase(products, std::not1(hasQtcRunnable));
+    }
+
+    return Utils::transform(products, [project](const qbs::ProductData &product) {
+        return idFromProduct(project, product);
+    });
 }
 
 QString QbsRunConfigurationFactory::displayNameForId(Core::Id id) const

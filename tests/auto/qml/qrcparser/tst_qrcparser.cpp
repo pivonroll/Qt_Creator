@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -87,7 +82,7 @@ QStringList tst_QrcParser::allPaths(QrcParser::ConstPtr p)
 void tst_QrcParser::firstAtTest()
 {
     QFETCH(QString, path);
-    QrcParser::Ptr p = QrcParser::parseQrcFile(path);
+    QrcParser::Ptr p = QrcParser::parseQrcFile(path, QString());
     foreach (const QString &qrcPath, allPaths(p)) {
         QString s1 = p->firstFileAtPath(qrcPath, m_locale);
         if (s1.isEmpty())
@@ -104,7 +99,7 @@ void tst_QrcParser::firstAtTest()
 void tst_QrcParser::firstInTest()
 {
     QFETCH(QString, path);
-    QrcParser::Ptr p = QrcParser::parseQrcFile(path);
+    QrcParser::Ptr p = QrcParser::parseQrcFile(path, QString());
     foreach (const QString &qrcPath, allPaths(p)) {
         if (!qrcPath.endsWith(QLatin1Char('/')))
             continue;
@@ -142,15 +137,15 @@ void tst_QrcParser::cacheTest()
 {
     QFETCH(QString, path);
     QVERIFY(m_cache.parsedPath(path).isNull());
-    QrcParser::ConstPtr p0 = m_cache.addPath(path);
+    QrcParser::ConstPtr p0 = m_cache.addPath(path, QString());
     QVERIFY(!p0.isNull());
     QrcParser::ConstPtr p1 = m_cache.parsedPath(path);
     QVERIFY(p1.data() == p0.data());
-    QrcParser::ConstPtr p2 = m_cache.addPath(path);
+    QrcParser::ConstPtr p2 = m_cache.addPath(path, QString());
     QVERIFY(p2.data() == p1.data());
     QrcParser::ConstPtr p3 = m_cache.parsedPath(path);
     QVERIFY(p3.data() == p2.data());
-    QrcParser::ConstPtr p4 = m_cache.updatePath(path);
+    QrcParser::ConstPtr p4 = m_cache.updatePath(path, QString());
     QVERIFY(p4.data() != p3.data());
     QrcParser::ConstPtr p5 = m_cache.parsedPath(path);
     QVERIFY(p5.data() == p4.data());
@@ -164,21 +159,13 @@ void tst_QrcParser::cacheTest()
 
 void tst_QrcParser::simpleTest()
 {
-    QrcParser::Ptr p = QrcParser::parseQrcFile(QString::fromLatin1(TESTSRCDIR).append(QLatin1String("/simple.qrc")));
+    QrcParser::Ptr p = QrcParser::parseQrcFile(QString::fromLatin1(TESTSRCDIR).append(QLatin1String("/simple.qrc")), QString());
     QStringList paths = allPaths(p);
     paths.sort();
-    QVERIFY(paths == QStringList()
-            << QLatin1String("/")
-            << QLatin1String("/cut.jpg")
-            << QLatin1String("/images/")
-            << QLatin1String("/images/copy.png")
-            << QLatin1String("/images/cut.png")
-            << QLatin1String("/images/new.png")
-            << QLatin1String("/images/open.png")
-            << QLatin1String("/images/paste.png")
-            << QLatin1String("/images/save.png")
-            << QLatin1String("/myresources/")
-            << QLatin1String("/myresources/cut-img.png"));
+    QVERIFY(paths == QStringList({ "/", "/cut.jpg", "/images/", "/images/copy.png",
+                                   "/images/cut.png", "/images/new.png", "/images/open.png",
+                                   "/images/paste.png", "/images/save.png", "/myresources/",
+                                   "/myresources/cut-img.png" }));
     QString frPath = p->firstFileAtPath(QLatin1String("/cut.jpg"), QLocale(QLatin1String("fr_FR")));
     QString refFrPath = QString::fromLatin1(TESTSRCDIR).append(QLatin1String("/cut_fr.jpg"));
     QCOMPARE(frPath, refFrPath);

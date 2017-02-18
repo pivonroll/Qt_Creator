@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -92,7 +87,9 @@ DiffEditorController *DiffEditorDocument::controller() const
     return m_controller;
 }
 
-QString DiffEditorDocument::makePatch(int fileIndex, int chunkIndex, bool revert, bool addPrefix) const
+QString DiffEditorDocument::makePatch(int fileIndex, int chunkIndex,
+                                      bool revert, bool addPrefix,
+                                      const QString &overriddenFileName) const
 {
     if (fileIndex < 0 || chunkIndex < 0)
         return QString();
@@ -107,9 +104,10 @@ QString DiffEditorDocument::makePatch(int fileIndex, int chunkIndex, bool revert
     const ChunkData &chunkData = fileData.chunks.at(chunkIndex);
     const bool lastChunk = (chunkIndex == fileData.chunks.count() - 1);
 
-    const QString fileName = revert
-            ? fileData.rightFileInfo.fileName
-            : fileData.leftFileInfo.fileName;
+    const QString fileName = !overriddenFileName.isEmpty()
+            ? overriddenFileName : revert
+              ? fileData.rightFileInfo.fileName
+              : fileData.leftFileInfo.fileName;
 
     QString leftPrefix, rightPrefix;
     if (addPrefix) {
@@ -122,10 +120,12 @@ QString DiffEditorDocument::makePatch(int fileIndex, int chunkIndex, bool revert
                                 lastChunk && fileData.lastChunkAtTheEndOfFile);
 }
 
-void DiffEditorDocument::setDiffFiles(const QList<FileData> &data, const QString &directory)
+void DiffEditorDocument::setDiffFiles(const QList<FileData> &data, const QString &directory,
+                                      const QString &startupFile)
 {
     m_diffFiles = data;
     m_baseDirectory = directory;
+    m_startupFile = startupFile;
     emit documentChanged();
 }
 
@@ -137,6 +137,11 @@ QList<FileData> DiffEditorDocument::diffFiles() const
 QString DiffEditorDocument::baseDirectory() const
 {
     return m_baseDirectory;
+}
+
+QString DiffEditorDocument::startupFile() const
+{
+    return m_startupFile;
 }
 
 void DiffEditorDocument::setDescription(const QString &description)
@@ -191,7 +196,7 @@ bool DiffEditorDocument::setContents(const QByteArray &contents)
     return true;
 }
 
-QString DiffEditorDocument::defaultPath() const
+QString DiffEditorDocument::fallbackSaveAsPath() const
 {
     if (!m_baseDirectory.isEmpty())
         return m_baseDirectory;
@@ -210,6 +215,7 @@ bool DiffEditorDocument::save(QString *errorString, const QString &fileName, boo
 
     setController(0);
     setDescription(QString());
+    Core::EditorManager::clearUniqueId(this);
 
     const QFileInfo fi(fileName);
     setTemporary(false);
@@ -267,7 +273,7 @@ Core::IDocument::OpenResult DiffEditorDocument::open(QString *errorString, const
     return ok ? OpenResult::Success : OpenResult::CannotHandle;
 }
 
-QString DiffEditorDocument::suggestedFileName() const
+QString DiffEditorDocument::fallbackSaveAsFileName() const
 {
     const int maxSubjectLength = 50;
 
@@ -323,6 +329,7 @@ QString DiffEditorDocument::plainText() const
 void DiffEditorDocument::beginReload()
 {
     emit aboutToReload();
+    m_isReloading = true;
     const bool blocked = blockSignals(true);
     setDiffFiles(QList<FileData>(), QString());
     setDescription(QString());
@@ -331,6 +338,7 @@ void DiffEditorDocument::beginReload()
 
 void DiffEditorDocument::endReload(bool success)
 {
+    m_isReloading = false;
     emit reloadFinished(success);
 }
 

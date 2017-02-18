@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -217,10 +212,12 @@ Context::ImportsPerDocument LinkPrivate::linkImports()
         Imports *imports = new Imports(valueOwner);
 
         // Add custom imports for the opened document
-        auto providers = ExtensionSystem::PluginManager::getObjects<CustomImportsProvider>();
-        foreach (const auto &provider, providers)
-            foreach (const auto &import, provider->imports(valueOwner, document.data()))
-                importCache.insert(ImportCacheKey(import.info), import);
+        if (ExtensionSystem::PluginManager::instance()) {
+            auto providers = ExtensionSystem::PluginManager::getObjects<CustomImportsProvider>();
+            foreach (const auto &provider, providers)
+                foreach (const auto &import, provider->imports(valueOwner, document.data()))
+                    importCache.insert(ImportCacheKey(import.info), import);
+        }
 
         populateImportedTypes(imports, document);
         importsPerDocument.insert(document.data(), QSharedPointer<Imports>(imports));
@@ -273,7 +270,7 @@ void LinkPrivate::populateImportedTypes(Imports *imports, Document::Ptr doc)
                 imports->setImportFailed();
                 if (info.ast()) {
                     error(doc, info.ast()->fileNameToken,
-                          Link::tr("file or directory not found"));
+                          Link::tr("File or directory not found."));
                 }
                 break;
             default:
@@ -370,7 +367,6 @@ static ModuleApiInfo findBestModuleApi(const QList<ModuleApiInfo> &apis, const C
 /*
   import Qt 4.6
   import Qt 4.6 as Xxx
-  (import com.nokia.qt is the same as the ones above)
 */
 Import LinkPrivate::importNonFile(Document::Ptr doc, const ImportInfo &importInfo)
 {
@@ -382,38 +378,8 @@ Import LinkPrivate::importNonFile(Document::Ptr doc, const ImportInfo &importInf
     const QString packageName = importInfo.name();
     const ComponentVersion version = importInfo.version();
 
-    bool importFound = false;
-
-    const QString &packagePath = importInfo.path();
-    // check the filesystem with full version
-    foreach (const QString &importPath, importPaths) {
-        QString libraryPath = QString::fromLatin1("%1/%2.%3").arg(importPath, packagePath, version.toString());
-        if (importLibrary(doc, libraryPath, &import, importPath)) {
-            importFound = true;
-            break;
-        }
-    }
-    if (!importFound) {
-        // check the filesystem with major version
-        foreach (const QString &importPath, importPaths) {
-            QString libraryPath = QString::fromLatin1("%1/%2.%3").arg(importPath, packagePath,
-                                                          QString::number(version.majorVersion()));
-            if (importLibrary(doc, libraryPath, &import, importPath)) {
-                importFound = true;
-                break;
-            }
-        }
-    }
-    if (!importFound) {
-        // check the filesystem with no version
-        foreach (const QString &importPath, importPaths) {
-            QString libraryPath = QString::fromLatin1("%1/%2").arg(importPath, packagePath);
-            if (importLibrary(doc, libraryPath, &import, importPath)) {
-                importFound = true;
-                break;
-            }
-        }
-    }
+    QString libraryPath = modulePath(packageName, version.toString(), importPaths);
+    bool importFound = !libraryPath.isEmpty() && importLibrary(doc, libraryPath, &import);
 
     // if there are cpp-based types for this package, use them too
     if (valueOwner->cppQmlTypes().hasModule(packageName)) {
@@ -436,14 +402,15 @@ Import LinkPrivate::importNonFile(Document::Ptr doc, const ImportInfo &importInf
         error(doc, locationFromRange(importInfo.ast()->firstSourceLocation(),
                                      importInfo.ast()->lastSourceLocation()),
               Link::tr(
-                  "QML module not found\n\n"
+                  "QML module not found (%1).\n\n"
                   "Import paths:\n"
-                  "%1\n\n"
+                  "%2\n\n"
                   "For qmake projects, use the QML_IMPORT_PATH variable to add import paths.\n"
-                  "For qbs projects, declare and set a qmlImportPaths property in your product "
+                  "For Qbs projects, declare and set a qmlImportPaths property in your product "
                   "to add import paths.\n"
-                  "For qmlproject projects, use the importPaths property to add import paths.").arg(
-                  importPaths.join(QLatin1Char('\n'))));
+                  "For qmlproject projects, use the importPaths property to add import paths.\n"
+                  "For CMake projects, make sure QML_IMPORT_PATH variable is in CMakeCache.txt.\n").arg(
+                  importInfo.name(), importPaths.join(QLatin1Char('\n'))));
     }
 
     return import;
@@ -458,13 +425,8 @@ bool LinkPrivate::importLibrary(Document::Ptr doc,
     QString libraryPath = libraryPath_;
 
     LibraryInfo libraryInfo = snapshot.libraryInfo(libraryPath);
-    if (!libraryInfo.isValid()) {
-        // try canonical path
-        libraryPath = QFileInfo(libraryPath).canonicalFilePath();
-        libraryInfo = snapshot.libraryInfo(libraryPath);
-        if (!libraryInfo.isValid())
-            return false;
-    }
+    if (!libraryInfo.isValid())
+        return false;
 
     import->libraryPath = libraryPath;
 
@@ -580,16 +542,23 @@ void LinkPrivate::loadQmldirComponents(ObjectValue *import, ComponentVersion ver
 
 void LinkPrivate::loadImplicitDirectoryImports(Imports *imports, Document::Ptr doc)
 {
-    ImportInfo implcitDirectoryImportInfo = ImportInfo::implicitDirectoryImport(doc->path());
-
-    Import directoryImport = importCache.value(ImportCacheKey(implcitDirectoryImportInfo));
-    if (!directoryImport.object) {
-        directoryImport = importFileOrDirectory(doc, implcitDirectoryImportInfo);
+    auto processImport = [this, imports, doc](const ImportInfo &importInfo){
+        Import directoryImport = importCache.value(ImportCacheKey(importInfo));
+        if (!directoryImport.object) {
+            directoryImport = importFileOrDirectory(doc, importInfo);
+            if (directoryImport.object)
+                importCache.insert(ImportCacheKey(importInfo), directoryImport);
+        }
         if (directoryImport.object)
-            importCache.insert(ImportCacheKey(implcitDirectoryImportInfo), directoryImport);
+            imports->append(directoryImport);
+    };
+
+    processImport(ImportInfo::implicitDirectoryImport(doc->path()));
+    foreach (const QString &path,
+             ModelManagerInterface::instance()->qrcPathsForFile(doc->fileName())) {
+        processImport(ImportInfo::qrcDirectoryImport(
+                          QrcParser::qrcDirectoryPathForQrcFilePath(path)));
     }
-    if (directoryImport.object)
-        imports->append(directoryImport);
 }
 
 void LinkPrivate::loadImplicitDefaultImports(Imports *imports)

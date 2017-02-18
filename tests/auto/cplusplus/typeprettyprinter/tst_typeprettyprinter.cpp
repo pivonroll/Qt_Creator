@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -64,6 +59,20 @@ static Argument *arg(const QString &name, const FullySpecifiedType &ty)
     return a;
 }
 
+static TypenameArgument *typenameArg(const QString &name, bool isClassDeclarator)
+{
+    TypenameArgument *arg = new TypenameArgument(0, 0, nameId(name));
+    arg->setClassDeclarator(isClassDeclarator);
+    return arg;
+}
+
+static Declaration *decl(const FullySpecifiedType &ty)
+{
+    Declaration *d = new Declaration(0, 0, nameId(""));
+    d->setType(ty);
+    return d;
+}
+
 static FullySpecifiedType voidTy()
 { return FullySpecifiedType(new VoidType); }
 
@@ -96,6 +105,43 @@ static FullySpecifiedType fnTy(const QString &name, const FullySpecifiedType &re
     fn->addMember(arg("a1", a1));
     fn->addMember(arg("a1", a2));
     return FullySpecifiedType(fn);
+}
+
+static FullySpecifiedType templTy(FullySpecifiedType declTy, bool isClassDeclarator)
+{
+    Template *templ = new Template(0, 0, nameId(""));
+    templ->addMember(typenameArg("T", isClassDeclarator));
+    templ->addMember(decl(declTy));
+    if (Function *func = declTy->asFunctionType())
+        func->setEnclosingScope(templ);
+    return FullySpecifiedType(templ);
+}
+
+static FullySpecifiedType refThis(const FullySpecifiedType &type)
+{
+    FullySpecifiedType result(type);
+    Function *f = dynamic_cast<Function*>(result.type());
+    Q_ASSERT(f);
+    f->setRefQualifier(Function::LvalueRefQualifier);
+    return result;
+}
+
+static FullySpecifiedType rrefThis(const FullySpecifiedType &type)
+{
+    FullySpecifiedType result(type);
+    Function *function = dynamic_cast<Function*>(result.type());
+    Q_ASSERT(function);
+    function->setRefQualifier(Function::RvalueRefQualifier);
+    return result;
+}
+
+static FullySpecifiedType cnstThis(const FullySpecifiedType &type)
+{
+    FullySpecifiedType result(type);
+    Function *function = dynamic_cast<Function*>(result.type());
+    Q_ASSERT(function);
+    function->setConst(true);
+    return result;
 }
 
 static FullySpecifiedType ptr(const FullySpecifiedType &el)
@@ -171,6 +217,14 @@ void tst_TypePrettyPrinter::basic_data()
 
     addRow(fnTy("foo", voidTy(), intTy()), bindToNothing, "void foo(int)", "foo");
     addRow(fnTy("foo", voidTy(), intTy()), bindToAll, "void foo(int)", "foo");
+    addRow(refThis(fnTy("foo", voidTy())), bindToNothing, "void foo() &", "foo");
+    addRow(rrefThis(fnTy("foo", voidTy())), bindToNothing, "void foo() &&", "foo");
+    addRow(refThis(fnTy("foo", voidTy())), bindToAll, "void foo() &", "foo");
+    addRow(rrefThis(fnTy("foo", voidTy())), bindToAll, "void foo() &&", "foo");
+    addRow(cnstThis(refThis(fnTy("foo", voidTy()))), bindToNothing, "void foo() const &", "foo");
+    addRow(cnstThis(rrefThis(fnTy("foo", voidTy()))), bindToNothing, "void foo() const &&", "foo");
+    addRow(cnstThis(refThis(fnTy("foo", voidTy()))), bindToAll, "void foo() const&", "foo");
+    addRow(cnstThis(rrefThis(fnTy("foo", voidTy()))), bindToAll, "void foo() const&&", "foo");
 
     // Pointers to functions and arrays are also excluded. It seems to be quite unusal to have
     // a space there.
@@ -395,6 +449,9 @@ void tst_TypePrettyPrinter::basic_data()
 
     addRow(fnTy("foo", ref(voidTy()), ptr(voidTy())), bindToNothing, "void &foo(void *)", "foo");
     addRow(fnTy("foo", ref(voidTy()), ptr(voidTy())), bindToAll, "void&foo(void*)", "foo");
+
+    addRow(templTy(fnTy("foo", voidTy(), voidTy()), true), bindToNothing, "template<class T>\nvoid foo()", "foo");
+    addRow(templTy(fnTy("foo", voidTy(), voidTy()), false), bindToNothing, "template<typename T>\nvoid foo()", "foo");
 }
 
 void tst_TypePrettyPrinter::basic()
@@ -406,6 +463,7 @@ void tst_TypePrettyPrinter::basic()
 
     Overview o;
     o.showReturnTypes = true;
+    o.showEnclosingTemplate = true;
     o.starBindFlags = starBindFlags;
     TypePrettyPrinter pp(&o);
     QCOMPARE(pp(type, name), result);

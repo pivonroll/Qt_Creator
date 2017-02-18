@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -27,6 +27,7 @@
 #include "formeditorscene.h"
 
 #include <modelnode.h>
+#include <nodehints.h>
 #include <nodemetainfo.h>
 
 #include <QDebug>
@@ -59,12 +60,18 @@ FormEditorItem::FormEditorItem(const QmlItemNode &qmlItemNode, FormEditorScene* 
 
 void FormEditorItem::setup()
 {
+    setAcceptedMouseButtons(Qt::NoButton);
     if (qmlItemNode().hasInstanceParent()) {
         setParentItem(scene()->itemForQmlItemNode(qmlItemNode().instanceParent().toQmlItemNode()));
         setOpacity(qmlItemNode().instanceValue("opacity").toDouble());
     }
 
     setFlag(QGraphicsItem::ItemClipsChildrenToShape, qmlItemNode().instanceValue("clip").toBool());
+
+    if (NodeHints::fromModelNode(qmlItemNode()).forceClip()) {
+        setFlag(QGraphicsItem::ItemClipsChildrenToShape, true);
+        setFlag(QGraphicsItem::ItemClipsToShape, true);
+    }
 
     if (QGraphicsItem::parentItem() == scene()->formLayerItem())
         m_borderWidth = 0.0;
@@ -109,10 +116,7 @@ void FormEditorItem::updateGeometry()
 
 void FormEditorItem::updateVisibilty()
 {
-//    setVisible(nodeInstance().isVisible());
-//    setOpacity(nodeInstance().opacity());
 }
-
 
 FormEditorView *FormEditorItem::formEditorView() const
 {
@@ -204,17 +208,6 @@ FormEditorItem* FormEditorItem::fromQGraphicsItem(QGraphicsItem *graphicsItem)
     return qgraphicsitem_cast<FormEditorItem*>(graphicsItem);
 }
 
-//static QRectF alignedRect(const QRectF &rect)
-//{
-//    QRectF alignedRect(rect);
-//    alignedRect.setTop(std::floor(rect.top()) + 0.5);
-//    alignedRect.setBottom(std::floor(rect.bottom()) + 0.5);
-//    alignedRect.setLeft(std::floor(rect.left()) + 0.5);
-//    alignedRect.setRight(std::floor(rect.right()) + 0.5);
-//
-//    return alignedRect;
-//}
-
 void FormEditorItem::paintBoundingRect(QPainter *painter) const
 {
     if (!m_boundingRect.isValid()
@@ -225,30 +218,25 @@ void FormEditorItem::paintBoundingRect(QPainter *painter) const
          return;
 
     QPen pen;
+    pen.setCosmetic(true);
     pen.setJoinStyle(Qt::MiterJoin);
 
     QColor frameColor("#AAAAAA");
 
     if (scene()->showBoundingRects()) {
-        if (m_highlightBoundingRect) {
-            pen.setColor(frameColor);
-        } else {
-            pen.setColor(frameColor.darker(150));
-            pen.setStyle(Qt::DotLine);
-        }
-    } else {
-        if (m_highlightBoundingRect) {
-            pen.setColor(frameColor);
-        } else {
-            pen.setColor(Qt::transparent);
-            pen.setStyle(Qt::DotLine);
-        }
+        pen.setColor(frameColor.darker(150));
+        pen.setStyle(Qt::DotLine);
+        painter->setPen(pen);
+        painter->drawRect(m_boundingRect.adjusted(0., 0., -1., -1.));
+
     }
 
-    painter->setPen(pen);
-//    int offset =  m_borderWidth / 2;
-
-    painter->drawRect(m_boundingRect.adjusted(0., 0., -1., -1.));
+    if (m_highlightBoundingRect) {
+        pen.setColor(frameColor);
+        pen.setStyle(Qt::SolidLine);
+        painter->setPen(pen);
+        painter->drawRect(m_selectionBoundingRect.adjusted(0., 0., -1., -1.));
+    }
 }
 
 static void paintTextInPlaceHolderForInvisbleItem(QPainter *painter,
@@ -339,21 +327,30 @@ void FormEditorItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, 
 
     painter->save();
 
-    if (qmlItemNode().instanceIsRenderPixmapNull() || !isContentVisible()) {
-        if (scene()->showBoundingRects() && m_boundingRect.width() > 15 && m_boundingRect.height() > 15)
-            paintPlaceHolderForInvisbleItem(painter);
-    } else {
-        if (m_blurContent)
-            painter->drawPixmap(m_paintedBoundingRect.topLeft(), qmlItemNode().instanceBlurredRenderPixmap());
-        else
-            painter->drawPixmap(m_paintedBoundingRect.topLeft(), qmlItemNode().instanceRenderPixmap());
+    bool showPlaceHolder = qmlItemNode().instanceIsRenderPixmapNull() || !isContentVisible();
+
+    const bool isInStackedContainer = qmlItemNode().isInStackedContainer();
+
+    /* If already the parent is invisible then show nothing */
+    const bool hideCompletely = !isContentVisible() && (parentItem() && !parentItem()->isContentVisible());
+
+    if (isInStackedContainer)
+        showPlaceHolder = qmlItemNode().instanceIsRenderPixmapNull() && isContentVisible();
+
+    if (!hideCompletely) {
+        if (showPlaceHolder) {
+            if (scene()->showBoundingRects() && m_boundingRect.width() > 15 && m_boundingRect.height() > 15)
+                paintPlaceHolderForInvisbleItem(painter);
+        } else if (!isInStackedContainer || isContentVisible() ) {
+            if (m_blurContent)
+                painter->drawPixmap(m_paintedBoundingRect.topLeft(), qmlItemNode().instanceBlurredRenderPixmap());
+            else
+                painter->drawPixmap(m_paintedBoundingRect.topLeft(), qmlItemNode().instanceRenderPixmap());
+        }
     }
 
     if (!qmlItemNode().isRootModelNode())
         paintBoundingRect(painter);
-
-//    if (qmlItemNode().modelNode().metaInfo().isSubclassOf("QtQuick.Loader", -1, -1))
-//        paintComponentContentVisualisation(painter, boundingRect());
 
     painter->restore();
 }

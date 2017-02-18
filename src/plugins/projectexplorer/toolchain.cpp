@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -32,6 +27,7 @@
 
 #include "abi.h"
 #include "headerpath.h"
+#include "projectexplorerconstants.h"
 #include "toolchainmanager.h"
 #include "task.h"
 
@@ -44,6 +40,8 @@
 static const char ID_KEY[] = "ProjectExplorer.ToolChain.Id";
 static const char DISPLAY_NAME_KEY[] = "ProjectExplorer.ToolChain.DisplayName";
 static const char AUTODETECT_KEY[] = "ProjectExplorer.ToolChain.Autodetect";
+static const char LANGUAGE_KEY_V1[] = "ProjectExplorer.ToolChain.Language"; // For QtCreator <= 4.2
+static const char LANGUAGE_KEY_V2[] = "ProjectExplorer.ToolChain.LanguageV2"; // For QtCreator > 4.2
 
 namespace ProjectExplorer {
 namespace Internal {
@@ -67,12 +65,48 @@ public:
     }
 
     QByteArray m_id;
-    Core::Id m_typeId;
-    Detection m_detection;
+    QSet<Core::Id> m_supportedLanguages;
     mutable QString m_displayName;
+    Core::Id m_typeId;
+    Core::Id m_language;
+    Detection m_detection;
 };
 
+
+// Deprecated used from QtCreator <= 4.2
+
+Core::Id fromLanguageV1(int language)
+{
+    switch (language)
+    {
+    case Deprecated::Toolchain::C :
+        return Core::Id(Constants::C_LANGUAGE_ID);
+    case Deprecated::Toolchain::Cxx:
+        return Core::Id(Constants::CXX_LANGUAGE_ID);
+    case Deprecated::Toolchain::None:
+    default:
+        return Core::Id();
+    }
+}
+
 } // namespace Internal
+
+namespace Deprecated {
+namespace Toolchain {
+QString languageId(Language l)
+{
+    switch (l) {
+    case Language::None:
+        return QStringLiteral("None");
+    case Language::C:
+        return QStringLiteral("C");
+    case Language::Cxx:
+        return QStringLiteral("Cxx");
+    };
+    return QString();
+}
+} // namespace Toolchain
+} // namespace Deprecated
 
 /*!
     \class ProjectExplorer::ToolChain
@@ -84,14 +118,26 @@ public:
 
 ToolChain::ToolChain(Core::Id typeId, Detection d) :
     d(new Internal::ToolChainPrivate(typeId, d))
-{ }
+{
+}
 
 ToolChain::ToolChain(const ToolChain &other) :
     d(new Internal::ToolChainPrivate(other.d->m_typeId, ManualDetection))
 {
+    d->m_language = other.d->m_language;
+
     // leave the autodetection bit at false.
     d->m_displayName = QCoreApplication::translate("ProjectExplorer::ToolChain", "Clone of %1")
             .arg(other.displayName());
+}
+
+void ToolChain::setLanguage(Core::Id language)
+{
+    QTC_ASSERT(!d->m_language.isValid(), return);
+    QTC_ASSERT(language.isValid(), return);
+    QTC_ASSERT(ToolChainManager::isLanguageSupported(language), return);
+
+    d->m_language = language;
 }
 
 ToolChain::~ToolChain()
@@ -125,9 +171,9 @@ QByteArray ToolChain::id() const
     return d->m_id;
 }
 
-QList<Utils::FileName> ToolChain::suggestedMkspecList() const
+Utils::FileNameList ToolChain::suggestedMkspecList() const
 {
-    return QList<Utils::FileName>();
+    return Utils::FileNameList();
 }
 
 Utils::FileName ToolChain::suggestedDebugger() const
@@ -138,6 +184,16 @@ Utils::FileName ToolChain::suggestedDebugger() const
 Core::Id ToolChain::typeId() const
 {
     return d->m_typeId;
+}
+
+QList<Abi> ToolChain::supportedAbis() const
+{
+    return { targetAbi() };
+}
+
+Core::Id ToolChain::language() const
+{
+    return d->m_language;
 }
 
 bool ToolChain::canClone() const
@@ -151,7 +207,9 @@ bool ToolChain::operator == (const ToolChain &tc) const
         return true;
 
     // We ignore displayname
-    return typeId() == tc.typeId() && isAutoDetected() == tc.isAutoDetected();
+    return typeId() == tc.typeId()
+            && isAutoDetected() == tc.isAutoDetected()
+            && language() == tc.language();
 }
 
 /*!
@@ -167,7 +225,7 @@ QVariantMap ToolChain::toMap() const
     result.insert(QLatin1String(ID_KEY), idToSave);
     result.insert(QLatin1String(DISPLAY_NAME_KEY), displayName());
     result.insert(QLatin1String(AUTODETECT_KEY), isAutoDetected());
-
+    result.insert(QLatin1String(LANGUAGE_KEY_V2), language().toSetting());
     return result;
 }
 
@@ -204,6 +262,22 @@ bool ToolChain::fromMap(const QVariantMap &data)
     const bool autoDetect = data.value(QLatin1String(AUTODETECT_KEY), false).toBool();
     d->m_detection = autoDetect ? AutoDetectionFromSettings : ManualDetection;
 
+    if (data.contains(LANGUAGE_KEY_V2)) {
+        // remove hack to trim language id in 4.4: This is to fix up broken language
+        // ids that happened in 4.3 master branch
+        const QString langId = data.value(QLatin1String(LANGUAGE_KEY_V2)).toString();
+        const int pos = langId.lastIndexOf('.');
+        if (pos >= 0)
+            d->m_language = Core::Id::fromString(langId.mid(pos + 1));
+        else
+            d->m_language = Core::Id::fromString(langId);
+    } else if (data.contains(LANGUAGE_KEY_V1)) { // Import from old settings
+        d->m_language = Internal::fromLanguageV1(data.value(QLatin1String(LANGUAGE_KEY_V1)).toInt());
+    }
+
+    if (!d->m_language.isValid())
+        d->m_language = Core::Id(Constants::CXX_LANGUAGE_ID);
+
     return true;
 }
 
@@ -239,8 +313,16 @@ QList<Task> ToolChain::validateKit(const Kit *) const
     Used by the tool chain manager to restore user-generated tool chains.
 */
 
-QList<ToolChain *> ToolChainFactory::autoDetect()
+QList<ToolChain *> ToolChainFactory::autoDetect(const QList<ToolChain *> &alreadyKnown)
 {
+    Q_UNUSED(alreadyKnown);
+    return QList<ToolChain *>();
+}
+
+QList<ToolChain *> ToolChainFactory::autoDetect(const Utils::FileName &compilerPath, const Core::Id &language)
+{
+    Q_UNUSED(compilerPath);
+    Q_UNUSED(language);
     return QList<ToolChain *>();
 }
 
@@ -249,9 +331,10 @@ bool ToolChainFactory::canCreate()
     return false;
 }
 
-ToolChain *ToolChainFactory::create()
+ToolChain *ToolChainFactory::create(Core::Id l)
 {
-    return 0;
+    Q_UNUSED(l);
+    return nullptr;
 }
 
 bool ToolChainFactory::canRestore(const QVariantMap &)
@@ -261,7 +344,7 @@ bool ToolChainFactory::canRestore(const QVariantMap &)
 
 ToolChain *ToolChainFactory::restore(const QVariantMap &)
 {
-    return 0;
+    return nullptr;
 }
 
 static QPair<QString, QString> rawIdData(const QVariantMap &data)

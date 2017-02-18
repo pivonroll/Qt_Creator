@@ -1,32 +1,27 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
 source("../../shared/qtcreator.py")
 
@@ -80,8 +75,7 @@ def __checkBuildAndRun__():
     qmakePath = which("qmake")
     foundQt = []
     clickOnTab(":Options.qt_tabwidget_tabbar_QTabBar", "Qt Versions")
-    __iterateTree__(":QtSupport__Internal__QtVersionManager.qtdirList_QTreeWidget",
-                    __qtFunc__, foundQt, qmakePath)
+    __iterateTree__(":qtdirList_QTreeView", __qtFunc__, foundQt, qmakePath)
     test.verify(not qmakePath or len(foundQt) == 1,
                 "Was qmake from %s autodetected? Found %s" % (qmakePath, foundQt))
     if foundQt:
@@ -90,27 +84,42 @@ def __checkBuildAndRun__():
     clickOnTab(":Options.qt_tabwidget_tabbar_QTabBar", "Kits")
     __iterateTree__(":BuildAndRun_QTreeView", __kitFunc__, foundQt, foundCompilerNames)
 
+def __processSubItems__(treeObjStr, section, parModelIndexStr, doneItems,
+                        additionalFunc, *additionalParameters):
+    global currentSelectedTreeItem
+    tree = waitForObject(treeObjStr)
+    model = tree.model()
+    items = dumpIndices(model, section)
+    for it in items:
+        indexName = str(it.data().toString())
+        itObj = "%s container=%s}" % (objectMap.realName(it)[:-1], parModelIndexStr)
+        alreadyDone = doneItems.count(itObj)
+        doneItems.append(itObj)
+        if alreadyDone:
+            itObj = "%s occurrence='%d'}" % (itObj[:-1], alreadyDone + 1)
+        currentSelectedTreeItem = waitForObject(itObj, 3000)
+        tree.scrollTo(it)
+        mouseClick(currentSelectedTreeItem, 5, 5, 0, Qt.LeftButton)
+        additionalFunc(indexName, *additionalParameters)
+        currentSelectedTreeItem = None
+        if model.rowCount(it) > 0:
+            __processSubItems__(treeObjStr, it, itObj, doneItems,
+                                additionalFunc, *additionalParameters)
+
 def __iterateTree__(treeObjStr, additionalFunc, *additionalParameters):
     global currentSelectedTreeItem
     model = waitForObject(treeObjStr).model()
     # 1st row: Auto-detected, 2nd row: Manual
     for sect in dumpIndices(model):
-        sObj = "%s container='%s'}" % (objectMap.realName(sect)[:-1], treeObjStr)
-        items = dumpIndices(model, sect)
         doneItems = []
-        for it in items:
-            indexName = str(it.data().toString())
-            itObj = "%s container=%s}" % (objectMap.realName(it)[:-1], sObj)
-            alreadyDone = doneItems.count(itObj)
-            doneItems.append(itObj)
-            if alreadyDone:
-                itObj = "%s occurrence='%d'}" % (itObj[:-1], alreadyDone + 1)
-            currentSelectedTreeItem = waitForObject(itObj, 3000)
-            mouseClick(currentSelectedTreeItem, 5, 5, 0, Qt.LeftButton)
-            additionalFunc(indexName, *additionalParameters)
-            currentSelectedTreeItem = None
+        parentModelIndex = "%s container='%s'}" % (objectMap.realName(sect)[:-1], treeObjStr)
+        __processSubItems__(treeObjStr, sect, parentModelIndex, doneItems,
+                            additionalFunc, *additionalParameters)
 
 def __compFunc__(it, foundComp, foundCompNames):
+    # skip sub section items (will continue on its children)
+    if str(it) == "C" or str(it) == "C++":
+        return
     try:
         waitFor("object.exists(':Path.Utils_BaseValidatingLineEdit')", 1000)
         pathLineEdit = findObject(":Path.Utils_BaseValidatingLineEdit")
@@ -123,7 +132,7 @@ def __compFunc__(it, foundComp, foundCompNames):
     foundCompNames.append(it)
 
 def __dbgFunc__(it, foundDbg):
-    waitFor("object.exists(':Path.Utils_BaseValidatingLineEdit')", 1000)
+    waitFor("object.exists(':Path.Utils_BaseValidatingLineEdit')", 2000)
     pathLineEdit = findObject(":Path.Utils_BaseValidatingLineEdit")
     foundDbg.append(str(pathLineEdit.text))
 
@@ -150,12 +159,17 @@ def __kitFunc__(it, foundQt, foundCompNames):
     test.compare(it, "Desktop (default)", "Verifying whether default Desktop kit has been created.")
     if foundQt:
         test.compare(qtVersionStr, foundQt, "Verifying if Qt versions match.")
-    compilerCombo = findObject(":Compiler:_QComboBox")
-    test.compare(compilerCombo.enabled, compilerCombo.count > 1,
-                 "Verifying whether compiler combo is enabled/disabled correctly.")
+    cCompilerCombo = findObject(":CCompiler:_QComboBox")
+    test.compare(cCompilerCombo.enabled, cCompilerCombo.count > 1,
+                 "Verifying whether C compiler combo is enabled/disabled correctly.")
+    cppCompilerCombo = findObject(":CppCompiler:_QComboBox")
+    test.compare(cppCompilerCombo.enabled, cppCompilerCombo.count > 1,
+                 "Verifying whether C++ compiler combo is enabled/disabled correctly.")
 
-    test.verify(str(compilerCombo.currentText) in foundCompNames,
-                "Verifying if one of the found compilers had been set.")
+    test.verify(str(cCompilerCombo.currentText) in foundCompNames,
+                "Verifying if one of the found C compilers had been set.")
+    test.verify(str(cppCompilerCombo.currentText) in foundCompNames,
+                "Verifying if one of the found C++ compilers had been set.")
     if currentSelectedTreeItem:
         foundWarningOrError = warningOrError.search(str(currentSelectedTreeItem.toolTip))
         if foundWarningOrError:
@@ -164,20 +178,21 @@ def __kitFunc__(it, foundQt, foundCompNames):
             test.warning("Detected error and/or warning: %s" % details)
 
 def __getExpectedCompilers__():
+    # TODO: enhance this to distinguish between C and C++ compilers
     expected = []
     if platform.system() in ('Microsoft', 'Windows'):
         expected.extend(__getWinCompilers__())
-    compilers = ["g++"]
+    compilers = ["g++", "gcc"]
     if platform.system() in ('Linux', 'Darwin'):
-        compilers.extend(["g++-4.0", "g++-4.2", "clang++"])
+        compilers.extend(["g++-4.0", "g++-4.2", "clang++", "clang"])
     if platform.system() == 'Darwin':
-        xcodeClang = getOutputFromCmdline("xcrun --find clang++").strip("\n")
+        xcodeClang = getOutputFromCmdline(["xcrun", "--find", "clang++"]).strip("\n")
         if xcodeClang and os.path.exists(xcodeClang) and xcodeClang not in expected:
             expected.append(xcodeClang)
     for compiler in compilers:
         compilerPath = which(compiler)
         if compilerPath:
-            if compiler.endswith('clang++'):
+            if compiler.endswith('clang++') or compiler.endswith('clang'):
                 if subprocess.call([compiler, '-dumpmachine']) != 0:
                     test.warning("clang found in PATH, but version is not supported.")
                     continue
@@ -195,6 +210,10 @@ def __getWinCompilers__():
         if os.path.exists(compiler):
             parameters = testData.field(record, "displayedParameters").split(",")
             usedParameters = testData.field(record, "usedParameters").split(",")
+            idePath = testData.field(record, "IDEPath")
+            if len(idePath):
+                if not os.path.exists(os.path.abspath(os.path.join(envvar, idePath))):
+                    continue
             if testData.field(record, "isSDK") == "true":
                 for para, used in zip(parameters, usedParameters):
                     result.append(
@@ -219,7 +238,7 @@ def __getExpectedDebuggers__():
         result.extend(filter(lambda s: not ("lldb-platform" in s or "lldb-gdbserver" in s),
                              findAllFilesInPATH("lldb-*")))
     if platform.system() == 'Darwin':
-        xcodeLLDB = getOutputFromCmdline("xcrun --find lldb").strip("\n")
+        xcodeLLDB = getOutputFromCmdline(["xcrun", "--find", "lldb"]).strip("\n")
         if xcodeLLDB and os.path.exists(xcodeLLDB) and xcodeLLDB not in result:
             result.append(xcodeLLDB)
     return result
@@ -235,7 +254,9 @@ def __getCDB__():
                          "C:\\Program Files (x86)\\Windows Kits\\8.1\\Debuggers\\x86",
                          "C:\\Program Files (x86)\\Windows Kits\\8.1\\Debuggers\\x64",
                          "C:\\Program Files\\Windows Kits\\8.1\\Debuggers\\x86",
-                         "C:\\Program Files\\Windows Kits\\8.1\\Debuggers\\x64"]
+                         "C:\\Program Files\\Windows Kits\\8.1\\Debuggers\\x64",
+                         "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x86",
+                         "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64"]
     for cdbPath in possibleLocations:
         cdb = os.path.join(cdbPath, "cdb.exe")
         if os.path.exists(cdb):

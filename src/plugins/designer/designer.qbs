@@ -4,7 +4,10 @@ import qbs.FileInfo
 QtcPlugin {
     name: "Designer"
 
-    Depends { name: "Qt"; submodules: ["widgets", "xml", "printsupport", "designer", "designercomponents"] }
+    Depends {
+        name: "Qt"
+        submodules: ["widgets", "xml", "printsupport", "designer", "designercomponents-private"]
+    }
     Depends { name: "CPlusPlus" }
     Depends { name: "Utils" }
 
@@ -29,7 +32,6 @@ QtcPlugin {
         files: [
             "README.txt",
             "codemodelhelpers.cpp", "codemodelhelpers.h",
-            "designer.qrc",
             "designer_export.h",
             "designerconstants.h",
             "designercontext.cpp", "designercontext.h",
@@ -75,7 +77,7 @@ QtcPlugin {
 
     Group {
         name: "Tests"
-        condition: project.testsEnabled
+        condition: qtc.testsEnabled
         files: [ "gotoslot_test.cpp" ]
 
         cpp.defines: outer.concat(['SRCDIR="' + FileInfo.path(filePath) + '"'])

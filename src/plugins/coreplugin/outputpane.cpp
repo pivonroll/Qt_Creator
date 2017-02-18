@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,28 +28,32 @@
 #include "outputpane.h"
 #include "outputpanemanager.h"
 
+#include <QResizeEvent>
 #include <QSplitter>
 #include <QVBoxLayout>
 
 namespace Core {
 
-struct OutputPanePlaceHolderPrivate {
-    explicit OutputPanePlaceHolderPrivate(IMode *mode, QSplitter *parent);
+class OutputPanePlaceHolderPrivate {
+public:
+    explicit OutputPanePlaceHolderPrivate(Id mode, QSplitter *parent);
 
-    IMode *m_mode;
+    Id m_mode;
     QSplitter *m_splitter;
-    int m_lastNonMaxSize;
+    int m_nonMaximizedSize = 0;
+    bool m_isMaximized = false;
+    bool m_initialized = false;
     static OutputPanePlaceHolder* m_current;
 };
 
-OutputPanePlaceHolderPrivate::OutputPanePlaceHolderPrivate(IMode *mode, QSplitter *parent) :
-    m_mode(mode), m_splitter(parent), m_lastNonMaxSize(0)
+OutputPanePlaceHolderPrivate::OutputPanePlaceHolderPrivate(Id mode, QSplitter *parent) :
+    m_mode(mode), m_splitter(parent)
 {
 }
 
 OutputPanePlaceHolder *OutputPanePlaceHolderPrivate::m_current = 0;
 
-OutputPanePlaceHolder::OutputPanePlaceHolder(IMode *mode, QSplitter* parent)
+OutputPanePlaceHolder::OutputPanePlaceHolder(Id mode, QSplitter *parent)
    : QWidget(parent), d(new OutputPanePlaceHolderPrivate(mode, parent))
 {
     setVisible(false);
@@ -67,6 +66,9 @@ OutputPanePlaceHolder::OutputPanePlaceHolder(IMode *mode, QSplitter* parent)
     layout()->setMargin(0);
     connect(ModeManager::instance(), &ModeManager::currentModeChanged,
             this, &OutputPanePlaceHolder::currentModeChanged);
+    // if this is part of a lazily created mode widget,
+    // we need to check if this is the current placeholder
+    currentModeChanged(ModeManager::currentMode());
 }
 
 OutputPanePlaceHolder::~OutputPanePlaceHolder()
@@ -76,40 +78,51 @@ OutputPanePlaceHolder::~OutputPanePlaceHolder()
             om->setParent(0);
             om->hide();
         }
+        OutputPanePlaceHolderPrivate::m_current = nullptr;
     }
     delete d;
 }
 
-void OutputPanePlaceHolder::currentModeChanged(IMode *mode)
+void OutputPanePlaceHolder::currentModeChanged(Id mode)
 {
     if (d->m_current == this) {
         d->m_current = 0;
+        if (d->m_initialized)
+            Internal::OutputPaneManager::setOutputPaneHeightSetting(d->m_nonMaximizedSize);
         Internal::OutputPaneManager *om = Internal::OutputPaneManager::instance();
-        om->setParent(0);
         om->hide();
+        om->setParent(0);
         om->updateStatusButtons(false);
     }
     if (d->m_mode == mode) {
+        if (d->m_current && d->m_current->d->m_initialized)
+            Internal::OutputPaneManager::setOutputPaneHeightSetting(d->m_current->d->m_nonMaximizedSize);
         d->m_current = this;
         Internal::OutputPaneManager *om = Internal::OutputPaneManager::instance();
         layout()->addWidget(om);
         om->show();
         om->updateStatusButtons(isVisible());
+        Internal::OutputPaneManager::updateMaximizeButton(d->m_isMaximized);
     }
 }
 
-void OutputPanePlaceHolder::maximizeOrMinimize(bool maximize)
+void OutputPanePlaceHolder::setMaximized(bool maximize)
 {
+    if (d->m_isMaximized == maximize)
+        return;
     if (!d->m_splitter)
         return;
     int idx = d->m_splitter->indexOf(this);
     if (idx < 0)
         return;
 
+    d->m_isMaximized = maximize;
+    if (d->m_current == this)
+        Internal::OutputPaneManager::updateMaximizeButton(d->m_isMaximized);
     QList<int> sizes = d->m_splitter->sizes();
 
     if (maximize) {
-        d->m_lastNonMaxSize = sizes[idx];
+        d->m_nonMaximizedSize = sizes[idx];
         int sum = 0;
         foreach (int s, sizes)
             sum += s;
@@ -118,7 +131,7 @@ void OutputPanePlaceHolder::maximizeOrMinimize(bool maximize)
         }
         sizes[idx] = sum - (sizes.count()-1) * 32;
     } else {
-        int target = d->m_lastNonMaxSize > 0 ? d->m_lastNonMaxSize : sizeHint().height();
+        int target = d->m_nonMaximizedSize > 0 ? d->m_nonMaximizedSize : sizeHint().height();
         int space = sizes[idx] - target;
         if (space > 0) {
             for (int i = 0; i < sizes.count(); ++i) {
@@ -129,31 +142,31 @@ void OutputPanePlaceHolder::maximizeOrMinimize(bool maximize)
     }
 
     d->m_splitter->setSizes(sizes);
-
 }
 
 bool OutputPanePlaceHolder::isMaximized() const
 {
-    return Internal::OutputPaneManager::instance()->isMaximized();
+    return d->m_isMaximized;
 }
 
-void OutputPanePlaceHolder::setDefaultHeight(int height)
+void OutputPanePlaceHolder::setHeight(int height)
 {
     if (height == 0)
         return;
     if (!d->m_splitter)
         return;
-    int idx = d->m_splitter->indexOf(this);
+    const int idx = d->m_splitter->indexOf(this);
     if (idx < 0)
         return;
 
     d->m_splitter->refresh();
     QList<int> sizes = d->m_splitter->sizes();
-    int difference = height - sizes.at(idx);
-    if (difference <= 0) // is already larger
+    const int difference = height - sizes.at(idx);
+    if (difference == 0)
         return;
+    const int adaption = difference / (sizes.count()-1);
     for (int i = 0; i < sizes.count(); ++i) {
-        sizes[i] += difference / (sizes.count()-1);
+        sizes[i] -= adaption;
     }
     sizes[idx] = height;
     d->m_splitter->setSizes(sizes);
@@ -164,23 +177,35 @@ void OutputPanePlaceHolder::ensureSizeHintAsMinimum()
     Internal::OutputPaneManager *om = Internal::OutputPaneManager::instance();
     int minimum = (d->m_splitter->orientation() == Qt::Vertical
                    ? om->sizeHint().height() : om->sizeHint().width());
-    setDefaultHeight(minimum);
+    if (nonMaximizedSize() < minimum && !d->m_isMaximized)
+        setHeight(minimum);
 }
 
-void OutputPanePlaceHolder::unmaximize()
+int OutputPanePlaceHolder::nonMaximizedSize() const
 {
-    if (Internal::OutputPaneManager::instance()->isMaximized())
-        Internal::OutputPaneManager::instance()->slotMinMax();
+    if (!d->m_initialized)
+        return Internal::OutputPaneManager::outputPaneHeightSetting();
+    return d->m_nonMaximizedSize;
+}
+
+void OutputPanePlaceHolder::resizeEvent(QResizeEvent *event)
+{
+    if (d->m_isMaximized || event->size().height() == 0)
+        return;
+    d->m_nonMaximizedSize = event->size().height();
+}
+
+void OutputPanePlaceHolder::showEvent(QShowEvent *)
+{
+    if (!d->m_initialized) {
+        d->m_initialized = true;
+        setHeight(Internal::OutputPaneManager::outputPaneHeightSetting());
+    }
 }
 
 OutputPanePlaceHolder *OutputPanePlaceHolder::getCurrent()
 {
     return OutputPanePlaceHolderPrivate::m_current;
-}
-
-bool OutputPanePlaceHolder::canMaximizeOrMinimize() const
-{
-    return d->m_splitter != 0;
 }
 
 bool OutputPanePlaceHolder::isCurrentVisible()

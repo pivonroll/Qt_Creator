@@ -10,7 +10,6 @@ HEADERS += \
     remotelinuxplugin.h \
     remotelinux_export.h \
     linuxdevice.h \
-    abstractremotelinuxrunconfiguration.h \
     remotelinuxrunconfiguration.h \
     publickeydeploymentdialog.h \
     genericlinuxdeviceconfigurationwizard.h \
@@ -49,7 +48,8 @@ HEADERS += \
     abstractremotelinuxrunsupport.h \
     linuxdeviceprocess.h \
     remotelinuxcustomrunconfiguration.h \
-    remotelinuxsignaloperation.h
+    remotelinuxsignaloperation.h \
+    deploymenttimeinfo.h
 
 SOURCES += \
     embeddedlinuxqtversion.cpp \
@@ -58,7 +58,6 @@ SOURCES += \
     remotelinuxenvironmentaspectwidget.cpp \
     remotelinuxplugin.cpp \
     linuxdevice.cpp \
-    abstractremotelinuxrunconfiguration.cpp \
     remotelinuxrunconfiguration.cpp \
     publickeydeploymentdialog.cpp \
     genericlinuxdeviceconfigurationwizard.cpp \
@@ -96,7 +95,8 @@ SOURCES += \
     abstractremotelinuxrunsupport.cpp \
     linuxdeviceprocess.cpp \
     remotelinuxcustomrunconfiguration.cpp \
-    remotelinuxsignaloperation.cpp
+    remotelinuxsignaloperation.cpp \
+    deploymenttimeinfo.cpp
 
 FORMS += \
     genericlinuxdeviceconfigurationwizardsetuppage.ui \

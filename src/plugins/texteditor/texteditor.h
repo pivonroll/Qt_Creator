@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,29 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef TEXTEDITOR_H
-#define TEXTEDITOR_H
+#pragma once
 
 #include "texteditor_global.h"
+#include "blockrange.h"
 #include "codeassist/assistenums.h"
 
 #include <coreplugin/editormanager/ieditor.h>
@@ -90,33 +85,6 @@ class Indenter;
 class MarginSettings;
 class StorageSettings;
 class TypingSettings;
-
-class TEXTEDITOR_EXPORT BlockRange
-{
-public:
-    BlockRange() : _first(0), _last(-1) {}
-    BlockRange(int firstPosition, int lastPosition)
-      : _first(firstPosition), _last(lastPosition)
-    {}
-
-    inline bool isNull() const { return _last < _first; }
-
-    int first() const { return _first; }
-    int last() const { return _last; }
-
-private:
-    int _first;
-    int _last;
-};
-
-enum TextPositionOperation
-{
-    CurrentPosition = 1,
-    EndOfLinePosition = 2,
-    StartOfLinePosition = 3,
-    AnchorPosition = 4,
-    EndOfDocPosition = 5
-};
 
 enum TextMarkRequestKind
 {
@@ -222,6 +190,7 @@ public:
     using QPlainTextEdit::cursorRect;
     QRect cursorRect(int pos) const;
     void setCursorPosition(int pos);
+    QToolBar *toolBar();
 
     void print(QPrinter *);
 
@@ -325,6 +294,7 @@ public:
 
     const DisplaySettings &displaySettings() const;
     const MarginSettings &marginSettings() const;
+    const BehaviorSettings &behaviorSettings() const;
 
     void ensureCursorVisible();
 
@@ -332,6 +302,7 @@ public:
     static Core::Id SnippetPlaceholderSelection;
     static Core::Id CurrentLineSelection;
     static Core::Id ParenthesesMatchingSelection;
+    static Core::Id AutoCompleteSelection;
     static Core::Id CodeWarningsSelection;
     static Core::Id CodeSemanticsSelection;
     static Core::Id UndefinedSymbolSelection;
@@ -352,7 +323,11 @@ public:
     bool isMissingSyntaxDefinition() const;
 
     enum Side { Left, Right };
-    void insertExtraToolBarWidget(Side side, QWidget *widget);
+    QAction *insertExtraToolBarWidget(Side side, QWidget *widget);
+
+    // keep the auto completion even if the focus is lost
+    void keepAutoCompletionHighlight(bool keepHighlight);
+    void setAutoCompleteSkipPosition(const QTextCursor &cursor);
 
     virtual void copy();
     virtual void paste();
@@ -378,12 +353,13 @@ public:
     void circularPaste();
     void switchUtf8bom();
 
-    void zoomIn();
-    void zoomOut();
+    void zoomF(float delta);
     void zoomReset();
 
     void cutLine();
     void copyLine();
+    void duplicateSelection();
+    void duplicateSelectionAndComment();
     void deleteLine();
     void deleteEndOfWord();
     void deleteEndOfWordCamelCase();
@@ -421,8 +397,9 @@ public:
     void gotoNextWordCamelCase();
     void gotoNextWordCamelCaseWithSelection();
 
-    bool selectBlockUp();
-    bool selectBlockDown();
+    virtual bool selectBlockUp();
+    virtual bool selectBlockDown();
+    void selectWordUnderCursor();
 
     void moveLineUp();
     void moveLineDown();
@@ -480,8 +457,6 @@ signals:
     void assistFinished(); // Used in tests.
     void readOnlyChanged();
 
-    void requestFontZoom(int zoom);
-    void requestZoomReset();
     void requestBlockUpdate(const QTextBlock &);
 
 protected:
@@ -532,6 +507,7 @@ protected:
     void showDefaultContextMenu(QContextMenuEvent *e, Core::Id menuContextId);
     virtual void finalizeInitialization() {}
     virtual void finalizeInitializationAfterDuplication(TextEditorWidget *) {}
+    static QTextCursor flippedCursor(const QTextCursor &cursor);
 
 public:
     struct Link
@@ -611,8 +587,6 @@ signals:
     void tooltipOverrideRequested(TextEditor::TextEditorWidget *widget,
         const QPoint &globalPos, int position, bool *handled);
     void tooltipRequested(const QPoint &globalPos, int position);
-    void markTooltipRequested(TextEditor::TextEditorWidget *widget,
-        const QPoint &globalPos, int line);
     void activateEditor();
 
 protected slots:
@@ -621,8 +595,6 @@ protected slots:
 
     bool inFindScope(const QTextCursor &cursor);
     bool inFindScope(int selectionStart, int selectionEnd);
-
-    void doFoo();
 
 private:
     Internal::TextEditorWidgetPrivate *d;
@@ -667,13 +639,13 @@ public:
     typedef std::function<Indenter *()> IndenterCreator;
     typedef std::function<AutoCompleter *()> AutoCompleterCreator;
 
-    void setDocumentCreator(DocumentCreator &&creator);
-    void setEditorWidgetCreator(EditorWidgetCreator &&creator);
-    void setEditorCreator(EditorCreator &&creator);
-    void setIndenterCreator(IndenterCreator &&creator);
-    void setSyntaxHighlighterCreator(SyntaxHighLighterCreator &&creator);
+    void setDocumentCreator(const DocumentCreator &creator);
+    void setEditorWidgetCreator(const EditorWidgetCreator &creator);
+    void setEditorCreator(const EditorCreator &creator);
+    void setIndenterCreator(const IndenterCreator &creator);
+    void setSyntaxHighlighterCreator(const SyntaxHighLighterCreator &creator);
     void setUseGenericHighlighter(bool enabled);
-    void setAutoCompleterCreator(AutoCompleterCreator &&creator);
+    void setAutoCompleterCreator(const AutoCompleterCreator &creator);
 
     void setEditorActionHandlers(Core::Id contextId, uint optionalActions);
     void setEditorActionHandlers(uint optionalActions);
@@ -687,7 +659,7 @@ public:
     void setParenthesesMatchingEnabled(bool on);
     void setCodeFoldingSupported(bool on);
 
-    Core::IEditor *createEditor();
+    Core::IEditor *createEditor() override;
 
 private:
     friend class BaseTextEditor;
@@ -698,5 +670,3 @@ private:
 } // namespace TextEditor
 
 Q_DECLARE_METATYPE(TextEditor::TextEditorWidget::Link)
-
-#endif // TEXTEDITOR_H

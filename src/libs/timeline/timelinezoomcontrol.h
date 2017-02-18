@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef TIMELINEZOOMCONTROL_H
-#define TIMELINEZOOMCONTROL_H
+#pragma once
 
 #include "timeline_global.h"
 #include <QTimer>
@@ -58,8 +52,12 @@ class TIMELINE_EXPORT TimelineZoomControl : public QObject {
     Q_PROPERTY(bool windowLocked READ windowLocked WRITE setWindowLocked NOTIFY windowLockedChanged)
     Q_PROPERTY(bool windowMoving READ windowMoving NOTIFY windowMovingChanged)
 
+    Q_PROPERTY(qint64 maximumZoomFactor READ maximumZoomFactor CONSTANT)
+    Q_PROPERTY(qint64 minimumRangeLength READ minimumRangeLength CONSTANT)
+
 public:
-    static const qint64 MAX_ZOOM_FACTOR = 1 << 10;
+    qint64 maximumZoomFactor() const { return 1 << 10; }
+    qint64 minimumRangeLength() const { return 500; }
 
     TimelineZoomControl(QObject *parent = 0);
     qint64 traceStart() const { return m_traceStart; }
@@ -83,6 +81,11 @@ public:
 
     virtual void clear();
 
+    Q_INVOKABLE void setTrace(qint64 start, qint64 end);
+    Q_INVOKABLE void setRange(qint64 start, qint64 end);
+    Q_INVOKABLE void setSelection(qint64 start, qint64 end);
+    void setWindowLocked(bool windowLocked);
+
 signals:
     void traceChanged(qint64 start, qint64 end);
     void windowChanged(qint64 start, qint64 end);
@@ -91,16 +94,11 @@ signals:
     void windowLockedChanged(bool windowLocked);
     void windowMovingChanged(bool windowMoving);
 
-public slots:
-    void setTrace(qint64 start, qint64 end);
-    void setRange(qint64 start, qint64 end);
-    void setSelection(qint64 start, qint64 end);
-    void setWindowLocked(bool windowLocked);
-
-protected slots:
-    void moveWindow();
-
 protected:
+    void moveWindow();
+    void rebuildWindow();
+    void clampRangeToWindow();
+
     qint64 m_traceStart;
     qint64 m_traceEnd;
     qint64 m_windowStart;
@@ -112,11 +110,6 @@ protected:
 
     QTimer m_timer;
     bool m_windowLocked;
-
-    void rebuildWindow();
-    void clampRangeToWindow();
 };
 
 } // namespace Timeline
-
-#endif // TIMELINEZOOMCONTROL_H

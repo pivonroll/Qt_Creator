@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,26 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "perforcechecker.h"
-#include "perforceconstants.h"
 
 #include <utils/qtcassert.h>
 #include <utils/synchronousprocess.h>
 
-#include <QRegExp>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QFileInfo>
 #include <QDir>
@@ -45,15 +39,9 @@
 namespace Perforce {
 namespace Internal {
 
-PerforceChecker::PerforceChecker(QObject *parent) :
-    QObject(parent),
-    m_timeOutMS(-1),
-    m_timedOut(false),
-    m_useOverideCursor(false),
-    m_isOverrideCursor(false)
+PerforceChecker::PerforceChecker(QObject *parent) : QObject(parent)
 {
-    connect(&m_process, static_cast<void (QProcess::*)(QProcess::ProcessError)>(&QProcess::error),
-            this, &PerforceChecker::slotError);
+    connect(&m_process, &QProcess::errorOccurred, this, &PerforceChecker::slotError);
     connect(&m_process, static_cast<void (QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished),
             this, &PerforceChecker::slotFinished);
 }
@@ -70,9 +58,9 @@ bool PerforceChecker::isRunning() const
     return m_process.state() == QProcess::Running;
 }
 
-bool PerforceChecker::waitForFinished(int msec)
+bool PerforceChecker::waitForFinished()
 {
-    return m_process.waitForFinished(msec);
+    return m_process.waitForFinished() || m_process.state() == QProcess::NotRunning;
 }
 
 void PerforceChecker::resetOverrideCursor()
@@ -108,7 +96,7 @@ void PerforceChecker::start(const QString &binary, const QString &workingDirecto
     m_timeOutMS = timeoutMS;
     m_timedOut = false;
     if (timeoutMS > 0)
-        QTimer::singleShot(m_timeOutMS, this, SLOT(slotTimeOut()));
+        QTimer::singleShot(m_timeOutMS, this, &PerforceChecker::slotTimeOut);
     // Cursor
     if (m_useOverideCursor) {
         m_isOverrideCursor = true;
@@ -166,16 +154,36 @@ void PerforceChecker::slotFinished(int exitCode, QProcess::ExitStatus exitStatus
     }
 }
 
+static inline QString findTerm(const QString& in, const QLatin1String& term)
+{
+    QRegularExpression regExp(QString("(\\n|\\r\\n|\\r)%1\\s*(.*)(\\n|\\r\\n|\\r)").arg(term));
+    QTC_ASSERT(regExp.isValid(), return QString());
+    QRegularExpressionMatch match = regExp.match(in);
+    if (match.hasMatch())
+        return match.captured(2).trimmed();
+    return QString();
+}
+
 // Parse p4 client output for the top level
 static inline QString clientRootFromOutput(const QString &in)
 {
-    QRegExp regExp(QLatin1String("(\\n|\\r\\n|\\r)Root:\\s*(.*)(\\n|\\r\\n|\\r)"));
-    QTC_ASSERT(regExp.isValid(), return QString());
-    regExp.setMinimal(true);
-    // Normalize slashes and capitalization of Windows drive letters for caching.
-    if (regExp.indexIn(in) != -1)
-        return QFileInfo(regExp.cap(2).trimmed()).absoluteFilePath();
+    QString root = findTerm(in, QLatin1String("Root:"));
+    if (!root.isNull()) {
+        // Normalize slashes and capitalization of Windows drive letters for caching.
+        return QFileInfo(root).absoluteFilePath();
+    }
     return QString();
+}
+
+// When p4 port and p4 user is set a preconfigured Root: is given, which doesn't relate with
+// the current mapped project. In this case "Client:" has the same value as "Host:", which is an
+// invalid case.
+static inline bool clientAndHostAreEqual(const QString &in)
+{
+    QString client = findTerm(in, QLatin1String("Client:"));
+    QString host = findTerm(in, QLatin1String("Host:"));
+
+    return client == host;
 }
 
 void PerforceChecker::parseOutput(const QString &response)
@@ -184,6 +192,13 @@ void PerforceChecker::parseOutput(const QString &response)
         emitFailed(tr("The client does not seem to contain any mapped files."));
         return;
     }
+
+    if (clientAndHostAreEqual(response)) {
+        // Is an invalid case. But not an error. QtC checks cmake install directories for
+        // p4 repositories, or the %temp% directory.
+        return;
+    }
+
     const QString repositoryRoot = clientRootFromOutput(response);
     if (repositoryRoot.isEmpty()) {
         //: Unable to determine root of the p4 client installation

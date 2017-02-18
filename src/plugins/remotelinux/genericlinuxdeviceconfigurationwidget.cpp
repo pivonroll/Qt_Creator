@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,7 @@
 #include <coreplugin/coreconstants.h>
 #include <utils/portlist.h>
 #include <utils/fancylineedit.h>
+#include <utils/utilsicons.h>
 #include <ssh/sshconnection.h>
 #include <ssh/sshkeycreationdialog.h>
 
@@ -48,23 +44,38 @@ GenericLinuxDeviceConfigurationWidget::GenericLinuxDeviceConfigurationWidget(
     m_ui(new Ui::GenericLinuxDeviceConfigurationWidget)
 {
     m_ui->setupUi(this);
-    connect(m_ui->hostLineEdit, SIGNAL(editingFinished()), this, SLOT(hostNameEditingFinished()));
-    connect(m_ui->userLineEdit, SIGNAL(editingFinished()), this, SLOT(userNameEditingFinished()));
-    connect(m_ui->pwdLineEdit, SIGNAL(editingFinished()), this, SLOT(passwordEditingFinished()));
-    connect(m_ui->passwordButton, SIGNAL(toggled(bool)), this, SLOT(authenticationTypeChanged()));
-    connect(m_ui->keyFileLineEdit, SIGNAL(editingFinished()), this, SLOT(keyFileEditingFinished()));
-    connect(m_ui->keyFileLineEdit, SIGNAL(browsingFinished()), this, SLOT(keyFileEditingFinished()));
-    connect(m_ui->keyButton, SIGNAL(toggled(bool)), this, SLOT(authenticationTypeChanged()));
-    connect(m_ui->timeoutSpinBox, SIGNAL(editingFinished()), this, SLOT(timeoutEditingFinished()));
-    connect(m_ui->timeoutSpinBox, SIGNAL(valueChanged(int)), this, SLOT(timeoutEditingFinished()));
-    connect(m_ui->sshPortSpinBox, SIGNAL(editingFinished()), this, SLOT(sshPortEditingFinished()));
-    connect(m_ui->sshPortSpinBox, SIGNAL(valueChanged(int)), this, SLOT(sshPortEditingFinished()));
-    connect(m_ui->showPasswordCheckBox, SIGNAL(toggled(bool)), this, SLOT(showPassword(bool)));
-    connect(m_ui->portsLineEdit, SIGNAL(editingFinished()), this, SLOT(handleFreePortsChanged()));
-    connect(m_ui->createKeyButton, SIGNAL(clicked()), SLOT(createNewKey()));
-    connect(m_ui->gdbServerLineEdit, SIGNAL(editingFinished()), SLOT(gdbServerEditingFinished()));
-    connect(m_ui->hostKeyCheckBox, &QCheckBox::toggled, this,
-            &GenericLinuxDeviceConfigurationWidget::hostKeyCheckingChanged);
+    connect(m_ui->hostLineEdit, &QLineEdit::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::hostNameEditingFinished);
+    connect(m_ui->userLineEdit, &QLineEdit::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::userNameEditingFinished);
+    connect(m_ui->pwdLineEdit, &QLineEdit::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::passwordEditingFinished);
+    connect(m_ui->passwordButton, &QAbstractButton::toggled,
+            this, &GenericLinuxDeviceConfigurationWidget::authenticationTypeChanged);
+    connect(m_ui->keyFileLineEdit, &PathChooser::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::keyFileEditingFinished);
+    connect(m_ui->keyFileLineEdit, &PathChooser::browsingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::keyFileEditingFinished);
+    connect(m_ui->keyButton, &QAbstractButton::toggled,
+            this, &GenericLinuxDeviceConfigurationWidget::authenticationTypeChanged);
+    connect(m_ui->timeoutSpinBox, &QAbstractSpinBox::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::timeoutEditingFinished);
+    connect(m_ui->timeoutSpinBox, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &GenericLinuxDeviceConfigurationWidget::timeoutEditingFinished);
+    connect(m_ui->sshPortSpinBox, &QAbstractSpinBox::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::sshPortEditingFinished);
+    connect(m_ui->sshPortSpinBox, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &GenericLinuxDeviceConfigurationWidget::sshPortEditingFinished);
+    connect(m_ui->showPasswordCheckBox, &QAbstractButton::toggled,
+            this, &GenericLinuxDeviceConfigurationWidget::showPassword);
+    connect(m_ui->portsLineEdit, &QLineEdit::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::handleFreePortsChanged);
+    connect(m_ui->createKeyButton, &QAbstractButton::clicked,
+            this, &GenericLinuxDeviceConfigurationWidget::createNewKey);
+    connect(m_ui->gdbServerLineEdit, &QLineEdit::editingFinished,
+            this, &GenericLinuxDeviceConfigurationWidget::gdbServerEditingFinished);
+    connect(m_ui->hostKeyCheckBox, &QCheckBox::toggled,
+            this, &GenericLinuxDeviceConfigurationWidget::hostKeyCheckingChanged);
 
     initGui();
 }
@@ -191,7 +202,7 @@ void GenericLinuxDeviceConfigurationWidget::initGui()
         m_ui->machineTypeValueLabel->setText(tr("Physical Device"));
     else
         m_ui->machineTypeValueLabel->setText(tr("Emulator"));
-    m_ui->portsWarningLabel->setPixmap(QPixmap(QLatin1String(Core::Constants::ICON_ERROR)));
+    m_ui->portsWarningLabel->setPixmap(Utils::Icons::CRITICAL.pixmap());
     m_ui->portsWarningLabel->setToolTip(QLatin1String("<font color=\"red\">")
         + tr("You will need at least one port.") + QLatin1String("</font>"));
     m_ui->keyFileLineEdit->setExpectedKind(PathChooser::File);

@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Denis Mingulov
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Denis Mingulov
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -224,61 +219,63 @@ bool Manager::hasChildren(QStandardItem *item) const
 
 void Manager::initialize()
 {
+    using ProjectExplorer::SessionManager;
+
     // use Qt::QueuedConnection everywhere
 
     // internal manager state is changed
-    connect(this, SIGNAL(stateChanged(bool)), SLOT(onStateChanged(bool)), Qt::QueuedConnection);
+    connect(this, &Manager::stateChanged, this, &Manager::onStateChanged, Qt::QueuedConnection);
 
     // connections to enable/disable navi widget factory
-    QObject *sessionManager = ProjectExplorer::SessionManager::instance();
-    connect(sessionManager, SIGNAL(projectAdded(ProjectExplorer::Project*)),
-            SLOT(onProjectListChanged()), Qt::QueuedConnection);
-    connect(sessionManager, SIGNAL(projectRemoved(ProjectExplorer::Project*)),
-            SLOT(onProjectListChanged()), Qt::QueuedConnection);
+    SessionManager *sessionManager = SessionManager::instance();
+    connect(sessionManager, &SessionManager::projectAdded,
+            this, &Manager::onProjectListChanged, Qt::QueuedConnection);
+    connect(sessionManager, &SessionManager::projectRemoved,
+            this, &Manager::onProjectListChanged, Qt::QueuedConnection);
 
     // connect to the progress manager for signals about Parsing tasks
-    connect(ProgressManager::instance(), SIGNAL(taskStarted(Core::Id)),
-            SLOT(onTaskStarted(Core::Id)), Qt::QueuedConnection);
-    connect(ProgressManager::instance(), SIGNAL(allTasksFinished(Core::Id)),
-            SLOT(onAllTasksFinished(Core::Id)), Qt::QueuedConnection);
+    connect(ProgressManager::instance(), &ProgressManager::taskStarted,
+            this, &Manager::onTaskStarted, Qt::QueuedConnection);
+    connect(ProgressManager::instance(), &ProgressManager::allTasksFinished,
+            this, &Manager::onAllTasksFinished, Qt::QueuedConnection);
 
     // when we signals that really document is updated - sent it to the parser
-    connect(this, SIGNAL(requestDocumentUpdated(CPlusPlus::Document::Ptr)),
-            &d->parser, SLOT(parseDocument(CPlusPlus::Document::Ptr)), Qt::QueuedConnection);
+    connect(this, &Manager::requestDocumentUpdated,
+            &d->parser, &Parser::parseDocument, Qt::QueuedConnection);
 
     // translate data update from the parser to listeners
-    connect(&d->parser, SIGNAL(treeDataUpdate(QSharedPointer<QStandardItem>)),
-            this, SLOT(onTreeDataUpdate(QSharedPointer<QStandardItem>)), Qt::QueuedConnection);
+    connect(&d->parser, &Parser::treeDataUpdate,
+            this, &Manager::onTreeDataUpdate, Qt::QueuedConnection);
 
     // requet current state - immediately after a notification
-    connect(this, SIGNAL(requestTreeDataUpdate()),
-            &d->parser, SLOT(requestCurrentState()), Qt::QueuedConnection);
+    connect(this, &Manager::requestTreeDataUpdate,
+            &d->parser, &Parser::requestCurrentState, Qt::QueuedConnection);
 
     // full reset request to parser
-    connect(this, SIGNAL(requestResetCurrentState()),
-            &d->parser, SLOT(resetDataToCurrentState()), Qt::QueuedConnection);
+    connect(this, &Manager::requestResetCurrentState,
+            &d->parser, &Parser::resetDataToCurrentState, Qt::QueuedConnection);
 
     // clear cache request
-    connect(this, SIGNAL(requestClearCache()),
-            &d->parser, SLOT(clearCache()), Qt::QueuedConnection);
+    connect(this, &Manager::requestClearCache,
+            &d->parser, &Parser::clearCache, Qt::QueuedConnection);
 
     // clear full cache request
-    connect(this, SIGNAL(requestClearCacheAll()),
-            &d->parser, SLOT(clearCacheAll()), Qt::QueuedConnection);
+    connect(this, &Manager::requestClearCacheAll,
+            &d->parser, &Parser::clearCacheAll, Qt::QueuedConnection);
 
     // flat mode request
-    connect(this, SIGNAL(requestSetFlatMode(bool)),
-            &d->parser, SLOT(setFlatMode(bool)), Qt::QueuedConnection);
+    connect(this, &Manager::requestSetFlatMode,
+            &d->parser, &Parser::setFlatMode, Qt::QueuedConnection);
 
     // connect to the cpp model manager for signals about document updates
     CppTools::CppModelManager *codeModelManager = CppTools::CppModelManager::instance();
 
     // when code manager signals that document is updated - handle it by ourselves
-    connect(codeModelManager, SIGNAL(documentUpdated(CPlusPlus::Document::Ptr)),
-            SLOT(onDocumentUpdated(CPlusPlus::Document::Ptr)), Qt::QueuedConnection);
+    connect(codeModelManager, &CppTools::CppModelManager::documentUpdated,
+            this, &Manager::onDocumentUpdated, Qt::QueuedConnection);
     //
-    connect(codeModelManager, SIGNAL(aboutToRemoveFiles(QStringList)),
-            &d->parser, SLOT(removeFiles(QStringList)), Qt::QueuedConnection);
+    connect(codeModelManager, &CppTools::CppModelManager::aboutToRemoveFiles,
+            &d->parser, &Parser::removeFiles, Qt::QueuedConnection);
 }
 
 /*!

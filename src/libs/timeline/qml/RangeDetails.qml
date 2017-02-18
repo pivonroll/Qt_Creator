@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,26 +9,22 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 import QtQuick 2.1
+import TimelineTheme 1.0
 
 Item {
     id: rangeDetails
@@ -98,7 +94,7 @@ Item {
                 eventInfo.append({content : eventData[k]});
             }
         }
-        hasContents = true;
+        hasContents = eventInfo.count > 0;
 
         var location = timelineModel.location(selectedItem)
         if (location.hasOwnProperty("file")) { // not empty
@@ -132,29 +128,11 @@ Item {
             y = 0;
     }
 
-    // shadow
-    BorderImage {
-        property int px: 4
-        source: "dialog_shadow.png"
-
-        border {
-            left: px; top: px
-            right: px; bottom: px
-        }
-        width: parent.width + 2*px - 1
-        height: parent.height
-        x: -px + 1
-        y: px + 1
-    }
-
     Rectangle {
         id: titleBar
         width: parent.width
         height: 20
-        color: "#55a3b8"
-        radius: 5
-        border.width: 1
-        border.color: "#a0a0a0"
+        color: Theme.color(Theme.Timeline_PanelHeaderColor)
     }
     Item {
         width: parent.width+1
@@ -165,9 +143,7 @@ Item {
             width: parent.width-1
             height: 15
             y: -5
-            color: "#55a3b8"
-            border.width: 1
-            border.color: "#a0a0a0"
+            color: Theme.color(Theme.Timeline_PanelHeaderColor)
         }
     }
 
@@ -176,24 +152,21 @@ Item {
         id: typeTitle
         text: "  "+rangeDetails.dialogTitle
         font.bold: true
-        height: 18
-        y: 2
+        height: 20
         verticalAlignment: Text.AlignVCenter
         anchors.left: parent.left
         anchors.right: editIcon.left
-        color: "white"
         elide: Text.ElideRight
+        color: Theme.color(Theme.PanelTextColorLight)
     }
 
     // Details area
     Rectangle {
         id: contentArea
-        color: "white"
+        color: Theme.color(Theme.Timeline_PanelBackgroundColor)
         width: parent.width
         height: 10 + col.height + (noteEdit.visible ? (noteEdit.height + 5) : 0)
         y: 20
-        border.width: 1
-        border.color: "#a0a0a0"
 
         //details
         Grid {
@@ -235,7 +208,7 @@ Item {
             visible: notes && (text.length > 0 || focus)
             width: col.width
             wrapMode: Text.Wrap
-            color: "orange"
+            color: Theme.color(Theme.Timeline_HighlightColor)
             font.italic: true
             font.pixelSize: typeTitle.font.pixelSize
             font.family: typeTitle.font.family
@@ -271,46 +244,32 @@ Item {
         onClicked: rangeDetails.recenterOnItem()
     }
 
-    Image {
+    ImageToolButton {
         id: editIcon
-        source: "ico_edit.png"
+        imageSource: "image://icons/edit"
         anchors.top: closeIcon.top
         anchors.right: lockIcon.left
-        anchors.rightMargin: 4
+        implicitHeight: typeTitle.height
         visible: notes
-        width: 8
-        height: 12
-        MouseArea {
-            anchors.fill: parent
-            onClicked: noteEdit.focus = true
-        }
+        onClicked: noteEdit.focus = true
     }
 
-    Image {
+    ImageToolButton {
         id: lockIcon
-        source: locked?"lock_closed.png" : "lock_open.png"
+        imageSource: "image://icons/lock_" + (locked ? "closed" : "open")
         anchors.top: closeIcon.top
         anchors.right: closeIcon.left
-        anchors.rightMargin: 4
-        width: 8
-        height: 12
-        MouseArea {
-            anchors.fill: parent
-            onClicked: rangeDetails.toggleSelectionLocked()
-        }
+        implicitHeight: typeTitle.height
+        onClicked: rangeDetails.toggleSelectionLocked()
     }
 
-
-    TimelineText {
+    ImageToolButton {
         id: closeIcon
-        x: col.width + 10
-        y: 4
-        text:"X"
-        color: "white"
-        MouseArea {
-            anchors.fill: parent
-            onClicked: rangeDetails.clearSelection()
-        }
+        anchors.right: parent.right
+        anchors.top: parent.top
+        implicitHeight: typeTitle.height
+        imageSource: "image://icons/close_window"
+        onClicked: rangeDetails.clearSelection()
     }
 
     Item {
@@ -328,7 +287,7 @@ Item {
             cursorShape: Qt.SizeHorCursor
         }
         Rectangle {
-            color: "#55a3b8"
+            color: Theme.color(Theme.Timeline_PanelHeaderColor)
             rotation: 45
             width: parent.width * Math.SQRT2
             height: parent.height * Math.SQRT2

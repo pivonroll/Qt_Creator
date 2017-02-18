@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,12 +28,14 @@
 #include "ssh_global.h"
 #include "sshbotanconversions_p.h"
 #include "sshcapabilities_p.h"
+#include "sshlogging_p.h"
 
 namespace QSsh {
 namespace Internal {
 
 const QByteArray SshIncomingPacket::ExitStatusType("exit-status");
 const QByteArray SshIncomingPacket::ExitSignalType("exit-signal");
+const QByteArray SshIncomingPacket::ForwardedTcpIpType("forwarded-tcpip");
 
 SshIncomingPacket::SshIncomingPacket() : m_serverSeqNr(0) { }
 
@@ -66,10 +63,8 @@ void SshIncomingPacket::reset()
 
 void SshIncomingPacket::consumeData(QByteArray &newData)
 {
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("%s: current data size = %d, new data size = %d",
+    qCDebug(sshLog, "%s: current data size = %d, new data size = %d",
         Q_FUNC_INFO, m_data.size(), newData.size());
-#endif
 
     if (isComplete() || newData.isEmpty())
         return;
@@ -83,9 +78,7 @@ void SshIncomingPacket::consumeData(QByteArray &newData)
         const int bytesToTake
             = qMin<quint32>(minSize - currentDataSize(), newData.size());
         moveFirstBytes(m_data, newData, bytesToTake);
-#ifdef CREATOR_SSH_DEBUG
-        qDebug("Took %d bytes from new data", bytesToTake);
-#endif
+        qCDebug(sshLog, "Took %d bytes from new data", bytesToTake);
         if (currentDataSize() < minSize)
             return;
     }
@@ -97,14 +90,10 @@ void SshIncomingPacket::consumeData(QByteArray &newData)
         = qMin<quint32>(length() + 4 + macLength() - currentDataSize(),
               newData.size());
     moveFirstBytes(m_data, newData, bytesToTake);
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("Took %d bytes from new data", bytesToTake);
-#endif
+    qCDebug(sshLog, "Took %d bytes from new data", bytesToTake);
     if (isComplete()) {
-#ifdef CREATOR_SSH_DEBUG
-        qDebug("Message complete. Overall size: %u, payload size: %u",
+        qCDebug(sshLog, "Message complete. Overall size: %u, payload size: %u",
             m_data.size(), m_length - paddingLength() - 1);
-#endif
         decrypt();
         ++m_serverSeqNr;
     }
@@ -325,6 +314,22 @@ SshDebug SshIncomingPacket::extractDebug() const
     }
 }
 
+SshRequestSuccess SshIncomingPacket::extractRequestSuccess() const
+{
+    Q_ASSERT(isComplete());
+    Q_ASSERT(type() == SSH_MSG_REQUEST_SUCCESS);
+
+    try {
+        SshRequestSuccess msg;
+        quint32 offset = TypeOffset + 1;
+        msg.bindPort = SshPacketParser::asUint32(m_data, &offset);
+        return msg;
+    } catch (const SshPacketParseException &) {
+        throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
+            "Invalid SSH_MSG_REQUEST_SUCCESS.");
+    }
+}
+
 SshUnimplemented SshIncomingPacket::extractUnimplemented() const
 {
     Q_ASSERT(isComplete());
@@ -339,6 +344,31 @@ SshUnimplemented SshIncomingPacket::extractUnimplemented() const
         throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
             "Invalid SSH_MSG_UNIMPLEMENTED.");
     }
+}
+
+SshChannelOpen SshIncomingPacket::extractChannelOpen() const
+{
+    Q_ASSERT(isComplete());
+    Q_ASSERT(type() == SSH_MSG_CHANNEL_OPEN);
+
+    SshChannelOpen open;
+    try {
+        quint32 offset = TypeOffset + 1;
+        QByteArray type = SshPacketParser::asString(m_data, &offset);
+        open.remoteChannel = SshPacketParser::asUint32(m_data, &offset);
+        open.remoteWindowSize = SshPacketParser::asUint32(m_data, &offset);
+        open.remoteMaxPacketSize = SshPacketParser::asUint32(m_data, &offset);
+        if (type == ForwardedTcpIpType) {
+            open.remoteAddress = SshPacketParser::asString(m_data, &offset);
+            open.remotePort = SshPacketParser::asUint32(m_data, &offset);
+        } else {
+            open.remotePort = 0;
+        }
+    } catch (const SshPacketParseException &) {
+        throw SSH_SERVER_EXCEPTION(SSH_DISCONNECT_PROTOCOL_ERROR,
+            "Server sent invalid SSH_MSG_CHANNEL_OPEN packet.");
+    }
+    return open;
 }
 
 SshChannelOpenFailure SshIncomingPacket::extractChannelOpenFailure() const
@@ -509,19 +539,13 @@ QByteArray SshIncomingPacket::extractChannelRequestType() const
 void SshIncomingPacket::calculateLength() const
 {
     Q_ASSERT(currentDataSize() >= minPacketSize());
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("Length field before decryption: %d-%d-%d-%d", m_data.at(0) & 0xff,
+    qCDebug(sshLog, "Length field before decryption: %d-%d-%d-%d", m_data.at(0) & 0xff,
         m_data.at(1) & 0xff, m_data.at(2) & 0xff, m_data.at(3) & 0xff);
-#endif
     m_decrypter.decrypt(m_data, 0, cipherBlockSize());
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("Length field after decryption: %d-%d-%d-%d", m_data.at(0) & 0xff, m_data.at(1) & 0xff, m_data.at(2) & 0xff, m_data.at(3) & 0xff);
-    qDebug("message type = %d", m_data.at(TypeOffset));
-#endif
+    qCDebug(sshLog, "Length field after decryption: %d-%d-%d-%d", m_data.at(0) & 0xff, m_data.at(1) & 0xff, m_data.at(2) & 0xff, m_data.at(3) & 0xff);
+    qCDebug(sshLog, "message type = %d", m_data.at(TypeOffset));
     m_length = SshPacketParser::asUint32(m_data, static_cast<quint32>(0));
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("decrypted length is %u", m_length);
-#endif
+    qCDebug(sshLog, "decrypted length is %u", m_length);
 }
 
 } // namespace Internal

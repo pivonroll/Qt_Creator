@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,12 +29,13 @@
 #include "locatorsearchutils.h"
 #include "ilocatorfilter.h"
 
-#include <coreplugin/coreconstants.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/modemanager.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/fileiconprovider.h>
 #include <coreplugin/icontext.h>
+#include <coreplugin/mainwindow.h>
+#include <utils/algorithm.h>
 #include <utils/appmainwindow.h>
 #include <utils/fancylineedit.h>
 #include <utils/hostosinfo.h>
@@ -47,6 +43,7 @@
 #include <utils/qtcassert.h>
 #include <utils/runextensions.h>
 #include <utils/stylehelper.h>
+#include <utils/utilsicons.h>
 
 #include <QColor>
 #include <QFileInfo>
@@ -77,9 +74,9 @@ public:
     {}
 
     void clear();
-    int rowCount(const QModelIndex &parent = QModelIndex()) const;
-    int columnCount(const QModelIndex &parent = QModelIndex()) const;
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
     void addEntries(const QList<LocatorFilterEntry> &entries);
 
@@ -92,7 +89,7 @@ class CompletionList : public QTreeView
 public:
     CompletionList(QWidget *parent = 0);
 
-    void updatePreferredSize();
+    void resize();
     QSize preferredSize() const { return m_preferredSize; }
 
     void focusOutEvent (QFocusEvent *event) {
@@ -125,11 +122,6 @@ private:
     QSize m_preferredSize;
 };
 
-} // namespace Internal
-
-
-using namespace Core::Internal;
-
 // =========== LocatorModel ===========
 
 void LocatorModel::clear()
@@ -156,27 +148,35 @@ QVariant LocatorModel::data(const QModelIndex &index, int role) const
     if (!index.isValid() || index.row() >= mEntries.size())
         return QVariant();
 
-    if (role == Qt::DisplayRole) {
+    switch (role) {
+    case Qt::DisplayRole:
         if (index.column() == 0)
             return mEntries.at(index.row()).displayName;
         else if (index.column() == 1)
             return mEntries.at(index.row()).extraInfo;
-    } else if (role == Qt::ToolTipRole) {
+        break;
+    case Qt::ToolTipRole:
         if (mEntries.at(index.row()).extraInfo.isEmpty())
             return QVariant(mEntries.at(index.row()).displayName);
         else
             return QVariant(mEntries.at(index.row()).displayName
                             + QLatin1String("\n\n") + mEntries.at(index.row()).extraInfo);
-    } else if (role == Qt::DecorationRole && index.column() == 0) {
-        LocatorFilterEntry &entry = mEntries[index.row()];
-        if (!entry.fileIconResolved && !entry.fileName.isEmpty() && entry.displayIcon.isNull()) {
-            entry.fileIconResolved = true;
-            entry.displayIcon = FileIconProvider::icon(entry.fileName);
+        break;
+    case Qt::DecorationRole:
+        if (index.column() == 0) {
+            LocatorFilterEntry &entry = mEntries[index.row()];
+            if (!entry.fileIconResolved && !entry.fileName.isEmpty() && entry.displayIcon.isNull()) {
+                entry.fileIconResolved = true;
+                entry.displayIcon = FileIconProvider::icon(entry.fileName);
+            }
+            return entry.displayIcon;
         }
-        return entry.displayIcon;
-    } else if (role == Qt::ForegroundRole && index.column() == 1) {
-        return QColor(Qt::darkGray);
-    } else if (role == Qt::UserRole) {
+        break;
+    case Qt::ForegroundRole:
+        if (index.column() == 1)
+            return QColor(Qt::darkGray);
+        break;
+    case Qt::UserRole:
         return qVariantFromValue(mEntries.at(index.row()));
     }
 
@@ -197,7 +197,6 @@ CompletionList::CompletionList(QWidget *parent)
 {
     setRootIsDecorated(false);
     setUniformRowHeights(true);
-    setMaximumWidth(900);
     header()->hide();
     header()->setStretchLastSection(true);
     // This is too slow when done on all results
@@ -211,12 +210,16 @@ CompletionList::CompletionList(QWidget *parent)
     }
 }
 
-void CompletionList::updatePreferredSize()
+void CompletionList::resize()
 {
     const QStyleOptionViewItem &option = viewOptions();
     const QSize shint = itemDelegate()->sizeHint(option, model()->index(0, 0));
+    const QSize windowSize = ICore::mainWindow()->size();
 
-    m_preferredSize = QSize(730, shint.height() * 17 + frameWidth() * 2);
+    const int width = qMax(730, windowSize.width() * 2 / 3);
+    m_preferredSize = QSize(width, shint.height() * 17 + frameWidth() * 2);
+    header()->resizeSection(0, width / 2);
+    QTreeView::resize(m_preferredSize);
 }
 
 // =========== LocatorWidget ===========
@@ -228,15 +231,13 @@ LocatorWidget::LocatorWidget(Locator *qop) :
     m_filterMenu(new QMenu(this)),
     m_refreshAction(new QAction(tr("Refresh"), this)),
     m_configureAction(new QAction(ICore::msgShowOptionsDialog(), this)),
-    m_fileLineEdit(new Utils::FancyLineEdit),
-    m_needsClearResult(true),
-    m_updateRequested(false),
-    m_acceptRequested(false),
-    m_possibleToolTipRequest(false)
+    m_fileLineEdit(new Utils::FancyLineEdit)
 {
+    m_mainWindow = ICore::mainWindow();
     // Explicitly hide the completion list popup.
     m_completionList->hide();
 
+    setAttribute(Qt::WA_Hover);
     setFocusProxy(m_fileLineEdit);
     setWindowTitle(tr("Locate..."));
     resize(200, 90);
@@ -251,10 +252,10 @@ LocatorWidget::LocatorWidget(Locator *qop) :
     layout->setMargin(0);
     layout->addWidget(m_fileLineEdit);
 
-    setWindowIcon(QIcon(QLatin1String(":/locator/images/locator.png")));
-    const QPixmap image = Utils::StyleHelper::dpiSpecificImageFile(QLatin1String(Constants::ICON_MAGNIFIER));
+    setWindowIcon(Utils::Icons::ZOOM.icon());
+    const QPixmap pixmap = Utils::Icons::MAGNIFIER.pixmap();
     m_fileLineEdit->setFiltering(true);
-    m_fileLineEdit->setButtonPixmap(Utils::FancyLineEdit::Left, image);
+    m_fileLineEdit->setButtonPixmap(Utils::FancyLineEdit::Left, pixmap);
     m_fileLineEdit->setButtonToolTip(Utils::FancyLineEdit::Left, tr("Options"));
     m_fileLineEdit->setFocusPolicy(Qt::ClickFocus);
     m_fileLineEdit->setButtonVisible(Utils::FancyLineEdit::Left, true);
@@ -264,23 +265,23 @@ LocatorWidget::LocatorWidget(Locator *qop) :
 
     m_fileLineEdit->installEventFilter(this);
     this->installEventFilter(this);
+    m_mainWindow->installEventFilter(this);
 
     m_completionList->setModel(m_locatorModel);
-    m_completionList->header()->resizeSection(0, 300);
-    m_completionList->updatePreferredSize();
-    m_completionList->resize(m_completionList->preferredSize());
+    m_completionList->resize();
 
     m_filterMenu->addAction(m_refreshAction);
     m_filterMenu->addAction(m_configureAction);
 
     m_fileLineEdit->setButtonMenu(Utils::FancyLineEdit::Left, m_filterMenu);
 
-    connect(m_refreshAction, SIGNAL(triggered()), m_locatorPlugin, SLOT(refresh()));
-    connect(m_configureAction, SIGNAL(triggered()), this, SLOT(showConfigureDialog()));
-    connect(m_fileLineEdit, SIGNAL(textChanged(QString)),
-        this, SLOT(showPopup()));
-    connect(m_completionList, SIGNAL(activated(QModelIndex)),
-            this, SLOT(scheduleAcceptCurrentEntry()));
+    connect(m_refreshAction, &QAction::triggered,
+            m_locatorPlugin, [this]() { m_locatorPlugin->refresh(); });
+    connect(m_configureAction, &QAction::triggered, this, &LocatorWidget::showConfigureDialog);
+    connect(m_fileLineEdit, &QLineEdit::textChanged,
+        this, &LocatorWidget::showPopup);
+    connect(m_completionList, &QAbstractItemView::activated,
+            this, &LocatorWidget::scheduleAcceptCurrentEntry);
 
     m_entriesWatcher = new QFutureWatcher<LocatorFilterEntry>(this);
     connect(m_entriesWatcher, &QFutureWatcher<LocatorFilterEntry>::resultsReadyAt,
@@ -290,7 +291,7 @@ LocatorWidget::LocatorWidget(Locator *qop) :
 
     m_showPopupTimer.setInterval(100);
     m_showPopupTimer.setSingleShot(true);
-    connect(&m_showPopupTimer, SIGNAL(timeout()), SLOT(showPopupNow()));
+    connect(&m_showPopupTimer, &QTimer::timeout, this, &LocatorWidget::showPopupNow);
 
     m_progressIndicator = new Utils::ProgressIndicator(Utils::ProgressIndicator::Small,
                                                        m_fileLineEdit);
@@ -328,7 +329,7 @@ void LocatorWidget::updateFilterList()
             action = new QAction(filter->displayName(), this);
             cmd = ActionManager::registerAction(action, locatorId);
             cmd->setAttribute(Command::CA_UpdateText);
-            connect(action, SIGNAL(triggered()), this, SLOT(filterSelected()));
+            connect(action, &QAction::triggered, this, &LocatorWidget::filterSelected);
             action->setData(qVariantFromValue(filter));
         } else {
             action = actionCopy.take(filterId);
@@ -353,7 +354,17 @@ void LocatorWidget::updateFilterList()
 
 bool LocatorWidget::eventFilter(QObject *obj, QEvent *event)
 {
-    if (obj == m_fileLineEdit && event->type() == QEvent::KeyPress) {
+    if (obj == m_fileLineEdit && event->type() == QEvent::ShortcutOverride) {
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        switch (keyEvent->key()) {
+        case Qt::Key_P:
+        case Qt::Key_N:
+            if (keyEvent->modifiers() == Qt::KeyboardModifiers(Utils::HostOsInfo::controlModifier())) {
+                event->accept();
+                return true;
+            }
+        }
+    } else if (obj == m_fileLineEdit && event->type() == QEvent::KeyPress) {
         if (m_possibleToolTipRequest)
             m_possibleToolTipRequest = false;
         if (QToolTip::isVisible())
@@ -368,6 +379,15 @@ bool LocatorWidget::eventFilter(QObject *obj, QEvent *event)
             showCompletionList();
             QApplication::sendEvent(m_completionList, event);
             return true;
+        case Qt::Key_Home:
+        case Qt::Key_End:
+            if (Utils::HostOsInfo::isMacHost()
+                    != (keyEvent->modifiers() == Qt::KeyboardModifiers(Qt::ControlModifier))) {
+                showCompletionList();
+                QApplication::sendEvent(m_completionList, event);
+                return true;
+            }
+            break;
         case Qt::Key_Enter:
         case Qt::Key_Return:
             scheduleAcceptCurrentEntry();
@@ -384,6 +404,17 @@ bool LocatorWidget::eventFilter(QObject *obj, QEvent *event)
         case Qt::Key_Alt:
             if (keyEvent->modifiers() == Qt::AltModifier) {
                 m_possibleToolTipRequest = true;
+                return true;
+            }
+            break;
+        case Qt::Key_P:
+        case Qt::Key_N:
+            if (keyEvent->modifiers() == Qt::KeyboardModifiers(Utils::HostOsInfo::controlModifier()))
+            {
+                if (keyEvent->key() == Qt::Key_P)
+                    m_completionList->previous();
+                else
+                    m_completionList->next();
                 return true;
             }
             break;
@@ -407,21 +438,24 @@ bool LocatorWidget::eventFilter(QObject *obj, QEvent *event)
         }
     } else if (obj == m_fileLineEdit && event->type() == QEvent::FocusOut) {
         QFocusEvent *fev = static_cast<QFocusEvent *>(event);
-        if (fev->reason() != Qt::ActiveWindowFocusReason || !m_completionList->isActiveWindow()) {
+        if (fev->reason() != Qt::ActiveWindowFocusReason || !m_completionList->isActiveWindow())
             m_completionList->hide();
-            m_fileLineEdit->clearFocus();
-        }
     } else if (obj == m_fileLineEdit && event->type() == QEvent::FocusIn) {
-        showPopupNow();
+        QFocusEvent *fev = static_cast<QFocusEvent *>(event);
+        if (fev->reason() != Qt::ActiveWindowFocusReason)
+            showPopupNow();
+    } else if (obj == m_mainWindow && event->type() == QEvent::Resize) {
+        m_completionList->resize();
     } else if (obj == this && event->type() == QEvent::ShortcutOverride) {
         QKeyEvent *ke = static_cast<QKeyEvent *>(event);
         switch (ke->key()) {
         case Qt::Key_Escape:
             if (!ke->modifiers()) {
                 event->accept();
-                QTimer::singleShot(0, this, SLOT(setFocusToCurrentMode()));
+                QTimer::singleShot(0, this, &LocatorWidget::setFocusToCurrentMode);
                 return true;
             }
+            break;
         case Qt::Key_Alt:
             if (ke->modifiers() == Qt::AltModifier) {
                 event->accept();
@@ -464,29 +498,28 @@ void LocatorWidget::showPopupNow()
 
 QList<ILocatorFilter *> LocatorWidget::filtersFor(const QString &text, QString &searchText)
 {
-    QList<ILocatorFilter *> filters = m_locatorPlugin->filters();
-    const int whiteSpace = text.indexOf(QLatin1Char(' '));
-    QString prefix;
-    if (whiteSpace >= 0)
-        prefix = text.left(whiteSpace);
-    if (!prefix.isEmpty()) {
-        prefix = prefix.toLower();
+    const int length = text.size();
+    int firstNonSpace;
+    for (firstNonSpace = 0; firstNonSpace < length; ++firstNonSpace) {
+        if (!text.at(firstNonSpace).isSpace())
+            break;
+    }
+    const int whiteSpace = text.indexOf(QChar::Space, firstNonSpace);
+    const QList<ILocatorFilter *> filters = m_locatorPlugin->filters();
+    if (whiteSpace >= 0) {
+        const QString prefix = text.mid(firstNonSpace, whiteSpace - firstNonSpace).toLower();
         QList<ILocatorFilter *> prefixFilters;
         foreach (ILocatorFilter *filter, filters) {
             if (prefix == filter->shortcutString()) {
-                searchText = text.mid(whiteSpace+1);
+                searchText = text.mid(whiteSpace).trimmed();
                 prefixFilters << filter;
             }
         }
         if (!prefixFilters.isEmpty())
             return prefixFilters;
     }
-    searchText = text;
-    QList<ILocatorFilter *> activeFilters;
-    foreach (ILocatorFilter *filter, filters)
-        if (filter->isIncludedByDefault())
-            activeFilters << filter;
-    return activeFilters;
+    searchText = text.trimmed();
+    return Utils::filtered(filters, &ILocatorFilter::isIncludedByDefault);
 }
 
 void LocatorWidget::setProgressIndicatorVisible(bool visible)
@@ -524,7 +557,7 @@ void LocatorWidget::updateCompletionList(const QString &text)
 
     foreach (ILocatorFilter *filter, filters)
         filter->prepareSearch(searchText);
-    QFuture<LocatorFilterEntry> future = QtConcurrent::run(runSearch, filters, searchText);
+    QFuture<LocatorFilterEntry> future = Utils::runAsync(&runSearch, filters, searchText);
     m_entriesWatcher->setFuture(future);
 }
 
@@ -581,11 +614,9 @@ void LocatorWidget::show(const QString &text, int selectionStart, int selectionL
 {
     if (!text.isEmpty())
         m_fileLineEdit->setText(text);
-    if (!m_fileLineEdit->hasFocus())
-        m_fileLineEdit->setFocus();
-    else
-        showPopupNow();
-    ICore::raiseWindow(ICore::mainWindow());
+    m_fileLineEdit->setFocus();
+    showPopupNow();
+    ICore::raiseWindow(m_mainWindow);
 
     if (selectionStart >= 0) {
         m_fileLineEdit->setSelection(selectionStart, selectionLength);
@@ -641,4 +672,5 @@ void LocatorWidget::addSearchResults(int firstIndex, int endIndex)
         m_completionList->setCurrentIndex(m_locatorModel->index(0, 0));
 }
 
+} // namespace Internal
 } // namespace Core

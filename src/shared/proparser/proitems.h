@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef PROITEMS_H
-#define PROITEMS_H
+#pragma once
 
 #include "qmake_global.h"
 
@@ -102,6 +96,7 @@ public:
     bool operator!=(const QString &other) const { return !(*this == other); }
     bool operator!=(QLatin1String other) const { return !(*this == other); }
     bool operator!=(const char *other) const { return !(*this == other); }
+    bool operator<(const ProString &other) const { return toQStringRef() < other.toQStringRef(); }
     bool isNull() const { return m_string.isNull(); }
     bool isEmpty() const { return !m_length; }
     int length() const { return m_length; }
@@ -132,9 +127,11 @@ public:
     bool contains(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return indexOf(s, 0, cs) >= 0; }
     bool contains(const char *s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return indexOf(QLatin1String(s), 0, cs) >= 0; }
     bool contains(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return indexOf(c, 0, cs) >= 0; }
-    int toInt(bool *ok = 0, int base = 10) const { return toQString().toInt(ok, base); } // XXX optimize
-    short toShort(bool *ok = 0, int base = 10) const { return toQString().toShort(ok, base); } // XXX optimize
+    int toLongLong(bool *ok = 0, int base = 10) const { return toQStringRef().toLongLong(ok, base); }
+    int toInt(bool *ok = 0, int base = 10) const { return toQStringRef().toInt(ok, base); }
+    short toShort(bool *ok = 0, int base = 10) const { return toQStringRef().toShort(ok, base); }
 
+    uint hash() const { return m_hash; }
     static uint hash(const QChar *p, int n);
 
     ALWAYS_INLINE QStringRef toQStringRef() const { return QStringRef(&m_string, m_offset, m_length); }
@@ -233,12 +230,17 @@ public:
 
     int length() const { return size(); }
 
+    QString join(const ProString &sep) const;
     QString join(const QString &sep) const;
     QString join(QChar sep) const;
 
+    void insertUnique(const ProStringList &value);
+
     void removeAll(const ProString &str);
     void removeAll(const char *str);
+    void removeEach(const ProStringList &value);
     void removeAt(int idx) { remove(idx); }
+    void removeEmpty();
     void removeDuplicates();
 
     bool contains(const ProString &str, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
@@ -345,6 +347,9 @@ public:
     bool isHostBuild() const { return m_hostBuild; }
     void setHostBuild(bool host_build) { m_hostBuild = host_build; }
 
+    ProString getStr(const ushort *&tPtr);
+    ProKey getHashStr(const ushort *&tPtr);
+
 private:
     ProItemRefCount m_refCount;
     QString m_proitems;
@@ -358,6 +363,8 @@ class ProFunctionDef {
 public:
     ProFunctionDef(ProFile *pro, int offset) : m_pro(pro), m_offset(offset) { m_pro->ref(); }
     ProFunctionDef(const ProFunctionDef &o) : m_pro(o.m_pro), m_offset(o.m_offset) { m_pro->ref(); }
+    ProFunctionDef(ProFunctionDef &&other) Q_DECL_NOTHROW
+        : m_pro(other.m_pro), m_offset(other.m_offset) { other.m_pro = nullptr; }
     ~ProFunctionDef() { m_pro->deref(); }
     ProFunctionDef &operator=(const ProFunctionDef &o)
     {
@@ -369,6 +376,18 @@ public:
         }
         return *this;
     }
+    ProFunctionDef &operator=(ProFunctionDef &&other) Q_DECL_NOTHROW
+    {
+        ProFunctionDef moved(std::move(other));
+        swap(moved);
+        return *this;
+    }
+    void swap(ProFunctionDef &other) Q_DECL_NOTHROW
+    {
+        qSwap(m_pro, other.m_pro);
+        qSwap(m_offset, other.m_offset);
+    }
+
     ProFile *pro() const { return m_pro; }
     const ushort *tokPtr() const { return m_pro->tokPtr() + m_offset; }
 private:
@@ -384,5 +403,3 @@ struct ProFunctionDefs {
 };
 
 QT_END_NAMESPACE
-
-#endif // PROITEMS_H

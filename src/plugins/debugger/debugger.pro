@@ -14,7 +14,6 @@ CONFIG += exceptions
 HEADERS += \
     breakhandler.h \
     breakpoint.h \
-    breakwindow.h \
     commonoptionspage.h \
     debugger_global.h \
     debuggeractions.h \
@@ -26,13 +25,11 @@ HEADERS += \
     debuggerdialogs.h \
     debuggerengine.h \
     debuggermainwindow.h \
-    debuggeroptionspage.h \
     debuggerplugin.h \
     debuggerprotocol.h \
     debuggerrunconfigurationaspect.h \
     debuggerruncontrol.h \
     debuggerstartparameters.h \
-    debuggerstringutils.h \
     debuggerkitconfigwidget.h \
     debuggerkitinformation.h \
     disassembleragent.h \
@@ -41,22 +38,18 @@ HEADERS += \
     logwindow.h \
     memoryagent.h \
     moduleshandler.h \
-    moduleswindow.h \
     outputcollector.h \
     procinterrupt.h \
     registerhandler.h \
-    registerwindow.h \
     snapshothandler.h \
     snapshotwindow.h \
     sourceagent.h \
     sourcefileshandler.h \
-    sourcefileswindow.h \
     sourceutils.h \
     stackframe.h \
     stackhandler.h \
     stackwindow.h \
     terminal.h \
-    threadswindow.h \
     watchhandler.h \
     watchutils.h \
     watchwindow.h \
@@ -65,16 +58,15 @@ HEADERS += \
     watchdelegatewidgets.h \
     debuggertooltipmanager.h \
     debuggersourcepathmappingwidget.h \
-    memoryview.h \
     localsandexpressionswindow.h \
     imageviewer.h \
     simplifytype.h \
-    unstartedappwatcherdialog.h
+    unstartedappwatcherdialog.h \
+    debuggericons.h
 
 SOURCES += \
     breakhandler.cpp \
     breakpoint.cpp \
-    breakwindow.cpp \
     commonoptionspage.cpp \
     debuggeractions.cpp \
     debuggerdialogs.cpp \
@@ -86,7 +78,6 @@ SOURCES += \
     debuggerprotocol.cpp \
     debuggerrunconfigurationaspect.cpp \
     debuggerruncontrol.cpp \
-    debuggeroptionspage.cpp \
     debuggerkitconfigwidget.cpp \
     debuggerkitinformation.cpp \
     disassembleragent.cpp \
@@ -95,21 +86,17 @@ SOURCES += \
     logwindow.cpp \
     memoryagent.cpp \
     moduleshandler.cpp \
-    moduleswindow.cpp \
     outputcollector.cpp \
     procinterrupt.cpp \
     registerhandler.cpp \
-    registerwindow.cpp \
     snapshothandler.cpp \
     snapshotwindow.cpp \
     sourceagent.cpp \
     sourcefileshandler.cpp \
-    sourcefileswindow.cpp \
     sourceutils.cpp \
     stackhandler.cpp \
     stackwindow.cpp \
     threadshandler.cpp \
-    threadswindow.cpp \
     terminal.cpp \
     watchdata.cpp \
     watchhandler.cpp \
@@ -119,11 +106,11 @@ SOURCES += \
     watchdelegatewidgets.cpp \
     debuggertooltipmanager.cpp \
     debuggersourcepathmappingwidget.cpp \
-    memoryview.cpp \
     localsandexpressionswindow.cpp \
     imageviewer.cpp \
     simplifytype.cpp \
-    unstartedappwatcherdialog.cpp
+    unstartedappwatcherdialog.cpp \
+    debuggericons.cpp
 
 RESOURCES += debugger.qrc
 
@@ -140,11 +127,18 @@ SOURCES += registerpostmortemaction.cpp
 LIBS  *= -lole32 \
     -lshell32
 }
+
+equals(TEST, 1) {
+    RESOURCES += debuggerunittests.qrc
+}
+
 include(cdb/cdb.pri)
 include(gdb/gdb.pri)
 include(pdb/pdb.pri)
 include(lldb/lldb.pri)
 include(qml/qml.pri)
 include(namedemangler/namedemangler.pri)
+include(console/console.pri)
+include(analyzer/analyzer.pri)
 
 include(shared/shared.pri)

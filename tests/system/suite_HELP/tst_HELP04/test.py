@@ -1,46 +1,44 @@
-#############################################################################
-##
-## Copyright (C) 2015 The Qt Company Ltd.
-## Contact: http://www.qt.io/licensing
-##
-## This file is part of Qt Creator.
-##
-## Commercial License Usage
-## Licensees holding valid commercial Qt licenses may use this file in
-## accordance with the commercial license agreement provided with the
-## Software or, alternatively, in accordance with the terms contained in
-## a written agreement between you and The Qt Company.  For licensing terms and
-## conditions see http://www.qt.io/terms-conditions.  For further information
-## use the contact form at http://www.qt.io/contact-us.
-##
-## GNU Lesser General Public License Usage
-## Alternatively, this file may be used under the terms of the GNU Lesser
-## General Public License version 2.1 or version 3 as published by the Free
-## Software Foundation and appearing in the file LICENSE.LGPLv21 and
-## LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-## following information to ensure the GNU Lesser General Public License
-## requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-## http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-##
-## In addition, as a special exception, The Qt Company gives you certain additional
-## rights.  These rights are described in The Qt Company LGPL Exception
-## version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
-##
-#############################################################################
+############################################################################
+#
+# Copyright (C) 2016 The Qt Company Ltd.
+# Contact: https://www.qt.io/licensing/
+#
+# This file is part of Qt Creator.
+#
+# Commercial License Usage
+# Licensees holding valid commercial Qt licenses may use this file in
+# accordance with the commercial license agreement provided with the
+# Software or, alternatively, in accordance with the terms contained in
+# a written agreement between you and The Qt Company. For licensing terms
+# and conditions see https://www.qt.io/terms-conditions. For further
+# information use the contact form at https://www.qt.io/contact-us.
+#
+# GNU General Public License Usage
+# Alternatively, this file may be used under the terms of the GNU
+# General Public License version 3 as published by the Free Software
+# Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+# included in the packaging of this file. Please review the following
+# information to ensure the GNU General Public License requirements will
+# be met: https://www.gnu.org/licenses/gpl-3.0.html.
+#
+############################################################################
 
 source("../../shared/qtcreator.py")
 import re
 
 # test search in help mode and advanced search
 searchKeywordDictionary={ "deployment":True, "deplmint":False, "build":True, "bld":False }
+urlDictionary = { "deployment":"qthelp://com.trolltech.qt.481/qdoc/gettingstarted-develop.html",
+                  "build":"qthelp://com.trolltech.qt.481/qdoc/sql-driver.html" }
 
 
 def __getSelectedText__():
     hv = getHelpViewer()
+    isWebEngineView = className(hv) == "QWebEngineView"
     try:
         selText = hv.selectedText
         if className(selText) != 'instancemethod':
-            return str(selText)
+            return str(selText), isWebEngineView
     except:
         pass
     try:
@@ -48,7 +46,7 @@ def __getSelectedText__():
     except:
         test.warning("Could not get highlighted text.")
         selText = ''
-    return str(selText)
+    return str(selText), isWebEngineView
 
 def __getUrl__():
     helpViewer = getHelpViewer()
@@ -71,11 +69,19 @@ def getHighlightsInHtml(htmlCode):
     return res
 
 def verifySelection(expected):
-    selText = str(__getSelectedText__())
+    selText, isWebEngineView = __getSelectedText__()
+    if isWebEngineView:
+        test.log("The search results are not a selection in a QWebEngineView",
+                 "Searched strings should still be highlighted")
+        return
+    selText = str(selText)
     if test.verify(selText, "Verify that there is a selection"):
         # verify if search keyword is found in results
         test.verify(expected.lower() in selText.lower(),
                     "'%s' search result can be found" % expected)
+
+def verifyUrl(expected):
+    return test.compare(expected, __getUrl__(), "Expected URL loaded?")
 
 def main():
     global sdkPath
@@ -114,14 +120,15 @@ def main():
             test.verify(waitFor("re.match('[1-9]\d* - [1-9]\d* of [1-9]\d* Hits',"
                                 "str(findObject(':Hits_QLabel').text))", 2000),
                                 "Verifying if search results found with 1+ hits for: " + searchKeyword)
-            selText = __getSelectedText__()
+            selText = __getSelectedText__()[0]
             url = __getUrl__()
             # click in the widget, tab to first item and press enter
             mouseClick(waitForObject(":Hits_QCLuceneResultWidget"), 1, 1, 0, Qt.LeftButton)
             type(waitForObject(":Hits_QCLuceneResultWidget"), "<Tab>")
             type(waitForObject(":Hits_QCLuceneResultWidget"), "<Return>")
-            waitFor("__getUrl__() != url or selText != __getSelectedText__()", 20000)
+            waitFor("__getUrl__() != url or selText != __getSelectedText__()[0]", 20000)
             verifySelection(searchKeyword)
+            verifyUrl(urlDictionary[searchKeyword])
         else:
             test.verify(waitFor("noMatch in "
                                 "str(waitForObject(':Hits_QCLuceneResultWidget').plainText)", 1000),
@@ -153,10 +160,12 @@ def main():
     type(resultsView, "<Tab>")
     type(resultsView, "<Return>")
     verifySelection("printing")
+    verifyUrl("qthelp://com.trolltech.qt.481/qdoc/overviews.html")
     for i in range(2):
         type(resultsView, "<Tab>")
     type(resultsView, "<Return>")
     verifySelection("sql")
+    verifyUrl("qthelp://com.trolltech.qt.481/qdoc/best-practices.html")
     # verify if simple search is properly disabled
     test.verify(not searchLineEdit.enabled,
                 "Verifying if simple search is not active in advanced mode.")

@@ -117,11 +117,6 @@ IVisualStudioProject *VcProjectFile::visualStudioProject() const
     return m_documentModel;
 }
 
-void VcProjectFile::setVisualStudioProject(IVisualStudioProject *documentModel)
-{
-    m_documentModel = documentModel;
-}
-
 void VcProjectFile::showSettingsDialog()
 {
     m_tempModel = m_documentModel->clone();

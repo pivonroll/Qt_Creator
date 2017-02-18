@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_LEXER_H
-#define CPLUSPLUS_LEXER_H
+#pragma once
 
 #include "CPlusPlusForwardDeclarations.h"
 #include "Token.h"
@@ -37,7 +36,6 @@ public:
     ~Lexer();
 
     Control *control() const { return _control; }
-    TranslationUnit *translationUnit() const;
 
     void scan(Token *tok);
 
@@ -126,6 +124,7 @@ private:
         unsigned _scanKeywords: 1;
         unsigned _scanAngleStringLiteralTokens: 1;
         unsigned _ppMode: 1;
+        unsigned _ignoreTrigraph : 1;
     };
 
     struct State {
@@ -158,5 +157,3 @@ private:
 };
 
 } // namespace CPlusPlus
-
-#endif // CPLUSPLUS_LEXER_H

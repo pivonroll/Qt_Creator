@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -122,14 +117,14 @@ ModelAdapter::ModelAdapter(GenericProposalModel *completionModel, QWidget *paren
     , m_completionModel(completionModel)
 {}
 
-int ModelAdapter::rowCount(const QModelIndex &) const
+int ModelAdapter::rowCount(const QModelIndex &index) const
 {
-    return m_completionModel->size();
+    return index.isValid() ? 0 : m_completionModel->size();
 }
 
 QVariant ModelAdapter::data(const QModelIndex &index, int role) const
 {
-    if (index.row() >= m_completionModel->size())
+    if (!index.isValid() || index.row() >= m_completionModel->size())
         return QVariant();
 
     if (role == Qt::DisplayRole)
@@ -159,6 +154,7 @@ public:
         // Limit horizontal width
         m_label->setSizePolicy(QSizePolicy::Fixed, m_label->sizePolicy().verticalPolicy());
 
+        m_label->setTextFormat(Qt::RichText);
         m_label->setForegroundRole(QPalette::ToolTipText);
         m_label->setBackgroundRole(QPalette::ToolTipBase);
     }
@@ -251,41 +247,34 @@ class GenericProposalWidgetPrivate : public QObject
 public:
     GenericProposalWidgetPrivate(QWidget *completionWidget);
 
-    const QWidget *m_underlyingWidget;
+    const QWidget *m_underlyingWidget = nullptr;
     GenericProposalListView *m_completionListView;
-    GenericProposalModel *m_model;
+    GenericProposalModel *m_model = nullptr;
     QRect m_displayRect;
-    bool m_isSynchronized;
-    bool m_explicitlySelected;
-    AssistReason m_reason;
-    AssistKind m_kind;
-    bool m_justInvoked;
+    bool m_isSynchronized = true;
+    bool m_explicitlySelected = false;
+    AssistReason m_reason = IdleEditor;
+    AssistKind m_kind = Completion;
+    bool m_justInvoked = false;
     QPointer<GenericProposalInfoFrame> m_infoFrame;
     QTimer m_infoTimer;
-    CodeAssistant *m_assistant;
-    bool m_autoWidth;
+    CodeAssistant *m_assistant = nullptr;
+    bool m_autoWidth = true;
 
-public slots:
     void handleActivation(const QModelIndex &modelIndex);
     void maybeShowInfoTip();
 };
 
 GenericProposalWidgetPrivate::GenericProposalWidgetPrivate(QWidget *completionWidget)
-    : m_underlyingWidget(0)
-    , m_completionListView(new GenericProposalListView(completionWidget))
-    , m_model(0)
-    , m_isSynchronized(true)
-    , m_explicitlySelected(false)
-    , m_justInvoked(false)
-    , m_assistant(0)
-    , m_autoWidth(true)
+    : m_completionListView(new GenericProposalListView(completionWidget))
 {
-    connect(m_completionListView, SIGNAL(activated(QModelIndex)),
-            this, SLOT(handleActivation(QModelIndex)));
+    m_completionListView->setIconSize(QSize(16, 16));
+    connect(m_completionListView, &QAbstractItemView::activated,
+            this, &GenericProposalWidgetPrivate::handleActivation);
 
     m_infoTimer.setInterval(Constants::COMPLETION_ASSIST_TOOLTIP_DELAY);
     m_infoTimer.setSingleShot(true);
-    connect(&m_infoTimer, SIGNAL(timeout()), SLOT(maybeShowInfoTip()));
+    connect(&m_infoTimer, &QTimer::timeout, this, &GenericProposalWidgetPrivate::maybeShowInfoTip);
 }
 
 void GenericProposalWidgetPrivate::handleActivation(const QModelIndex &modelIndex)
@@ -342,12 +331,12 @@ GenericProposalWidget::GenericProposalWidget()
     d->m_completionListView->setSelectionMode(QAbstractItemView::SingleSelection);
     d->m_completionListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     d->m_completionListView->setMinimumSize(1, 1);
-    connect(d->m_completionListView->verticalScrollBar(), SIGNAL(valueChanged(int)),
-            this, SLOT(updatePositionAndSize()));
-    connect(d->m_completionListView->verticalScrollBar(), SIGNAL(sliderPressed()),
-            this, SLOT(turnOffAutoWidth()));
-    connect(d->m_completionListView->verticalScrollBar(), SIGNAL(sliderReleased()),
-            this, SLOT(turnOnAutoWidth()));
+    connect(d->m_completionListView->verticalScrollBar(), &QAbstractSlider::valueChanged,
+            this, &GenericProposalWidget::updatePositionAndSize);
+    connect(d->m_completionListView->verticalScrollBar(), &QAbstractSlider::sliderPressed,
+            this, &GenericProposalWidget::turnOffAutoWidth);
+    connect(d->m_completionListView->verticalScrollBar(), &QAbstractSlider::sliderReleased,
+            this, &GenericProposalWidget::turnOnAutoWidth);
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setMargin(0);
@@ -394,10 +383,8 @@ void GenericProposalWidget::setModel(IAssistProposalModel *model)
     d->m_model = static_cast<GenericProposalModel *>(model);
     d->m_completionListView->setModel(new ModelAdapter(d->m_model, d->m_completionListView));
 
-    connect(d->m_completionListView->selectionModel(),
-            SIGNAL(currentChanged(QModelIndex,QModelIndex)),
-            &d->m_infoTimer,
-            SLOT(start()));
+    connect(d->m_completionListView->selectionModel(), &QItemSelectionModel::currentChanged,
+            &d->m_infoTimer, static_cast<void (QTimer::*)()>(&QTimer::start));
 }
 
 void GenericProposalWidget::setDisplayRect(const QRect &rect)
@@ -413,7 +400,8 @@ void GenericProposalWidget::setIsSynchronized(bool isSync)
 void GenericProposalWidget::showProposal(const QString &prefix)
 {
     ensurePolished();
-    d->m_model->removeDuplicates();
+    if (d->m_model->containsDuplicates())
+        d->m_model->removeDuplicates();
     if (!updateAndCheck(prefix))
         return;
     show();
@@ -440,9 +428,9 @@ void GenericProposalWidget::notifyActivation(int index)
 
 void GenericProposalWidget::abort()
 {
+    deleteLater();
     if (isVisible())
         close();
-    deleteLater();
 }
 
 bool GenericProposalWidget::updateAndCheck(const QString &prefix)
@@ -490,7 +478,7 @@ bool GenericProposalWidget::updateAndCheck(const QString &prefix)
             && d->m_justInvoked
             && d->m_isSynchronized) {
         if (d->m_model->size() == 1) {
-            AssistProposalItem *item = d->m_model->proposalItem(0);
+            AssistProposalItemInterface *item = d->m_model->proposalItem(0);
             if (item->implicitlyApplies()) {
                 d->m_completionListView->reset();
                 abort();
@@ -626,7 +614,7 @@ bool GenericProposalWidget::eventFilter(QObject *o, QEvent *e)
 
         default:
             // Only forward keys that insert text and refine the completion.
-            if (ke->text().isEmpty())
+            if (ke->text().isEmpty() && !(ke == QKeySequence::Paste))
                 return true;
             break;
         }
@@ -635,7 +623,7 @@ bool GenericProposalWidget::eventFilter(QObject *o, QEvent *e)
                 && d->m_completionListView->currentIndex().isValid()
                 && qApp->focusWidget() == o) {
             const QChar &typedChar = ke->text().at(0);
-            AssistProposalItem *item =
+            AssistProposalItemInterface *item =
                 d->m_model->proposalItem(d->m_completionListView->currentIndex().row());
             if (item->prematurelyApplies(typedChar)
                     && (d->m_reason == ExplicitlyInvoked || item->text().endsWith(typedChar))) {

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,26 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-#ifndef IDEVICE_H
-#define IDEVICE_H
+
+#pragma once
 
 #include "../projectexplorer_export.h"
 
@@ -45,12 +40,19 @@ class QWidget;
 QT_END_NAMESPACE
 
 namespace QSsh { class SshConnectionParameters; }
-namespace Utils { class PortList; }
+
+namespace Utils {
+class Environment;
+class Icon;
+class PortList;
+class Port;
+} // Utils
 
 namespace ProjectExplorer {
+
+class Connection;
 class DeviceProcess;
 class DeviceProcessList;
-
 class Kit;
 
 namespace Internal { class IDevicePrivate; }
@@ -62,7 +64,6 @@ class PROJECTEXPLORER_EXPORT DeviceProcessSignalOperation : public QObject
 {
     Q_OBJECT
 public:
-    ~DeviceProcessSignalOperation() {}
     typedef QSharedPointer<DeviceProcessSignalOperation> Ptr;
 
     virtual void killProcess(qint64 pid) = 0;
@@ -83,18 +84,33 @@ protected:
     QString m_errorMessage;
 };
 
+class PROJECTEXPLORER_EXPORT DeviceEnvironmentFetcher : public QObject
+{
+    Q_OBJECT
+public:
+    typedef QSharedPointer<DeviceEnvironmentFetcher> Ptr;
+
+    virtual void start() = 0;
+
+signals:
+    void finished(const Utils::Environment &env, bool success);
+
+protected:
+    explicit DeviceEnvironmentFetcher();
+};
+
 class PROJECTEXPLORER_EXPORT PortsGatheringMethod
 {
 public:
     typedef QSharedPointer<const PortsGatheringMethod> Ptr;
 
-    virtual ~PortsGatheringMethod();
+    virtual ~PortsGatheringMethod() = default;
     virtual QByteArray commandLine(QAbstractSocket::NetworkLayerProtocol protocol) const = 0;
-    virtual QList<int> usedPorts(const QByteArray &commandOutput) const = 0;
+    virtual QList<Utils::Port> usedPorts(const QByteArray &commandOutput) const = 0;
 };
 
 // See cpp file for documentation.
-class PROJECTEXPLORER_EXPORT IDevice
+class PROJECTEXPLORER_EXPORT IDevice : public QEnableSharedFromThis<IDevice>
 {
 public:
     typedef QSharedPointer<IDevice> Ptr;
@@ -144,6 +160,7 @@ public:
     virtual bool canCreateProcess() const { return false; }
     virtual DeviceProcess *createProcess(QObject *parent) const;
     virtual DeviceProcessSignalOperation::Ptr signalOperation() const = 0;
+    virtual DeviceEnvironmentFetcher::Ptr environmentFetcher() const;
 
     enum DeviceState { DeviceReadyToUse, DeviceConnected, DeviceDisconnected, DeviceStateUnknown };
     DeviceState deviceState() const;
@@ -163,7 +180,8 @@ public:
     QSsh::SshConnectionParameters sshParameters() const;
     void setSshParameters(const QSsh::SshConnectionParameters &sshParameters);
 
-    virtual QString qmlProfilerHost() const;
+    enum ControlChannelHint { QmlControlChannel };
+    virtual Connection toolControlChannel(const ControlChannelHint &) const;
 
     Utils::PortList freePorts() const;
     void setFreePorts(const Utils::PortList &freePorts);
@@ -177,9 +195,6 @@ protected:
     IDevice();
     IDevice(Core::Id type, Origin origin, MachineType machineType, Core::Id id = Core::Id());
     IDevice(const IDevice &other);
-
-    Ptr sharedFromThis();
-    ConstPtr sharedFromThis() const;
 
 private:
     IDevice &operator=(const IDevice &); // Unimplemented.
@@ -211,5 +226,3 @@ protected:
 };
 
 } // namespace ProjectExplorer
-
-#endif // IDEVICE_H

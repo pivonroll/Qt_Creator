@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,24 +9,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+
 #include "shell.h"
 
 #include <ssh/sshconnection.h>
@@ -46,9 +42,9 @@ Shell::Shell(const SshConnectionParameters &parameters, QObject *parent)
       m_connection(new SshConnection(parameters)),
       m_stdin(new QFile(this))
 {
-    connect(m_connection, SIGNAL(connected()), SLOT(handleConnected()));
-    connect(m_connection, SIGNAL(dataAvailable(QString)), SLOT(handleShellMessage(QString)));
-    connect(m_connection, SIGNAL(error(QSsh::SshError)), SLOT(handleConnectionError()));
+    connect(m_connection, &SshConnection::connected, this, &Shell::handleConnected);
+    connect(m_connection, &SshConnection::dataAvailable, this, &Shell::handleShellMessage);
+    connect(m_connection, &SshConnection::error, this, &Shell::handleConnectionError);
 }
 
 Shell::~Shell()
@@ -81,17 +77,19 @@ void Shell::handleShellMessage(const QString &message)
 void Shell::handleConnected()
 {
     m_shell = m_connection->createRemoteShell();
-    connect(m_shell.data(), SIGNAL(started()), SLOT(handleShellStarted()));
-    connect(m_shell.data(), SIGNAL(readyReadStandardOutput()), SLOT(handleRemoteStdout()));
-    connect(m_shell.data(), SIGNAL(readyReadStandardError()), SLOT(handleRemoteStderr()));
-    connect(m_shell.data(), SIGNAL(closed(int)), SLOT(handleChannelClosed(int)));
+    connect(m_shell.data(), &SshRemoteProcess::started, this, &Shell::handleShellStarted);
+    connect(m_shell.data(), &SshRemoteProcess::readyReadStandardOutput,
+            this, &Shell::handleRemoteStdout);
+    connect(m_shell.data(), &SshRemoteProcess::readyReadStandardError,
+            this, &Shell::handleRemoteStderr);
+    connect(m_shell.data(), &SshRemoteProcess::closed, this, &Shell::handleChannelClosed);
     m_shell->start();
 }
 
 void Shell::handleShellStarted()
 {
     QSocketNotifier * const notifier = new QSocketNotifier(0, QSocketNotifier::Read, this);
-    connect(notifier, SIGNAL(activated(int)), SLOT(handleStdin()));
+    connect(notifier, &QSocketNotifier::activated, this, &Shell::handleStdin);
 }
 
 void Shell::handleRemoteStdout()

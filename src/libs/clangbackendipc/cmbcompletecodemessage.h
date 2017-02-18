@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,79 +9,114 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef CLANGBACKEND_COMPLETECODEMESSAGE_H
-#define CLANGBACKEND_COMPLETECODEMESSAGE_H
+#pragma once
 
 #include "clangbackendipc_global.h"
 
 #include <utf8string.h>
 
-#include <QMetaType>
+#include <QDataStream>
 
 namespace ClangBackEnd {
 
-class CMBIPC_EXPORT CompleteCodeMessage
+class CompleteCodeMessage
 {
-    friend CMBIPC_EXPORT QDataStream &operator<<(QDataStream &out, const CompleteCodeMessage &message);
-    friend CMBIPC_EXPORT QDataStream &operator>>(QDataStream &in, CompleteCodeMessage &message);
-    friend CMBIPC_EXPORT bool operator==(const CompleteCodeMessage &first, const CompleteCodeMessage &second);
-    friend CMBIPC_EXPORT bool operator<(const CompleteCodeMessage &first, const CompleteCodeMessage &second);
-    friend CMBIPC_EXPORT QDebug operator<<(QDebug debug, const CompleteCodeMessage &message);
-    friend void PrintTo(const CompleteCodeMessage &message, ::std::ostream* os);
 
 public:
     CompleteCodeMessage() = default;
     CompleteCodeMessage(const Utf8String &filePath,
                         quint32 line,
                         quint32 column,
-                        const Utf8String &projectPartId);
+                        const Utf8String &projectPartId)
+        : filePath_(filePath),
+          projectPartId_(projectPartId),
+          ticketNumber_(++ticketCounter),
+          line_(line),
+          column_(column)
+    {
+    }
 
-    const Utf8String &filePath() const;
-    const Utf8String &projectPartId() const;
+    const Utf8String &filePath() const
+    {
+        return filePath_;
+    }
 
-    quint32 line() const;
-    quint32 column() const;
+    const Utf8String &projectPartId() const
+    {
+        return projectPartId_;
+    }
 
-    quint64 ticketNumber() const;
+    quint32 line() const
+    {
+        return line_;
+    }
+
+    quint32 column() const
+    {
+        return column_;
+    }
+
+    quint64 ticketNumber() const
+    {
+        return ticketNumber_;
+    }
+
+    friend QDataStream &operator<<(QDataStream &out, const CompleteCodeMessage &message)
+    {
+        out << message.filePath_;
+        out << message.projectPartId_;
+        out << message.ticketNumber_;
+        out << message.line_;
+        out << message.column_;
+
+        return out;
+    }
+
+    friend QDataStream &operator>>(QDataStream &in, CompleteCodeMessage &message)
+    {
+        in >> message.filePath_;
+        in >> message.projectPartId_;
+        in >> message.ticketNumber_;
+        in >> message.line_;
+        in >> message.column_;
+
+        return in;
+    }
+
+    friend bool operator==(const CompleteCodeMessage &first, const CompleteCodeMessage &second)
+    {
+        return first.ticketNumber_ == second.ticketNumber_
+                && first.filePath_ == second.filePath_
+                && first.projectPartId_ == second.projectPartId_
+                && first.line_ == second.line_
+                && first.column_ == second.column_;
+    }
+
+    friend CMBIPC_EXPORT QDebug operator<<(QDebug debug, const CompleteCodeMessage &message);
+    friend void PrintTo(const CompleteCodeMessage &message, ::std::ostream* os);
 
 private:
     Utf8String filePath_;
     Utf8String projectPartId_;
-    static quint64 ticketCounter;
+    static CMBIPC_EXPORT quint64 ticketCounter;
     quint64 ticketNumber_;
     quint32 line_ = 0;
     quint32 column_ = 0;
 };
 
-CMBIPC_EXPORT QDataStream &operator<<(QDataStream &out, const CompleteCodeMessage &message);
-CMBIPC_EXPORT QDataStream &operator>>(QDataStream &in, CompleteCodeMessage &message);
-CMBIPC_EXPORT bool operator==(const CompleteCodeMessage &first, const CompleteCodeMessage &second);
-CMBIPC_EXPORT bool operator<(const CompleteCodeMessage &first, const CompleteCodeMessage &second);
-
-CMBIPC_EXPORT QDebug operator<<(QDebug debug, const CompleteCodeMessage &message);
-void PrintTo(const CompleteCodeMessage &message, ::std::ostream* os);
-
+DECLARE_MESSAGE(CompleteCodeMessage);
 } // namespace ClangBackEnd
-
-Q_DECLARE_METATYPE(ClangBackEnd::CompleteCodeMessage)
-
-#endif // CLANGBACKEND_COMPLETECODEMESSAGE_H

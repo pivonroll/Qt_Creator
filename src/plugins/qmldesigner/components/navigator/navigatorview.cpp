@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -28,9 +28,14 @@
 #include "navigatorwidget.h"
 #include "nameitemdelegate.h"
 #include "iconcheckboxitemdelegate.h"
+#include "qmldesignerconstants.h"
+#include "qmldesignericons.h"
 
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/icore.h>
+
+#include <utils/icon.h>
+#include <utils/utilsicons.h>
 
 #include <bindingproperty.h>
 #include <designmodecontext.h>
@@ -80,15 +85,17 @@ NavigatorView::NavigatorView(QObject* parent) :
 
     NameItemDelegate *idDelegate = new NameItemDelegate(this,
                                                         m_treeModel.data());
-    IconCheckboxItemDelegate *showDelegate = new IconCheckboxItemDelegate(this,
-                                                                          QLatin1String(":/navigator/icon/eye_open.png"),
-                                                                          QLatin1String(":/navigator/icon/eye_closed.png"),
-                                                                          m_treeModel.data());
+    IconCheckboxItemDelegate *showDelegate =
+            new IconCheckboxItemDelegate(this,
+                                         Utils::Icons::EYE_OPEN_TOOLBAR.pixmap(),
+                                         Utils::Icons::EYE_CLOSED_TOOLBAR.pixmap(),
+                                         m_treeModel.data());
 
-    IconCheckboxItemDelegate *exportDelegate = new IconCheckboxItemDelegate(this,
-                                                                          QLatin1String(":/navigator/icon/export_checked.png"),
-                                                                          QLatin1String(":/navigator/icon/export_unchecked.png"),
-                                                                          m_treeModel.data());
+    IconCheckboxItemDelegate *exportDelegate =
+            new IconCheckboxItemDelegate(this,
+                                         Icons::EXPORT_CHECKED.pixmap(),
+                                         Icons::EXPORT_UNCHECKED.pixmap(),
+                                         m_treeModel.data());
 
 #ifdef _LOCK_ITEMS_
     IconCheckboxItemDelegate *lockDelegate = new IconCheckboxItemDelegate(this,":/qmldesigner/images/lock.png",
@@ -211,10 +218,30 @@ void NavigatorView::propertiesAboutToBeRemoved(const QList<AbstractProperty>& pr
     }
 }
 
+void NavigatorView::propertiesRemoved(const QList<AbstractProperty> &propertyList)
+{
+    for (const AbstractProperty &property : propertyList) {
+        ModelNode node = property.parentModelNode();
+        /* Update export alias state if property from root note was removed and the root node was not selected. */
+        /* The check for the selection is an optimization to reduce updates. */
+        if (node.isRootNode() && !selectedModelNodes().isEmpty() && !selectedModelNodes().first().isRootNode()) {
+
+            foreach (const ModelNode &modelNode, node.allSubModelNodes())
+                m_treeModel->updateItemRow(modelNode);
+        }
+    }
+}
+
 void NavigatorView::rootNodeTypeChanged(const QString & /*type*/, int /*majorVersion*/, int /*minorVersion*/)
 {
     if (m_treeModel->isInTree(rootModelNode()))
         m_treeModel->updateItemRow(rootModelNode());
+}
+
+void NavigatorView::nodeTypeChanged(const ModelNode &node, const TypeName &, int , int)
+{
+    if (m_treeModel->isInTree(node))
+        m_treeModel->updateItemRow(node);
 }
 
 void NavigatorView::auxiliaryDataChanged(const ModelNode &modelNode, const PropertyName & name, const QVariant & /*data*/)
@@ -233,7 +260,7 @@ void NavigatorView::auxiliaryDataChanged(const ModelNode &modelNode, const Prope
     }
 }
 
-void NavigatorView::instanceErrorChange(const QVector<ModelNode> &errorNodeList)
+void NavigatorView::instanceErrorChanged(const QVector<ModelNode> &errorNodeList)
 {
     foreach (const ModelNode &currentModelNode, errorNodeList)
         m_treeModel->updateItemRow(currentModelNode);

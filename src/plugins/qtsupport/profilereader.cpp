@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -46,28 +41,40 @@ static QString format(const QString &fileName, int lineNo, const QString &msg)
         return msg;
 }
 
-ProMessageHandler::ProMessageHandler(bool verbose)
+ProMessageHandler::ProMessageHandler(bool verbose, bool exact)
     : m_verbose(verbose)
+    , m_exact(exact)
+    //: Prefix used for output from the cumulative evaluation of project files.
+    , m_prefix(tr("[Inexact] "))
 {
-    QObject::connect(this, SIGNAL(writeMessage(QString,Core::MessageManager::PrintToOutputPaneFlags)),
-                     Core::MessageManager::instance(), SLOT(write(QString,Core::MessageManager::PrintToOutputPaneFlags)),
-                     Qt::QueuedConnection);
+    connect(this, &ProMessageHandler::writeMessage,
+            Core::MessageManager::instance(), &Core::MessageManager::write, Qt::QueuedConnection);
 }
 
 void ProMessageHandler::message(int type, const QString &msg, const QString &fileName, int lineNo)
 {
-    if ((type & CategoryMask) == ErrorMessage && ((type & SourceMask) == SourceParser || m_verbose))
-        emit writeMessage(format(fileName, lineNo, msg), Core::MessageManager::NoModeSwitch);
+    if ((type & CategoryMask) == ErrorMessage && ((type & SourceMask) == SourceParser || m_verbose)) {
+        QString fmsg = format(fileName, lineNo, msg);
+        if ((type & SourceMask) == SourceParser || m_exact)
+            emit writeMessage(fmsg, Core::MessageManager::NoModeSwitch);
+        else
+            emit writeMessage(m_prefix + fmsg, Core::MessageManager::NoModeSwitch);
+    }
 }
 
-void ProMessageHandler::fileMessage(const QString &msg)
+void ProMessageHandler::fileMessage(int type, const QString &msg)
 {
-    if (m_verbose)
-        emit writeMessage(msg, Core::MessageManager::NoModeSwitch);
+    Q_UNUSED(type)
+    if (m_verbose) {
+        if (m_exact)
+            emit writeMessage(msg, Core::MessageManager::NoModeSwitch);
+        else
+            emit writeMessage(m_prefix + msg, Core::MessageManager::NoModeSwitch);
+    }
 }
 
 
-ProFileReader::ProFileReader(ProFileGlobals *option, QMakeVfs *vfs)
+ProFileReader::ProFileReader(QMakeGlobals *option, QMakeVfs *vfs)
     : QMakeParser(ProFileCacheManager::instance()->cache(), vfs, this)
     , ProFileEvaluator(option, this, vfs, this)
     , m_ignoreLevel(0)
@@ -90,7 +97,7 @@ void ProFileReader::aboutToEval(ProFile *parent, ProFile *pro, EvalFileType type
 {
     if (m_ignoreLevel || (type != EvalProjectFile && type != EvalIncludeFile)) {
         m_ignoreLevel++;
-    } else {
+    } else if (parent) {  // Skip the actual .pro file, as nobody needs that.
         QVector<ProFile *> &children = m_includeFiles[parent];
         if (!children.contains(pro)) {
             children.append(pro);
@@ -121,8 +128,8 @@ ProFileCacheManager::ProFileCacheManager(QObject *parent) :
     s_instance = this;
     m_timer.setInterval(5000);
     m_timer.setSingleShot(true);
-    connect(&m_timer, SIGNAL(timeout()),
-            this, SLOT(clear()));
+    connect(&m_timer, &QTimer::timeout,
+            this, &ProFileCacheManager::clear);
 }
 
 void ProFileCacheManager::incRefCount()

@@ -1,5 +1,5 @@
-contains(CONFIG, dll) {
-    DEFINES += QMLJS_BUILD_DIR
+shared {
+    DEFINES += QMLJS_LIBRARY
 } else {
     DEFINES += QML_BUILD_STATIC_LIB
 }
@@ -34,9 +34,6 @@ HEADERS += \
     $$PWD/qmljsutils.h \
     $$PWD/qmljsstaticanalysismessage.h \
     $$PWD/jsoncheck.h \
-    $$PWD/consolemanagerinterface.h \
-    $$PWD/consoleitem.h \
-    $$PWD/iscriptevaluator.h \
     $$PWD/qmljssimplereader.h \
     $$PWD/persistenttrie.h \
     $$PWD/qmljsqrcparser.h \
@@ -72,8 +69,6 @@ SOURCES += \
     $$PWD/qmljsutils.cpp \
     $$PWD/qmljsstaticanalysismessage.cpp \
     $$PWD/jsoncheck.cpp \
-    $$PWD/consolemanagerinterface.cpp \
-    $$PWD/consoleitem.cpp \
     $$PWD/qmljssimplereader.cpp \
     $$PWD/persistenttrie.cpp \
     $$PWD/qmljsqrcparser.cpp \
@@ -81,10 +76,6 @@ SOURCES += \
     $$PWD/qmljsviewercontext.cpp \
     $$PWD/qmljsdescribevalue.cpp \
     $$PWD/qmljsdialect.cpp
-
-
-RESOURCES += \
-    $$PWD/qmljs.qrc
 
 DISTFILES += \
     $$PWD/parser/qmljs.g

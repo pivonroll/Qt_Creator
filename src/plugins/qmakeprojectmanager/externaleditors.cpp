@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,23 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "externaleditors.h"
 
+#include <utils/algorithm.h>
 #include <utils/hostosinfo.h>
 #include <utils/synchronousprocess.h>
 #include <projectexplorer/project.h>
@@ -42,7 +38,6 @@
 
 #include <QProcess>
 #include <QDebug>
-#include <QSignalMapper>
 
 #include <QTcpSocket>
 #include <QTcpServer>
@@ -67,27 +62,32 @@ static inline QString msgAppNotFound(const QString &id)
 }
 
 // -- Commands and helpers
-static QString linguistBinary()
+static QString linguistBinary(const QtSupport::BaseQtVersion *qtVersion)
 {
+    if (qtVersion)
+        return qtVersion->linguistCommand();
     return QLatin1String(Utils::HostOsInfo::isMacHost() ? "Linguist" : "linguist");
 }
 
-static QString designerBinary()
+static QString designerBinary(const QtSupport::BaseQtVersion *qtVersion)
 {
+    if (qtVersion)
+        return qtVersion->designerCommand();
     return QLatin1String(Utils::HostOsInfo::isMacHost() ? "Designer" : "designer");
 }
 
 // Mac: Change the call 'Foo.app/Contents/MacOS/Foo <filelist>' to
 // 'open -a Foo.app <filelist>'. doesn't support generic command line arguments
-static void createMacOpenCommand(QString *binary, QStringList *arguments)
+static ExternalQtEditor::LaunchData createMacOpenCommand(const ExternalQtEditor::LaunchData &data)
 {
-    const int appFolderIndex = binary->lastIndexOf(QLatin1String("/Contents/MacOS/"));
+    ExternalQtEditor::LaunchData openData = data;
+    const int appFolderIndex = data.binary.lastIndexOf(QLatin1String("/Contents/MacOS/"));
     if (appFolderIndex != -1) {
-        binary->truncate(appFolderIndex);
-        arguments->push_front(*binary);
-        arguments->push_front(QLatin1String("-a"));
-        *binary = QLatin1String("open");
+        openData.binary = "open";
+        openData.arguments = QStringList({ QString("-a"), data.binary.left(appFolderIndex) })
+                + data.arguments;
     }
+    return openData;
 }
 
 static const char designerIdC[] = "Qt.Designer";
@@ -100,12 +100,32 @@ static const char linguistDisplayName[] = QT_TRANSLATE_NOOP("OpenWith::Editors",
 ExternalQtEditor::ExternalQtEditor(Core::Id id,
                                    const QString &displayName,
                                    const QString &mimetype,
-                                   QObject *parent) :
-    Core::IExternalEditor(parent),
+                                   const CommandForQtVersion &commandForQtVersion) :
     m_mimeTypes(mimetype),
     m_id(id),
-    m_displayName(displayName)
+    m_displayName(displayName),
+    m_commandForQtVersion(commandForQtVersion)
 {
+}
+
+ExternalQtEditor *ExternalQtEditor::createLinguistEditor()
+{
+    return new ExternalQtEditor(linguistIdC,
+                                QLatin1String(linguistDisplayName),
+                                QLatin1String(ProjectExplorer::Constants::LINGUIST_MIMETYPE),
+                                linguistBinary);
+}
+
+ExternalQtEditor *ExternalQtEditor::createDesignerEditor()
+{
+    if (Utils::HostOsInfo::isMacHost()) {
+        return new ExternalQtEditor(designerIdC,
+                                    QLatin1String(designerDisplayName),
+                                    QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE),
+                                    designerBinary);
+    } else {
+        return new DesignerExternalEditor;
+    }
 }
 
 QStringList ExternalQtEditor::mimeTypes() const
@@ -123,42 +143,72 @@ QString ExternalQtEditor::displayName() const
     return m_displayName;
 }
 
-bool ExternalQtEditor::getEditorLaunchData(const QString &fileName,
-                                           QtVersionCommandAccessor commandAccessor,
-                                           const QString &fallbackBinary,
-                                           const QStringList &additionalArguments,
-                                           bool useMacOpenCommand,
-                                           EditorLaunchData *data,
-                                           QString *errorMessage) const
+static QString findFirstCommand(QVector<QtSupport::BaseQtVersion *> qtVersions,
+                                ExternalQtEditor::CommandForQtVersion command)
 {
-    // Get the binary either from the current Qt version of the project or Path
-    if (Project *project = SessionManager::projectForFile(Utils::FileName::fromString(fileName))) {
-        if (const Target *target = project->activeTarget()) {
-            if (const QtSupport::BaseQtVersion *qtVersion = QtSupport::QtKitInformation::qtVersion(target->kit())) {
-                data->binary = (qtVersion->*commandAccessor)();
-                data->workingDirectory = project->projectDirectory().toString();
-            }
+    foreach (QtSupport::BaseQtVersion *qt, qtVersions) {
+        if (qt) {
+            const QString binary = command(qt);
+            if (!binary.isEmpty())
+                return binary;
         }
     }
-    if (data->binary.isEmpty()) {
-        data->workingDirectory.clear();
-        data->binary = Utils::SynchronousProcess::locateBinary(fallbackBinary);
+    return QString();
+}
+
+bool ExternalQtEditor::getEditorLaunchData(const QString &fileName,
+                                           LaunchData *data,
+                                           QString *errorMessage) const
+{
+    // Check in order for Qt version with the binary:
+    // - active kit of project
+    // - any other of the project
+    // - default kit
+    // - any other kit
+    // As fallback check PATH
+    data->workingDirectory.clear();
+    QVector<QtSupport::BaseQtVersion *> qtVersionsToCheck; // deduplicated after being filled
+    if (const Project *project = SessionManager::projectForFile(Utils::FileName::fromString(fileName))) {
+        data->workingDirectory = project->projectDirectory().toString();
+        // active kit
+        if (const Target *target = project->activeTarget()) {
+            qtVersionsToCheck << QtSupport::QtKitInformation::qtVersion(target->kit());
+        }
+        // all kits of project
+        qtVersionsToCheck += Utils::transform<QVector>(project->targets(), [](Target *t) {
+            return QTC_GUARD(t) ? QtSupport::QtKitInformation::qtVersion(t->kit()) : nullptr;
+        });
     }
+    // default kit
+    qtVersionsToCheck << QtSupport::QtKitInformation::qtVersion(KitManager::defaultKit());
+    // all kits
+    qtVersionsToCheck += Utils::transform<QVector>(KitManager::kits(), QtSupport::QtKitInformation::qtVersion);
+    qtVersionsToCheck = Utils::filteredUnique(qtVersionsToCheck); // can still contain nullptr
+    data->binary = findFirstCommand(qtVersionsToCheck, m_commandForQtVersion);
+    // fallback
+    if (data->binary.isEmpty())
+        data->binary = Utils::SynchronousProcess::locateBinary(m_commandForQtVersion(nullptr));
     if (data->binary.isEmpty()) {
         *errorMessage = msgAppNotFound(id().toString());
         return false;
     }
     // Setup binary + arguments, use Mac Open if appropriate
-    data->arguments = additionalArguments;
     data->arguments.push_back(fileName);
-    if (Utils::HostOsInfo::isMacHost() && useMacOpenCommand)
-        createMacOpenCommand(&(data->binary), &(data->arguments));
+    if (Utils::HostOsInfo::isMacHost())
+        *data = createMacOpenCommand(*data);
     if (debug)
         qDebug() << Q_FUNC_INFO << '\n' << data->binary << data->arguments;
     return true;
 }
 
-bool ExternalQtEditor::startEditorProcess(const EditorLaunchData &data, QString *errorMessage)
+bool ExternalQtEditor::startEditor(const QString &fileName, QString *errorMessage)
+{
+    LaunchData data;
+    return getEditorLaunchData(fileName, &data, errorMessage)
+            && startEditorProcess(data, errorMessage);
+}
+
+bool ExternalQtEditor::startEditorProcess(const LaunchData &data, QString *errorMessage)
 {
     if (debug)
         qDebug() << Q_FUNC_INFO << '\n' << data.binary << data.arguments << data.workingDirectory;
@@ -170,47 +220,12 @@ bool ExternalQtEditor::startEditorProcess(const EditorLaunchData &data, QString 
     return true;
 }
 
-// --------------- LinguistExternalEditor
-LinguistExternalEditor::LinguistExternalEditor(QObject *parent) :
-       ExternalQtEditor(linguistIdC,
-                        QLatin1String(linguistDisplayName),
-                        QLatin1String(ProjectExplorer::Constants::LINGUIST_MIMETYPE),
-                        parent)
-{
-}
-
-bool LinguistExternalEditor::startEditor(const QString &fileName, QString *errorMessage)
-{
-    EditorLaunchData data;
-    return getEditorLaunchData(fileName, &QtSupport::BaseQtVersion::linguistCommand,
-                            linguistBinary(), QStringList(), true, &data, errorMessage)
-            && startEditorProcess(data, errorMessage);
-}
-
-// --------------- MacDesignerExternalEditor, using Mac 'open'
-MacDesignerExternalEditor::MacDesignerExternalEditor(QObject *parent) :
-       ExternalQtEditor(designerIdC,
-                        QLatin1String(designerDisplayName),
-                        QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE),
-                        parent)
-{
-}
-
-bool MacDesignerExternalEditor::startEditor(const QString &fileName, QString *errorMessage)
-{
-    EditorLaunchData data;
-    return getEditorLaunchData(fileName, &QtSupport::BaseQtVersion::designerCommand,
-                            designerBinary(), QStringList(), true, &data, errorMessage)
-        && startEditorProcess(data, errorMessage);
-    return false;
-}
-
 // --------------- DesignerExternalEditor with Designer Tcp remote control.
-DesignerExternalEditor::DesignerExternalEditor(QObject *parent) :
+DesignerExternalEditor::DesignerExternalEditor() :
     ExternalQtEditor(designerIdC,
                      QLatin1String(designerDisplayName),
                      QLatin1String(Designer::Constants::FORM_MIMETYPE),
-                     parent)
+                     designerBinary)
 {
 }
 
@@ -231,10 +246,9 @@ void DesignerExternalEditor::processTerminated(const QString &binary)
 
 bool DesignerExternalEditor::startEditor(const QString &fileName, QString *errorMessage)
 {
-    EditorLaunchData data;
+    LaunchData data;
     // Find the editor binary
-    if (!getEditorLaunchData(fileName, &QtSupport::BaseQtVersion::designerCommand,
-                            designerBinary(), QStringList(), false, &data, errorMessage)) {
+    if (!getEditorLaunchData(fileName, &data, errorMessage)) {
         return false;
     }
     // Known one?
@@ -266,19 +280,17 @@ bool DesignerExternalEditor::startEditor(const QString &fileName, QString *error
 
     if (!startEditorProcess(data, errorMessage))
         return false;
-    // Set up signal mapper to track process termination via socket
-    if (!m_terminationMapper) {
-        m_terminationMapper = new QSignalMapper(this);
-        connect(m_terminationMapper, SIGNAL(mapped(QString)), this, SLOT(processTerminated(QString)));
-    }
     // Insert into cache if socket is created, else try again next time
     if (server.waitForNewConnection(3000)) {
         QTcpSocket *socket = server.nextPendingConnection();
         socket->setParent(this);
-        m_processCache.insert(data.binary, socket);
-        m_terminationMapper->setMapping(socket, data.binary);
-        connect(socket, SIGNAL(disconnected()), m_terminationMapper, SLOT(map()));
-        connect(socket, SIGNAL(error(QAbstractSocket::SocketError)), m_terminationMapper, SLOT(map()));
+        const QString binary = data.binary;
+        m_processCache.insert(binary, socket);
+        auto mapSlot = [this, binary] { processTerminated(binary); };
+        connect(socket, &QAbstractSocket::disconnected, this, mapSlot);
+        connect(socket,
+                static_cast<void (QAbstractSocket::*)(QAbstractSocket::SocketError)>(&QAbstractSocket::error),
+                this, mapSlot);
     }
     return true;
 }

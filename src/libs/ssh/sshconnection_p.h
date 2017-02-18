@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef SSHCONNECTION_P_H
-#define SSHCONNECTION_P_H
+#pragma once
 
 #include "sshconnection.h"
 #include "sshexception_p.h"
@@ -51,6 +45,7 @@ namespace QSsh {
 class SftpChannel;
 class SshRemoteProcess;
 class SshDirectTcpIpTunnel;
+class SshTcpIpForwardServer;
 
 namespace Internal {
 class SshChannelManager;
@@ -89,11 +84,13 @@ public:
     QSharedPointer<SshRemoteProcess> createRemoteProcess(const QByteArray &command);
     QSharedPointer<SshRemoteProcess> createRemoteShell();
     QSharedPointer<SftpChannel> createSftpChannel();
-    QSharedPointer<SshDirectTcpIpTunnel> createTunnel(const QString &originatingHost,
+    QSharedPointer<SshDirectTcpIpTunnel> createDirectTunnel(const QString &originatingHost,
             quint16 originatingPort, const QString &remoteHost, quint16 remotePort);
+    QSharedPointer<SshTcpIpForwardServer> createForwardServer(const QString &remoteHost,
+            quint16 remotePort);
 
     SshStateInternal state() const { return m_state; }
-    SshError error() const { return m_error; }
+    SshError errorState() const { return m_error; }
     QString errorString() const { return m_errorString; }
 
 signals:
@@ -103,12 +100,12 @@ signals:
     void error(QSsh::SshError);
 
 private:
-    Q_SLOT void handleSocketConnected();
-    Q_SLOT void handleIncomingData();
-    Q_SLOT void handleSocketError();
-    Q_SLOT void handleSocketDisconnected();
-    Q_SLOT void handleTimeout();
-    Q_SLOT void sendKeepAlivePacket();
+    void handleSocketConnected();
+    void handleIncomingData();
+    void handleSocketError();
+    void handleSocketDisconnected();
+    void handleTimeout();
+    void sendKeepAlivePacket();
 
     void handleServerId();
     void handlePackets();
@@ -138,6 +135,9 @@ private:
     void handleChannelEof();
     void handleChannelClose();
     void handleDisconnect();
+    void handleRequestSuccess();
+    void handleRequestFailure();
+
     bool canUseSocket() const;
     void createPrivateKey();
 
@@ -177,5 +177,3 @@ private:
 
 } // namespace Internal
 } // namespace QSsh
-
-#endif // SSHCONNECTION_P_H

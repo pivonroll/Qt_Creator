@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,9 +31,11 @@
 #include "sshchannelmanager_p.h"
 #include "sshcryptofacility_p.h"
 #include "sshdirecttcpiptunnel.h"
+#include "sshtcpipforwardserver.h"
 #include "sshexception_p.h"
 #include "sshinit_p.h"
 #include "sshkeyexchange_p.h"
+#include "sshlogging_p.h"
 #include "sshremoteprocess.h"
 
 #include <botan/botan.h>
@@ -103,14 +100,14 @@ SshConnection::SshConnection(const SshConnectionParameters &serverInfo, QObject 
     qRegisterMetaType<QList <QSsh::SftpFileInfo> >("QList<QSsh::SftpFileInfo>");
 
     d = new Internal::SshConnectionPrivate(this, serverInfo);
-    connect(d, SIGNAL(connected()), this, SIGNAL(connected()),
+    connect(d, &Internal::SshConnectionPrivate::connected, this, &SshConnection::connected,
         Qt::QueuedConnection);
-    connect(d, SIGNAL(dataAvailable(QString)), this,
-        SIGNAL(dataAvailable(QString)), Qt::QueuedConnection);
-    connect(d, SIGNAL(disconnected()), this, SIGNAL(disconnected()),
+    connect(d, &Internal::SshConnectionPrivate::dataAvailable, this,
+        &SshConnection::dataAvailable, Qt::QueuedConnection);
+    connect(d, &Internal::SshConnectionPrivate::disconnected, this, &SshConnection::disconnected,
         Qt::QueuedConnection);
-    connect(d, SIGNAL(error(QSsh::SshError)), this,
-        SIGNAL(error(QSsh::SshError)), Qt::QueuedConnection);
+    connect(d, &Internal::SshConnectionPrivate::error, this,
+            &SshConnection::error, Qt::QueuedConnection);
 }
 
 void SshConnection::connectToHost()
@@ -138,7 +135,7 @@ SshConnection::State SshConnection::state() const
 
 SshError SshConnection::errorState() const
 {
-    return d->error();
+    return d->errorState();
 }
 
 QString SshConnection::errorString() const
@@ -184,11 +181,18 @@ QSharedPointer<SftpChannel> SshConnection::createSftpChannel()
     return d->createSftpChannel();
 }
 
-SshDirectTcpIpTunnel::Ptr SshConnection::createTunnel(const QString &originatingHost,
+SshDirectTcpIpTunnel::Ptr SshConnection::createDirectTunnel(const QString &originatingHost,
         quint16 originatingPort, const QString &remoteHost, quint16 remotePort)
 {
     QSSH_ASSERT_AND_RETURN_VALUE(state() == Connected, SshDirectTcpIpTunnel::Ptr());
-    return d->createTunnel(originatingHost, originatingPort, remoteHost, remotePort);
+    return d->createDirectTunnel(originatingHost, originatingPort, remoteHost, remotePort);
+}
+
+QSharedPointer<SshTcpIpForwardServer> SshConnection::createForwardServer(const QString &remoteHost,
+        quint16 remotePort)
+{
+    QSSH_ASSERT_AND_RETURN_VALUE(state() == Connected, SshTcpIpForwardServer::Ptr());
+    return d->createForwardServer(remoteHost, remotePort);
 }
 
 int SshConnection::closeAllChannels()
@@ -196,7 +200,7 @@ int SshConnection::closeAllChannels()
     try {
         return d->m_channelManager->closeAllChannels(Internal::SshChannelManager::CloseAllRegular);
     } catch (const Botan::Exception &e) {
-        qDebug("%s: %s", Q_FUNC_INFO, e.what());
+        qCWarning(Internal::sshLog, "%s: %s", Q_FUNC_INFO, e.what());
         return -1;
     }
 }
@@ -223,7 +227,8 @@ SshConnectionPrivate::SshConnectionPrivate(SshConnection *conn,
     m_timeoutTimer.setInterval(m_connParams.timeout * 1000);
     m_keepAliveTimer.setSingleShot(true);
     m_keepAliveTimer.setInterval(10000);
-    connect(m_channelManager, SIGNAL(timeout()), this, SLOT(handleTimeout()));
+    connect(m_channelManager, &SshChannelManager::timeout,
+            this, &SshConnectionPrivate::handleTimeout);
 }
 
 SshConnectionPrivate::~SshConnectionPrivate()
@@ -300,6 +305,11 @@ void SshConnectionPrivate::setupPacketHandlers()
 
     setupPacketHandler(SSH_MSG_UNIMPLEMENTED,
         StateList() << ConnectionEstablished, &This::handleUnimplementedPacket);
+
+    setupPacketHandler(SSH_MSG_REQUEST_SUCCESS, connectedList,
+        &This::handleRequestSuccess);
+    setupPacketHandler(SSH_MSG_REQUEST_FAILURE, connectedList,
+        &This::handleRequestFailure);
 }
 
 void SshConnectionPrivate::setupPacketHandler(SshPacketType type,
@@ -324,10 +334,7 @@ void SshConnectionPrivate::handleIncomingData()
         if (!canUseSocket())
             return;
         m_incomingData += m_socket->readAll();
-#ifdef CREATOR_SSH_DEBUG
-        qDebug("state = %d, remote data size = %d", m_state,
-            m_incomingData.count());
-#endif
+        qCDebug(sshLog, "state = %d, remote data size = %d", m_state, m_incomingData.count());
         if (m_serverId.isEmpty())
             handleServerId();
         handlePackets();
@@ -346,10 +353,8 @@ void SshConnectionPrivate::handleIncomingData()
 // RFC 4253, 4.2.
 void SshConnectionPrivate::handleServerId()
 {
-#ifdef CREATOR_SSH_DEBUG
-    qDebug("%s: incoming data size = %d, incoming data = '%s'",
+    qCDebug(sshLog, "%s: incoming data size = %d, incoming data = '%s'",
         Q_FUNC_INFO, m_incomingData.count(), m_incomingData.data());
-#endif
     const int newLinePos = m_incomingData.indexOf('\n');
     if (newLinePos == -1)
         return; // Not enough data yet.
@@ -585,7 +590,7 @@ void SshConnectionPrivate::handleUserAuthSuccessPacket()
     m_timeoutTimer.stop();
     emit connected();
     m_lastInvalidMsgSeqNr = InvalidSeqNr;
-    connect(&m_keepAliveTimer, SIGNAL(timeout()), SLOT(sendKeepAlivePacket()));
+    connect(&m_keepAliveTimer, &QTimer::timeout, this, &SshConnectionPrivate::sendKeepAlivePacket);
     m_keepAliveTimer.start();
 }
 
@@ -689,7 +694,15 @@ void SshConnectionPrivate::handleDisconnect()
         "", tr("Server closed connection: %1").arg(msg.description));
 }
 
+void SshConnectionPrivate::handleRequestSuccess()
+{
+    m_channelManager->handleRequestSuccess(m_incomingPacket);
+}
 
+void SshConnectionPrivate::handleRequestFailure()
+{
+    m_channelManager->handleRequestFailure(m_incomingPacket);
+}
 
 void SshConnectionPrivate::sendData(const QByteArray &data)
 {
@@ -755,13 +768,16 @@ void SshConnectionPrivate::connectToHost()
         return;
     }
 
-    connect(m_socket, SIGNAL(connected()), this, SLOT(handleSocketConnected()));
-    connect(m_socket, SIGNAL(readyRead()), this, SLOT(handleIncomingData()));
-    connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)), this,
-        SLOT(handleSocketError()));
-    connect(m_socket, SIGNAL(disconnected()), this,
-        SLOT(handleSocketDisconnected()));
-    connect(&m_timeoutTimer, SIGNAL(timeout()), this, SLOT(handleTimeout()));
+    connect(m_socket, &QAbstractSocket::connected,
+            this, &SshConnectionPrivate::handleSocketConnected);
+    connect(m_socket, &QIODevice::readyRead,
+            this, &SshConnectionPrivate::handleIncomingData);
+    connect(m_socket,
+            static_cast<void (QAbstractSocket::*)(QAbstractSocket::SocketError)>(&QAbstractSocket::error),
+            this, &SshConnectionPrivate::handleSocketError);
+    connect(m_socket, &QAbstractSocket::disconnected,
+            this, &SshConnectionPrivate::handleSocketDisconnected);
+    connect(&m_timeoutTimer, &QTimer::timeout, this, &SshConnectionPrivate::handleTimeout);
     m_state = SocketConnecting;
     m_keyExchangeState = NoKeyExchange;
     m_timeoutTimer.start();
@@ -829,10 +845,17 @@ QSharedPointer<SftpChannel> SshConnectionPrivate::createSftpChannel()
     return m_channelManager->createSftpChannel();
 }
 
-SshDirectTcpIpTunnel::Ptr SshConnectionPrivate::createTunnel(const QString &originatingHost,
+SshDirectTcpIpTunnel::Ptr SshConnectionPrivate::createDirectTunnel(const QString &originatingHost,
         quint16 originatingPort, const QString &remoteHost, quint16 remotePort)
 {
-    return m_channelManager->createTunnel(originatingHost, originatingPort, remoteHost, remotePort);
+    return m_channelManager->createDirectTunnel(originatingHost, originatingPort, remoteHost,
+                                                remotePort);
+}
+
+SshTcpIpForwardServer::Ptr SshConnectionPrivate::createForwardServer(const QString &bindAddress,
+        quint16 bindPort)
+{
+    return m_channelManager->createForwardServer(bindAddress, bindPort);
 }
 
 const quint64 SshConnectionPrivate::InvalidSeqNr = static_cast<quint64>(-1);

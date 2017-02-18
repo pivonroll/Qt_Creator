@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,6 +31,7 @@
 #include <cplusplus/TypeOfExpression.h>
 #include <cplusplus/cppmodelmanagerbase.h>
 #include <cplusplus/CppDocument.h>
+#include <utils/qtcassert.h>
 
 #include <QList>
 
@@ -795,7 +791,7 @@ static void buildContextProperties(
                 Scope *typeScope = result.scope();
                 if (!typeScope)
                     typeScope = scope; // incorrect but may be an ok fallback
-                LookupScope *binding = typeOf.context().lookupType(namedType->name(), typeScope);
+                ClassOrNamespace *binding = typeOf.context().lookupType(namedType->name(), typeScope);
                 if (binding && !binding->symbols().isEmpty()) {
                     // find the best 'Class' symbol
                     for (int i = binding->symbols().size() - 1; i >= 0; --i) {
@@ -822,16 +818,19 @@ FindExportedCppTypes::FindExportedCppTypes(const CPlusPlus::Snapshot &snapshot)
 {
 }
 
-void FindExportedCppTypes::operator()(const CPlusPlus::Document::Ptr &document)
+QStringList FindExportedCppTypes::operator()(const CPlusPlus::Document::Ptr &document)
 {
+    QTC_ASSERT(!document.isNull(), return QStringList());
+
     m_contextProperties.clear();
     m_exportedTypes.clear();
+    QStringList fileNames;
 
     // this check only guards against some input errors, if document's source and AST has not
     // been guarded properly the source and AST may still become empty/null while this function is running
     if (document->utf8Source().isEmpty()
             || !document->translationUnit()->ast())
-        return;
+        return fileNames;
 
     FindExportsVisitor finder(document);
     finder();
@@ -843,7 +842,7 @@ void FindExportedCppTypes::operator()(const CPlusPlus::Document::Ptr &document)
     const QList<ContextProperty> contextPropertyDescriptions = finder.contextProperties();
     const QList<ExportedQmlType> exports = finder.exportedTypes();
     if (exports.isEmpty() && contextPropertyDescriptions.isEmpty())
-        return;
+        return fileNames;
 
     // context properties need lookup inside function scope, and thus require a full check
     CPlusPlus::Document::Ptr localDoc = document;
@@ -868,14 +867,19 @@ void FindExportedCppTypes::operator()(const CPlusPlus::Document::Ptr &document)
 
     // convert to list of FakeMetaObject::ConstPtr
     m_exportedTypes.reserve(fakeMetaObjects.size() + extraFakeMetaObjects.size());
-    foreach (const LanguageUtils::FakeMetaObject::Ptr &fmo, fakeMetaObjects) {
-        fmo->updateFingerprint();
-        m_exportedTypes += fmo;
+    fileNames.reserve(fakeMetaObjects.size());
+    for (auto it = fakeMetaObjects.constBegin(), end = fakeMetaObjects.constEnd(); it != end;
+         ++it) {
+        it.value()->updateFingerprint();
+        m_exportedTypes += it.value();
+        fileNames += QLatin1String(it.key()->fileName());
     }
     foreach (const LanguageUtils::FakeMetaObject::Ptr &fmo, extraFakeMetaObjects) {
         fmo->updateFingerprint();
         m_exportedTypes += fmo;
     }
+
+    return fileNames;
 }
 
 QList<LanguageUtils::FakeMetaObject::ConstPtr> FindExportedCppTypes::exportedTypes() const

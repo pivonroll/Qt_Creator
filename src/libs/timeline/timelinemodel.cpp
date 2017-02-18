@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -156,22 +151,15 @@ int TimelineModel::row(int index) const
     return expanded() ? expandedRow(index) : collapsedRow(index);
 }
 
-TimelineModel::TimelineModelPrivate::TimelineModelPrivate(int modelId, const QString &displayName) :
-    modelId(modelId), displayName(displayName), expanded(false), hidden(false),
-    expandedRowCount(1), collapsedRowCount(1), q_ptr(0)
+TimelineModel::TimelineModelPrivate::TimelineModelPrivate(int modelId) :
+    modelId(modelId), expanded(false), hidden(false),
+    expandedRowCount(1), collapsedRowCount(1)
 {
 }
 
-TimelineModel::TimelineModel(TimelineModelPrivate &dd, QObject *parent) :
-    QObject(parent), d_ptr(&dd)
+TimelineModel::TimelineModel(int modelId, QObject *parent) :
+    QObject(parent), d_ptr(new TimelineModelPrivate(modelId))
 {
-    d_ptr->q_ptr = this;
-}
-
-TimelineModel::TimelineModel(int modelId, const QString &displayName, QObject *parent) :
-    QObject(parent), d_ptr(new TimelineModelPrivate(modelId, displayName))
-{
-    d_ptr->q_ptr = this;
 }
 
 TimelineModel::~TimelineModel()
@@ -380,14 +368,6 @@ bool TimelineModel::handlesTypeId(int typeIndex) const
     return false;
 }
 
-int TimelineModel::selectionIdForLocation(const QString &filename, int line, int column) const
-{
-    Q_UNUSED(filename);
-    Q_UNUSED(line);
-    Q_UNUSED(column);
-    return -1;
-}
-
 float TimelineModel::relativeHeight(int index) const
 {
     Q_UNUSED(index);
@@ -420,21 +400,20 @@ QList<const TimelineRenderPass *> TimelineModel::supportedRenderPasses() const
     return passes;
 }
 
-QColor TimelineModel::colorBySelectionId(int index) const
+QRgb TimelineModel::colorBySelectionId(int index) const
 {
     return colorByHue(selectionId(index) * TimelineModelPrivate::SelectionIdHueMultiplier);
 }
 
-QColor TimelineModel::colorByFraction(double fraction) const
+QRgb TimelineModel::colorByFraction(double fraction) const
 {
     return colorByHue(fraction * TimelineModelPrivate::FractionHueMultiplier +
                       TimelineModelPrivate::FractionHueMininimum);
 }
 
-QColor TimelineModel::colorByHue(int hue) const
+QRgb TimelineModel::colorByHue(int hue) const
 {
-    return QColor::fromHsl(hue % 360, TimelineModelPrivate::Saturation,
-                           TimelineModelPrivate::Lightness);
+    return TimelineModelPrivate::hueTable[hue];
 }
 
 /*!
@@ -517,6 +496,15 @@ void TimelineModel::setHidden(bool hidden)
     }
 }
 
+void TimelineModel::setDisplayName(const QString &displayName)
+{
+    Q_D(TimelineModel);
+    if (d->displayName != displayName) {
+        d->displayName = displayName;
+        emit displayNameChanged();
+    }
+}
+
 QString TimelineModel::displayName() const
 {
     Q_D(const TimelineModel);
@@ -529,10 +517,10 @@ int TimelineModel::rowCount() const
     return d->expanded ? d->expandedRowCount : d->collapsedRowCount;
 }
 
-QColor TimelineModel::color(int index) const
+QRgb TimelineModel::color(int index) const
 {
     Q_UNUSED(index);
-    return QColor();
+    return QRgb();
 }
 
 QVariantList TimelineModel::labels() const
@@ -587,7 +575,7 @@ void TimelineModel::clear()
     if (hadRowHeights)
         emit expandedRowHeightChanged(-1, -1);
     if (!wasEmpty) {
-        emit emptyChanged();
+        emit contentChanged();
         emit heightChanged();
     }
 }
@@ -595,31 +583,47 @@ void TimelineModel::clear()
 int TimelineModel::nextItemBySelectionId(int selectionId, qint64 time, int currentItem) const
 {
     Q_D(const TimelineModel);
-    return d->nextItemById(TimelineModelPrivate::SelectionId, selectionId, time, currentItem);
+    return d->nextItemById([d, selectionId](int index) {
+        return d->ranges[index].selectionId == selectionId;
+    }, time, currentItem);
 }
 
-int TimelineModel::nextItemByTypeId(int typeId, qint64 time, int currentItem) const
+int TimelineModel::nextItemByTypeId(int requestedTypeId, qint64 time, int currentItem) const
 {
     Q_D(const TimelineModel);
-    return d->nextItemById(TimelineModelPrivate::TypeId, typeId, time, currentItem);
+    return d->nextItemById([this, requestedTypeId](int index) {
+        return typeId(index) == requestedTypeId;
+    }, time, currentItem);
 }
 
 int TimelineModel::prevItemBySelectionId(int selectionId, qint64 time, int currentItem) const
 {
     Q_D(const TimelineModel);
-    return d->prevItemById(TimelineModelPrivate::SelectionId, selectionId, time, currentItem);
+    return d->prevItemById([d, selectionId](int index) {
+        return d->ranges[index].selectionId == selectionId;
+    }, time, currentItem);
 }
 
-int TimelineModel::prevItemByTypeId(int typeId, qint64 time, int currentItem) const
+int TimelineModel::prevItemByTypeId(int requestedTypeId, qint64 time, int currentItem) const
 {
     Q_D(const TimelineModel);
-    return d->prevItemById(TimelineModelPrivate::TypeId, typeId, time, currentItem);
+    return d->prevItemById([this, requestedTypeId](int index) {
+        return typeId(index) == requestedTypeId;
+    }, time, currentItem);
 }
 
-int TimelineModel::TimelineModelPrivate::nextItemById(IdType idType, int id, qint64 time,
-                                                      int currentItem) const
+HueLookupTable::HueLookupTable() {
+    for (int hue = 0; hue < 360; ++hue) {
+        table[hue] = QColor::fromHsl(hue, TimelineModel::TimelineModelPrivate::Saturation,
+                                     TimelineModel::TimelineModelPrivate::Lightness).rgb();
+    }
+}
+
+const HueLookupTable TimelineModel::TimelineModelPrivate::hueTable;
+
+int TimelineModel::TimelineModelPrivate::nextItemById(std::function<bool(int)> matchesId,
+                                                      qint64 time, int currentItem) const
 {
-    Q_Q(const TimelineModel);
     if (ranges.empty())
         return -1;
 
@@ -633,18 +637,16 @@ int TimelineModel::TimelineModelPrivate::nextItemById(IdType idType, int id, qin
         ndx = 0;
     int startIndex = ndx;
     do {
-        if ((idType == TypeId && q->typeId(ndx) == id) ||
-                (idType == SelectionId && ranges[ndx].selectionId == id))
+        if (matchesId(ndx))
             return ndx;
         ndx = (ndx + 1) % ranges.count();
     } while (ndx != startIndex);
     return -1;
 }
 
-int TimelineModel::TimelineModelPrivate::prevItemById(IdType idType, int id, qint64 time,
-                                                      int currentItem) const
+int TimelineModel::TimelineModelPrivate::prevItemById(std::function<bool(int)> matchesId,
+                                                      qint64 time, int currentItem) const
 {
-    Q_Q(const TimelineModel);
     if (ranges.empty())
         return -1;
 
@@ -657,8 +659,7 @@ int TimelineModel::TimelineModelPrivate::prevItemById(IdType idType, int id, qin
         ndx = ranges.count() - 1;
     int startIndex = ndx;
     do {
-        if ((idType == TypeId && q->typeId(ndx) == id) ||
-                (idType == SelectionId && ranges[ndx].selectionId == id))
+        if (matchesId(ndx))
             return ndx;
         if (--ndx < 0)
             ndx = ranges.count()-1;

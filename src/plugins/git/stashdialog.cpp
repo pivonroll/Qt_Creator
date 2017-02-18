@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -50,11 +45,6 @@ enum { NameColumn, BranchColumn, MessageColumn, ColumnCount };
 
 namespace Git {
 namespace Internal {
-
-static inline GitClient *gitClient()
-{
-    return GitPlugin::instance()->client();
-}
 
 static inline QList<QStandardItem*> stashModelRowItems(const Stash &s)
 {
@@ -95,13 +85,12 @@ void StashModel::setStashes(const QList<Stash> &stashes)
     m_stashes = stashes;
     if (const int rows = rowCount())
         removeRows(0, rows);
-    foreach (const Stash &s, stashes)
+    for (const Stash &s : stashes)
         appendRow(stashModelRowItems(s));
 }
 
 // ---------- StashDialog
-StashDialog::StashDialog(QWidget *parent) :
-    QDialog(parent),
+StashDialog::StashDialog(QWidget *parent) : QDialog(parent),
     ui(new Ui::StashDialog),
     m_model(new StashModel),
     m_proxyModel(new QSortFilterProxyModel),
@@ -148,10 +137,10 @@ StashDialog::StashDialog(QWidget *parent) :
     ui->stashView->setUniformRowHeights(true);
     connect(ui->filterLineEdit, &Utils::FancyLineEdit::filterChanged,
             m_proxyModel, &QSortFilterProxyModel::setFilterFixedString);
-    connect(ui->stashView->selectionModel(), SIGNAL(currentRowChanged(QModelIndex,QModelIndex)),
-            this, SLOT(enableButtons()));
-    connect(ui->stashView->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)),
-            this, SLOT(enableButtons()));
+    connect(ui->stashView->selectionModel(), &QItemSelectionModel::currentRowChanged,
+            this, &StashDialog::enableButtons);
+    connect(ui->stashView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &StashDialog::enableButtons);
     connect(ui->stashView, &Utils::TreeView::activated,
             this, &StashDialog::showCurrent);
     ui->stashView->setFocus();
@@ -162,25 +151,18 @@ StashDialog::~StashDialog()
     delete ui;
 }
 
-QString StashDialog::msgRepositoryLabel(const QString &repository)
-{
-    return repository.isEmpty() ?
-            tr("<No repository>")  :
-            tr("Repository: %1").arg(QDir::toNativeSeparators(repository));
-}
-
 void StashDialog::refresh(const QString &repository, bool force)
 {
     if (m_repository == repository && !force)
         return;
     // Refresh
     m_repository = repository;
-    ui->repositoryLabel->setText(msgRepositoryLabel(repository));
+    ui->repositoryLabel->setText(GitPlugin::msgRepositoryLabel(repository));
     if (m_repository.isEmpty()) {
         m_model->setStashes(QList<Stash>());
     } else {
         QList<Stash> stashes;
-        gitClient()->synchronousStashList(m_repository, &stashes);
+        GitPlugin::client()->synchronousStashList(m_repository, &stashes);
         m_model->setStashes(stashes);
         if (!stashes.isEmpty()) {
             for (int c = 0; c < ColumnCount; c++)
@@ -196,7 +178,7 @@ void StashDialog::deleteAll()
     if (!ask(title, tr("Do you want to delete all stashes?")))
         return;
     QString errorMessage;
-    if (gitClient()->synchronousStashRemove(m_repository, QString(), &errorMessage))
+    if (GitPlugin::client()->synchronousStashRemove(m_repository, QString(), &errorMessage))
         refresh(m_repository, true);
     else
         warning(title, errorMessage);
@@ -213,47 +195,47 @@ void StashDialog::deleteSelection()
     QStringList errors;
     // Delete in reverse order as stashes rotate
     for (int r = rows.size() - 1; r >= 0; r--)
-        if (!gitClient()->synchronousStashRemove(m_repository, m_model->at(rows.at(r)).name, &errorMessage))
+        if (!GitPlugin::client()->synchronousStashRemove(m_repository, m_model->at(rows.at(r)).name, &errorMessage))
             errors.push_back(errorMessage);
     refresh(m_repository, true);
     if (!errors.isEmpty())
-        warning(title, errors.join(QLatin1Char('\n')));
+        warning(title, errors.join('\n'));
 }
 
 void StashDialog::showCurrent()
 {
     const int index = currentRow();
     QTC_ASSERT(index >= 0, return);
-    gitClient()->show(m_repository, QString(m_model->at(index).name));
+    GitPlugin::client()->show(m_repository, QString(m_model->at(index).name));
 }
 
 // Suggest Branch name to restore 'stash@{0}' -> 'stash0-date'
 static inline QString stashRestoreDefaultBranch(QString stash)
 {
-    stash.remove(QLatin1Char('{'));
-    stash.remove(QLatin1Char('}'));
-    stash.remove(QLatin1Char('@'));
-    stash += QLatin1Char('-');
-    stash += QDateTime::currentDateTime().toString(QLatin1String("yyMMddhhmmss"));
+    stash.remove('{');
+    stash.remove('}');
+    stash.remove('@');
+    stash += '-';
+    stash += QDateTime::currentDateTime().toString("yyMMddhhmmss");
     return stash;
 }
 
 // Return next stash id 'stash@{0}' -> 'stash@{1}'
 static inline QString nextStash(const QString &stash)
 {
-    const int openingBracePos = stash.indexOf(QLatin1Char('{'));
+    const int openingBracePos = stash.indexOf('{');
     if (openingBracePos == -1)
         return QString();
-    const int closingBracePos = stash.indexOf(QLatin1Char('}'), openingBracePos + 2);
+    const int closingBracePos = stash.indexOf('}', openingBracePos + 2);
     if (closingBracePos == -1)
         return QString();
     bool ok;
-    const int n = stash.mid(openingBracePos + 1, closingBracePos - openingBracePos - 1).toInt(&ok);
+    const int n = stash.midRef(openingBracePos + 1, closingBracePos - openingBracePos - 1).toInt(&ok);
     if (!ok)
         return QString();
     QString rc =  stash.left(openingBracePos + 1);
     rc += QString::number(n + 1);
-    rc += QLatin1Char('}');
+    rc += '}';
     return rc;
 }
 
@@ -285,7 +267,7 @@ bool StashDialog::promptForRestore(QString *stash,
 {
     const QString stashIn = *stash;
     bool modifiedPromptShown = false;
-    switch (gitClient()->gitStatus(m_repository, StatusMode(NoUntracked | NoSubmodules), 0, errorMessage)) {
+    switch (GitPlugin::client()->gitStatus(m_repository, StatusMode(NoUntracked | NoSubmodules), 0, errorMessage)) {
     case GitClient::StatusFailed:
         return false;
     case GitClient::StatusChanged: {
@@ -293,13 +275,13 @@ bool StashDialog::promptForRestore(QString *stash,
             case ModifiedRepositoryCancel:
                 return false;
             case ModifiedRepositoryStash:
-                if (gitClient()->synchronousStash(m_repository, QString(), GitClient::StashPromptDescription).isEmpty())
+                if (GitPlugin::client()->synchronousStash(m_repository, QString(), GitClient::StashPromptDescription).isEmpty())
                     return false;
                 *stash = nextStash(*stash); // Our stash id to be restored changed
                 QTC_ASSERT(!stash->isEmpty(), return false);
                 break;
             case ModifiedRepositoryDiscard:
-                if (!gitClient()->synchronousReset(m_repository))
+                if (!GitPlugin::client()->synchronousReset(m_repository))
                     return false;
                 break;
             }
@@ -336,7 +318,7 @@ void StashDialog::restoreCurrent()
     // Make sure repository is not modified, restore. The command will
     // output to window on success.
     if (promptForRestore(&name, 0, &errorMessage)
-            && gitClient()->synchronousStashRestore(m_repository, name)) {
+            && GitPlugin::client()->synchronousStashRestore(m_repository, name)) {
         refresh(m_repository, true); // Might have stashed away local changes.
     } else if (!errorMessage.isEmpty()) {
         warning(msgRestoreFailedTitle(name), errorMessage);
@@ -351,7 +333,7 @@ void StashDialog::restoreCurrentInBranch()
     QString branch;
     QString name = m_model->at(index).name;
     if (promptForRestore(&name, &branch, &errorMessage)
-            && gitClient()->synchronousStashRestore(m_repository, name, false, branch)) {
+            && GitPlugin::client()->synchronousStashRestore(m_repository, name, false, branch)) {
         refresh(m_repository, true); // git deletes the stash, unfortunately.
     } else if (!errorMessage.isEmpty()) {
         warning(msgRestoreFailedTitle(name), errorMessage);
@@ -372,7 +354,8 @@ int StashDialog::currentRow() const
 QList<int> StashDialog::selectedRows() const
 {
     QList<int> rc;
-    foreach (const QModelIndex &proxyIndex, ui->stashView->selectionModel()->selectedRows()) {
+    const QModelIndexList rows = ui->stashView->selectionModel()->selectedRows();
+    for (const QModelIndex &proxyIndex : rows) {
         const QModelIndex index = m_proxyModel->mapToSource(proxyIndex);
         if (index.isValid())
             rc.push_back(index.row());

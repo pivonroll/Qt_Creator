@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -93,10 +88,6 @@ void MakeStep::setMakeCommand(const QString &make)
     m_makeCmd = make;
 }
 
-MakeStep::~MakeStep()
-{
-}
-
 QmakeBuildConfiguration *MakeStep::qmakeBuildConfiguration() const
 {
     return static_cast<QmakeBuildConfiguration *>(buildConfiguration());
@@ -117,6 +108,21 @@ QString MakeStep::makeCommand() const
     return m_makeCmd;
 }
 
+QString MakeStep::effectiveMakeCommand() const
+{
+    QString makeCmd = m_makeCmd;
+    if (makeCmd.isEmpty()) {
+        QmakeBuildConfiguration *bc = qmakeBuildConfiguration();
+        if (!bc)
+            bc = qobject_cast<QmakeBuildConfiguration *>(target()->activeBuildConfiguration());
+        ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit(), ProjectExplorer::Constants::CXX_LANGUAGE_ID);
+
+        if (bc && tc)
+            makeCmd = tc->makeCommand(bc->environment());
+    }
+    return makeCmd;
+}
+
 QVariantMap MakeStep::toMap() const
 {
     QVariantMap map(AbstractProcessStep::toMap());
@@ -129,7 +135,7 @@ QVariantMap MakeStep::toMap() const
 
 QStringList MakeStep::automaticallyAddedArguments() const
 {
-    ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit());
+    ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit(), ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (!tc || tc->targetAbi().binaryFormat() == Abi::PEFormat)
         return QStringList();
     return QStringList() << QLatin1String("-w") << QLatin1String("-r");
@@ -151,7 +157,7 @@ bool MakeStep::fromMap(const QVariantMap &map)
     return AbstractProcessStep::fromMap(map);
 }
 
-bool MakeStep::init()
+bool MakeStep::init(QList<const BuildStep *> &earlierSteps)
 {
     QmakeBuildConfiguration *bc = qmakeBuildConfiguration();
     if (!bc)
@@ -159,7 +165,7 @@ bool MakeStep::init()
     if (!bc)
         emit addTask(Task::buildConfigurationMissingTask());
 
-    ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit());
+    ToolChain *tc = ToolChainKitInformation::toolChain(target()->kit(), ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (!tc)
         emit addTask(Task::compilerMissingTask());
 
@@ -178,10 +184,7 @@ bool MakeStep::init()
         workingDirectory = bc->buildDirectory().toString();
     pp->setWorkingDirectory(workingDirectory);
 
-    QString makeCmd = tc->makeCommand(bc->environment());
-    if (!m_makeCmd.isEmpty())
-        makeCmd = m_makeCmd;
-    pp->setCommand(makeCmd);
+    pp->setCommand(effectiveMakeCommand());
 
     // If we are cleaning, then make can fail with a error code, but that doesn't mean
     // we should stop the clean queue
@@ -237,16 +240,14 @@ bool MakeStep::init()
         if (!relObjectsDir.isEmpty())
             relObjectsDir += QLatin1Char('/');
         QString objectFile = relObjectsDir +
-                bc->fileNodeBuild()->path().toFileInfo().baseName() +
+                bc->fileNodeBuild()->filePath().toFileInfo().baseName() +
                 subNode->objectExtension();
         Utils::QtcProcess::addArg(&args, objectFile);
     }
     Utils::Environment env = bc->environment();
-    // Force output to english for the parsers. Do this here and not in the toolchain's
-    // addToEnvironment() to not screw up the users run environment.
-    env.set(QLatin1String("LC_ALL"), QLatin1String("C"));
+    Utils::Environment::setupEnglishOutput(&env);
     // We also prepend "L" to the MAKEFLAGS, so that nmake / jom are less verbose
-    if (tc && m_makeCmd.isEmpty()) {
+    if (tc && makeCommand().isEmpty()) {
         if (tc->targetAbi().os() == Abi::WindowsOS
                 && tc->targetAbi().osFlavor() != Abi::WindowsMSysFlavor) {
             const QString makeFlags = QLatin1String("MAKEFLAGS");
@@ -259,7 +260,7 @@ bool MakeStep::init()
     pp->resolveAll();
 
     setOutputParser(new ProjectExplorer::GnuMakeParser());
-    if (tc && tc->targetAbi().os() == Abi::MacOS)
+    if (tc && tc->targetAbi().os() == Abi::DarwinOS)
         appendOutputParser(new XcodebuildParser);
     IOutputParser *parser = target()->kit()->createOutputParser();
     if (parser)
@@ -268,24 +269,23 @@ bool MakeStep::init()
     appendOutputParser(new QMakeParser); // make may cause qmake to be run, add last to make sure
                                          // it has a low priority.
 
-    m_scriptTarget = (static_cast<QmakeProject *>(bc->target()->project())->rootQmakeProjectNode()->projectType() == ScriptTemplate);
+    m_scriptTarget = (static_cast<QmakeProject *>(bc->target()->project())->rootProjectNode()->projectType() == ProjectType::ScriptTemplate);
 
-    return AbstractProcessStep::init();
+    return AbstractProcessStep::init(earlierSteps);
 }
 
 void MakeStep::run(QFutureInterface<bool> & fi)
 {
     if (m_scriptTarget) {
-        fi.reportResult(true);
-        emit finished();
+        reportRunResult(fi, true);
         return;
     }
 
     if (!QFileInfo::exists(m_makeFileToCheck)) {
         if (!ignoreReturnValue())
-            emit addOutput(tr("Cannot find Makefile. Check your build settings."), BuildStep::MessageOutput);
-        fi.reportResult(ignoreReturnValue());
-        emit finished();
+            emit addOutput(tr("Cannot find Makefile. Check your build settings."), BuildStep::OutputFormat::NormalMessage);
+        const bool success = ignoreReturnValue();
+        reportRunResult(fi, success);
         return;
     }
 
@@ -328,13 +328,13 @@ MakeStepConfigWidget::MakeStepConfigWidget(MakeStep *makeStep)
 
     updateDetails();
 
-    connect(m_ui->makePathChooser, SIGNAL(rawPathChanged(QString)),
-            this, SLOT(makeEdited()));
-    connect(m_ui->makeArgumentsLineEdit, SIGNAL(textEdited(QString)),
-            this, SLOT(makeArgumentsLineEdited()));
+    connect(m_ui->makePathChooser, &Utils::PathChooser::rawPathChanged,
+            this, &MakeStepConfigWidget::makeEdited);
+    connect(m_ui->makeArgumentsLineEdit, &QLineEdit::textEdited,
+            this, &MakeStepConfigWidget::makeArgumentsLineEdited);
 
-    connect(makeStep, SIGNAL(userArgumentsChanged()),
-            this, SLOT(userArgumentsChanged()));
+    connect(makeStep, &MakeStep::userArgumentsChanged,
+            this, &MakeStepConfigWidget::userArgumentsChanged);
 
     BuildConfiguration *bc = makeStep->buildConfiguration();
     if (!bc) {
@@ -342,27 +342,27 @@ MakeStepConfigWidget::MakeStepConfigWidget(MakeStep *makeStep)
         // changed signal and react to the buildDirectoryChanged() signal of the buildconfiguration
         bc = makeStep->target()->activeBuildConfiguration();
         m_bc = bc;
-        connect (makeStep->target(), SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-                 this, SLOT(activeBuildConfigurationChanged()));
+        connect (makeStep->target(), &Target::activeBuildConfigurationChanged,
+                 this, &MakeStepConfigWidget::activeBuildConfigurationChanged);
     }
 
     if (bc) {
-        connect(bc, SIGNAL(buildDirectoryChanged()),
-                this, SLOT(updateDetails()));
+        connect(bc, &BuildConfiguration::buildDirectoryChanged,
+                this, &MakeStepConfigWidget::updateDetails);
         connect(bc, &BuildConfiguration::environmentChanged,
                 this, &MakeStepConfigWidget::updateDetails);
     }
 
-    connect(ProjectExplorerPlugin::instance(), SIGNAL(settingsChanged()),
-            this, SLOT(updateDetails()));
-    connect(m_makeStep->target(), SIGNAL(kitChanged()), this, SLOT(updateDetails()));
+    connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::settingsChanged,
+            this, &MakeStepConfigWidget::updateDetails);
+    connect(m_makeStep->target(), &Target::kitChanged, this, &MakeStepConfigWidget::updateDetails);
 }
 
 void MakeStepConfigWidget::activeBuildConfigurationChanged()
 {
     if (m_bc) {
-        disconnect(m_bc, SIGNAL(buildDirectoryChanged()),
-                this, SLOT(updateDetails()));
+        disconnect(m_bc, &BuildConfiguration::buildDirectoryChanged,
+                this, &MakeStepConfigWidget::updateDetails);
         disconnect(m_bc, &BuildConfiguration::environmentChanged,
                    this, &MakeStepConfigWidget::updateDetails);
     }
@@ -371,8 +371,8 @@ void MakeStepConfigWidget::activeBuildConfigurationChanged()
     updateDetails();
 
     if (m_bc) {
-        connect(m_bc, SIGNAL(buildDirectoryChanged()),
-                this, SLOT(updateDetails()));
+        connect(m_bc, &BuildConfiguration::buildDirectoryChanged,
+                this, &MakeStepConfigWidget::updateDetails);
         connect(m_bc, &BuildConfiguration::environmentChanged,
                 this, &MakeStepConfigWidget::updateDetails);
     }
@@ -394,7 +394,7 @@ MakeStepConfigWidget::~MakeStepConfigWidget()
 void MakeStepConfigWidget::updateDetails()
 {
     ToolChain *tc
-            = ToolChainKitInformation::toolChain(m_makeStep->target()->kit());
+            = ToolChainKitInformation::toolChain(m_makeStep->target()->kit(), ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     QmakeBuildConfiguration *bc = m_makeStep->qmakeBuildConfiguration();
     if (!bc)
         bc = qobject_cast<QmakeBuildConfiguration *>(m_makeStep->target()->activeBuildConfiguration());
@@ -424,9 +424,7 @@ void MakeStepConfigWidget::updateDetails()
     QString args = m_makeStep->userArguments();
 
     Utils::Environment env = bc->environment();
-    // Force output to english for the parsers. Do this here and not in the toolchain's
-    // addToEnvironment() to not screw up the users run environment.
-    env.set(QLatin1String("LC_ALL"), QLatin1String("C"));
+    Utils::Environment::setupEnglishOutput(&env);
     // We prepend "L" to the MAKEFLAGS, so that nmake / jom are less verbose
     // FIXME doing this without the user having a way to override this is rather bad
     if (tc && m_makeStep->makeCommand().isEmpty()) {
@@ -486,21 +484,17 @@ MakeStepFactory::MakeStepFactory(QObject *parent) :
 {
 }
 
-MakeStepFactory::~MakeStepFactory()
+QList<BuildStepInfo> MakeStepFactory::availableSteps(BuildStepList *parent) const
 {
-}
+    if (parent->target()->project()->id() != Constants::QMAKEPROJECT_ID)
+        return {};
 
-bool MakeStepFactory::canCreate(BuildStepList *parent, Core::Id id) const
-{
-    if (parent->target()->project()->id() == Constants::QMAKEPROJECT_ID)
-        return id == MAKESTEP_BS_ID;
-    return false;
+    return {{ MAKESTEP_BS_ID, tr("Make") }};
 }
 
 BuildStep *MakeStepFactory::create(BuildStepList *parent, Core::Id id)
 {
-    if (!canCreate(parent, id))
-        return 0;
+    Q_UNUSED(id);
     MakeStep *step = new MakeStep(parent);
     if (parent->id() == ProjectExplorer::Constants::BUILDSTEPS_CLEAN) {
         step->setClean(true);
@@ -509,44 +503,16 @@ BuildStep *MakeStepFactory::create(BuildStepList *parent, Core::Id id)
     return step;
 }
 
-bool MakeStepFactory::canClone(BuildStepList *parent, BuildStep *source) const
-{
-    return canCreate(parent, source->id());
-}
-
 BuildStep *MakeStepFactory::clone(BuildStepList *parent, BuildStep *source)
 {
-    if (!canClone(parent, source))
-        return 0;
     return new MakeStep(parent, static_cast<MakeStep *>(source));
-}
-
-bool MakeStepFactory::canRestore(BuildStepList *parent, const QVariantMap &map) const
-{
-    return canCreate(parent, idFromMap(map));
 }
 
 BuildStep *MakeStepFactory::restore(BuildStepList *parent, const QVariantMap &map)
 {
-    if (!canRestore(parent, map))
-        return 0;
     MakeStep *bs(new MakeStep(parent));
     if (bs->fromMap(map))
         return bs;
     delete bs;
     return 0;
-}
-
-QList<Core::Id> MakeStepFactory::availableCreationIds(BuildStepList *parent) const
-{
-    if (parent->target()->project()->id() == Constants::QMAKEPROJECT_ID)
-        return QList<Core::Id>() << Core::Id(MAKESTEP_BS_ID);
-    return QList<Core::Id>();
-}
-
-QString MakeStepFactory::displayNameForId(Core::Id id) const
-{
-    if (id == MAKESTEP_BS_ID)
-        return tr("Make");
-    return QString();
 }

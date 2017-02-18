@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_TOKEN_H
-#define CPLUSPLUS_TOKEN_H
+#pragma once
 
 #include "CPlusPlusForwardDeclarations.h"
 
@@ -371,8 +370,10 @@ public:
         // The token is C++11 user-defined literal such as:
         // 12_km, 0.5_Pa, 'c'_X, "abd"_L, u16"xyz"_M
         unsigned userDefinedLiteral : 1;
+        // Indicates the token is a trigraph
+        unsigned trigraph      : 1;
         // Unused...
-        unsigned pad           : 2;
+        unsigned pad           : 1;
         // The token length in bytes and UTF16 chars.
         unsigned bytes         : 16;
         unsigned utf16chars    : 16;
@@ -412,6 +413,7 @@ struct LanguageFeatures
             unsigned int qtEnabled : 1; // If Qt is used.
             unsigned int qtMocRunEnabled : 1;
             unsigned int qtKeywordsEnabled : 1; // If Qt is used but QT_NO_KEYWORDS defined
+            unsigned int cxxEnabled : 1;
             unsigned int cxx11Enabled : 1;
             unsigned int objCEnabled : 1;
             unsigned int c99Enabled : 1;
@@ -420,5 +422,3 @@ struct LanguageFeatures
 };
 
 } // namespace CPlusPlus
-
-#endif // CPLUSPLUS_TOKEN_H

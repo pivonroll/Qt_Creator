@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef MODEL_P_H
-#define MODEL_P_H
+#pragma once
 
 #include <QList>
 #include <QPointer>
@@ -110,6 +109,7 @@ public:
 
     void removeNode(const InternalNodePointer &node);
     void changeNodeId(const InternalNodePointer& internalNodePointer, const QString& id);
+    void changeNodeType(const InternalNodePointer& internalNodePointer, const TypeName &typeName, int majorVersion, int minorVersion);
 
     InternalNodePointer rootNode() const;
     InternalNodePointer findNode(const QString &id) const;
@@ -131,6 +131,7 @@ public:
     void notifyNodeAboutToBeRemoved(const InternalNodePointer &internalNodePointer);
     void notifyNodeRemoved(const InternalNodePointer &internalNodePointer, const InternalNodePointer &parentNodePointer, const PropertyName &parentPropertyName, AbstractView::PropertyChangeFlags propertyChange);
     void notifyNodeIdChanged(const InternalNodePointer& internalNodePointer, const QString& newId, const QString& oldId);
+    void notifyNodeTypeChanged(const InternalNodePointer& internalNodePointer, const TypeName &type, int majorVersion, int minorVersion);
 
     void notifyPropertiesRemoved(const QList<PropertyPair> &propertyList);
     void notifyPropertiesAboutToBeRemoved(const QList<InternalPropertyPointer> &internalPropertyList);
@@ -156,6 +157,8 @@ public:
     void notifyInstanceToken(const QString &token, int number, const QVector<ModelNode> &nodeVector);
 
     void notifyCurrentStateChanged(const ModelNode &node);
+
+    void setDocumentMessages(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings);
 
     void notifyRewriterBeginTransaction();
     void notifyRewriterEndTransaction();
@@ -192,9 +195,12 @@ public:
     void setVariantProperty(const InternalNodePointer &internalNodePointer, const PropertyName &name, const QVariant &value);
     void setDynamicVariantProperty(const InternalNodePointer &internalNodePointer, const PropertyName &name, const TypeName &propertyType, const QVariant &value);
     void setDynamicBindingProperty(const InternalNodePointer &internalNodePointer, const PropertyName &name, const TypeName &dynamicPropertyType, const QString &expression);
-    void reparentNode(const InternalNodePointer &internalNodePointer, const PropertyName &name, const InternalNodePointer &internalNodeToBeAppended, bool list = true);
+    void reparentNode(const InternalNodePointer &internalNodePointer,
+                      const PropertyName &name,
+                      const InternalNodePointer &internalNodeToBeAppended,
+                      bool list = true, const TypeName &dynamicTypeName = TypeName());
     void changeNodeOrder(const InternalNodePointer &internalParentNode, const PropertyName &listPropertyName, int from, int to);
-    void checkPropertyName(const QString &propertyName);
+    void checkPropertyName(const PropertyName &propertyName);
     void clearParent(const InternalNodePointer &internalNodePointer);
     void changeRootNodeType(const TypeName &type, int majorVersion, int minorVersion);
     void setScriptFunctions(const InternalNodePointer &internalNode, const QStringList &scriptFunctionList);
@@ -254,4 +260,3 @@ private:
 
 }
 }
-#endif // MODEL_P_H

@@ -6,27 +6,35 @@ Qt Creator is a cross-platform IDE for development with the Qt framework.
 
 The standalone binary packages support the following platforms:
 
-Windows XP SP3 or later
-(K)Ubuntu Linux 11.10 (32-bit and 64-bit) or later
-Mac OS X 10.7 or later
-
-Building the sources requires Qt 5.4.0 or later.
+* Windows 7 or later
+* (K)Ubuntu Linux 16.04 (64-bit) or later
+* macOS 10.8 or later
 
 ## Compiling Qt Creator
 
 Prerequisites:
 
-* Qt 5.4.0 or later
+* Qt 5.6.0 or later
+* Qt WebEngine module for QtWebEngine based help viewer
 * On Windows:
     * ActiveState Active Perl
-    * MinGW with g++ 4.7 or Visual Studio 2013 Update 2 or later
+    * MinGW with g++ 4.9 or Visual Studio 2015 or later
     * jom
 * On Mac OS X: latest Xcode
-* On Linux: g++ 4.7 or later
+* On Linux: g++ 4.9 or later
+* LLVM/Clang 3.9.0 or later (optional, needed for the Clang Code Model, see the
+  section "Get LLVM/Clang for the Clang Code Model")
+    * CMake (only for manual builds of LLVM/Clang)
+* Qbs 1.7.x (optional, sources also contain Qbs itself)
 
 The installed toolchains have to match the one Qt was compiled with.
 
 You can build Qt Creator with
+
+    # Optional, needed for the Clang Code Model:
+    export LLVM_INSTALL_DIR=/path/to/llvm (or "set" on Windows)
+    # Optional, needed to let the QbsProjectManager plugin use system Qbs:
+    export QBS_INSTALL_DIR=/path/to/qbs
 
     cd $SOURCE_DIRECTORY
     qmake -r
@@ -41,7 +49,7 @@ Installation ("make install") is not needed. It is however possible, using
 This section provides step by step instructions for compiling the latest
 versions of Qt and Qt Creator on Windows. Alternatively, to avoid having to
 compile Qt yourself, you can use one of the versions of Qt shipped with the Qt
-SDK (release builds of Qt using MinGW and Visual C++ 2013 or later).
+SDK (release builds of Qt using MinGW and Visual C++ 2015 or later).
 For detailed information on the supported compilers, see
 <https://wiki.qt.io/Building_Qt_5_from_Git> .
 
@@ -49,7 +57,7 @@ For detailed information on the supported compilers, see
        plan to contribute to Qt Creator, you should compile your changes with
        both compilers.
 
-   2.  Install msysGit from <https://msysgit.github.io/>. If you plan to
+   2.  Install Git for Windows from <https://git-for-windows.github.io/>. If you plan to
        use the MinGW compiler suite, do not choose to put git in the
        default path of Windows command prompts. For more information, see
        step 9.
@@ -58,7 +66,7 @@ For detailed information on the supported compilers, see
        for example, `c:\work`. If you plan to use MinGW and Microsoft Visual
        Studio simultaneously or mix different Qt versions, we recommend
        creating a directory structure which reflects that. For example:
-       `C:\work\qt5.4.1-vs12, C:\work\qt5.4.1-mingw`.
+       `C:\work\qt5.6.0-vs12, C:\work\qt5.6.0-mingw`.
 
    4.  Download and install Perl from <https://www.activestate.com/activeperl>
        and check that perl.exe is added to the path. Run `perl -v` to verify
@@ -99,7 +107,7 @@ For detailed information on the supported compilers, see
        environment for the compiler (provided by the Windows SDK or the
        compiler):
 
-         CALL "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" amd64
+         CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" amd64
          set PATH=<path_to_qt>\[qtbase\]bin;<working_directory>\creator\bin;%PATH%
          set QMAKESPEC=win32-msvc2013
 
@@ -116,7 +124,16 @@ For detailed information on the supported compilers, see
        command...` error. If a `sh.exe` is found, the compile process will fail.
        You have to remove it from the path.
 
-  10.  You are now ready to configure and build Qt and Qt Creator.
+   10. To make use of the Clang Code Model:
+
+       * Install LLVM/Clang - see the section "Get LLVM/Clang for the Clang
+         Code Model".
+       * Set the environment variable LLVM_INSTALL_DIR to the LLVM/Clang
+         installation directory.
+       * When you launch Qt Creator, activate the Clang Code Model plugin as
+         described in doc/src/editors/creator-clang-codemodel.qdoc.
+
+   11. You are now ready to configure and build Qt and Qt Creator.
        Please see <https://wiki.qt.io/Building_Qt_5_from_Git> for
        recommended configure-options for Qt 5.
        To use MinGW, open the the shell prompt and enter:
@@ -133,10 +150,17 @@ For detailed information on the supported compilers, see
          cd ..\creator
          qmake && jom
 
-   11. To launch Qt Creator, enter:
+   12. To launch Qt Creator, enter:
        qtcreator
 
-   12. When using  Visual C++ with the "Debugging Tools for Windows" installed,
+   13. To test the Clang-based code model, verify that backend process
+         bin\clangbackend.exe
+       launches (displaying its usage).
+
+       The library libclang.dll needs to be copied to the bin directory if
+       Clang cannot be found in the path.
+
+   14. When using  Visual C++ with the "Debugging Tools for Windows" installed,
        the extension library `qtcreatorcdbext.dll` to be loaded into the
        Windows console debugger (`cdb.exe`) should have been built under
        `lib\qtcreatorcdbext32` or `lib\qtcreatorcdbext64`.
@@ -151,7 +175,7 @@ For detailed information on the supported compilers, see
        debugging from the repository
        <https://code.qt.io/cgit/qt-creator/binary-artifacts.git/tree> .
 
-   13. Qt Creator can be registered as a post-mortem debugger. This
+   15. Qt Creator can be registered as a post-mortem debugger. This
        can be done in the options page or by running the tool qtcdebugger
        with administrative privileges passing the command line options
        -register/unregister, respectively. Alternatively,
@@ -175,6 +199,75 @@ Thus, if you want to work on Qt Creator using Qt Creator, you need a
 separate build of it. We recommend using a separate, release-built version
 of Qt and Qt Creator to work on a debug-built version of Qt and Qt Creator
 or using shadow builds.
+
+## Get LLVM/Clang for the Clang Code Model
+
+The Clang Code Model depends on the LLVM/Clang libraries. The currently
+supported LLVM/Clang version is 3.9.
+
+### Prebuilt LLVM/Clang packages
+
+Prebuilt packages of LLVM/Clang can be downloaded from
+
+    https://download.qt.io/development_releases/prebuilt/libclang/
+
+This should be your preferred option because you will use the version that is
+shipped together with Qt Creator. In addition, the packages for Windows are
+faster due to profile-guided optimization. If the prebuilt packages do not
+match your configuration, you need to build LLVM/Clang manually.
+
+If you use GCC 5 or higher on Linux, please do not use our LLVM package, but get
+the package for your distribution. Our LLVM package is compiled with GCC 4, so
+you get linking errors, because GCC 5 is using a C++ 11 conforming string
+implementation, which is not used by GCC 4. To sum it up, do not mix GCC 5 and
+GCC 4 binaries. On Ubuntu, you can download the package from
+http://apt.llvm.org/ with:
+
+   wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+   sudo apt-add-repository "deb http://apt.llvm.org/`lsb_release -cs`/ llvm-toolchain-`lsb_release -cs`-3.9 main"
+   sudo apt-get update
+   sudo apt-get install llvm-3.9 libclang-3.9-dev
+
+There is a workaround to set _GLIBCXX_USE_CXX11_ABI to 1 or 0, but we recommend
+to download the package from http://apt.llvm.org/.
+
+   https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html
+
+### Building LLVM/Clang manually
+
+You need to install CMake in order to build LLVM/Clang.
+
+Build LLVM/Clang by roughly following the instructions at
+http://llvm.org/docs/GettingStarted.html#git-mirror:
+
+   1. Clone LLVM and switch to a suitable branch
+
+          git clone http://llvm.org/git/llvm.git
+          cd llvm
+          git checkout release_39
+
+   2. Clone Clang into llvm/tools/clang and switch to a suitable branch
+
+          cd tools
+          git clone http://llvm.org/git/clang.git
+          cd clang
+          git checkout release_39
+
+   3. Build and install LLVM/Clang
+
+          cd ../../..
+          mkdir build
+          cd build
+
+      For Linux/macOS:
+
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=<installation location> -DLLVM_ENABLE_RTTI=ON ../llvm
+          make install
+
+      For Windows:
+
+          cmake -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=<installation location> -DLLVM_ENABLE_RTTI=ON ..\llvm
+          jom install
 
 ## Third-party Components
 
@@ -205,6 +298,30 @@ we thank the authors who made this possible:
   AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+### Open Source tool for generating C++ code that classifies keywords (license MIT)
+
+  Roberto Raggi <roberto.raggi@gmail.com>
+
+  QtCreator/src/tools/3rdparty/cplusplus-keywordgen
+
+  Copyright (c) 2007 Roberto Raggi <roberto.raggi@gmail.com>
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of
+  this software and associated documentation files (the "Software"), to deal in
+  the Software without restriction, including without limitation the rights to
+  use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+  the Software, and to permit persons to whom the Software is furnished to do so,
+  subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+  FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+  COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+  IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### Botan, a C++ crypto library. Version 1.10.2
 
@@ -254,13 +371,16 @@ we thank the authors who made this possible:
   The source code of Botan C++ crypto library can be found in
   QtCreator/src/libs/3rdparty
 
+### SQLite, in-process library that implements a SQL database engine
+
+SQLite (https://www.sqlite.org) is in the Public Domain.
 
 ### ClassView and ImageViewer plugins
 
-  Copyright (C) 2015 The Qt Company Ltd.
+  Copyright (C) 2016 The Qt Company Ltd.
 
   All rights reserved.
-  Copyright (C) 2015 Denis Mingulov.
+  Copyright (C) 2016 Denis Mingulov.
 
   Contact: http://www.qt.io
 
@@ -294,5 +414,14 @@ we thank the authors who made this possible:
   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 
+### Source Code Pro font
 
+  Copyright 2010, 2012 Adobe Systems Incorporated (http://www.adobe.com/),
+  with Reserved Font Name 'Source'. All Rights Reserved. Source is a
+  trademark of Adobe Systems Incorporated in the United States
+  and/or other countries.
+
+  This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+  The font and license files can be found in QtCreator/src/libs/3rdparty/fonts.
 

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -35,6 +30,7 @@
 #include "jsonwizardfactory.h"
 
 #include <utils/algorithm.h>
+#include <utils/fancylineedit.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
 #include <utils/textfieldcheckbox.h>
@@ -46,7 +42,6 @@
 #include <QDebug>
 #include <QFormLayout>
 #include <QLabel>
-#include <QLineEdit>
 #include <QRegularExpressionValidator>
 #include <QTextEdit>
 #include <QVariant>
@@ -122,6 +117,7 @@ JsonFieldPage::Field::Field() : d(new FieldPrivate)
 JsonFieldPage::Field::~Field()
 {
     delete d->m_widget;
+    delete d->m_label;
     delete d;
 }
 
@@ -183,12 +179,14 @@ void JsonFieldPage::Field::createWidget(JsonFieldPage *page)
     w->setObjectName(name());
     QFormLayout *layout = page->layout();
 
-    if (suppressName())
+    if (suppressName()) {
         layout->addWidget(w);
-    else if (hasSpan())
+    } else if (hasSpan()) {
         layout->addRow(w);
-    else
-        layout->addRow(displayName(), w);
+    } else {
+        d->m_label = new QLabel(displayName());
+        layout->addRow(d->m_label, w);
+    }
 
     setup(page, name());
 }
@@ -210,6 +208,8 @@ void JsonFieldPage::Field::setEnabled(bool e)
 void JsonFieldPage::Field::setVisible(bool v)
 {
     QTC_ASSERT(d->m_widget, return);
+    if (d->m_label)
+        d->m_label->setVisible(v);
     d->m_widget->setVisible(v);
 }
 
@@ -304,9 +304,6 @@ void JsonFieldPage::Field::setIsCompleteExpando(const QVariant &v, const QString
 // LabelFieldData:
 // --------------------------------------------------------------------
 
-LabelField::LabelField() : m_wordWrap(false)
-{ }
-
 bool LabelField::parseData(const QVariant &data, QString *errorMessage)
 {
     if (data.type() != QVariant::Map) {
@@ -342,9 +339,6 @@ QWidget *LabelField::createWidget(const QString &displayName, JsonFieldPage *pag
 // --------------------------------------------------------------------
 // SpacerFieldData:
 // --------------------------------------------------------------------
-
-SpacerField::SpacerField() : m_factor(1)
-{ }
 
 bool SpacerField::parseData(const QVariant &data, QString *errorMessage)
 {
@@ -388,9 +382,6 @@ QWidget *SpacerField::createWidget(const QString &displayName, JsonFieldPage *pa
 // LineEditFieldData:
 // --------------------------------------------------------------------
 
-LineEditField::LineEditField() : m_isModified(false), m_isValidating(false)
-{ }
-
 bool LineEditField::parseData(const QVariant &data, QString *errorMessage)
 {
     if (data.isNull())
@@ -404,9 +395,12 @@ bool LineEditField::parseData(const QVariant &data, QString *errorMessage)
 
     QVariantMap tmp = data.toMap();
 
+    m_isPassword = tmp.value("isPassword", false).toBool();
     m_defaultText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trText")).toString());
     m_disabledText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trDisabledText")).toString());
     m_placeholderText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trPlaceholder")).toString());
+    m_historyId = tmp.value(QLatin1String("historyId")).toString();
+    m_restoreLastHistoryItem = tmp.value(QLatin1String("restoreLastHistoyItem"), false).toBool();
     QString pattern = tmp.value(QLatin1String("validator")).toString();
     if (!pattern.isEmpty()) {
         m_validatorRegExp = QRegularExpression(pattern);
@@ -426,7 +420,7 @@ bool LineEditField::parseData(const QVariant &data, QString *errorMessage)
 QWidget *LineEditField::createWidget(const QString &displayName, JsonFieldPage *page)
 {
     Q_UNUSED(displayName);
-    auto w = new QLineEdit;
+    auto w = new FancyLineEdit;
 
     if (m_validatorRegExp.isValid()) {
         auto lv = new LineEditValidator(page->expander(), m_validatorRegExp, w);
@@ -434,14 +428,19 @@ QWidget *LineEditField::createWidget(const QString &displayName, JsonFieldPage *
         w->setValidator(lv);
     }
 
+    if (!m_historyId.isEmpty())
+        w->setHistoryCompleter(m_historyId, m_restoreLastHistoryItem);
+
+    w->setEchoMode(m_isPassword ? QLineEdit::Password : QLineEdit::Normal);
+
     return w;
 }
 
 void LineEditField::setup(JsonFieldPage *page, const QString &name)
 {
-    auto w = static_cast<QLineEdit *>(widget());
+    auto w = static_cast<FancyLineEdit *>(widget());
     page->registerFieldWithName(name, w);
-    QObject::connect(w, &QLineEdit::textChanged,
+    QObject::connect(w, &FancyLineEdit::textChanged,
                      page, [this, page]() -> void { m_isModified = true; emit page->completeChanged(); });
 }
 
@@ -455,7 +454,7 @@ bool LineEditField::validate(MacroExpander *expander, QString *message)
 
     m_isValidating = true;
 
-    auto w = static_cast<QLineEdit *>(widget());
+    auto w = static_cast<FancyLineEdit *>(widget());
 
     if (w->isEnabled()) {
         if (m_isModified) {
@@ -481,7 +480,7 @@ void LineEditField::initializeData(MacroExpander *expander)
 {
     QTC_ASSERT(widget(), return);
 
-    auto w = static_cast<QLineEdit *>(widget());
+    auto w = static_cast<FancyLineEdit *>(widget());
     m_isValidating = true;
     w->setText(expander->expand(m_defaultText));
     w->setPlaceholderText(m_placeholderText);
@@ -493,9 +492,6 @@ void LineEditField::initializeData(MacroExpander *expander)
 // TextEditFieldData:
 // --------------------------------------------------------------------
 
-
-TextEditField::TextEditField() : m_acceptRichText(false)
-{ }
 
 bool TextEditField::parseData(const QVariant &data, QString *errorMessage)
 {
@@ -562,9 +558,6 @@ void TextEditField::initializeData(MacroExpander *expander)
 // PathChooserFieldData:
 // --------------------------------------------------------------------
 
-PathChooserField::PathChooserField() : m_kind(PathChooser::ExistingDirectory)
-{ }
-
 bool PathChooserField::parseData(const QVariant &data, QString *errorMessage)
 {
     if (data.isNull())
@@ -580,6 +573,7 @@ bool PathChooserField::parseData(const QVariant &data, QString *errorMessage)
 
     m_path = tmp.value(QLatin1String("path")).toString();
     m_basePath = tmp.value(QLatin1String("basePath")).toString();
+    m_historyId = tmp.value(QLatin1String("historyId")).toString();
 
     QString kindStr = tmp.value(QLatin1String("kind"), QLatin1String("existingDirectory")).toString();
     if (kindStr == QLatin1String("existingDirectory")) {
@@ -612,7 +606,10 @@ QWidget *PathChooserField::createWidget(const QString &displayName, JsonFieldPag
 {
     Q_UNUSED(displayName);
     Q_UNUSED(page);
-    return new PathChooser;
+    auto w = new PathChooser;
+    if (!m_historyId.isEmpty())
+        w->setHistoryCompleter(m_historyId);
+    return w;
 }
 
 void PathChooserField::setEnabled(bool e)
@@ -655,12 +652,6 @@ void PathChooserField::initializeData(MacroExpander *expander)
 // --------------------------------------------------------------------
 // CheckBoxFieldData:
 // --------------------------------------------------------------------
-
-CheckBoxField::CheckBoxField() :
-    m_checkedValue(QLatin1String("0")),
-    m_uncheckedValue(QLatin1String("1")),
-    m_isModified(false)
-{ }
 
 bool CheckBoxField::parseData(const QVariant &data, QString *errorMessage)
 {
@@ -727,9 +718,6 @@ void CheckBoxField::initializeData(MacroExpander *expander)
 // --------------------------------------------------------------------
 // ComboBoxFieldData:
 // --------------------------------------------------------------------
-
-ComboBoxField::ComboBoxField() : m_index(-1), m_disabledIndex(-1), m_savedIndex(-1)
-{ }
 
 struct ComboBoxItem {
     ComboBoxItem(const QString &k = QString(), const QString &v = QString(), const QVariant &c = true) :
@@ -951,7 +939,7 @@ bool JsonFieldPage::isComplete() const
                 showError(message);
                 hasErrorMessage = true;
             }
-            if (f->isMandatory())
+            if (f->isMandatory() && !f->widget()->isHidden())
                 result = false;
         }
     }

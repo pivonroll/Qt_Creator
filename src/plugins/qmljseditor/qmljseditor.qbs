@@ -3,7 +3,7 @@ import qbs 1.0
 QtcPlugin {
     name: "QmlJSEditor"
 
-    Depends { name: "Qt"; submodules: ["widgets", "script"] }
+    Depends { name: "Qt"; submodules: ["widgets"] }
     Depends { name: "LanguageUtils" }
     Depends { name: "Utils" }
     Depends { name: "QmlEditorWidgets" }
@@ -26,9 +26,11 @@ QtcPlugin {
         "qmljscomponentnamedialog.cpp",
         "qmljscomponentnamedialog.h",
         "qmljscomponentnamedialog.ui",
+        "qmljseditingsettingspage.cpp",
+        "qmljseditingsettingspage.h",
+        "qmljseditingsettingspage.ui",
         "qmljseditor.cpp",
         "qmljseditor.h",
-        "qmljseditor.qrc",
         "qmljseditor_global.h",
         "qmljseditorconstants.h",
         "qmljseditordocument.cpp",
@@ -69,10 +71,6 @@ QtcPlugin {
         "qmltaskmanager.h",
         "quicktoolbar.cpp",
         "quicktoolbar.h",
-        "quicktoolbarsettingspage.cpp",
-        "quicktoolbarsettingspage.h",
-        "quicktoolbarsettingspage.ui",
-        "images/qmlfile.png",
     ]
 
     Export {

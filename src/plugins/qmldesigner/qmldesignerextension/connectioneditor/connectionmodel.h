@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,37 +9,30 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef CONNECTIONMODEL_H
-#define CONNECTIONMODEL_H
+#pragma once
 
-#include <modelnode.h>
-#include <nodemetainfo.h>
-#include <bindingproperty.h>
-
-#include <QStandardItem>
 #include <QStandardItemModel>
-#include <QStyledItemDelegate>
-#include <QComboBox>
 
 namespace QmlDesigner {
 
-class Model;
-class AbstractView;
 class ModelNode;
+class BindingProperty;
+class SignalHandlerProperty;
+class VariantProperty;
 
 namespace Internal {
 
@@ -48,8 +41,12 @@ class ConnectionView;
 class ConnectionModel : public QStandardItemModel
 {
     Q_OBJECT
-
 public:
+    enum ColumnRoles {
+        TargetModelNodeRow = 0,
+        TargetPropertyNameRow = 1,
+        SourceRow = 2
+    };
     ConnectionModel(ConnectionView *parent = 0);
     void resetModel();
     SignalHandlerProperty signalHandlerPropertyForRow(int rowNumber) const;
@@ -83,41 +80,10 @@ private slots:
 
 private:
     ConnectionView *m_connectionView;
-    bool m_lock;
+    bool m_lock = false;
     QString m_exceptionError;
-};
-
-
-class ConnectionDelegate : public QStyledItemDelegate
-{
-    Q_OBJECT
-
-public:
-    ConnectionDelegate(QWidget *parent = 0);
-
-    virtual QWidget *createEditor(QWidget *parent,
-                                    const QStyleOptionViewItem &option,
-                                    const QModelIndex &index) const override;
-
-    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
-
-private slots:
-    void emitCommitData(const QString &text);
-};
-
-class ConnectionComboBox : public QComboBox
-{
-    Q_OBJECT
-    Q_PROPERTY(QString text READ text WRITE setText USER true)
-public:
-    ConnectionComboBox(QWidget *parent = 0);
-
-    QString text() const;
-    void setText(const QString &text);
 };
 
 } // namespace Internal
 
 } // namespace QmlDesigner
-
-#endif // CONNECTIONMODEL_H

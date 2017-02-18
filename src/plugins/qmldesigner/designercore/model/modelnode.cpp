@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -29,8 +29,6 @@
 #include <model.h>
 #include <nodemetainfo.h>
 #include "internalnode_p.h"
-#include <QHash>
-#include <QTextStream>
 #include "invalidargumentexception.h"
 #include "invalididexception.h"
 #include "invalidmodelnodeexception.h"
@@ -43,6 +41,10 @@
 #include "nodelistproperty.h"
 #include "nodeproperty.h"
 #include <rewriterview.h>
+
+#include <QHash>
+#include <QSet>
+#include <QTextStream>
 
 namespace QmlDesigner {
 using namespace QmlDesigner::Internal;
@@ -136,17 +138,81 @@ QString ModelNode::id() const
 QString ModelNode::validId()
 {
     if (id().isEmpty())
-        setIdWithRefactoring(view()->generateNewId(QString::fromUtf8(simplifiedTypeName())));
+        setIdWithRefactoring(view()->generateNewId(simplifiedTypeName()));
 
     return id();
 }
 
 static bool idIsQmlKeyWord(const QString& id)
 {
-    QStringList keywords;
-    keywords << QLatin1String("import") << QLatin1String("as");
+    static const QSet<QString> keywords = {
+        "as",
+        "break",
+        "case",
+        "catch",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "else",
+        "finally",
+        "for",
+        "function",
+        "if",
+        "import",
+        "in",
+        "instanceof",
+        "new",
+        "return",
+        "switch",
+        "this",
+        "throw",
+        "try",
+        "typeof",
+        "var",
+        "void",
+        "while",
+        "with"
+    };
 
     return keywords.contains(id);
+}
+
+static bool isIdToAvoid(const QString& id)
+{
+    static const QSet<QString> ids = {
+        "top",
+        "bottom",
+        "left",
+        "right",
+        "width",
+        "height",
+        "x",
+        "y",
+        "opacity",
+        "parent",
+        "item",
+        "flow",
+        "color",
+        "margin",
+        "padding",
+        "border",
+        "font",
+        "text",
+        "source",
+        "state",
+        "visible",
+        "focus",
+        "data",
+        "clip",
+        "layer",
+        "scale",
+        "enabled",
+        "anchors"
+    };
+
+    return ids.contains(id);
 }
 
 static bool idContainsWrongLetter(const QString& id)
@@ -157,7 +223,7 @@ static bool idContainsWrongLetter(const QString& id)
 
 bool ModelNode::isValidId(const QString &id)
 {
-    return id.isEmpty() || (!idContainsWrongLetter(id) && !idIsQmlKeyWord(id));
+    return id.isEmpty() || (!idContainsWrongLetter(id) && !idIsQmlKeyWord(id) && !isIdToAvoid(id));
 }
 
 bool ModelNode::hasId() const
@@ -236,14 +302,14 @@ int ModelNode::majorVersion() const
 }
 
 /*! \return the short-hand type name of the node. */
-TypeName ModelNode::simplifiedTypeName() const
+QString ModelNode::simplifiedTypeName() const
 {
     if (!isValid()) {
         Q_ASSERT_X(isValid(), Q_FUNC_INFO, "model node is invalid");
         throw InvalidModelNodeException(__LINE__, __FUNCTION__, __FILE__);
     }
 
-    return type().split('.').last();
+    return QString::fromUtf8(type().split('.').last());
 }
 
 /*! \brief Returns whether the node is valid
@@ -336,10 +402,21 @@ void ModelNode::setParentProperty(NodeAbstractProperty parent)
         throw InvalidModelNodeException(__LINE__, __FUNCTION__, __FILE__);
     }
 
-    if (parent == parentProperty())
+    if (hasParentProperty() && parent == parentProperty())
         return;
 
     parent.reparentHere(*this);
+}
+
+void ModelNode::changeType(const TypeName &typeName, int majorVersion, int minorVersion)
+{
+    if (!isValid()) {
+        Q_ASSERT_X(isValid(), Q_FUNC_INFO, "model node is invalid");
+        throw InvalidModelNodeException(__LINE__, __FUNCTION__, __FILE__);
+    }
+
+    model()->d->changeNodeType(internalNode(), typeName, majorVersion, minorVersion);
+
 }
 
 void ModelNode::setParentProperty(const ModelNode &newParentNode, const PropertyName &propertyName)
@@ -584,7 +661,7 @@ void ModelNode::removeProperty(const PropertyName &name) const
     if (!isValid())
         throw InvalidModelNodeException(__LINE__, __FUNCTION__, __FILE__);
 
-    model()->d->checkPropertyName(QString::fromUtf8(name));
+    model()->d->checkPropertyName(name);
 
     if (internalNode()->hasProperty(name))
         model()->d->removeProperty(internalNode()->property(name));
@@ -793,10 +870,9 @@ bool ModelNode::isSelected() const
 */
 bool ModelNode::isRootNode() const
 {
-    if (!isValid()) {
-        Q_ASSERT_X(isValid(), Q_FUNC_INFO, "model node is invalid");
-        throw InvalidModelNodeException(__LINE__, __FUNCTION__, __FILE__);
-    }
+    if (!isValid())
+        return false;
+
     return view()->rootModelNode() == *this;
 }
 
@@ -1056,7 +1132,7 @@ bool ModelNode::isComponent() const
             return true;
     }
 
-    if (metaInfo().isSubclassOf("QtQuick.Loader", -1 , -1)) {
+    if (metaInfo().isSubclassOf("QtQuick.Loader")) {
 
         if (hasNodeListProperty("component")) {
 

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -49,8 +49,8 @@ Section {
         }
 
         AnchorRow {
-            enabled: anchorBackend.topAnchored;
-            iconSource: "../HelperWidgets/images/anchor-top.png"
+            visible: anchorBackend.topAnchored;
+            iconSource: "image://icons/anchor-top"
             anchorMargin: backendValues.anchors_topMargin
             targetName: anchorBackend.topTarget
             onTargetChanged: {
@@ -72,8 +72,8 @@ Section {
         }
 
         AnchorRow {
-            enabled: anchorBackend.bottomAnchored;
-            iconSource: "../HelperWidgets/images/anchor-bottom.png"
+            visible: anchorBackend.bottomAnchored;
+            iconSource: "image://icons/anchor-bottom"
             anchorMargin: backendValues.anchors_bottomMargin
             targetName: anchorBackend.bottomTarget
             onTargetChanged: {
@@ -96,8 +96,8 @@ Section {
         }
 
         AnchorRow {
-            enabled: anchorBackend.leftAnchored;
-            iconSource: "../HelperWidgets/images/anchor-left.png"
+            visible: anchorBackend.leftAnchored;
+            iconSource: "image://icons/anchor-left"
             anchorMargin: backendValues.anchors_leftMargin
             targetName: anchorBackend.leftTarget
             onTargetChanged: {
@@ -119,8 +119,8 @@ Section {
         }
 
         AnchorRow {
-            enabled: anchorBackend.rightAnchored;
-            iconSource: "../HelperWidgets/images/anchor-right.png"
+            visible: anchorBackend.rightAnchored;
+            iconSource: "image://icons/anchor-right"
             anchorMargin: backendValues.anchors_rightMargin
             targetName: anchorBackend.rightTarget
             onTargetChanged: {
@@ -144,26 +144,28 @@ Section {
 
         AnchorRow {
             showAlternativeTargets: false
-            enabled: anchorBackend.horizontalCentered;
-            iconSource: "../HelperWidgets/images/anchor-horizontal.png"
+            visible: anchorBackend.horizontalCentered;
+            iconSource: "image://icons/anchor-horizontal"
             anchorMargin: backendValues.anchors_horizontalCenterOffset
             targetName: anchorBackend.horizontalTarget
             onTargetChanged: {
                 anchorBackend.horizontalTarget = currentText
             }
-            verticalAnchor: true
+            verticalAnchor: false
+            buttonRow.visible: false
         }
 
         AnchorRow {
             showAlternativeTargets: false
-            enabled: anchorBackend.verticalCentered;
-            iconSource: "../HelperWidgets/images/anchor-vertical.png"
+            visible: anchorBackend.verticalCentered;
+            iconSource: "image://icons/anchor-vertical"
             anchorMargin: backendValues.anchors_verticalCenterOffset
             targetName: anchorBackend.verticalTarget
             onTargetChanged: {
                  anchorBackend.verticalTarget = currentText
             }
-            verticalAnchor: false
+            verticalAnchor: true
+            buttonRow.visible: false
         }
 
     }

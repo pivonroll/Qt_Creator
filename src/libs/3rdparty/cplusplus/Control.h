@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CPLUSPLUS_CONTROL_H
-#define CPLUSPLUS_CONTROL_H
+#pragma once
 
 #include "CPlusPlusForwardDeclarations.h"
 #include "ASTfwd.h"
@@ -119,9 +118,6 @@ public:
 
     /// Creates a new Template symbol.
     Template *newTemplate(unsigned sourceLocation, const Name *name = 0);
-
-    /// Creates a new ExplicitInstantiation symbol.
-    ExplicitInstantiation *newExplicitInstantiation(unsigned sourceLocation, const Name *name = 0);
 
     /// Creates a new Namespace symbol.
     NamespaceAlias *newNamespaceAlias(unsigned sourceLocation, const Name *name = 0);
@@ -230,6 +226,3 @@ private:
 };
 
 } // namespace CPlusPlus
-
-
-#endif // CPLUSPLUS_CONTROL_H

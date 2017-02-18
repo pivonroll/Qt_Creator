@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -62,91 +57,107 @@ static inline QString detectSsh()
     const QByteArray gitSsh = qgetenv("GIT_SSH");
     if (!gitSsh.isEmpty())
         return QString::fromLocal8Bit(gitSsh);
-    QString ssh = QStandardPaths::findExecutable(QLatin1String(defaultSshC));
+    QString ssh = QStandardPaths::findExecutable(defaultSshC);
     if (!ssh.isEmpty())
         return ssh;
     if (Utils::HostOsInfo::isWindowsHost()) { // Windows: Use ssh.exe from git if it cannot be found.
         Utils::FileName path = GerritPlugin::gitBinDirectory();
         if (!path.isEmpty())
-            ssh = path.appendPath(QLatin1String(defaultSshC)).toString();
+            ssh = path.appendPath(defaultSshC).toString();
     }
     return ssh;
+}
+
+GerritServer::GerritServer()
+    : host(defaultHostC)
+    , port(defaultPort)
+{
+}
+
+GerritServer::GerritServer(const QString &host, unsigned short port,
+                           const QString &user, HostType type)
+    : host(host)
+    , user(user)
+    , port(port)
+    , type(type)
+{}
+
+bool GerritServer::operator==(const GerritServer &other) const
+{
+    return host == other.host && user == other.user && port == other.port && type == other.type;
 }
 
 void GerritParameters::setPortFlagBySshType()
 {
     bool isPlink = false;
     if (!ssh.isEmpty()) {
-        const QString version = Utils::PathChooser::toolVersion(ssh, QStringList(QLatin1String("-V")));
-        isPlink = version.contains(QLatin1String("plink"), Qt::CaseInsensitive);
+        const QString version = Utils::PathChooser::toolVersion(ssh, { "-V" });
+        isPlink = version.contains("plink", Qt::CaseInsensitive);
     }
-    portFlag = isPlink ? QLatin1String("-P") : QLatin1String(defaultPortFlag);
+    portFlag = QLatin1String(isPlink ? "-P" : defaultPortFlag);
 }
 
 GerritParameters::GerritParameters()
-    : host(QLatin1String(defaultHostC))
-    , port(defaultPort)
-    , https(true)
-    , portFlag(QLatin1String(defaultPortFlag))
+    : https(true)
+    , portFlag(defaultPortFlag)
 {
 }
 
-QStringList GerritParameters::baseCommandArguments() const
+QString GerritServer::sshHostArgument() const
 {
-    QStringList result;
-    result << ssh << portFlag << QString::number(port)
-           << sshHostArgument() << QLatin1String("gerrit");
-    return result;
+    return user.isEmpty() ? host : (user + '@' + host);
 }
 
-QString GerritParameters::sshHostArgument() const
+QString GerritServer::url() const
 {
-    return user.isEmpty() ? host : (user + QLatin1Char('@') + host);
+    QString res = "ssh://" + sshHostArgument();
+    if (port)
+        res += ':' + QString::number(port);
+    return res;
 }
 
 bool GerritParameters::equals(const GerritParameters &rhs) const
 {
-    return port == rhs.port && host == rhs.host && user == rhs.user
-           && ssh == rhs.ssh && https == rhs.https;
+    return server == rhs.server && ssh == rhs.ssh && https == rhs.https;
 }
 
 void GerritParameters::toSettings(QSettings *s) const
 {
-    s->beginGroup(QLatin1String(settingsGroupC));
-    s->setValue(QLatin1String(hostKeyC), host);
-    s->setValue(QLatin1String(userKeyC), user);
-    s->setValue(QLatin1String(portKeyC), port);
-    s->setValue(QLatin1String(portFlagKeyC), portFlag);
-    s->setValue(QLatin1String(sshKeyC), ssh);
-    s->setValue(QLatin1String(httpsKeyC), https);
+    s->beginGroup(settingsGroupC);
+    s->setValue(hostKeyC, server.host);
+    s->setValue(userKeyC, server.user);
+    s->setValue(portKeyC, server.port);
+    s->setValue(portFlagKeyC, portFlag);
+    s->setValue(sshKeyC, ssh);
+    s->setValue(httpsKeyC, https);
     s->endGroup();
 }
 
 void GerritParameters::saveQueries(QSettings *s) const
 {
-    s->beginGroup(QLatin1String(settingsGroupC));
-    s->setValue(QLatin1String(savedQueriesKeyC), savedQueries.join(QLatin1Char(',')));
+    s->beginGroup(settingsGroupC);
+    s->setValue(savedQueriesKeyC, savedQueries.join(','));
     s->endGroup();
 }
 
 void GerritParameters::fromSettings(const QSettings *s)
 {
-    const QString rootKey = QLatin1String(settingsGroupC) + QLatin1Char('/');
-    host = s->value(rootKey + QLatin1String(hostKeyC), QLatin1String(defaultHostC)).toString();
-    user = s->value(rootKey + QLatin1String(userKeyC), QString()).toString();
-    ssh = s->value(rootKey + QLatin1String(sshKeyC), QString()).toString();
-    port = s->value(rootKey + QLatin1String(portKeyC), QVariant(int(defaultPort))).toInt();
-    portFlag = s->value(rootKey + QLatin1String(portFlagKeyC), QLatin1String(defaultPortFlag)).toString();
-    savedQueries = s->value(rootKey + QLatin1String(savedQueriesKeyC), QString()).toString()
-            .split(QLatin1Char(','));
-    https = s->value(rootKey + QLatin1String(httpsKeyC), QVariant(true)).toBool();
+    const QString rootKey = QLatin1String(settingsGroupC) + '/';
+    server.host = s->value(rootKey + hostKeyC, defaultHostC).toString();
+    server.user = s->value(rootKey + userKeyC, QString()).toString();
+    ssh = s->value(rootKey + sshKeyC, QString()).toString();
+    server.port = s->value(rootKey + portKeyC, QVariant(int(defaultPort))).toInt();
+    portFlag = s->value(rootKey + portFlagKeyC, defaultPortFlag).toString();
+    savedQueries = s->value(rootKey + savedQueriesKeyC, QString()).toString()
+            .split(',');
+    https = s->value(rootKey + httpsKeyC, QVariant(true)).toBool();
     if (ssh.isEmpty())
         ssh = detectSsh();
 }
 
 bool GerritParameters::isValid() const
 {
-    return !host.isEmpty() && !user.isEmpty() && !ssh.isEmpty();
+    return !server.host.isEmpty() && !server.user.isEmpty() && !ssh.isEmpty();
 }
 
 } // namespace Internal

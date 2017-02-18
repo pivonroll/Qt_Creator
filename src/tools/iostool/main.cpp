@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,24 +9,20 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+
 #include "iosdevicemanager.h"
 
 #include <qglobal.h>
@@ -75,7 +71,7 @@ public:
     ~Relayer();
     void setClientSocket(QTcpSocket *clientSocket);
     bool startRelay(int serverFileDescriptor);
-public slots:
+
     void handleSocketHasData(int socket);
     void handleClientHasData();
     void handleClientHasError(QAbstractSocket::SocketError error);
@@ -94,7 +90,6 @@ public:
     static const int reconnectMsecDelay = 500;
     static const int maxReconnectAttempts = 2*60*5; // 5 min
     RemotePortRelayer(GenericRelayServer *parent, QTcpSocket *clientSocket);
-public slots:
     void tryRemoteConnect();
 signals:
     void didConnect(GenericRelayServer *serv);
@@ -108,16 +103,19 @@ class RelayServer: public QObject
 public:
     RelayServer(IosTool *parent);
     ~RelayServer();
-    bool startServer(int port, bool ipv6);
+    bool startServer();
     void stopServer();
     quint16 serverPort();
     IosTool *iosTool();
-public slots:
+
     void handleNewRelayConnection();
+    void removeRelayConnection(Relayer *relayer);
 protected:
     virtual void newRelayConnection() = 0;
 
-    QTcpServer m_server;
+    QTcpServer m_ipv4Server;
+    QTcpServer m_ipv6Server;
+    quint16 m_port = 0;
     QList<Relayer *> m_connections;
 };
 
@@ -151,7 +149,6 @@ class GdbRunner: public QObject
 public:
     GdbRunner(IosTool *iosTool, int gdbFd);
     void stop(int phase);
-public slots:
     void run();
 signals:
     void finished();
@@ -174,10 +171,9 @@ public:
     void writeTextInElement(const QString &output);
     void stopRelayServers(int errorCode = 0);
     void writeMaybeBin(const QString &extraMsg, const char *msg, quintptr len);
-public slots:
     void errorMsg(const QString &msg);
     void stopGdbRunner();
-private slots:
+private:
     void stopGdbRunner2();
     void isTransferringApp(const QString &bundlePath, const QString &deviceId, int progress,
                            const QString &info);
@@ -188,14 +184,12 @@ private slots:
                      Ios::DeviceSession *deviceSession);
     void deviceInfo(const QString &deviceId, const Ios::IosDeviceManager::Dict &info);
     void appOutput(const QString &output);
-private:
     void readStdin();
 
     QMutex m_xmlMutex;
     int maxProgress;
     int opLeft;
     bool debug;
-    bool ipv6;
     bool inAppOutput;
     bool splitAppOutput; // as QXmlStreamReader reports the text attributes atomically it is better to split
     Ios::IosDeviceManager::AppOp appOp;
@@ -231,9 +225,13 @@ void Relayer::setClientSocket(QTcpSocket *clientSocket)
 {
     QTC_CHECK(!m_clientSocket);
     m_clientSocket = clientSocket;
-    if (m_clientSocket)
-        connect(m_clientSocket, SIGNAL(error(QAbstractSocket::SocketError)),
-                SLOT(handleClientHasError(QAbstractSocket::SocketError)));
+    if (m_clientSocket) {
+        connect(m_clientSocket,
+                static_cast<void (QAbstractSocket::*)(QAbstractSocket::SocketError)>(&QAbstractSocket::error),
+                this, &Relayer::handleClientHasError);
+        connect(m_clientSocket, &QAbstractSocket::disconnected,
+                this, [this](){server()->removeRelayConnection(this);});
+    }
 }
 
 bool Relayer::startRelay(int serverFileDescriptor)
@@ -243,9 +241,9 @@ bool Relayer::startRelay(int serverFileDescriptor)
     if (!m_clientSocket || m_serverFileDescriptor <= 0)
         return false;
     fcntl(serverFileDescriptor,F_SETFL, fcntl(serverFileDescriptor, F_GETFL) | O_NONBLOCK);
-    connect(m_clientSocket, SIGNAL(readyRead()), SLOT(handleClientHasData()));
+    connect(m_clientSocket, &QIODevice::readyRead, this, &Relayer::handleClientHasData);
     m_serverNotifier = new QSocketNotifier(m_serverFileDescriptor, QSocketNotifier::Read, this);
-    connect(m_serverNotifier, SIGNAL(activated(int)), SLOT(handleSocketHasData(int)));
+    connect(m_serverNotifier, &QSocketNotifier::activated, this, &Relayer::handleSocketHasData);
     // no way to check if an error did happen?
     if (m_clientSocket->bytesAvailable() > 0)
         handleClientHasData();
@@ -354,7 +352,7 @@ void Relayer::handleClientHasData()
 void Relayer::handleClientHasError(QAbstractSocket::SocketError error)
 {
     iosTool()->errorMsg(tr("iOS Debugging connection to creator failed with error %1").arg(error));
-    iosTool()->stopRelayServers();
+    server()->removeRelayConnection(this);
 }
 
 IosTool *Relayer::iosTool()
@@ -372,8 +370,7 @@ RemotePortRelayer::RemotePortRelayer(GenericRelayServer *parent, QTcpSocket *cli
 {
     m_remoteConnectTimer.setSingleShot(true);
     m_remoteConnectTimer.setInterval(reconnectMsecDelay);
-    connect(&m_remoteConnectTimer, SIGNAL(timeout()),
-            SLOT(tryRemoteConnect()));
+    connect(&m_remoteConnectTimer, &QTimer::timeout, this, &RemotePortRelayer::tryRemoteConnect);
 }
 
 void RemotePortRelayer::tryRemoteConnect()
@@ -408,31 +405,38 @@ RelayServer::~RelayServer()
     stopServer();
 }
 
-bool RelayServer::startServer(int port, bool ipv6)
+bool RelayServer::startServer()
 {
-    QTC_CHECK(!m_server.isListening());
-    m_server.setMaxPendingConnections(1);
-    connect(&m_server, SIGNAL(newConnection()), SLOT(handleNewRelayConnection()));
-    quint16 portValue = static_cast<quint16>(port);
-    if (port < 0 || port > 0xFFFF)
-        return false;
-    if (ipv6)
-        return m_server.listen(QHostAddress(QHostAddress::LocalHostIPv6), portValue);
-    else
-        return m_server.listen(QHostAddress(QHostAddress::LocalHost), portValue);
+    QTC_CHECK(!m_ipv4Server.isListening());
+    QTC_CHECK(!m_ipv6Server.isListening());
+
+    connect(&m_ipv4Server, &QTcpServer::newConnection,
+            this, &RelayServer::handleNewRelayConnection);
+    connect(&m_ipv6Server, &QTcpServer::newConnection,
+            this, &RelayServer::handleNewRelayConnection);
+
+    m_port = 0;
+    if (m_ipv4Server.listen(QHostAddress(QHostAddress::LocalHost), 0))
+        m_port = m_ipv4Server.serverPort();
+    if (m_ipv6Server.listen(QHostAddress(QHostAddress::LocalHostIPv6), m_port))
+        m_port = m_ipv6Server.serverPort();
+
+    return m_port > 0;
 }
 
 void RelayServer::stopServer()
 {
     foreach (Relayer *connection, m_connections)
         delete connection;
-    if (m_server.isListening())
-        m_server.close();
+    if (m_ipv4Server.isListening())
+        m_ipv4Server.close();
+    if (m_ipv6Server.isListening())
+        m_ipv6Server.close();
 }
 
 quint16 RelayServer::serverPort()
 {
-    return m_server.serverPort();
+    return m_port;
 }
 
 IosTool *RelayServer::iosTool()
@@ -446,6 +450,12 @@ void RelayServer::handleNewRelayConnection()
     newRelayConnection();
 }
 
+void RelayServer::removeRelayConnection(Relayer *relayer)
+{
+    m_connections.removeAll(relayer);
+    relayer->deleteLater();
+}
+
 SingleRelayServer::SingleRelayServer(IosTool *parent,
                                      int serverFileDescriptor) :
     RelayServer(parent)
@@ -457,19 +467,17 @@ SingleRelayServer::SingleRelayServer(IosTool *parent,
 
 void SingleRelayServer::newRelayConnection()
 {
+    QTcpSocket *clientSocket = m_ipv4Server.hasPendingConnections()
+            ? m_ipv4Server.nextPendingConnection() : m_ipv6Server.nextPendingConnection();
     if (m_connections.size() > 0) {
-        m_server.close();
-        QTcpSocket *s = m_server.nextPendingConnection();
-        delete s;
+        delete clientSocket;
         return;
     }
-    QTcpSocket *clientSocket = m_server.nextPendingConnection();
     if (clientSocket) {
         Relayer *newConnection = new Relayer(this, clientSocket);
         m_connections.append(newConnection);
         newConnection->startRelay(m_serverFileDescriptor);
     }
-    m_server.close();
 }
 
 GenericRelayServer::GenericRelayServer(IosTool *parent, int remotePort,
@@ -484,7 +492,8 @@ GenericRelayServer::GenericRelayServer(IosTool *parent, int remotePort,
 
 void GenericRelayServer::newRelayConnection()
 {
-    QTcpSocket *clientSocket = m_server.nextPendingConnection();
+    QTcpSocket *clientSocket = m_ipv4Server.hasPendingConnections()
+            ? m_ipv4Server.nextPendingConnection() : m_ipv6Server.nextPendingConnection();
     if (clientSocket) {
         iosTool()->errorMsg(QString::fromLatin1("setting up relayer for new connection"));
         RemotePortRelayer *newConnection = new RemotePortRelayer(this, clientSocket);
@@ -499,7 +508,6 @@ IosTool::IosTool(QObject *parent):
     maxProgress(0),
     opLeft(0),
     debug(false),
-    ipv6(false),
     inAppOutput(false),
     splitAppOutput(true),
     appOp(Ios::IosDeviceManager::None),
@@ -531,34 +539,34 @@ void IosTool::run(const QStringList &args)
     out.writeStartElement(QLatin1String("query_result"));
     for (int iarg = 1; iarg < args.size(); ++iarg) {
         const QString &arg = args[iarg];
-        if (arg == QLatin1String("-device-id")) {
+        if (arg == QLatin1String("-i") || arg == QLatin1String("--id")) {
             if (++iarg == args.size()) {
-                writeMsg("missing device id value after -device-id");
+                writeMsg(QStringLiteral("missing device id value after ") + arg);
                 printHelp = true;
             }
             deviceId = args.value(iarg);
-        } else if (arg == QLatin1String("-bundle")) {
+        } else if (arg == QLatin1String("-b") || arg == QLatin1String("--bundle")) {
             if (++iarg == args.size()) {
-                writeMsg("missing bundle path after -bundle");
+                writeMsg(QStringLiteral("missing bundle path after ") + arg);
                 printHelp = true;
             }
             bundlePath = args.value(iarg);
-        } else if (arg == QLatin1String("-deploy")) {
+        } else if (arg == QLatin1String("--install")) {
             appOp = Ios::IosDeviceManager::AppOp(appOp | Ios::IosDeviceManager::Install);
-        } else if (arg == QLatin1String("-run")) {
+        } else if (arg == QLatin1String("--run")) {
             appOp = Ios::IosDeviceManager::AppOp(appOp | Ios::IosDeviceManager::Run);
-        } else if (arg == QLatin1String("-ipv6")) {
-            ipv6 = true;
-        } else if (arg == QLatin1String("-verbose")) {
+        } else if (arg == QLatin1String("--noninteractive")) {
+            // ignored for compatibility
+        } else if (arg == QLatin1String("-v") || arg == QLatin1String("--verbose")) {
             echoRelays = true;
-        } else if (arg == QLatin1String("-debug")) {
+        } else if (arg == QLatin1String("-d") || arg == QLatin1String("--debug")) {
             appOp = Ios::IosDeviceManager::AppOp(appOp | Ios::IosDeviceManager::Run);
             debug = true;
-        } else if (arg == QLatin1String("-device-info")) {
+        } else if (arg == QLatin1String("--device-info")) {
             deviceInfo = true;
-        } else if (arg == QLatin1String("-timeout")) {
+        } else if (arg == QLatin1String("-t") || arg == QLatin1String("--timeout")) {
             if (++iarg == args.size()) {
-                writeMsg("missing timeout value after -timeout");
+                writeMsg(QStringLiteral("missing timeout value after ") + arg);
                 printHelp = true;
             }
             bool ok = false;
@@ -569,10 +577,10 @@ void IosTool::run(const QStringList &args)
                 writeMsg("timeout value should be an integer");
                 printHelp = true;
             }
-        } else if (arg == QLatin1String("-extra-args")) {
+        } else if (arg == QLatin1String("-a") || arg == QLatin1String("--args")) {
             extraArgs = args.mid(iarg + 1, args.size() - iarg - 1);
             iarg = args.size();
-        } else if (arg == QLatin1String("-help") || arg == QLatin1String("--help")) {
+        } else if (arg == QLatin1String("-h") || arg == QLatin1String("--help")) {
             printHelp = true;
         } else {
             writeMsg(QString::fromLatin1("unexpected argument \"%1\"").arg(arg));
@@ -580,24 +588,20 @@ void IosTool::run(const QStringList &args)
     }
     if (printHelp) {
         out.writeStartElement(QLatin1String("msg"));
-        out.writeCharacters(QLatin1String("iosTool [-device-id <deviceId>] [-bundle <pathToBundle>] [-deploy] [-run] [-debug]\n"));
-        out.writeCharacters(QLatin1String("    [-device-info] [-timeout <timeoutIn_ms>] [-verbose]\n")); // to do pass in env as stub does
-        out.writeCharacters(QLatin1String("    [-extra-args <arguments for the target app>]"));
+        out.writeCharacters(QLatin1String("iostool [--id <device_id>] [--bundle <bundle.app>] [--install] [--run] [--debug]\n"));
+        out.writeCharacters(QLatin1String("    [--device-info] [--timeout <timeout_in_ms>] [--verbose]\n")); // to do pass in env as stub does
+        out.writeCharacters(QLatin1String("    [--args <arguments for the target app>]"));
         out.writeEndElement();
         doExit(-1);
         return;
     }
     outFile.flush();
-    connect(manager,SIGNAL(isTransferringApp(QString,QString,int,QString)),
-            SLOT(isTransferringApp(QString,QString,int,QString)));
-    connect(manager,SIGNAL(didTransferApp(QString,QString,Ios::IosDeviceManager::OpStatus)),
-            SLOT(didTransferApp(QString,QString,Ios::IosDeviceManager::OpStatus)));
-    connect(manager,SIGNAL(didStartApp(QString,QString,Ios::IosDeviceManager::OpStatus,int,Ios::DeviceSession*)),
-            SLOT(didStartApp(QString,QString,Ios::IosDeviceManager::OpStatus,int,Ios::DeviceSession*)));
-    connect(manager,SIGNAL(deviceInfo(QString,Ios::IosDeviceManager::Dict)),
-            SLOT(deviceInfo(QString,Ios::IosDeviceManager::Dict)));
-    connect(manager,SIGNAL(appOutput(QString)), SLOT(appOutput(QString)));
-    connect(manager,SIGNAL(errorMsg(QString)), SLOT(errorMsg(QString)));
+    connect(manager,&Ios::IosDeviceManager::isTransferringApp, this, &IosTool::isTransferringApp);
+    connect(manager,&Ios::IosDeviceManager::didTransferApp, this, &IosTool::didTransferApp);
+    connect(manager,&Ios::IosDeviceManager::didStartApp, this, &IosTool::didStartApp);
+    connect(manager,&Ios::IosDeviceManager::deviceInfo, this, &IosTool::deviceInfo);
+    connect(manager,&Ios::IosDeviceManager::appOutput, this, &IosTool::appOutput);
+    connect(manager,&Ios::IosDeviceManager::errorMsg, this, &IosTool::errorMsg);
     manager->watchDevices();
     QRegExp qmlPortRe=QRegExp(QLatin1String("-qmljsdebugger=port:([0-9]+)"));
     foreach (const QString &arg, extraArgs) {
@@ -611,7 +615,7 @@ void IosTool::run(const QStringList &args)
     }
     if (deviceInfo) {
         if (!bundlePath.isEmpty())
-            writeMsg("-device-info overrides bundlePath");
+            writeMsg("--device-info overrides --bundle");
         ++opLeft;
         manager->requestDeviceInfo(deviceId, timeout);
     } else if (!bundlePath.isEmpty()) {
@@ -724,12 +728,12 @@ void IosTool::didStartApp(const QString &bundlePath, const QString &deviceId,
         int qmlPort = deviceSession->qmljsDebugPort();
         if (qmlPort) {
             qmlServer = new GenericRelayServer(this, qmlPort, deviceSession);
-            qmlServer->startServer(0, ipv6);
+            qmlServer->startServer();
         }
     }
     if (debug) {
         gdbServer = new SingleRelayServer(this, gdbFd);
-        if (!gdbServer->startServer(0, ipv6)) {
+        if (!gdbServer->startServer()) {
             doExit(-4);
             return;
         }
@@ -738,9 +742,9 @@ void IosTool::didStartApp(const QString &bundlePath, const QString &deviceId,
         QMutexLocker l(&m_xmlMutex);
         out.writeStartElement(QLatin1String("server_ports"));
         out.writeAttribute(QLatin1String("gdb_server"),
-                           QString::number(gdbServer ? gdbServer->serverPort() : 0));
+                           QString::number(gdbServer ? gdbServer->serverPort() : -1));
         out.writeAttribute(QLatin1String("qml_server"),
-                           QString::number(qmlServer ? qmlServer->serverPort() : 0));
+                           QString::number(qmlServer ? qmlServer->serverPort() : -1));
         out.writeEndElement();
         outFile.flush();
     }
@@ -750,9 +754,10 @@ void IosTool::didStartApp(const QString &bundlePath, const QString &deviceId,
         // all output moves to the new thread (other option would be to signal it back)
         QThread *gdbProcessThread = new QThread();
         gdbRunner->moveToThread(gdbProcessThread);
-        QObject::connect(gdbProcessThread, SIGNAL(started()), gdbRunner, SLOT(run()));
-        QObject::connect(gdbRunner, SIGNAL(finished()), gdbProcessThread, SLOT(quit()));
-        QObject::connect(gdbProcessThread, SIGNAL(finished()), gdbProcessThread, SLOT(deleteLater()));
+        QObject::connect(gdbProcessThread, &QThread::started, gdbRunner, &GdbRunner::run);
+        QObject::connect(gdbRunner, &GdbRunner::finished, gdbProcessThread, &QThread::quit);
+        QObject::connect(gdbProcessThread, &QThread::finished,
+                         gdbProcessThread, &QObject::deleteLater);
         gdbProcessThread->start();
 
         new std::thread([this]() -> void { readStdin();});
@@ -873,7 +878,7 @@ void IosTool::stopGdbRunner()
 {
     if (gdbRunner) {
         gdbRunner->stop(0);
-        QTimer::singleShot(100, this, SLOT(stopGdbRunner2()));
+        QTimer::singleShot(100, this, &IosTool::stopGdbRunner2);
     }
 }
 

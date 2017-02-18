@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,35 +9,31 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "clangtextmark.h"
 
-#include "constants.h"
+#include "clangconstants.h"
+#include "clangdiagnostictooltipwidget.h"
 
-#include <coreplugin/coreconstants.h>
+#include <utils/icon.h>
+#include <utils/qtcassert.h>
+#include <utils/theme/theme.h>
 
+#include <QLayout>
 #include <QString>
-#include <QApplication>
-
-#include <utils/tooltip/tooltip.h>
 
 namespace ClangCodeModel {
 
@@ -64,17 +60,28 @@ Core::Id cartegoryForSeverity(ClangBackEnd::DiagnosticSeverity severity)
 
 } // anonymous namespace
 
-ClangTextMark::ClangTextMark(const QString &fileName, int lineNumber, ClangBackEnd::DiagnosticSeverity severity)
-    : TextEditor::TextMark(fileName, lineNumber, cartegoryForSeverity(severity))
+
+ClangTextMark::ClangTextMark(const QString &fileName,
+                             const ClangBackEnd::DiagnosticContainer &diagnostic,
+                             const RemovedFromEditorHandler &removedHandler)
+    : TextEditor::TextMark(fileName,
+                           int(diagnostic.location().line()),
+                           cartegoryForSeverity(diagnostic.severity()))
+    , m_diagnostic(diagnostic)
+    , m_removedFromEditorHandler(removedHandler)
 {
     setPriority(TextEditor::TextMark::HighPriority);
-    setIcon(severity);
+    setIcon(diagnostic.severity());
 }
 
 void ClangTextMark::setIcon(ClangBackEnd::DiagnosticSeverity severity)
 {
-    static const QIcon errorIcon{QLatin1String(Core::Constants::ICON_ERROR)};
-    static const QIcon warningIcon{QLatin1String(Core::Constants::ICON_WARNING)};
+    static const QIcon errorIcon = Utils::Icon({
+            {QLatin1String(":/clangcodemodel/images/error.png"), Utils::Theme::IconsErrorColor}
+        }, Utils::Icon::Tint).icon();
+    static const QIcon warningIcon = Utils::Icon({
+            {QLatin1String(":/clangcodemodel/images/warning.png"), Utils::Theme::IconsWarningColor}
+        }, Utils::Icon::Tint).icon();
 
     if (isWarningOrNote(severity))
         TextMark::setIcon(warningIcon);
@@ -82,9 +89,20 @@ void ClangTextMark::setIcon(ClangBackEnd::DiagnosticSeverity severity)
         TextMark::setIcon(errorIcon);
 }
 
-ClangTextMark::ClangTextMark(ClangTextMark &&other) Q_DECL_NOEXCEPT
-    : TextMark(std::move(other))
+bool ClangTextMark::addToolTipContent(QLayout *target)
 {
+    using Internal::ClangDiagnosticWidget;
+
+    QWidget *widget = ClangDiagnosticWidget::create({m_diagnostic}, ClangDiagnosticWidget::ToolTip);
+    target->addWidget(widget);
+
+    return true;
+}
+
+void ClangTextMark::removedFromEditor()
+{
+    QTC_ASSERT(m_removedFromEditorHandler, return);
+    m_removedFromEditorHandler(this);
 }
 
 } // namespace ClangCodeModel

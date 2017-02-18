@@ -1,8 +1,6 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2012 - 2014 BlackBerry Limited. All rights reserved.
-**
-** Contact: BlackBerry (qt@blackberry.com)
+** Copyright (C) 2016 BlackBerry Limited. All rights reserved.
 ** Contact: KDAB (info@kdab.com)
 **
 ** This file is part of Qt Creator.
@@ -11,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -45,24 +38,24 @@ namespace Internal {
 
 QnxBaseQtConfigWidget::QnxBaseQtConfigWidget(QnxQtVersion *version) :
     m_version(version),
-    m_sdkPathChooser(new Utils::PathChooser)
+    m_sdpPathChooser(new Utils::PathChooser)
 {
     QTC_ASSERT(version, return);
 
     QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->addWidget(m_sdkPathChooser);
+    layout->addWidget(m_sdpPathChooser);
 
-    m_sdkPathChooser->setExpectedKind(Utils::PathChooser::ExistingDirectory);
-    m_sdkPathChooser->setHistoryCompleter(QLatin1String("Qnx.Sdk.History"));
-    m_sdkPathChooser->setPath(version->sdkPath());
+    m_sdpPathChooser->setExpectedKind(Utils::PathChooser::ExistingDirectory);
+    m_sdpPathChooser->setHistoryCompleter(QLatin1String("Qnx.Sdp.History"));
+    m_sdpPathChooser->setPath(version->sdpPath());
 
-    connect(m_sdkPathChooser, &Utils::PathChooser::rawPathChanged,
-            this, &QnxBaseQtConfigWidget::updateSdkPath);
+    connect(m_sdpPathChooser, &Utils::PathChooser::rawPathChanged,
+            this, &QnxBaseQtConfigWidget::updateSdpPath);
 }
 
-void QnxBaseQtConfigWidget::updateSdkPath(const QString &path)
+void QnxBaseQtConfigWidget::updateSdpPath(const QString &path)
 {
-    m_version->setSdkPath(path);
+    m_version->setSdpPath(path);
     emit changed();
 }
 

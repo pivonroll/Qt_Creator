@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,121 +9,264 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef UTF8STRING_H
-#define UTF8STRING_H
+#pragma once
 
 #include "sqliteglobal.h"
 
 #include <QByteArray>
+#include <QDataStream>
+#include <QHashFunctions>
 #include <QMetaType>
+#include <QString>
+
+#include <iosfwd>
 
 class Utf8StringVector;
 class Utf8String;
 
-class SQLITE_EXPORT Utf8String
+class Utf8String
 {
     friend class Utf8StringVector;
 
-    friend SQLITE_EXPORT const Utf8String operator+(const Utf8String &first, const Utf8String &second);
-
-    friend SQLITE_EXPORT bool operator!=(const Utf8String &first, const Utf8String &second);
-    friend SQLITE_EXPORT bool operator==(const Utf8String &first, const Utf8String &second);
-    friend SQLITE_EXPORT bool operator==(const Utf8String &first, const char *second);
-    friend SQLITE_EXPORT bool operator==(const Utf8String &first, const QString &second);
-    friend SQLITE_EXPORT bool operator<(const Utf8String &first, const Utf8String &second);
-
-    friend SQLITE_EXPORT QDataStream &operator<<(QDataStream &datastream, const Utf8String &text);
-    friend SQLITE_EXPORT QDataStream &operator>>(QDataStream &datastream, Utf8String &text);
-
-    friend SQLITE_EXPORT uint qHash(const Utf8String &utf8String);
-
 public:
     Utf8String() = default;
-    explicit Utf8String(const char *utf8Text, int size);
-    Utf8String(const QString &text);
 
-    const char *constData() const;
+    explicit Utf8String(const char *utf8Text, int size)
+        : byteArray(utf8Text, size)
+    {
+    }
 
-    int byteSize() const;
+    Utf8String(const QString &text)
+        : byteArray(text.toUtf8())
+    {
+    }
 
-    static Utf8String fromUtf8(const char *utf8Text);
-    static Utf8String fromByteArray(const QByteArray &utf8ByteArray);
-    const QByteArray &toByteArray() const;
+    const char *constData() const
+    {
+        return byteArray.constData();
+    }
 
-    static Utf8String fromString(const QString &text);
-    QString toString() const;
+    int byteSize() const
+    {
+        return byteArray.size();
+    }
 
-    Utf8String mid(int position, int length = -1) const;
-    void replace(const Utf8String &before, const Utf8String &after);
-    Utf8StringVector split(char separator) const;
+    static Utf8String fromUtf8(const char *utf8Text)
+    {
+        return Utf8String(utf8Text, -1);
+    }
 
-    void clear();
+    static Utf8String fromByteArray(const QByteArray &utf8ByteArray)
+    {
+        return Utf8String(utf8ByteArray);
+    }
+    const QByteArray &toByteArray() const
+    {
+        return byteArray;
+    }
 
-    void append(const Utf8String &textToAppend);
-    bool contains(const Utf8String &text) const;
-    bool contains(const char *text) const;
-    bool contains(char character) const;
-    bool startsWith(const Utf8String &text) const;
-    bool startsWith(const char *text) const;
-    bool startsWith(char character) const;
-    bool endsWith(const Utf8String &text) const;
-    bool isEmpty() const;
-    bool hasContent() const;
+    static Utf8String fromString(const QString &text)
+    {
+        return Utf8String::fromByteArray(text.toUtf8());
+    }
 
-    void reserve(int reserveSize);
+    QString toString() const
+    {
+        return QString::fromUtf8(byteArray, byteArray.size());
+    }
 
-    static Utf8String number(int number, int base=10);
+    Utf8String mid(int position, int length = -1) const
+    {
+        return Utf8String(byteArray.mid(position, length));
+    }
 
-    const Utf8String &operator+=(const Utf8String &text);
+    void replace(const Utf8String &before, const Utf8String &after)
+    {
+        byteArray.replace(before.byteArray, after.byteArray);
+    }
 
-    static void registerType();
+    void replace(int position, int length, const Utf8String &after)
+    {
+        byteArray.replace(position, length, after.byteArray);
+    }
 
-    operator QString () const;
-    operator const QByteArray & () const;
+    SQLITE_EXPORT Utf8StringVector split(char separator) const;
+
+    void clear()
+    {
+        byteArray.clear();
+    }
+
+    void append(const Utf8String &textToAppend)
+    {
+        byteArray.append(textToAppend.byteArray);
+    }
+
+    bool contains(const Utf8String &text) const
+    {
+        return byteArray.contains(text.byteArray);
+    }
+
+    bool contains(const char *text) const
+    {
+        return byteArray.contains(text);
+    }
+
+    bool contains(char character) const
+    {
+        return byteArray.contains(character);
+    }
+
+    bool startsWith(const Utf8String &text) const
+    {
+        return byteArray.startsWith(text.byteArray);
+    }
+
+    bool startsWith(const char *text) const
+    {
+        return byteArray.startsWith(text);
+    }
+
+    bool startsWith(char character) const
+    {
+        return byteArray.startsWith(character);
+    }
+
+    bool endsWith(const Utf8String &text) const
+    {
+        return byteArray.endsWith(text.byteArray);
+    }
+
+    bool isNull() const
+    {
+        return byteArray.isNull();
+    }
+
+    bool isEmpty() const
+    {
+        return byteArray.isEmpty();
+    }
+
+    bool hasContent() const
+    {
+        return !isEmpty();
+    }
+
+    void reserve(int reserveSize)
+    {
+        byteArray.reserve(reserveSize);
+    }
+
+    static Utf8String number(int number, int base=10)
+    {
+        return Utf8String::fromByteArray(QByteArray::number(number, base));
+    }
+
+    const Utf8String &operator+=(const Utf8String &text)
+    {
+        byteArray += text.byteArray;
+
+        return *this;
+    }
+
+    static void registerType()
+    {
+        qRegisterMetaType<Utf8String>("Utf8String");
+    }
+
+    operator QString() const
+    {
+        return toString();
+    }
+
+    operator const QByteArray &() const
+    {
+        return byteArray;
+    }
+
+    friend const Utf8String operator+(const Utf8String &first, const Utf8String &second)
+    {
+        return Utf8String(first.byteArray + second.byteArray);
+    }
+
+    friend bool operator!=(const Utf8String &first, const Utf8String &second)
+    {
+        return first.byteArray != second.byteArray;
+    }
+
+    friend bool operator==(const Utf8String &first, const Utf8String &second)
+    {
+        return first.byteArray == second.byteArray;
+    }
+
+    friend bool operator==(const Utf8String &first, const char *second)
+    {
+        return first.byteArray == second;
+    }
+
+    friend bool operator==(const char *first, const Utf8String &second)
+    {
+        return second == first;
+    }
+
+    friend bool operator==(const Utf8String &first, const QString &second)
+    {
+        return first.byteArray == second.toUtf8();
+    }
+
+    friend bool operator<(const Utf8String &first, const Utf8String &second)
+    {
+        if (first.byteSize() == second.byteSize())
+            return first.byteArray < second.byteArray;
+
+        return first.byteSize() < second.byteSize();
+    }
+
+    friend  QDataStream &operator<<(QDataStream &datastream, const Utf8String &text)
+    {
+        datastream << text.byteArray;
+
+        return datastream;
+    }
+
+    friend QDataStream &operator>>(QDataStream &datastream, Utf8String &text)
+    {
+        datastream >> text.byteArray;
+
+        return datastream;
+    }
+
+    friend uint qHash(const Utf8String &utf8String)
+    {
+        return qHash(utf8String.byteArray);
+    }
 
 protected:
-    explicit Utf8String(const QByteArray &utf8ByteArray);
+    explicit Utf8String(const QByteArray &utf8ByteArray)
+        : byteArray(utf8ByteArray)
+    {
+    }
 
 private:
     QByteArray byteArray;
 };
 
-SQLITE_EXPORT const Utf8String operator+(const Utf8String &first, const Utf8String &second);
-
-SQLITE_EXPORT bool operator!=(const Utf8String &first, const Utf8String &second);
-SQLITE_EXPORT bool operator==(const Utf8String &first, const Utf8String &second);
-SQLITE_EXPORT bool operator==(const Utf8String &first, const char *second);
-SQLITE_EXPORT bool operator==(const Utf8String &first, const QString &second);
-SQLITE_EXPORT bool operator<(const Utf8String &first, const Utf8String &second);
-
-SQLITE_EXPORT QDataStream &operator<<(QDataStream &datastream, const Utf8String &text);
-SQLITE_EXPORT QDataStream &operator>>(QDataStream &datastream, Utf8String &text);
 SQLITE_EXPORT QDebug operator<<(QDebug debug, const Utf8String &text);
 SQLITE_EXPORT void PrintTo(const Utf8String &text, ::std::ostream* os);
-
-SQLITE_EXPORT uint qHash(const Utf8String &utf8String);
+SQLITE_EXPORT std::ostream& operator<<(std::ostream &os, const Utf8String &utf8String);
 
 #define Utf8StringLiteral(str) Utf8String::fromByteArray(QByteArrayLiteral(str))
-
-Q_DECLARE_METATYPE(Utf8String)
-
-#endif // UTF8STRING_H

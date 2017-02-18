@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,31 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "kitmanager.h"
 
+#include "devicesupport/idevicefactory.h"
 #include "kit.h"
 #include "kitfeatureprovider.h"
 #include "kitmanagerconfigwidget.h"
 #include "project.h"
+#include "projectexplorerconstants.h"
 #include "task.h"
 
 #include <coreplugin/icore.h>
@@ -74,22 +71,19 @@ static FileName settingsFileName()
 class KitManagerPrivate
 {
 public:
-    KitManagerPrivate();
     ~KitManagerPrivate();
 
-    Kit *m_defaultKit;
-    bool m_initialized;
+    Kit *m_defaultKit = nullptr;
+    bool m_initialized = false;
     QList<KitInformation *> m_informationList;
     QList<Kit *> m_kitList;
-    PersistentSettingsWriter *m_writer;
+    PersistentSettingsWriter *m_writer = nullptr;
 };
-
-KitManagerPrivate::KitManagerPrivate() :
-    m_defaultKit(0), m_initialized(false), m_writer(0)
-{ }
 
 KitManagerPrivate::~KitManagerPrivate()
 {
+    foreach (Kit *k, m_kitList)
+        delete k;
     qDeleteAll(m_informationList);
     delete m_writer;
 }
@@ -100,8 +94,8 @@ KitManagerPrivate::~KitManagerPrivate()
 // KitManager:
 // --------------------------------------------------------------------------
 
-static Internal::KitManagerPrivate *d;
-static KitManager *m_instance;
+static Internal::KitManagerPrivate *d = nullptr;
+static KitManager *m_instance = nullptr;
 
 KitManager *KitManager::instance()
 {
@@ -171,6 +165,9 @@ void KitManager::restoreKits()
     Kit *toStore = 0;
     foreach (Kit *current, kitsToValidate) {
         toStore = current;
+        toStore->upgrade();
+        toStore->setup(); // Make sure all kitinformation are properly set up before merging them
+                          // with the information from the user settings file
 
         // Check whether we had this kit stored and prefer the stored one:
         for (int i = 0; i < kitsToCheck.count(); ++i) {
@@ -191,8 +188,6 @@ void KitManager::restoreKits()
                 break;
             }
         }
-        if (toStore == current)
-            toStore->setup();
         addKit(toStore);
         sdkKits << toStore;
     }
@@ -211,7 +206,6 @@ void KitManager::restoreKits()
         defaultKit->setUnexpandedDisplayName(tr("Desktop"));
         defaultKit->setSdkProvided(false);
         defaultKit->setAutoDetected(false);
-        defaultKit->setIconPath(FileName::fromLatin1(":///DESKTOP///"));
 
         defaultKit->setup();
 
@@ -219,7 +213,7 @@ void KitManager::restoreKits()
         setDefaultKit(defaultKit);
     }
 
-    Kit *k = find(userKits.defaultKit);
+    Kit *k = kit(userKits.defaultKit);
     if (!k && !defaultKit())
         k = Utils::findOrDefault(kitsToRegister + sdkKits, &Kit::isValid);
     if (k)
@@ -233,11 +227,9 @@ void KitManager::restoreKits()
 
 KitManager::~KitManager()
 {
-    foreach (Kit *k, d->m_kitList)
-        delete k;
-    d->m_kitList.clear();
     delete d;
-    m_instance = 0;
+    d = nullptr;
+    m_instance = nullptr;
 }
 
 void KitManager::saveKits()
@@ -262,12 +254,12 @@ void KitManager::saveKits()
     d->m_writer->save(data, ICore::mainWindow());
 }
 
-static bool isLoaded()
+bool KitManager::isLoaded()
 {
     return d->m_initialized;
 }
 
-bool greaterPriority(KitInformation *a, KitInformation *b)
+static bool greaterPriority(KitInformation *a, KitInformation *b)
 {
     return a->priority() > b->priority();
 }
@@ -277,9 +269,8 @@ void KitManager::registerKitInformation(KitInformation *ki)
     QTC_CHECK(!isLoaded());
     QTC_ASSERT(!d->m_informationList.contains(ki), return);
 
-    QList<KitInformation *>::iterator it
-            = qLowerBound(d->m_informationList.begin(),
-                          d->m_informationList.end(), ki, greaterPriority);
+    auto it = std::lower_bound(d->m_informationList.begin(), d->m_informationList.end(),
+                               ki, greaterPriority);
     d->m_informationList.insert(it, ki);
 
     if (!isLoaded())
@@ -302,31 +293,21 @@ void KitManager::deregisterKitInformation(KitInformation *ki)
     delete ki;
 }
 
-QSet<QString> KitManager::availablePlatforms()
+QSet<Id> KitManager::supportedPlatforms()
 {
-    QSet<QString> platforms;
+    QSet<Id> platforms;
     foreach (const Kit *k, kits())
-        platforms.unite(k->availablePlatforms());
+        platforms.unite(k->supportedPlatforms());
     return platforms;
 }
 
-QString KitManager::displayNameForPlatform(const QString &platform)
+QSet<Id> KitManager::availableFeatures(Core::Id platformId)
 {
+    QSet<Id> features;
     foreach (const Kit *k, kits()) {
-        const QString displayName = k->displayNameForPlatform(platform);
-        if (!displayName.isEmpty())
-            return displayName;
-    }
-    return QString();
-}
-
-FeatureSet KitManager::availableFeatures(const QString &platform)
-{
-    FeatureSet features;
-    foreach (const Kit *k, kits()) {
-        QSet<QString> kitPlatforms = k->availablePlatforms();
-        if (kitPlatforms.isEmpty() || kitPlatforms.contains(platform) || platform.isEmpty())
-            features |= k->availableFeatures();
+        if (!k->supportedPlatforms().contains(platformId))
+            continue;
+        features.unite(k->availableFeatures());
     }
     return features;
 }
@@ -397,21 +378,14 @@ KitManager::KitList KitManager::restoreKits(const FileName &fileName)
     return result;
 }
 
-QList<Kit *> KitManager::kits()
+QList<Kit *> KitManager::kits(const Kit::Predicate &predicate)
 {
+    if (predicate)
+        return Utils::filtered(d->m_kitList, predicate);
     return d->m_kitList;
 }
 
-QList<Kit *> KitManager::matchingKits(const KitMatcher &matcher)
-{
-    QList<Kit *> result;
-    foreach (Kit *k, d->m_kitList)
-        if (matcher.matches(k))
-            result.append(k);
-    return result;
-}
-
-Kit *KitManager::find(Id id)
+Kit *KitManager::kit(Id id)
 {
     if (!id.isValid())
         return 0;
@@ -419,11 +393,9 @@ Kit *KitManager::find(Id id)
     return Utils::findOrDefault(kits(), Utils::equal(&Kit::id, id));
 }
 
-Kit *KitManager::find(const KitMatcher &matcher)
+Kit *KitManager::kit(const Kit::Predicate &predicate)
 {
-    return Utils::findOrDefault(d->m_kitList, [&matcher](Kit *k) {
-        return matcher.matches(k);
-    });
+    return Utils::findOrDefault(d->m_kitList, predicate);
 }
 
 Kit *KitManager::defaultKit()
@@ -493,14 +465,7 @@ void KitManager::deregisterKit(Kit *k)
         return;
     d->m_kitList.removeOne(k);
     if (defaultKit() == k) {
-        QList<Kit *> stList = kits();
-        Kit *newDefault = 0;
-        foreach (Kit *cur, stList) {
-            if (cur->isValid()) {
-                newDefault = cur;
-                break;
-            }
-        }
+        Kit *newDefault = Utils::findOrDefault(kits(), [](Kit *k) { return k->isValid(); });
         setDefaultKit(newDefault);
     }
     emit m_instance->kitRemoved(k);
@@ -525,6 +490,7 @@ void KitManager::addKit(Kit *k)
     {
         KitGuard g(k);
         foreach (KitInformation *ki, d->m_informationList) {
+            ki->upgrade(k);
             if (!k->hasValue(ki->id()))
                 k->setValue(ki->id(), ki->defaultValue(k));
             else
@@ -553,23 +519,16 @@ QString KitInformation::displayNamePostfix(const Kit *k) const
     return QString();
 }
 
-QSet<QString> KitInformation::availablePlatforms(const Kit *k) const
+QSet<Id> KitInformation::supportedPlatforms(const Kit *k) const
 {
     Q_UNUSED(k);
-    return QSet<QString>();
+    return QSet<Id>();
 }
 
-QString KitInformation::displayNameForPlatform(const Kit *k, const QString &platform) const
+QSet<Id> KitInformation::availableFeatures(const Kit *k) const
 {
     Q_UNUSED(k);
-    Q_UNUSED(platform);
-    return QString();
-}
-
-FeatureSet KitInformation::availableFeatures(const Kit *k) const
-{
-    Q_UNUSED(k);
-    return FeatureSet();
+    return QSet<Id>();
 }
 
 void KitInformation::addToMacroExpander(Kit *k, MacroExpander *expander) const
@@ -588,19 +547,26 @@ void KitInformation::notifyAboutUpdate(Kit *k)
 // KitFeatureProvider:
 // --------------------------------------------------------------------
 
-FeatureSet KitFeatureProvider::availableFeatures(const QString &platform) const
+// This FeatureProvider maps the platforms onto the device types.
+
+QSet<Id> KitFeatureProvider::availableFeatures(Id id) const
 {
-    return KitManager::availableFeatures(platform);
+    return KitManager::availableFeatures(id);
 }
 
-QStringList KitFeatureProvider::availablePlatforms() const
+QSet<Id> KitFeatureProvider::availablePlatforms() const
 {
-    return KitManager::availablePlatforms().toList();
+    return KitManager::supportedPlatforms();
 }
 
-QString KitFeatureProvider::displayNameForPlatform(const QString &string) const
+QString KitFeatureProvider::displayNameForPlatform(Id id) const
 {
-    return KitManager::displayNameForPlatform(string);
+    foreach (IDeviceFactory *f, ExtensionSystem::PluginManager::getObjects<IDeviceFactory>()) {
+        const QString dn = f->displayNameForId(id);
+        if (!dn.isEmpty())
+            return dn;
+    }
+    return QString();
 }
 
 } // namespace ProjectExplorer

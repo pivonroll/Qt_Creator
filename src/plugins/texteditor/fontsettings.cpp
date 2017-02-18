@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -33,20 +28,24 @@
 
 #include <utils/fileutils.h>
 #include <utils/hostosinfo.h>
+#include <utils/theme/theme.h>
 #include <coreplugin/icore.h>
 
 #include <QCoreApplication>
 #include <QDebug>
 #include <QFile>
 #include <QFont>
+#include <QFontDatabase>
 #include <QSettings>
 #include <QTextCharFormat>
+
+#include <cmath>
 
 static const char fontFamilyKey[] = "FontFamily";
 static const char fontSizeKey[] = "FontSize";
 static const char fontZoomKey[] = "FontZoom";
 static const char antialiasKey[] = "FontAntialias";
-static const char schemeFileNameKey[] = "ColorScheme";
+static const char schemeFileNamesKey[] = "ColorSchemes";
 
 namespace {
 static const bool DEFAULT_ANTIALIAS = true;
@@ -72,6 +71,7 @@ void FontSettings::clear()
     m_antialias = DEFAULT_ANTIALIAS;
     m_scheme.clear();
     m_formatCache.clear();
+    m_textCharFormatCache.clear();
 }
 
 void FontSettings::toSettings(const QString &category,
@@ -90,8 +90,11 @@ void FontSettings::toSettings(const QString &category,
     if (m_antialias != DEFAULT_ANTIALIAS || s->contains(QLatin1String(antialiasKey)))
         s->setValue(QLatin1String(antialiasKey), m_antialias);
 
-    if (m_schemeFileName != defaultSchemeFileName() || s->contains(QLatin1String(schemeFileNameKey)))
-        s->setValue(QLatin1String(schemeFileNameKey), m_schemeFileName);
+    auto schemeFileNames = s->value(QLatin1String(schemeFileNamesKey)).toMap();
+    if (m_schemeFileName != defaultSchemeFileName() || schemeFileNames.contains(Utils::creatorTheme()->id())) {
+        schemeFileNames.insert(Utils::creatorTheme()->id(), m_schemeFileName);
+        s->setValue(QLatin1String(schemeFileNamesKey), schemeFileNames);
+    }
 
     s->endGroup();
 }
@@ -113,32 +116,13 @@ bool FontSettings::fromSettings(const QString &category,
     m_fontZoom= s->value(group + QLatin1String(fontZoomKey), m_fontZoom).toInt();
     m_antialias = s->value(group + QLatin1String(antialiasKey), DEFAULT_ANTIALIAS).toBool();
 
-    if (s->contains(group + QLatin1String(schemeFileNameKey))) {
-        // Load the selected color scheme
-        QString scheme = s->value(group + QLatin1String(schemeFileNameKey)).toString();
-        if (scheme.isEmpty() || !QFile::exists(scheme))
-            scheme = defaultSchemeFileName(Utils::FileName::fromString(scheme).fileName());
-        loadColorScheme(scheme, descriptions);
-    } else {
-        // Load color scheme from ini file
-        foreach (const FormatDescription &desc, descriptions) {
-            const TextStyle id = desc.id();
-            const QString fmt = s->value(group + QLatin1String(Constants::nameForStyle(id)), QString()).toString();
-            Format format;
-            if (fmt.isEmpty()) {
-                format.setForeground(desc.foreground());
-                format.setBackground(desc.background());
-                format.setBold(desc.format().bold());
-                format.setItalic(desc.format().italic());
-                format.setUnderlineColor(desc.format().underlineColor());
-                format.setUnderlineStyle(desc.format().underlineStyle());
-            } else {
-                format.fromString(fmt);
-            }
-            m_scheme.setFormatFor(id, format);
+    if (s->contains(group + QLatin1String(schemeFileNamesKey))) {
+        // Load the selected color scheme for the current theme
+        auto schemeFileNames = s->value(group + QLatin1String(schemeFileNamesKey)).toMap();
+        if (schemeFileNames.contains(Utils::creatorTheme()->id())) {
+            const QString scheme = schemeFileNames.value(Utils::creatorTheme()->id()).toString();
+            loadColorScheme(scheme, descriptions);
         }
-
-        m_scheme.setDisplayName(QCoreApplication::translate("TextEditor::Internal::FontSettings", "Customized"));
     }
 
     return true;
@@ -154,13 +138,19 @@ bool FontSettings::equals(const FontSettings &f) const
             && m_scheme == f.m_scheme;
 }
 
+uint qHash(const TextStyle &textStyle)
+{
+    return ::qHash(quint8(textStyle));
+}
+
 /**
  * Returns the QTextCharFormat of the given format category.
  */
 QTextCharFormat FontSettings::toTextCharFormat(TextStyle category) const
 {
-    if (m_formatCache.contains(category))
-        return m_formatCache.value(category);
+    auto textCharFormatIterator = m_formatCache.find(category);
+    if (textCharFormatIterator != m_formatCache.end())
+        return *textCharFormatIterator;
 
     const Format &f = m_scheme.formatFor(category);
     QTextCharFormat tf;
@@ -194,6 +184,85 @@ QTextCharFormat FontSettings::toTextCharFormat(TextStyle category) const
     return tf;
 }
 
+uint qHash(TextStyles textStyles)
+{
+    return ::qHash(reinterpret_cast<quint64&>(textStyles));
+}
+
+bool operator==(const TextStyles &first, const TextStyles &second)
+{
+    return first.mainStyle == second.mainStyle
+        && first.mixinStyles == second.mixinStyles;
+}
+
+namespace {
+
+double clamp(double value)
+{
+    return std::max(0.0, std::min(1.0, value));
+}
+
+QBrush mixBrush(const QBrush &original, double relativeSaturation, double relativeLightness)
+{
+    const QColor originalColor = original.color().toHsl();
+    QColor mixedColor(QColor::Hsl);
+
+    double mixedSaturation = clamp(originalColor.hslSaturationF() + relativeSaturation);
+
+    double mixedLightness = clamp(originalColor.lightnessF() + relativeLightness);
+
+    mixedColor.setHslF(originalColor.hslHueF(), mixedSaturation, mixedLightness);
+
+    return mixedColor;
+}
+}
+
+void FontSettings::addMixinStyle(QTextCharFormat &textCharFormat,
+                                 const MixinTextStyles &mixinStyles) const
+{
+    for (TextStyle mixinStyle : mixinStyles) {
+        const Format &format = m_scheme.formatFor(mixinStyle);
+
+        if (textCharFormat.hasProperty(QTextFormat::ForegroundBrush)) {
+            textCharFormat.setForeground(mixBrush(textCharFormat.foreground(),
+                                                  format.relativeForegroundSaturation(),
+                                                  format.relativeForegroundLightness()));
+        }
+
+        if (textCharFormat.hasProperty(QTextFormat::BackgroundBrush)) {
+            textCharFormat.setBackground(mixBrush(textCharFormat.background(),
+                                                  format.relativeBackgroundSaturation(),
+                                                  format.relativeBackgroundLightness()));
+        }
+
+        if (!textCharFormat.fontItalic())
+            textCharFormat.setFontItalic(format.italic());
+
+        if (textCharFormat.fontWeight() == QFont::Normal)
+            textCharFormat.setFontWeight(format.bold() ? QFont::Bold : QFont::Normal);
+
+        if (textCharFormat.underlineStyle() == QTextCharFormat::NoUnderline) {
+            textCharFormat.setUnderlineStyle(format.underlineStyle());
+            textCharFormat.setUnderlineColor(format.underlineColor());
+        }
+    };
+}
+
+QTextCharFormat FontSettings::toTextCharFormat(TextStyles textStyles) const
+{
+    auto textCharFormatIterator = m_textCharFormatCache.find(textStyles);
+    if (textCharFormatIterator != m_textCharFormatCache.end())
+        return *textCharFormatIterator;
+
+    QTextCharFormat textCharFormat = toTextCharFormat(textStyles.mainStyle);
+
+    addMixinStyle(textCharFormat, textStyles.mixinStyles);
+
+    m_textCharFormatCache.insert(textStyles, textCharFormat);
+
+    return textCharFormat;
+}
+
 /**
  * Returns the list of QTextCharFormats that corresponds to the list of
  * requested format categories.
@@ -220,6 +289,7 @@ void FontSettings::setFamily(const QString &family)
 {
     m_family = family;
     m_formatCache.clear();
+    m_textCharFormatCache.clear();
 }
 
 /**
@@ -234,6 +304,7 @@ void FontSettings::setFontSize(int size)
 {
     m_fontSize = size;
     m_formatCache.clear();
+    m_textCharFormatCache.clear();
 }
 
 /**
@@ -248,6 +319,7 @@ void FontSettings::setFontZoom(int zoom)
 {
     m_fontZoom = zoom;
     m_formatCache.clear();
+    m_textCharFormatCache.clear();
 }
 
 QFont FontSettings::font() const
@@ -269,6 +341,7 @@ void FontSettings::setAntialias(bool antialias)
 {
     m_antialias = antialias;
     m_formatCache.clear();
+    m_textCharFormatCache.clear();
 }
 
 /**
@@ -306,6 +379,7 @@ bool FontSettings::loadColorScheme(const QString &fileName,
                                    const FormatDescriptions &descriptions)
 {
     m_formatCache.clear();
+    m_textCharFormatCache.clear();
     bool loaded = true;
     m_schemeFileName = fileName;
 
@@ -320,12 +394,24 @@ bool FontSettings::loadColorScheme(const QString &fileName,
         const TextStyle id = desc.id();
         if (!m_scheme.contains(id)) {
             Format format;
-            format.setForeground(desc.foreground());
-            format.setBackground(desc.background());
-            format.setBold(desc.format().bold());
-            format.setItalic(desc.format().italic());
-            format.setUnderlineColor(desc.format().underlineColor());
-            format.setUnderlineStyle(desc.format().underlineStyle());
+            const Format &descFormat = desc.format();
+            if (descFormat == format && m_scheme.contains(C_TEXT)) {
+                // Default format -> Text
+                const Format textFormat = m_scheme.formatFor(C_TEXT);
+                format.setForeground(textFormat.foreground());
+                format.setBackground(textFormat.background());
+            } else {
+                format.setForeground(descFormat.foreground());
+                format.setBackground(descFormat.background());
+            }
+            format.setRelativeForegroundSaturation(descFormat.relativeForegroundSaturation());
+            format.setRelativeForegroundLightness(descFormat.relativeForegroundLightness());
+            format.setRelativeBackgroundSaturation(descFormat.relativeBackgroundSaturation());
+            format.setRelativeBackgroundLightness(descFormat.relativeBackgroundLightness());
+            format.setBold(descFormat.bold());
+            format.setItalic(descFormat.italic());
+            format.setUnderlineColor(descFormat.underlineColor());
+            format.setUnderlineStyle(descFormat.underlineStyle());
             m_scheme.setFormatFor(id, format);
         }
     }
@@ -353,12 +439,19 @@ void FontSettings::setColorScheme(const ColorScheme &scheme)
 {
     m_scheme = scheme;
     m_formatCache.clear();
+    m_textCharFormatCache.clear();
 }
 
 static QString defaultFontFamily()
 {
     if (Utils::HostOsInfo::isMacHost())
         return QLatin1String("Monaco");
+
+    const QString sourceCodePro("Source Code Pro");
+    const QFontDatabase dataBase;
+    if (dataBase.hasFamily(sourceCodePro))
+        return sourceCodePro;
+
     if (Utils::HostOsInfo::isAnyUnixHost())
         return QLatin1String("Monospace");
     return QLatin1String("Courier");
@@ -393,10 +486,15 @@ QString FontSettings::defaultSchemeFileName(const QString &fileName)
     QString defaultScheme = Core::ICore::resourcePath();
     defaultScheme += QLatin1String("/styles/");
 
-    if (!fileName.isEmpty() && QFile::exists(defaultScheme + fileName))
+    if (!fileName.isEmpty() && QFile::exists(defaultScheme + fileName)) {
         defaultScheme += fileName;
-    else
-        defaultScheme += QLatin1String("default.xml");
+    } else {
+        const QString themeScheme = Utils::creatorTheme()->defaultTextEditorColorScheme();
+        if (!themeScheme.isEmpty() && QFile::exists(defaultScheme + themeScheme))
+            defaultScheme += themeScheme;
+        else
+            defaultScheme += QLatin1String("default.xml");
+    }
 
     return defaultScheme;
 }

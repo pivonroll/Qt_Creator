@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -54,66 +54,7 @@ static bool operator<(const QFileInfo &file1, const QFileInfo &file2)
     return file1.filePath() < file2.filePath();
 }
 
-
 QT_END_NAMESPACE
-
-
-static inline bool checkIfDerivedFromItem(const QString &fileName)
-{
-    return true;
-
-    QmlJS::Snapshot snapshot;
-
-
-    QmlJS::ModelManagerInterface *modelManager = QmlJS::ModelManagerInterface::instance();
-    if (modelManager)
-        snapshot =  modelManager->snapshot();
-
-    QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly))
-        return false;
-
-    QByteArray source = file.readAll();
-    file.close();
-
-    QmlJS::Document::MutablePtr document =
-            QmlJS::Document::create(fileName.isEmpty() ?
-                                        QStringLiteral("<internal>") : fileName, QmlJS::Dialect::Qml);
-    document->setSource(QString::fromUtf8(source));
-    document->parseQml();
-
-
-    if (!document->isParsedCorrectly())
-        return false;
-
-    snapshot.insert(document);
-
-    QmlJS::Link link(snapshot, modelManager->defaultVContext(document->language(), document), QmlJS::ModelManagerInterface::instance()->builtins(document));
-
-    QList<QmlJS::DiagnosticMessage> diagnosticLinkMessages;
-    QmlJS::ContextPtr context = link(document, &diagnosticLinkMessages);
-
-    QmlJS::AST::UiObjectMember *astRootNode = 0;
-    if (QmlJS::AST::UiProgram *program = document->qmlProgram())
-        if (program->members)
-            astRootNode = program->members->member;
-
-    QmlJS::AST::UiObjectDefinition *definition = QmlJS::AST::cast<QmlJS::AST::UiObjectDefinition *>(astRootNode);
-
-    if (!definition)
-        return false;
-
-    const QmlJS::ObjectValue *objectValue = context->lookupType(document.data(), definition->qualifiedTypeNameId);
-
-    QList<const QmlJS::ObjectValue *> prototypes = QmlJS::PrototypeIterator(objectValue, context).all();
-
-    foreach (const QmlJS::ObjectValue *prototype, prototypes) {
-        if (prototype->className() == QLatin1String("Item"))
-            return true;
-    }
-
-    return false;
-}
 
 namespace QmlDesigner {
 static const QString s_qmlFilePattern = QStringLiteral("*.qml");
@@ -364,9 +305,6 @@ void SubComponentManager::registerQmlFile(const QFileInfo &fileInfo, const QStri
     if (!model())
         return;
 
-    if (!checkIfDerivedFromItem(fileInfo.absoluteFilePath()))
-        return;
-
     QString componentName = fileInfo.baseName();
     const QString baseComponentName = componentName;
 
@@ -384,18 +322,15 @@ void SubComponentManager::registerQmlFile(const QFileInfo &fileInfo, const QStri
     if (addToLibrary) {
         // Add file components to the library
         ItemLibraryEntry itemLibraryEntry;
-        itemLibraryEntry.setType(componentName.toUtf8(), -1, -1);
+        itemLibraryEntry.setType(componentName.toUtf8());
         itemLibraryEntry.setName(baseComponentName);
         itemLibraryEntry.setCategory(QLatin1String("QML Components"));
         if (!qualifier.isEmpty()) {
             itemLibraryEntry.setRequiredImport(fixedQualifier);
         }
 
-
-        if (!model()->metaInfo().itemLibraryInfo()->containsEntry(itemLibraryEntry)) {
-
-            model()->metaInfo().itemLibraryInfo()->addEntry(itemLibraryEntry);
-        }
+        if (!model()->metaInfo().itemLibraryInfo()->containsEntry(itemLibraryEntry))
+            model()->metaInfo().itemLibraryInfo()->addEntries(QList<ItemLibraryEntry>() << itemLibraryEntry);
     }
 }
 
@@ -480,6 +415,8 @@ void SubComponentManager::update(const QUrl &filePath, const QList<Import> &impo
     for (int ii = i; ii < imports.size(); ++ii) {
         addImport(ii, imports.at(ii));
     }
+
+    m_watcher.addPath(newDir.absoluteFilePath());
 
     parseDirectories();
 }

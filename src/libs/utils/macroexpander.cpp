@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -108,12 +103,10 @@ public:
 
     QHash<QByteArray, MacroExpander::StringFunction> m_map;
     QHash<QByteArray, MacroExpander::PrefixFunction> m_prefixMap;
-    QSet<QByteArray> m_invisbleInChooser;
     QVector<MacroExpander::ResolverFunction> m_extraResolvers;
     QMap<QByteArray, QString> m_descriptions;
     QString m_displayName;
     QVector<MacroExpanderProvider> m_subProviders;
-    QVector<MacroExpander *> m_subExpanders; // Not owned
     bool m_accumulating;
 
     bool m_aborted;
@@ -336,9 +329,8 @@ void MacroExpander::registerPrefix(const QByteArray &prefix, const QString &desc
 void MacroExpander::registerVariable(const QByteArray &variable,
     const QString &description, const StringFunction &value, bool visibleInChooser)
 {
-    if (!visibleInChooser)
-        d->m_invisbleInChooser.insert(variable);
-    d->m_descriptions.insert(variable, description);
+    if (visibleInChooser)
+        d->m_descriptions.insert(variable, description);
     d->m_map.insert(variable, value);
 }
 
@@ -419,13 +411,7 @@ void MacroExpander::registerExtraResolver(const MacroExpander::ResolverFunction 
  */
 QList<QByteArray> MacroExpander::visibleVariables() const
 {
-    QList<QByteArray> res;
-    for (auto it = d->m_descriptions.begin(), end = d->m_descriptions.end(); it != end; ++it) {
-        if (!d->m_invisbleInChooser.contains(it.key()))
-            res.append(it.key());
-    }
-
-    return res;
+    return d->m_descriptions.keys();
 }
 
 /*!

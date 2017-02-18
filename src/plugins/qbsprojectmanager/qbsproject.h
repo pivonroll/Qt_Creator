@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,29 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef QBSPROJECT_H
-#define QBSPROJECT_H
+#pragma once
 
 #include "qbsprojectmanager.h"
 
-#include <cpptools/cppprojects.h>
+#include "qbsnodes.h"
 
+#include <cpptools/projectinfo.h>
+
+#include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/projectnodes.h>
 #include <projectexplorer/task.h>
@@ -44,6 +41,7 @@
 #include <qbs.h>
 
 #include <QFuture>
+#include <QHash>
 #include <QTimer>
 
 namespace Core { class IDocument; }
@@ -53,7 +51,6 @@ namespace QbsProjectManager {
 namespace Internal {
 class QbsBaseProjectNode;
 class QbsProjectNode;
-class QbsRootProjectNode;
 class QbsProjectParser;
 class QbsBuildConfiguration;
 
@@ -63,15 +60,14 @@ class QbsProject : public ProjectExplorer::Project
 
 public:
     QbsProject(QbsManager *manager, const QString &filename);
-    ~QbsProject();
+    ~QbsProject() override;
 
-    QString displayName() const;
-    Core::IDocument *document() const;
-    QbsManager *projectManager() const;
+    QString displayName() const override;
+    QbsManager *projectManager() const override;
+    QbsRootProjectNode *rootProjectNode() const override;
 
-    ProjectExplorer::ProjectNode *rootProjectNode() const;
-
-    QStringList files(FilesMode fileMode) const;
+    QStringList files(FilesMode fileMode) const override;
+    QStringList filesGeneratedFrom(const QString &sourceFile) const override;
 
     bool isProjectEditable() const;
     bool addFilesToProduct(QbsBaseProjectNode *node, const QStringList &filePaths,
@@ -104,14 +100,14 @@ public:
     qbs::Project qbsProject() const;
     qbs::ProjectData qbsProjectData() const;
 
-    bool needsSpecialDeployment() const;
+    bool needsSpecialDeployment() const override;
     void generateErrors(const qbs::ErrorInfo &e);
 
     static QString productDisplayName(const qbs::Project &project,
                                       const qbs::ProductData &product);
     static QString uniqueProductName(const qbs::ProductData &product);
 
-public slots:
+public:
     void invalidate();
     void delayParsing();
 
@@ -119,16 +115,16 @@ signals:
     void projectParsingStarted();
     void projectParsingDone(bool);
 
-private slots:
+private:
     void handleQbsParsingDone(bool success);
 
     void targetWasAdded(ProjectExplorer::Target *t);
+    void targetWasRemoved(ProjectExplorer::Target *t);
     void changeActiveTarget(ProjectExplorer::Target *t);
     void buildConfigurationChanged(ProjectExplorer::BuildConfiguration *bc);
     void startParsing();
 
-private:
-    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage);
+    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) override;
 
     void parse(const QVariantMap &config, const Utils::Environment &env, const QString &dir);
 
@@ -140,19 +136,22 @@ private:
     void updateApplicationTargets();
     void updateDeploymentInfo();
     void updateBuildTargetData();
+    void handleRuleExecutionDone();
+    bool checkCancelStatus();
+    void updateAfterParse();
+    void updateProjectNodes();
+    void projectLoaded() override;
 
     static bool ensureWriteableQbsFile(const QString &file);
 
     qbs::GroupData reRetrieveGroupData(const qbs::ProductData &oldProduct,
                                        const qbs::GroupData &oldGroup);
 
-    QbsManager *const m_manager;
     const QString m_projectName;
-    const QString m_fileName;
+    QHash<ProjectExplorer::Target *, qbs::Project> m_qbsProjects;
     qbs::Project m_qbsProject;
     qbs::ProjectData m_projectData;
     QSet<Core::IDocument *> m_qbsDocuments;
-    QbsRootProjectNode *m_rootProjectNode;
 
     QbsProjectParser *m_qbsProjectParser;
 
@@ -171,9 +170,9 @@ private:
     QbsBuildConfiguration *m_currentBc;
 
     QTimer m_parsingDelay;
+    QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
+    bool m_extraCompilersPending;
 };
 
 } // namespace Internal
 } // namespace QbsProjectManager
-
-#endif // QBSPROJECT_H

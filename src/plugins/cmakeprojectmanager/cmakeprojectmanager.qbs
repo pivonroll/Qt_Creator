@@ -8,6 +8,7 @@ QtcPlugin {
 
     Depends { name: "Core" }
     Depends { name: "CppTools" }
+    Depends { name: "QmlJS" }
     Depends { name: "ProjectExplorer" }
     Depends { name: "TextEditor" }
     Depends { name: "QtSupport" }
@@ -17,18 +18,24 @@ QtcPlugin {
     ]
 
     files: [
+        "builddirmanager.cpp",
+        "builddirmanager.h",
+        "builddirreader.cpp",
+        "builddirreader.h",
         "cmake_global.h",
         "cmakebuildconfiguration.cpp",
         "cmakebuildconfiguration.h",
         "cmakebuildinfo.h",
         "cmakebuildsettingswidget.cpp",
         "cmakebuildsettingswidget.h",
+        "cmakebuildstep.cpp",
+        "cmakebuildstep.h",
         "cmakecbpparser.cpp",
         "cmakecbpparser.h",
+        "cmakeconfigitem.cpp",
+        "cmakeconfigitem.h",
         "cmakeeditor.cpp",
         "cmakeeditor.h",
-        "cmakefile.cpp",
-        "cmakefile.h",
         "cmakefilecompletionassist.cpp",
         "cmakefilecompletionassist.h",
         "cmakekitconfigwidget.h",
@@ -37,13 +44,13 @@ QtcPlugin {
         "cmakekitinformation.cpp",
         "cmakelocatorfilter.cpp",
         "cmakelocatorfilter.h",
-        "cmakeopenprojectwizard.cpp",
-        "cmakeopenprojectwizard.h",
         "cmakeparser.cpp",
         "cmakeparser.h",
         "cmakeproject.cpp",
         "cmakeproject.h",
         "cmakeproject.qrc",
+        "cmakeprojectimporter.cpp",
+        "cmakeprojectimporter.h",
         "cmakeprojectconstants.h",
         "cmakeprojectmanager.cpp",
         "cmakeprojectmanager.h",
@@ -57,15 +64,25 @@ QtcPlugin {
         "cmaketool.h",
         "cmaketoolmanager.cpp",
         "cmaketoolmanager.h",
-        "makestep.cpp",
-        "makestep.h",
         "cmakesettingspage.h",
         "cmakesettingspage.cpp",
-        "generatorinfo.h",
-        "generatorinfo.cpp",
+        "cmakesnippetprovider.cpp",
+        "cmakesnippetprovider.h",
         "cmakeindenter.h",
         "cmakeindenter.cpp",
         "cmakeautocompleter.h",
-        "cmakeautocompleter.cpp"
+        "cmakeautocompleter.cpp",
+        "configmodel.cpp",
+        "configmodel.h",
+        "configmodelitemdelegate.cpp",
+        "configmodelitemdelegate.h",
+        "servermode.cpp",
+        "servermode.h",
+        "servermodereader.cpp",
+        "servermodereader.h",
+        "tealeafreader.cpp",
+        "tealeafreader.h",
+        "treescanner.cpp",
+        "treescanner.h"
     ]
 }

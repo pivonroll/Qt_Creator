@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,31 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef CLANGBACKEND_CONNECTIONCLIENT_H
-#define CLANGBACKEND_CONNECTIONCLIENT_H
+#pragma once
 
-#include "ipcserverproxy.h"
+#include "clangcodemodelserverproxy.h"
 #include "lineprefixer.h"
 
+#include <utils/temporarydirectory.h>
+
 #include <QLocalSocket>
+#include <QProcessEnvironment>
+#include <QScopedPointer>
+#include <QTemporaryDir>
 
 #include <memory>
 
@@ -54,10 +53,9 @@ class CMBIPC_EXPORT ConnectionClient : public QObject
     Q_OBJECT
 
 public:
-    ConnectionClient(IpcClientInterface *client);
-    ~ConnectionClient();
+    ConnectionClient();
 
-    bool connectToServer();
+    void startProcessAndConnectToServerAsynchronously();
     bool disconnectFromServer();
     bool isConnected() const;
 
@@ -69,49 +67,71 @@ public:
     const QString &processPath() const;
     void setProcessPath(const QString &processPath);
 
-    void startProcess();
-    void restartProcess();
+    void restartProcessAsynchronously();
     void restartProcessIfTimerIsNotResettedAndSocketIsEmpty();
     void finishProcess();
     bool isProcessIsRunning() const;
 
     bool waitForEcho();
-
-    IpcServerProxy &serverProxy();
+    bool waitForConnected();
 
     QProcess *processForTestOnly() const;
 
 signals:
-    void processRestarted();
+    void connectedToLocalSocket();
+    void disconnectedFromLocalSocket();
+    void processFinished();
+
+protected:
+    QIODevice *ioDevice();
+    const QTemporaryDir &temporaryDirectory() const;
+    LinePrefixer &stdErrPrefixer();
+    LinePrefixer &stdOutPrefixer();
+
+    virtual void sendEndCommand() = 0;
+    virtual void resetCounter() = 0;
+    virtual QString connectionName() const = 0;
+    virtual QString outputName() const = 0;
 
 private:
-    bool connectToLocalSocket();
-    void endProcess();
-    void terminateProcess();
-    void killProcess();
+    std::unique_ptr<QProcess> startProcess();
+    void finishProcess(std::unique_ptr<QProcess> &&process);
+    void connectToLocalSocket();
+    void endProcess(QProcess *process);
+    void terminateProcess(QProcess *process);
+    void killProcess(QProcess *process);
+    void resetProcessIsStarting();
     void printLocalSocketError(QLocalSocket::LocalSocketError socketError);
     void printStandardOutput();
     void printStandardError();
 
-    QProcess *process() const;
-    void connectProcessFinished() const;
-    void disconnectProcessFinished() const;
-    void connectStandardOutputAndError() const;
+    void resetTemporaryDir();
+
+    void connectLocalSocketConnected();
+    void connectLocalSocketDisconnected();
+    void connectProcessFinished(QProcess *process) const;
+    void connectProcessStarted(QProcess *process) const;
+    void disconnectProcessFinished(QProcess *process) const;
+    void connectStandardOutputAndError(QProcess *process) const;
+    void connectLocalSocketError() const;
+    void connectAliveTimer();
 
     void ensureMessageIsWritten();
 
+    QProcessEnvironment processEnvironment() const;
+
 private:
+    LinePrefixer stdErrPrefixer_;
+    LinePrefixer stdOutPrefixer_;
+
     mutable std::unique_ptr<QProcess> process_;
     QLocalSocket localSocket;
-    IpcServerProxy serverProxy_;
+    std::unique_ptr<Utils::TemporaryDirectory> temporaryDirectory_;
     QTimer processAliveTimer;
     QString processPath_;
-    bool isAliveTimerResetted;
+    bool isAliveTimerResetted = false;
+    bool processIsStarting = false;
 
-    LinePrefixer stdErrPrefixer;
-    LinePrefixer stdOutPrefixer;
 };
 
 } // namespace ClangBackEnd
-
-#endif // CLANGBACKEND_CONNECTIONCLIENT_H

@@ -1,31 +1,37 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
 **
-** $QT_BEGIN_LICENSE:LGPL21$
+** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia. For licensing terms and
-** conditions see http://qt.digia.com/licensing. For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file. Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 3 as published by the Free Software
+** Foundation and appearing in the file LICENSE.LGPL3 included in the
+** packaging of this file. Please review the following information to
+** ensure the GNU Lesser General Public License version 3 requirements
+** will be met: https://www.gnu.org/licenses/lgpl-3.0.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights. These rights are described in the Digia Qt LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 2.0 or (at your option) the GNU General
+** Public license version 3 or any later version approved by the KDE Free
+** Qt Foundation. The licenses are as published by the Free Software
+** Foundation and appearing in the file LICENSE.GPL2 and LICENSE.GPL3
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-2.0.html and
+** https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ** $QT_END_LICENSE$
 **
@@ -53,7 +59,11 @@
 #include <algorithm>
 #include <functional>
 
-static const char ALL_FILES_FILTER[]      = QT_TRANSLATE_NOOP("Core", "All Files (*)");
+#ifdef Q_OS_WIN
+static struct {const char *source; const char *comment; } ALL_FILES_FILTER = QT_TRANSLATE_NOOP3("Core", "All Files (*.*)", "On Windows");
+#else
+static struct {const char *source; const char *comment; } ALL_FILES_FILTER = QT_TRANSLATE_NOOP3("Core", "All Files (*)", "On Linux/macOS");
+#endif
 
 using namespace Utils;
 using namespace Utils::Internal;
@@ -108,7 +118,7 @@ MimeType MimeDatabasePrivate::mimeTypeForName(const QString &nameOrAlias)
 QStringList MimeDatabasePrivate::mimeTypeForFileName(const QString &fileName, QString *foundSuffix)
 {
     if (fileName.endsWith(QLatin1Char('/')))
-        return QStringList() << QLatin1String("inode/directory");
+        return QStringList("inode/directory");
 
     const QStringList matchingMimeTypes = provider()->findByFileName(QFileInfo(fileName).fileName(), foundSuffix);
     return matchingMimeTypes;
@@ -230,13 +240,19 @@ bool MimeDatabasePrivate::inherits(const QString &mime, const QString &parent)
     const QString resolvedParent = provider()->resolveAlias(parent);
     //Q_ASSERT(provider()->resolveAlias(mime) == mime);
     QStack<QString> toCheck;
+    QSet<QString> seen; // avoid endless loop on bogus mime data
     toCheck.push(mime);
+    seen.insert(mime);
     while (!toCheck.isEmpty()) {
         const QString current = toCheck.pop();
         if (current == resolvedParent)
             return true;
-        foreach (const QString &par, provider()->parents(current))
-            toCheck.push(par);
+        foreach (const QString &par, provider()->parents(current)) {
+            int seenSize = seen.size();
+            seen.insert(par);
+            if (seen.size() != seenSize) // haven't seen before, so add
+                toCheck.push(par);
+        }
     }
     return false;
 }
@@ -268,7 +284,7 @@ bool MimeDatabasePrivate::inherits(const QString &mime, const QString &parent)
     \code
     <?xml version="1.0" encoding="UTF-8"?>
     <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-      <mime-type type="application/vnd.nokia.qt.qmakeprofile">
+      <mime-type type="application/vnd.qt.qmakeprofile">
         <comment xml:lang="en">Qt qmake Profile</comment>
         <glob pattern="*.pro" weight="50"/>
       </mime-type>
@@ -319,6 +335,11 @@ void MimeDatabase::addMimeTypes(const QString &fileName)
 {
     auto d = MimeDatabasePrivate::instance();
     QMutexLocker locker(&d->mutex);
+
+    if (d->m_startupPhase >= MimeDatabase::PluginsDelayedInitializing)
+        qWarning("Adding items from %s to MimeDatabase after initialization time",
+                 qPrintable(fileName));
+
     auto xmlProvider = static_cast<MimeXMLProvider *>(d->provider());
     xmlProvider->addFile(fileName);
 }
@@ -336,8 +357,7 @@ QString MimeDatabase::allFiltersString(QString *allFilesFilter)
     foreach (const QString &filter, uniqueFilters)
         filters.append(filter);
     filters.sort();
-    static const QString allFiles =
-        QCoreApplication::translate("Core", ALL_FILES_FILTER);
+    const QString allFiles = allFilesFilterString();
     if (allFilesFilter)
         *allFilesFilter = allFiles;
 
@@ -347,8 +367,21 @@ QString MimeDatabase::allFiltersString(QString *allFilesFilter)
     return filters.join(QLatin1String(";;"));
 }
 
+QString MimeDatabase::allFilesFilterString()
+{
+    auto d = MimeDatabasePrivate::instance();
+    if (d->m_startupPhase <= MimeDatabase::PluginsInitializing)
+        qWarning("Accessing MimeDatabase files filter strings before plugins are initialized");
+
+    return QCoreApplication::translate("Core", ALL_FILES_FILTER.source, ALL_FILES_FILTER.comment);
+}
+
 QStringList MimeDatabase::allGlobPatterns()
 {
+    auto d = MimeDatabasePrivate::instance();
+    if (d->m_startupPhase <= MimeDatabase::PluginsInitializing)
+        qWarning("Accessing MimeDatabase glob patterns before plugins are initialized");
+
     MimeDatabase mdb;
     QStringList patterns;
     foreach (const MimeType &mt, mdb.allMimeTypes())
@@ -363,6 +396,9 @@ QStringList MimeDatabase::allGlobPatterns()
 MimeType MimeDatabase::mimeTypeForName(const QString &nameOrAlias) const
 {
     QMutexLocker locker(&d->mutex);
+
+    if (d->m_startupPhase <= MimeDatabase::PluginsInitializing)
+        qWarning("Accessing MimeDatabase for %s before plugins are initialized", qPrintable(nameOrAlias));
 
     return d->mimeTypeForName(nameOrAlias);
 }
@@ -665,4 +701,13 @@ void MimeDatabase::setMagicRulesForMimeType(const MimeType &mimeType, const QMap
     auto d = MimeDatabasePrivate::instance();
     QMutexLocker locker(&d->mutex);
     return d->provider()->setMagicRulesForMimeType(mimeType, rules);
+}
+
+void MimeDatabase::setStartupPhase(MimeDatabase::StartupPhase phase)
+{
+    auto d = MimeDatabasePrivate::instance();
+    QMutexLocker locker(&d->mutex);
+    if (phase != d->m_startupPhase + 1)
+        qWarning("Unexpected jump in MimedDatabase lifetime from %d to %d", d->m_startupPhase, phase);
+    d->m_startupPhase = phase;
 }

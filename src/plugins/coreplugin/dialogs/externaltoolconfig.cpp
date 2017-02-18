@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -37,6 +32,7 @@
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
 #include <utils/fancylineedit.h>
+#include <utils/environmentdialog.h>
 
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/variablechooser.h>
@@ -175,7 +171,7 @@ bool ExternalToolModel::dropMimeData(const QMimeData *data,
 
 QStringList ExternalToolModel::mimeTypes() const
 {
-    return QStringList() << QLatin1String("application/qtcreator-externaltool-config");
+    return QStringList("application/qtcreator-externaltool-config");
 }
 
 QModelIndex ExternalToolModel::index(int row, int column, const QModelIndex &parent) const
@@ -398,44 +394,6 @@ void ExternalToolModel::removeTool(const QModelIndex &modelIndex)
     delete tool;
 }
 
-EnvironmentChangesDialog::EnvironmentChangesDialog(QWidget *parent) :
-    QDialog(parent),
-    m_editor(0)
-{
-    setWindowTitle(tr("Edit Environment Changes"));
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
-    setModal(true);
-
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    QLabel *label = new QLabel(this);
-    label->setText(tr("Change system environment by assigning one environment variable per line:"));
-    layout->addWidget(label);
-
-    m_editor = new QPlainTextEdit(this);
-    if (Utils::HostOsInfo::isWindowsHost())
-        m_editor->setPlaceholderText(tr("PATH=C:\\dev\\bin;${PATH}"));
-    else
-        m_editor->setPlaceholderText(tr("PATH=/opt/bin:${PATH}"));
-
-    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
-
-    layout->addWidget(m_editor);
-    layout->addWidget(buttons);
-
-    connect(buttons, &QDialogButtonBox::accepted, this, &EnvironmentChangesDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, this, &EnvironmentChangesDialog::reject);
-}
-
-QStringList EnvironmentChangesDialog::changes() const
-{
-    return m_editor->toPlainText().split(QLatin1Char('\n'));
-}
-
-void EnvironmentChangesDialog::setChanges(const QStringList &changes)
-{
-    m_editor->setPlainText(changes.join(QLatin1Char('\n')));
-}
-
 // #pragma mark -- ExternalToolConfig
 
 ExternalToolConfig::ExternalToolConfig(QWidget *parent) :
@@ -447,8 +405,8 @@ ExternalToolConfig::ExternalToolConfig(QWidget *parent) :
     ui->toolTree->setModel(m_model);
     ui->toolTree->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
 
-    connect(ui->toolTree->selectionModel(), SIGNAL(currentChanged(QModelIndex,QModelIndex)),
-            this, SLOT(handleCurrentChanged(QModelIndex,QModelIndex)));
+    connect(ui->toolTree->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, &ExternalToolConfig::handleCurrentChanged);
 
     auto chooser = new VariableChooser(this);
     chooser->addSupportedWidget(ui->executable->lineEdit());
@@ -456,30 +414,40 @@ ExternalToolConfig::ExternalToolConfig(QWidget *parent) :
     chooser->addSupportedWidget(ui->workingDirectory->lineEdit());
     chooser->addSupportedWidget(ui->inputText);
 
-    connect(ui->description, SIGNAL(editingFinished()), this, SLOT(updateCurrentItem()));
-    connect(ui->executable, SIGNAL(editingFinished()), this, SLOT(updateCurrentItem()));
-    connect(ui->executable, SIGNAL(browsingFinished()), this, SLOT(updateCurrentItem()));
-    connect(ui->arguments, SIGNAL(editingFinished()), this, SLOT(updateCurrentItem()));
-    connect(ui->arguments, SIGNAL(editingFinished()), this, SLOT(updateEffectiveArguments()));
-    connect(ui->workingDirectory, SIGNAL(editingFinished()), this, SLOT(updateCurrentItem()));
-    connect(ui->workingDirectory, SIGNAL(browsingFinished()), this, SLOT(updateCurrentItem()));
-    connect(ui->environmentButton, SIGNAL(clicked()), this, SLOT(editEnvironmentChanges()));
-    connect(ui->outputBehavior, SIGNAL(activated(int)), this, SLOT(updateCurrentItem()));
-    connect(ui->errorOutputBehavior, SIGNAL(activated(int)), this, SLOT(updateCurrentItem()));
-    connect(ui->modifiesDocumentCheckbox, SIGNAL(clicked()), this, SLOT(updateCurrentItem()));
-    connect(ui->inputText, SIGNAL(textChanged()), this, SLOT(updateCurrentItem()));
+    connect(ui->description, &QLineEdit::editingFinished,
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->executable, &Utils::PathChooser::editingFinished,
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->executable, &Utils::PathChooser::browsingFinished,
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->arguments, &QLineEdit::editingFinished, this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->arguments, &QLineEdit::editingFinished,
+            this, &ExternalToolConfig::updateEffectiveArguments);
+    connect(ui->workingDirectory, &Utils::PathChooser::editingFinished,
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->workingDirectory, &Utils::PathChooser::browsingFinished,
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->environmentButton, &QAbstractButton::clicked,
+            this, &ExternalToolConfig::editEnvironmentChanges);
+    connect(ui->outputBehavior, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated),
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->errorOutputBehavior, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated),
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->modifiesDocumentCheckbox, &QAbstractButton::clicked,
+            this, &ExternalToolConfig::updateCurrentItem);
+    connect(ui->inputText, &QPlainTextEdit::textChanged, this, &ExternalToolConfig::updateCurrentItem);
 
-    connect(ui->revertButton, SIGNAL(clicked()), this, SLOT(revertCurrentItem()));
-    connect(ui->removeButton, SIGNAL(clicked()), this, SLOT(removeTool()));
+    connect(ui->revertButton, &QAbstractButton::clicked, this, &ExternalToolConfig::revertCurrentItem);
+    connect(ui->removeButton, &QAbstractButton::clicked, this, &ExternalToolConfig::removeTool);
 
     QMenu *menu = new QMenu(ui->addButton);
     ui->addButton->setMenu(menu);
     QAction *addTool = new QAction(tr("Add Tool"), this);
     menu->addAction(addTool);
-    connect(addTool, SIGNAL(triggered()), this, SLOT(addTool()));
+    connect(addTool, &QAction::triggered, this, &ExternalToolConfig::addTool);
     QAction *addCategory = new QAction(tr("Add Category"), this);
     menu->addAction(addCategory);
-    connect(addCategory, SIGNAL(triggered()), this, SLOT(addCategory()));
+    connect(addCategory, &QAction::triggered, this, &ExternalToolConfig::addCategory);
 
     showInfoForItem(QModelIndex());
 
@@ -551,7 +519,7 @@ void ExternalToolConfig::updateItem(const QModelIndex &index)
     tool->setExecutables(executables);
     tool->setArguments(ui->arguments->text());
     tool->setWorkingDirectory(ui->workingDirectory->rawPath());
-    tool->setEnvironment(Utils::EnvironmentItem::fromStringList(m_environment));
+    tool->setEnvironment(m_environment);
     tool->setOutputHandling((ExternalTool::OutputHandling)ui->outputBehavior->currentIndex());
     tool->setErrorHandling((ExternalTool::OutputHandling)ui->errorOutputBehavior->currentIndex());
     tool->setModifiesCurrentDocument(ui->modifiesDocumentCheckbox->checkState());
@@ -580,7 +548,7 @@ void ExternalToolConfig::showInfoForItem(const QModelIndex &index)
     ui->outputBehavior->setCurrentIndex((int)tool->outputHandling());
     ui->errorOutputBehavior->setCurrentIndex((int)tool->errorHandling());
     ui->modifiesDocumentCheckbox->setChecked(tool->modifiesCurrentDocument());
-    m_environment = Utils::EnvironmentItem::toStringList(tool->environment());
+    m_environment = tool->environment();
 
     bool blocked = ui->inputText->blockSignals(true);
     ui->inputText->setPlainText(tool->input());
@@ -644,17 +612,24 @@ void ExternalToolConfig::updateEffectiveArguments()
 
 void ExternalToolConfig::editEnvironmentChanges()
 {
-    EnvironmentChangesDialog dialog(ui->environmentLabel);
-    dialog.setChanges(m_environment);
-    if (dialog.exec() == QDialog::Accepted) {
-        m_environment = dialog.changes();
-        updateEnvironmentLabel();
-    }
+    bool ok;
+    const QString placeholderText = Utils::HostOsInfo::isWindowsHost()
+            ? tr("PATH=C:\\dev\\bin;${PATH}")
+            : tr("PATH=/opt/bin:${PATH}");
+    const QList<Utils::EnvironmentItem> newItems =
+            Utils::EnvironmentDialog::getEnvironmentItems(&ok, ui->environmentLabel,
+                                                          m_environment,
+                                                          placeholderText);
+    if (!ok)
+        return;
+
+    m_environment = newItems;
+    updateEnvironmentLabel();
 }
 
 void ExternalToolConfig::updateEnvironmentLabel()
 {
-    QString shortSummary = m_environment.join(QLatin1String("; "));
+    QString shortSummary = Utils::EnvironmentItem::toStringList(m_environment).join(QLatin1String("; "));
     QFontMetrics fm(ui->environmentLabel->font());
     shortSummary = fm.elidedText(shortSummary, Qt::ElideRight, ui->environmentLabel->width());
     ui->environmentLabel->setText(shortSummary.isEmpty() ? tr("No changes to apply.") : shortSummary);

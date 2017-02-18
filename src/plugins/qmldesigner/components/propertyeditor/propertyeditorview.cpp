@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -39,7 +39,8 @@
 #include <bindingproperty.h>
 
 #include <nodeabstractproperty.h>
-#include <rewriterview.h>
+
+#include <theming.h>
 
 #include <coreplugin/icore.h>
 #include <utils/fileutils.h>
@@ -81,8 +82,8 @@ PropertyEditorView::PropertyEditorView(QWidget *parent) :
     m_updateShortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_F3), m_stackedWidget);
     connect(m_updateShortcut, SIGNAL(activated()), this, SLOT(reloadQml()));
 
-    m_stackedWidget->setStyleSheet(
-            QString::fromUtf8(Utils::FileReader::fetchQrc(QStringLiteral(":/qmldesigner/stylesheet.css"))));
+    m_stackedWidget->setStyleSheet(Theming::replaceCssColors(
+            QString::fromUtf8(Utils::FileReader::fetchQrc(QStringLiteral(":/qmldesigner/stylesheet.css")))));
     m_stackedWidget->setMinimumWidth(320);
     m_stackedWidget->move(0, 0);
     connect(m_stackedWidget, SIGNAL(resized()), this, SLOT(updateSize()));
@@ -102,7 +103,7 @@ void PropertyEditorView::setupPane(const TypeName &typeName)
 {
     NodeMetaInfo metaInfo = model()->metaInfo(typeName);
 
-    QUrl qmlFile = PropertyEditorQmlBackend::getQmlFileUrl(QStringLiteral("Qt/ItemPane"), metaInfo);
+    QUrl qmlFile = PropertyEditorQmlBackend::getQmlFileUrl("Qt/ItemPane", metaInfo);
     QUrl qmlSpecificsFile;
 
     qmlSpecificsFile = PropertyEditorQmlBackend::getQmlFileUrl(typeName + "Specifics", metaInfo);
@@ -137,14 +138,14 @@ void PropertyEditorView::changeValue(const QString &name)
     if (m_locked)
         return;
 
-    if (propertyName == "type")
+    if (propertyName == "className")
         return;
 
     if (!m_selectedNode.isValid())
         return;
 
     if (propertyName == "id") {
-        PropertyEditorValue *value = m_qmlBackEndForCurrentType->propertyValueForName(propertyName);
+        PropertyEditorValue *value = m_qmlBackEndForCurrentType->propertyValueForName(QString::fromUtf8(propertyName));
         const QString newId = value->value().toString();
 
         if (newId == m_selectedNode.id())
@@ -166,7 +167,7 @@ void PropertyEditorView::changeValue(const QString &name)
 
     PropertyName underscoreName(propertyName);
     underscoreName.replace('.', '_');
-    PropertyEditorValue *value = m_qmlBackEndForCurrentType->propertyValueForName(underscoreName);
+    PropertyEditorValue *value = m_qmlBackEndForCurrentType->propertyValueForName(QString::fromLatin1(underscoreName));
 
     if (value ==0)
         return;
@@ -189,37 +190,38 @@ void PropertyEditorView::changeValue(const QString &name)
         return ;
     }
 
-    if (qmlObjectNode.modelNode().metaInfo().isValid() && qmlObjectNode.modelNode().metaInfo().hasProperty(propertyName))
+    if (qmlObjectNode.modelNode().metaInfo().isValid() && qmlObjectNode.modelNode().metaInfo().hasProperty(propertyName)) {
         if (qmlObjectNode.modelNode().metaInfo().propertyTypeName(propertyName) == "QUrl"
                 || qmlObjectNode.modelNode().metaInfo().propertyTypeName(propertyName) == "url") { //turn absolute local file paths into relative paths
-            QString filePath = castedValue.toUrl().toString();
-        if (QFileInfo(filePath).exists() && QFileInfo(filePath).isAbsolute()) {
-            QDir fileDir(QFileInfo(model()->fileUrl().toLocalFile()).absolutePath());
-            castedValue = QUrl(fileDir.relativeFilePath(filePath));
+                QString filePath = castedValue.toUrl().toString();
+            if (QFileInfo(filePath).exists() && QFileInfo(filePath).isAbsolute()) {
+                QDir fileDir(QFileInfo(model()->fileUrl().toLocalFile()).absolutePath());
+                castedValue = QUrl(fileDir.relativeFilePath(filePath));
+            }
         }
     }
 
-        if (castedValue.type() == QVariant::Color) {
-            QColor color = castedValue.value<QColor>();
-            QColor newColor = QColor(color.name());
-            newColor.setAlpha(color.alpha());
-            castedValue = QVariant(newColor);
-        }
+    if (castedValue.type() == QVariant::Color) {
+        QColor color = castedValue.value<QColor>();
+        QColor newColor = QColor(color.name());
+        newColor.setAlpha(color.alpha());
+        castedValue = QVariant(newColor);
+    }
 
-        try {
-            if (!value->value().isValid()) { //reset
-                qmlObjectNode.removeProperty(propertyName);
-            } else {
-                if (castedValue.isValid() && !castedValue.isNull()) {
-                    m_locked = true;
-                    qmlObjectNode.setVariantProperty(propertyName, castedValue);
-                    m_locked = false;
-                }
+    try {
+        if (!value->value().isValid()) { //reset
+            qmlObjectNode.removeProperty(propertyName);
+        } else {
+            if (castedValue.isValid() && !castedValue.isNull()) {
+                m_locked = true;
+                qmlObjectNode.setVariantProperty(propertyName, castedValue);
+                m_locked = false;
             }
         }
-        catch (const RewritingException &e) {
-            e.showException();
-        }
+    }
+    catch (const RewritingException &e) {
+        e.showException();
+    }
 }
 
 void PropertyEditorView::changeExpression(const QString &propertyName)
@@ -242,7 +244,7 @@ void PropertyEditorView::changeExpression(const QString &propertyName)
         underscoreName.replace('.', '_');
 
         QmlObjectNode qmlObjectNode(m_selectedNode);
-        PropertyEditorValue *value = m_qmlBackEndForCurrentType->propertyValueForName(underscoreName);
+        PropertyEditorValue *value = m_qmlBackEndForCurrentType->propertyValueForName(QString::fromLatin1(underscoreName));
 
         if (!value) {
             qWarning() << "PropertyEditor::changeExpression no value for " << underscoreName;
@@ -257,8 +259,9 @@ void PropertyEditorView::changeExpression(const QString &propertyName)
                     return;
                 }
             } else if (qmlObjectNode.modelNode().metaInfo().propertyTypeName(name) == "bool") {
-                if (value->expression().compare("false", Qt::CaseInsensitive) == 0 || value->expression().compare("true", Qt::CaseInsensitive) == 0) {
-                    if (value->expression().compare("true", Qt::CaseInsensitive) == 0)
+                if (value->expression().compare(QLatin1String("false"), Qt::CaseInsensitive) == 0
+                        || value->expression().compare(QLatin1String("true"), Qt::CaseInsensitive) == 0) {
+                    if (value->expression().compare(QLatin1String("true"), Qt::CaseInsensitive) == 0)
                         qmlObjectNode.setVariantProperty(name, true);
                     else
                         qmlObjectNode.setVariantProperty(name, false);
@@ -298,6 +301,67 @@ void PropertyEditorView::changeExpression(const QString &propertyName)
     }
 }
 
+void PropertyEditorView::exportPopertyAsAlias(const QString &name)
+{
+    if (name.isNull())
+        return;
+
+    if (m_locked)
+        return;
+
+    if (!m_selectedNode.isValid())
+        return;
+
+    RewriterTransaction transaction = beginRewriterTransaction(QByteArrayLiteral("PropertyEditorView::exportPopertyAsAlias"));
+
+    try {
+        const QString id = m_selectedNode.validId();
+        QString upperCasePropertyName = name;
+        upperCasePropertyName.replace(0, 1, upperCasePropertyName.at(0).toUpper());
+        QString aliasName = id + upperCasePropertyName;
+        aliasName.replace(".", ""); //remove all dots
+
+        PropertyName propertyName = aliasName.toUtf8();
+        if (rootModelNode().hasProperty(propertyName)) {
+            Core::AsynchronousMessageBox::warning(tr("Cannot Export Property as Alias"),
+                                                  tr("Property %1 does already exist for root item.").arg(aliasName));
+            return;
+        }
+        rootModelNode().bindingProperty(propertyName).setDynamicTypeNameAndExpression("alias", id + "." + name);
+
+        transaction.commit(); //committing in the try block
+    } catch (const RewritingException &e) {
+        e.showException();
+    }
+}
+
+void PropertyEditorView::removeAliasExport(const QString &name)
+{
+    if (name.isNull())
+        return;
+
+    if (m_locked)
+        return;
+
+    if (!m_selectedNode.isValid())
+        return;
+
+    RewriterTransaction transaction = beginRewriterTransaction(QByteArrayLiteral("PropertyEditorView::exportPopertyAsAlias"));
+
+    try {
+        const QString id = m_selectedNode.validId();
+
+        for (const BindingProperty &property : rootModelNode().bindingProperties())
+            if (property.expression() == (id + "." + name)) {
+                rootModelNode().removeProperty(property.name());
+                break;
+            }
+        transaction.commit(); //committing in the try block
+    } catch (const RewritingException &e) {
+        e.showException();
+    }
+}
+
 void PropertyEditorView::updateSize()
 {
     if (!m_qmlBackEndForCurrentType)
@@ -321,7 +385,7 @@ void PropertyEditorView::setupPanes()
 void PropertyEditorView::delayedResetView()
 {
     if (m_timerId == 0)
-        m_timerId = startTimer(100);
+        m_timerId = startTimer(50);
 }
 
 void PropertyEditorView::timerEvent(QTimerEvent *timerEvent)
@@ -376,7 +440,7 @@ void PropertyEditorView::setupQmlBackend()
         foreach (const NodeMetaInfo &metaInfo, hierarchy) {
             if (PropertyEditorQmlBackend::checkIfUrlExists(qmlSpecificsFile))
                 break;
-            qmlSpecificsFile = PropertyEditorQmlBackend::getQmlFileUrl(metaInfo.typeName() + QStringLiteral("Specifics"), metaInfo);
+            qmlSpecificsFile = PropertyEditorQmlBackend::getQmlFileUrl(metaInfo.typeName() + "Specifics", metaInfo);
             diffClassName = metaInfo.typeName();
         }
     }
@@ -491,6 +555,10 @@ void PropertyEditorView::propertiesRemoved(const QList<AbstractProperty>& proper
 
     foreach (const AbstractProperty &property, propertyList) {
         ModelNode node(property.parentModelNode());
+
+        if (node.isRootNode() && !m_selectedNode.isRootNode())
+            m_qmlBackEndForCurrentType->contextObject()->setHasAliasExport(QmlObjectNode(m_selectedNode).isAliasExported());
+
         if (node == m_selectedNode || QmlObjectNode(m_selectedNode).propertyChangeForCurrentState() == node) {
             setValue(m_selectedNode, property.name(), QmlObjectNode(m_selectedNode).instanceValue(property.name()));
 
@@ -498,7 +566,7 @@ void PropertyEditorView::propertiesRemoved(const QList<AbstractProperty>& proper
                 m_qmlBackEndForCurrentType->setValueforLayoutAttachedProperties(m_selectedNode, property.name());
 
             if ("width" == property.name() || "height" == property.name()) {
-                QmlItemNode qmlItemNode = m_selectedNode;
+                const QmlItemNode qmlItemNode = m_selectedNode;
                 if (qmlItemNode.isValid() && qmlItemNode.isInLayout())
                     resetPuppet();
             }
@@ -544,6 +612,9 @@ void PropertyEditorView::bindingPropertiesChanged(const QList<BindingProperty>& 
     foreach (const BindingProperty &property, propertyList) {
         ModelNode node(property.parentModelNode());
 
+        if (property.isAliasExport())
+            m_qmlBackEndForCurrentType->contextObject()->setHasAliasExport(QmlObjectNode(m_selectedNode).isAliasExported());
+
         if (node == m_selectedNode || QmlObjectNode(m_selectedNode).propertyChangeForCurrentState() == node) {
             if (property.name().contains("anchor"))
                 m_qmlBackEndForCurrentType->backendAnchorBinding().invalidate(m_selectedNode);
@@ -551,17 +622,18 @@ void PropertyEditorView::bindingPropertiesChanged(const QList<BindingProperty>& 
                 setValue(m_selectedNode, property.name(), QmlObjectNode(m_selectedNode).instanceValue(property.name()));
             else
                 setValue(m_selectedNode, property.name(), QmlObjectNode(m_selectedNode).modelValue(property.name()));
+
         }
     }
 }
 
-void PropertyEditorView::instanceInformationsChange(const QMultiHash<ModelNode, InformationName> &informationChangeHash)
+void PropertyEditorView::instanceInformationsChanged(const QMultiHash<ModelNode, InformationName> &informationChangedHash)
 {
     if (!m_selectedNode.isValid())
         return;
 
     m_locked = true;
-    QList<InformationName> informationNameList = informationChangeHash.values(m_selectedNode);
+    QList<InformationName> informationNameList = informationChangedHash.values(m_selectedNode);
     if (informationNameList.contains(Anchor)
             || informationNameList.contains(HasAnchor))
         m_qmlBackEndForCurrentType->backendAnchorBinding().setup(QmlItemNode(m_selectedNode));
@@ -615,7 +687,7 @@ void PropertyEditorView::currentStateChanged(const ModelNode &node)
     delayedResetView();
 }
 
-void PropertyEditorView::instancePropertyChange(const QList<QPair<ModelNode, PropertyName> > &propertyList)
+void PropertyEditorView::instancePropertyChanged(const QList<QPair<ModelNode, PropertyName> > &propertyList)
 {
     if (!m_selectedNode.isValid())
         return;
@@ -645,7 +717,22 @@ void PropertyEditorView::instancePropertyChange(const QList<QPair<ModelNode, Pro
 
 void PropertyEditorView::rootNodeTypeChanged(const QString &/*type*/, int /*majorVersion*/, int /*minorVersion*/)
 {
-    // TODO: we should react to this case
+    delayedResetView();
+}
+
+void PropertyEditorView::nodeTypeChanged(const ModelNode &node, const TypeName &, int, int)
+{
+     if (node == m_selectedNode)
+         delayedResetView();
+}
+
+void PropertyEditorView::nodeReparented(const ModelNode &node,
+                                        const NodeAbstractProperty & /*newPropertyParent*/,
+                                        const NodeAbstractProperty & /*oldPropertyParent*/,
+                                        AbstractView::PropertyChangeFlags /*propertyChange*/)
+{
+    if (node == m_selectedNode)
+        m_qmlBackEndForCurrentType->backendAnchorBinding().setup(QmlItemNode(m_selectedNode));
 }
 
 void PropertyEditorView::setValue(const QmlObjectNode &qmlObjectNode, const PropertyName &name, const QVariant &value)

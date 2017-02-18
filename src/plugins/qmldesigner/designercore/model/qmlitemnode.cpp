@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -27,6 +27,7 @@
 #include <metainfo.h>
 #include "qmlchangeset.h"
 #include "nodelistproperty.h"
+#include "nodehints.h"
 #include "variantproperty.h"
 #include "bindingproperty.h"
 #include "qmlanchors.h"
@@ -47,10 +48,10 @@ namespace QmlDesigner {
 
 bool QmlItemNode::isItemOrWindow(const ModelNode &modelNode)
 {
-    if (modelNode.metaInfo().isSubclassOf("QtQuick.Item", -1, -1))
+    if (modelNode.metaInfo().isSubclassOf("QtQuick.Item"))
         return true;
 
-    if (modelNode.metaInfo().isSubclassOf("QtQuick.Window.Window", -1, -1) && modelNode.isRootNode())
+    if (modelNode.metaInfo().isSubclassOf("QtQuick.Window.Window") && modelNode.isRootNode())
         return true;
 
     return false;
@@ -364,32 +365,49 @@ bool QmlItemNode::instanceHasRotationTransform() const
 
 bool itemIsMovable(const ModelNode &modelNode)
 {
-    if (modelNode.metaInfo().isSubclassOf("QtQuick.Controls.Tab", -1, -1))
+    if (modelNode.metaInfo().isSubclassOf("QtQuick.Controls.Tab"))
         return false;
 
-    if (modelNode.hasParentProperty()) {
-        ModelNode parentModelNode = modelNode.parentProperty().parentModelNode();
-        if (QmlItemNode::isValidQmlItemNode(parentModelNode)
-                && parentModelNode.metaInfo().isLayoutable())
-            return false;
-    }
 
-    return true;
+    return NodeHints::fromModelNode(modelNode).isMovable();
 }
 
+bool itemIsResizable(const ModelNode &modelNode)
+{
+    if (modelNode.metaInfo().isSubclassOf("QtQuick.Controls.Tab"))
+        return false;
+
+    return NodeHints::fromModelNode(modelNode).isResizable();
+}
 
 bool QmlItemNode::modelIsMovable() const
 {
     return !modelNode().hasBindingProperty("x")
             && !modelNode().hasBindingProperty("y")
-            && itemIsMovable(modelNode());
+            && itemIsMovable(modelNode())
+            && !modelIsInLayout();
 }
 
 bool QmlItemNode::modelIsResizable() const
 {
     return !modelNode().hasBindingProperty("width")
             && !modelNode().hasBindingProperty("height")
-            && itemIsMovable(modelNode());
+            && itemIsResizable(modelNode())
+            && !modelIsInLayout();
+}
+
+bool QmlItemNode::modelIsInLayout() const
+{
+    if (modelNode().hasParentProperty()) {
+        ModelNode parentModelNode = modelNode().parentProperty().parentModelNode();
+        if (QmlItemNode::isValidQmlItemNode(parentModelNode)
+                && parentModelNode.metaInfo().isLayoutable())
+            return true;
+
+        return NodeHints::fromModelNode(modelNode()).doesLayoutChildren();
+    }
+
+    return false;
 }
 
 QRectF  QmlItemNode::instanceBoundingRect() const
@@ -488,7 +506,7 @@ QList<QmlModelState> QmlModelStateGroup::allStates() const
     return returnList;
 }
 
-TypeName QmlItemNode::simplifiedTypeName() const
+QString QmlItemNode::simplifiedTypeName() const
 {
     return modelNode().simplifiedTypeName();
 }
@@ -599,9 +617,23 @@ bool QmlItemNode::isInLayout() const
         ModelNode parent = modelNode().parentProperty().parentModelNode();
 
         if (parent.isValid() && parent.metaInfo().isValid())
-            return parent.metaInfo().isSubclassOf("QtQuick.Layouts.Layout", -1, -1);
+            return parent.metaInfo().isSubclassOf("QtQuick.Layouts.Layout");
     }
 
+    return false;
+}
+
+bool QmlItemNode::canBereparentedTo(const ModelNode &potentialParent) const
+{
+    if (!NodeHints::fromModelNode(potentialParent).canBeContainerFor(modelNode()))
+        return false;
+    return NodeHints::fromModelNode(modelNode()).canBeReparentedTo(potentialParent);
+}
+
+bool QmlItemNode::isInStackedContainer() const
+{
+    if (hasInstanceParent())
+        return NodeHints::fromModelNode(instanceParent()).isStackedContainer();
     return false;
 }
 

@@ -1,7 +1,7 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 BogDan Vatra <bog_dan_ro@yahoo.com>
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 BogDan Vatra <bog_dan_ro@yahoo.com>
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,27 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef ANDROIDTOOLCHAIN_H
-#define ANDROIDTOOLCHAIN_H
+#pragma once
 
 #include <projectexplorer/gcctoolchain.h>
 #include <projectexplorer/toolchainconfigwidget.h>
@@ -56,7 +50,7 @@ public:
 
     QVariantMap toMap() const override;
     bool fromMap(const QVariantMap &data) override;
-    QList<Utils::FileName> suggestedMkspecList() const override;
+    Utils::FileNameList suggestedMkspecList() const override;
     QString makeCommand(const Utils::Environment &environment) const override;
 
     QString ndkToolChainVersion() const;
@@ -65,10 +59,11 @@ public:
     void setSecondaryToolChain(bool b);
 
 protected:
-    QList<ProjectExplorer::Abi> detectSupportedAbis() const override;
+    DetectedAbisResult detectSupportedAbis() const override;
 
 private:
-    explicit AndroidToolChain(const ProjectExplorer::Abi &abi, const QString &ndkToolChainVersion, Detection d);
+    explicit AndroidToolChain(const ProjectExplorer::Abi &abi, const QString &ndkToolChainVersion,
+                              Core::Id l, Detection d);
     AndroidToolChain();
     AndroidToolChain(const AndroidToolChain &);
 
@@ -100,25 +95,30 @@ class AndroidToolChainFactory : public ProjectExplorer::ToolChainFactory
 
 public:
     AndroidToolChainFactory();
+    QSet<Core::Id> supportedLanguages() const override;
 
-    QList<ProjectExplorer::ToolChain *> autoDetect() override;
+    QList<ProjectExplorer::ToolChain *> autoDetect(const QList<ProjectExplorer::ToolChain *> &alreadyKnown) override;
     bool canRestore(const QVariantMap &data) override;
     ProjectExplorer::ToolChain *restore(const QVariantMap &data) override;
 
     class AndroidToolChainInformation
     {
     public:
+        Core::Id language;
         Utils::FileName compilerCommand;
         ProjectExplorer::Abi abi;
         QString version;
     };
 
-    static QList<ProjectExplorer::ToolChain *> createToolChainsForNdk(const Utils::FileName &ndkPath);
+    static QList<ProjectExplorer::ToolChain *>
+    autodetectToolChainsForNdk(const Utils::FileName &ndkPath,
+                               const QList<ProjectExplorer::ToolChain *> &alreadyKnown);
     static QList<AndroidToolChainInformation> toolchainPathsForNdk(const Utils::FileName &ndkPath);
 
     static QList<int> versionNumberFromString(const QString &version);
     static bool versionCompareLess(const QList<int> &a, const QList<int> &b);
-    static bool versionCompareLess(AndroidToolChain *atc, AndroidToolChain *btc);
+    static bool versionCompareLess(QList<AndroidToolChain *> atc,
+                                   QList<AndroidToolChain *> btc);
     static QList<int> newestToolChainVersionForArch(const ProjectExplorer::Abi &abi);
 private:
     static QHash<ProjectExplorer::Abi, QList<int> > m_newestVersionForAbi;
@@ -127,5 +127,3 @@ private:
 
 } // namespace Internal
 } // namespace Android
-
-#endif // ANDROIDTOOLCHAIN_H

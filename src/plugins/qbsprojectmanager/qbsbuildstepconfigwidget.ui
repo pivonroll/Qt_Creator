@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>723</width>
-    <height>247</height>
+    <width>809</width>
+    <height>416</height>
    </rect>
   </property>
   <layout class="QFormLayout" name="formLayout">
@@ -103,14 +103,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QLabel" name="qmlDebuggingWarningIcon">
-       <property name="text">
-        <string/>
-       </property>
-       <property name="pixmap">
-        <pixmap resource="../coreplugin/core.qrc">:/core/images/warning.png</pixmap>
-       </property>
-      </widget>
+      <widget class="QLabel" name="qmlDebuggingWarningIcon"/>
      </item>
      <item>
       <widget class="QLabel" name="qmlDebuggingWarningText">
@@ -156,20 +149,13 @@
      <property name="text">
       <string>Flags:</string>
      </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+     </property>
     </widget>
    </item>
    <item row="4" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout_2">
-     <item>
-      <widget class="QCheckBox" name="dryRunCheckBox">
-       <property name="toolTip">
-        <string>No commands will be executed and no permanent changes to the build graph will be done.</string>
-       </property>
-       <property name="text">
-        <string>Dry run</string>
-       </property>
-      </widget>
-     </item>
      <item>
       <widget class="QCheckBox" name="keepGoingCheckBox">
        <property name="toolTip">
@@ -188,6 +174,37 @@
       </widget>
      </item>
      <item>
+      <widget class="QCheckBox" name="forceProbesCheckBox">
+       <property name="text">
+        <string>Force probes</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="checkBoxSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>13</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="installFlagsLabel">
+     <property name="text">
+      <string>Installation flags:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <item>
       <widget class="QCheckBox" name="installCheckBox">
        <property name="text">
         <string>Install</string>
@@ -202,21 +219,38 @@
       </widget>
      </item>
      <item>
-      <spacer name="checkBoxSpacer">
+      <widget class="QCheckBox" name="defaultInstallDirCheckBox">
+       <property name="text">
+        <string>Use default location</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_2">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
          <width>40</width>
-         <height>5</height>
+         <height>20</height>
         </size>
        </property>
       </spacer>
      </item>
     </layout>
    </item>
-   <item row="5" column="0">
+   <item row="6" column="0">
+    <widget class="QLabel" name="installDirLabel">
+     <property name="text">
+      <string>Installation directory:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="1">
+    <widget class="Utils::PathChooser" name="installDirChooser"/>
+   </item>
+   <item row="7" column="0">
     <widget class="QLabel" name="commandLineKeyLabel">
      <property name="text">
       <string>Equivalent command line:</string>
@@ -226,7 +260,7 @@
      </property>
     </widget>
    </item>
-   <item row="5" column="1">
+   <item row="7" column="1">
     <widget class="QPlainTextEdit" name="commandLineTextEdit">
      <property name="undoRedoEnabled">
       <bool>false</bool>
@@ -251,6 +285,10 @@
   <zorder>flagsLabel</zorder>
   <zorder>jobsLabel</zorder>
   <zorder>commandLineTextEdit</zorder>
+  <zorder>installFlagsLabel</zorder>
+  <zorder>defaultInstallDirCheckBox</zorder>
+  <zorder>installDirChooser</zorder>
+  <zorder>installDirLabel</zorder>
  </widget>
  <customwidgets>
   <customwidget>
@@ -258,9 +296,24 @@
    <extends>QLineEdit</extends>
    <header location="global">utils/fancylineedit.h</header>
   </customwidget>
+  <customwidget>
+   <class>Utils::PathChooser</class>
+   <extends>QLineEdit</extends>
+   <header location="global">utils/pathchooser.h</header>
+  </customwidget>
  </customwidgets>
- <resources>
-  <include location="../coreplugin/core.qrc"/>
- </resources>
+ <tabstops>
+  <tabstop>buildVariantComboBox</tabstop>
+  <tabstop>jobSpinBox</tabstop>
+  <tabstop>qmlDebuggingLibraryCheckBox</tabstop>
+  <tabstop>propertyEdit</tabstop>
+  <tabstop>keepGoingCheckBox</tabstop>
+  <tabstop>showCommandLinesCheckBox</tabstop>
+  <tabstop>forceProbesCheckBox</tabstop>
+  <tabstop>installCheckBox</tabstop>
+  <tabstop>cleanInstallRootCheckBox</tabstop>
+  <tabstop>commandLineTextEdit</tabstop>
+ </tabstops>
+ <resources/>
  <connections/>
 </ui>

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -28,15 +28,19 @@
 #include "formeditoritem.h"
 #include "formeditorscene.h"
 
-#include <QPointF>
-#include <QDebug>
-
-#include <limits>
 #include <qmlanchors.h>
+#include <nodehints.h>
 #include <nodemetainfo.h>
 #include <variantproperty.h>
 #include <nodeabstractproperty.h>
 
+#include <QDebug>
+#include <QLoggingCategory>
+#include <QPointF>
+
+#include <limits>
+
+static Q_LOGGING_CATEGORY(moveManipulatorInfo, "qtc.qmldesigner.formeditor");
 
 namespace QmlDesigner {
 
@@ -158,11 +162,9 @@ void MoveManipulator::begin(const QPointF &beginPoint)
 
     m_beginPoint = beginPoint;
 
-//    setOpacityForAllElements(0.62);
-
     setDirectUpdateInNodeInstances(true);
 
-    m_rewriterTransaction = m_view->beginRewriterTransaction(QByteArrayLiteral("MoveManipulator::begin"));
+    beginRewriterTransaction();
 }
 
 
@@ -337,14 +339,15 @@ void MoveManipulator::reparentTo(FormEditorItem *newParent)
     if (!itemsCanReparented())
         return;
 
+    qCInfo(moveManipulatorInfo()) << Q_FUNC_INFO << newParent->qmlItemNode();
+
     if (!newParent->qmlItemNode().modelNode().metaInfo().isLayoutable()
             && newParent->qmlItemNode().modelNode().hasParentProperty()) {
         ModelNode grandParent = newParent->qmlItemNode().modelNode().parentProperty().parentModelNode();
-        if (grandParent.metaInfo().isLayoutable())
+        if (grandParent.metaInfo().isLayoutable()
+                && !NodeHints::fromModelNode(grandParent).isStackedContainer())
             newParent = m_view.data()->scene()->itemForQmlItemNode(QmlItemNode(grandParent));
     }
-
-
 
     QVector<ModelNode> nodeReparentVector;
     NodeAbstractProperty parentProperty;
@@ -426,6 +429,7 @@ void MoveManipulator::moveBy(double deltaX, double deltaY)
 void MoveManipulator::beginRewriterTransaction()
 {
     m_rewriterTransaction = m_view->beginRewriterTransaction(QByteArrayLiteral("MoveManipulator::beginRewriterTransaction"));
+    m_rewriterTransaction.ignoreSemanticChecks();
 }
 
 void MoveManipulator::endRewriterTransaction()

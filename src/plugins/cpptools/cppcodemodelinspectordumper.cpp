@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -38,6 +33,7 @@
 #include <cpptools/cppprojectfile.h>
 #include <projectexplorer/project.h>
 #include <utils/algorithm.h>
+#include <utils/temporarydirectory.h>
 
 #include <cplusplus/CppDocument.h>
 #include <cplusplus/Token.h>
@@ -92,6 +88,19 @@ QString Utils::toString(CPlusPlus::Document::DiagnosticMessage::Level level)
     return QString();
 }
 
+QString Utils::toString(ProjectPartHeaderPath::Type type)
+{
+#define CASE_LANGUAGEVERSION(x) case ProjectPartHeaderPath::x: return QLatin1String(#x)
+    switch (type) {
+    CASE_LANGUAGEVERSION(InvalidPath);
+    CASE_LANGUAGEVERSION(IncludePath);
+    CASE_LANGUAGEVERSION(FrameworkPath);
+    // no default to get a compiler warning if anything is added
+    }
+#undef CASE_LANGUAGEVERSION
+    return QString();
+}
+
 QString Utils::toString(ProjectPart::LanguageVersion languageVersion)
 {
 #define CASE_LANGUAGEVERSION(x) case ProjectPart::x: return QLatin1String(#x)
@@ -143,34 +152,9 @@ QString Utils::toString(ProjectPart::QtVersion qtVersion)
     return QString();
 }
 
-QString Utils::toString(const QList<ProjectFile> &projectFiles)
-{
-    QStringList filesList;
-    foreach (const ProjectFile &projectFile, projectFiles)
-        filesList << QDir::toNativeSeparators(projectFile.path);
-    ::Utils::sort(filesList);
-    return filesList.join(QLatin1Char('\n'));
-}
-
 QString Utils::toString(ProjectFile::Kind kind)
 {
-#define CASE_PROFECTFILEKIND(x) case ProjectFile::x: return QLatin1String(#x)
-    switch (kind) {
-    CASE_PROFECTFILEKIND(Unclassified);
-    CASE_PROFECTFILEKIND(CHeader);
-    CASE_PROFECTFILEKIND(CSource);
-    CASE_PROFECTFILEKIND(CXXHeader);
-    CASE_PROFECTFILEKIND(CXXSource);
-    CASE_PROFECTFILEKIND(ObjCHeader);
-    CASE_PROFECTFILEKIND(ObjCSource);
-    CASE_PROFECTFILEKIND(ObjCXXHeader);
-    CASE_PROFECTFILEKIND(ObjCXXSource);
-    CASE_PROFECTFILEKIND(CudaSource);
-    CASE_PROFECTFILEKIND(OpenCLSource);
-    // no default to get a compiler warning if anything is added
-    }
-#undef CASE_PROFECTFILEKIND
-    return QString();
+    return QString::fromLatin1(projectFileKindToText(kind));
 }
 
 QString Utils::toString(CPlusPlus::Kind kind)
@@ -411,10 +395,10 @@ QString Utils::pathListToString(const QStringList &pathList)
     return result.join(QLatin1Char('\n'));
 }
 
-QString Utils::pathListToString(const ProjectPart::HeaderPaths &pathList)
+QString Utils::pathListToString(const ProjectPartHeaderPaths &pathList)
 {
     QStringList result;
-    foreach (const ProjectPart::HeaderPath &path, pathList) {
+    foreach (const ProjectPartHeaderPath &path, pathList) {
         result << QString(QLatin1String("%1 (%2 path)")).arg(
                       QDir::toNativeSeparators(path.path),
                       path.isFrameworkPath() ? QLatin1String("framework") : QLatin1String("include")
@@ -445,9 +429,10 @@ Dumper::Dumper(const CPlusPlus::Snapshot &globalSnapshot, const QString &logFile
     QString logFileId_ = logFileId;
     if (!logFileId_.isEmpty())
         logFileId_.prepend(QLatin1Char('_'));
-    const QString logFileName = QDir::tempPath() + QString::fromLatin1("/qtc-codemodelinspection")
+    const QString logFileName = ::Utils::TemporaryDirectory::masterDirectoryPath()
+            + "/qtc-codemodelinspection"
             + ideRevision_
-            + QDateTime::currentDateTime().toString(QLatin1String("_yyMMdd_hhmmss"))
+            + QDateTime::currentDateTime().toString("_yyMMdd_hhmmss")
             + logFileId_
             + QLatin1String(".txt");
 
@@ -481,7 +466,7 @@ void Dumper::dumpProjectInfos( const QList<ProjectInfo> &projectInfos)
         m_out << i1 << "Project " << project->displayName()
               << " (" << project->projectFilePath().toUserOutput() << "){{{2\n";
 
-        const QList<ProjectPart::Ptr> projectParts = info.projectParts();
+        const QVector<ProjectPart::Ptr> projectParts = info.projectParts();
         foreach (const ProjectPart::Ptr &part, projectParts) {
             QString projectName = QLatin1String("<None>");
             QString projectFilePath = QLatin1String("<None>");
@@ -492,13 +477,14 @@ void Dumper::dumpProjectInfos( const QList<ProjectInfo> &projectInfos)
             if (!part->projectConfigFile.isEmpty())
                 m_out << i3 << "Project Config File: " << part->projectConfigFile << "\n";
             m_out << i2 << "Project Part \"" << part->id() << "\"{{{3\n";
-            m_out << i3 << "Project Part Name   : " << part->displayName << "\n";
-            m_out << i3 << "Project Name        : " << projectName << "\n";
-            m_out << i3 << "Project File        : " << projectFilePath << "\n";
-            m_out << i3 << "Lanugage Version    : " << Utils::toString(part->languageVersion)<<"\n";
-            m_out << i3 << "Lanugage Extensions : " << Utils::toString(part->languageExtensions)
+            m_out << i3 << "Project Part Name    : " << part->displayName << "\n";
+            m_out << i3 << "Project Name         : " << projectName << "\n";
+            m_out << i3 << "Project File         : " << projectFilePath << "\n";
+            m_out << i3 << "Selected For Building: " << part->selectedForBuilding << "\n";
+            m_out << i3 << "Lanugage Version     : " << Utils::toString(part->languageVersion)<<"\n";
+            m_out << i3 << "Lanugage Extensions  : " << Utils::toString(part->languageExtensions)
                   << "\n";
-            m_out << i3 << "Qt Version          : " << Utils::toString(part->qtVersion) << "\n";
+            m_out << i3 << "Qt Version           : " << Utils::toString(part->qtVersion) << "\n";
 
             if (!part->files.isEmpty()) {
                 m_out << i3 << "Files:{{{4\n";
@@ -523,9 +509,9 @@ void Dumper::dumpProjectInfos( const QList<ProjectInfo> &projectInfos)
 
             if (!part->headerPaths.isEmpty()) {
                 m_out << i3 << "Header Paths:{{{4\n";
-                foreach (const ProjectPart::HeaderPath &headerPath, part->headerPaths)
+                foreach (const ProjectPartHeaderPath &headerPath, part->headerPaths)
                     m_out << i4 << headerPath.path
-                          << (headerPath.type == ProjectPart::HeaderPath::IncludePath
+                          << (headerPath.type == ProjectPartHeaderPath::IncludePath
                               ? "(include path)"
                               : "(framework path)")
                           << "\n";
@@ -590,7 +576,7 @@ void Dumper::dumpWorkingCopy(const WorkingCopy &workingCopy)
     }
 }
 
-void Dumper::dumpMergedEntities(const ProjectPart::HeaderPaths &mergedHeaderPaths,
+void Dumper::dumpMergedEntities(const ProjectPartHeaderPaths &mergedHeaderPaths,
                                 const QByteArray &mergedMacros)
 {
     m_out << "Merged Entities{{{1\n";
@@ -598,7 +584,7 @@ void Dumper::dumpMergedEntities(const ProjectPart::HeaderPaths &mergedHeaderPath
     const QByteArray i3 = indent(3);
 
     m_out << i2 << "Merged Header Paths{{{2\n";
-    foreach (const ProjectPart::HeaderPath &hp, mergedHeaderPaths)
+    foreach (const ProjectPartHeaderPath &hp, mergedHeaderPaths)
         m_out << i3 << hp.path
               << (hp.isFrameworkPath() ? " (framework path)" : " (include path)")
               << "\n";

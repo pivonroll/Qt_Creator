@@ -1,20 +1,27 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
-** This file is part of Qt Creator
+** This file is part of the Qt Creator documentation.
 **
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Free Documentation License
-**
+** GNU Free Documentation License Usage
 ** Alternatively, this file may be used under the terms of the GNU Free
 ** Documentation License version 1.3 as published by the Free Software
-** Foundation and appearing in the file included in the packaging of this
-** file.
+** Foundation and appearing in the file included in the packaging of
+** this file. Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: https://www.gnu.org/licenses/fdl-1.3.html.
 **
-**
-**************************************************************************/
+****************************************************************************/
 
 /*!
     \page plugin-meta-data.html
@@ -75,6 +82,13 @@
                 enabled by the user. This should be done for plugins which are not expected
                 to be used by so many people as to justify the additional resource consumption.
         \row
+            \li HiddenByDefault
+            \li Boolean
+            \li Optional. Defaults to \c false.
+                If set, the plugin is not shown in the default view in the
+                \uicontrol {About Plugins...} dialog, but only if the user requests seeing all
+                plugins. It is still shown with the \c{-version} command line option.
+        \row
             \li Required
             \li Boolean
             \li Optional. Defaults to \c false.
@@ -109,7 +123,7 @@
         \row
             \li Copyright
             \li String
-            \li A short copyright notice, like \c{(C) 2007-2008 MyCompany}.
+            \li A short copyright notice, like \c{(C) 2016 MyCompany}.
         \row
             \li License
             \li String or array of strings
@@ -294,7 +308,7 @@
         "Version" : "1.0.1",
         "CompatVersion" : "1.0.0",
         "Vendor" : "My Company",
-        "Copyright" : "(C) 2007 MyCompany",
+        "Copyright" : "(C) 2016 MyCompany",
         "License" : [
             "This is a default license bla",
             "blubbblubb",

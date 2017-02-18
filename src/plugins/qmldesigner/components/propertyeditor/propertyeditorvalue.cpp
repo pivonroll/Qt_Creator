@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,21 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "propertyeditorvalue.h"
+
+#include <bindingproperty.h>
+
 #include <QRegExp>
 #include <QUrl>
 #include <abstractview.h>
@@ -139,7 +142,7 @@ void PropertyEditorValue::setValueWithEmit(const QVariant &value)
 
         setValue(newValue);
         m_isBound = false;
-        emit valueChanged(name(), value);
+        emit valueChanged(nameAsQString(), value);
         emit valueChangedQml();
         emit isBoundChanged();
     }
@@ -148,9 +151,8 @@ void PropertyEditorValue::setValueWithEmit(const QVariant &value)
 void PropertyEditorValue::setValue(const QVariant &value)
 {
     if (!compareVariants(m_value, value) &&
-        !cleverDoubleCompare(value, m_value) &&
-        !cleverColorCompare(value, m_value))
-
+            !cleverDoubleCompare(value, m_value) &&
+            !cleverColorCompare(value, m_value))
         m_value = value;
 
     fixAmbigousColorNames(modelNode(), name(), &m_value);
@@ -175,7 +177,7 @@ void PropertyEditorValue::setExpressionWithEmit(const QString &expression)
 {
     if ( m_expression != expression) {
         setExpression(expression);
-        emit expressionChanged(name());
+        emit expressionChanged(nameAsQString());
     }
 }
 
@@ -214,6 +216,11 @@ QmlDesigner::PropertyName PropertyEditorValue::name() const
     return m_name;
 }
 
+QString PropertyEditorValue::nameAsQString() const
+{
+    return QString::fromUtf8(m_name);
+}
+
 void PropertyEditorValue::setName(const QmlDesigner::PropertyName &name)
 {
     m_name = name;
@@ -236,9 +243,8 @@ bool PropertyEditorValue::isTranslated() const
         if (modelNode().metaInfo().propertyTypeName(name()) == "QString" || modelNode().metaInfo().propertyTypeName(name()) == "string") {
             const QmlDesigner::QmlObjectNode objectNode(modelNode());
             if (objectNode.isValid() && objectNode.hasBindingProperty(name())) {
-                QRegExp rx("qsTr(\"*\")");
+                QRegExp rx("qsTr(|Id|anslate)\\(\".*\"\\)");
                 //qsTr()
-                rx.setPatternSyntax(QRegExp::Wildcard);
                 if (objectNode.propertyAffectedByCurrentState(name())) {
                     return rx.exactMatch(expression());
                 } else {
@@ -275,7 +281,7 @@ void PropertyEditorValue::resetValue()
     if (m_value.isValid() || isBound()) {
         m_value = QVariant();
         m_isBound = false;
-        emit valueChanged(name(), QVariant());
+        emit valueChanged(nameAsQString(), QVariant());
     }
 }
 
@@ -284,6 +290,57 @@ void PropertyEditorValue::setEnumeration(const QString &scope, const QString &na
     QmlDesigner::Enumeration newEnumeration(scope, name);
 
     setValueWithEmit(QVariant::fromValue(newEnumeration));
+}
+
+void PropertyEditorValue::exportPopertyAsAlias()
+{
+    emit exportPopertyAsAliasRequested(nameAsQString());
+}
+
+bool PropertyEditorValue::hasPropertyAlias() const
+{
+    if (modelNode().isValid())
+        if (modelNode().isRootNode())
+            return false;
+
+    if (!modelNode().hasId())
+        return false;
+
+    QString id = modelNode().id();
+
+    for (const QmlDesigner::BindingProperty &property : modelNode().view()->rootModelNode().bindingProperties())
+        if (property.expression() == (id + "." + nameAsQString()))
+            return true;
+
+    return false;
+}
+
+bool PropertyEditorValue::isAttachedProperty() const
+{
+    if (nameAsQString().isEmpty())
+        return false;
+
+    return nameAsQString().at(0).isUpper();
+}
+
+void PropertyEditorValue::removeAliasExport()
+{
+    emit removeAliasExportRequested(nameAsQString());
+}
+
+QString PropertyEditorValue::getTranslationContext() const
+{
+    if (modelNode().isValid() && modelNode().metaInfo().isValid() && modelNode().metaInfo().hasProperty(name())) {
+        if (modelNode().metaInfo().propertyTypeName(name()) == "QString" || modelNode().metaInfo().propertyTypeName(name()) == "string") {
+            const QmlDesigner::QmlObjectNode objectNode(modelNode());
+            if (objectNode.isValid() && objectNode.hasBindingProperty(name())) {
+                QRegExp rx("qsTranslate\\(\"(.*)\"\\s*,\\s*\".*\"\\s*\\)");
+                if (rx.exactMatch(expression()))
+                    return rx.cap(1);
+            }
+        }
+    }
+    return QString();
 }
 
 void PropertyEditorValue::registerDeclarativeTypes()
@@ -316,7 +373,7 @@ QString PropertyEditorNodeWrapper::type()
     if (!(m_modelNode.isValid()))
         return QString();
 
-    return QString::fromUtf8(m_modelNode.simplifiedTypeName());
+    return m_modelNode.simplifiedTypeName();
 
 }
 
@@ -382,7 +439,7 @@ void PropertyEditorNodeWrapper::changeValue(const QString &propertyName)
     if (m_modelNode.isValid()) {
         QmlDesigner::QmlObjectNode qmlObjectNode(m_modelNode);
 
-        PropertyEditorValue *valueObject = qvariant_cast<PropertyEditorValue *>(m_valuesPropertyMap.value(name));
+        PropertyEditorValue *valueObject = qvariant_cast<PropertyEditorValue *>(m_valuesPropertyMap.value(QString::fromLatin1(name)));
 
         if (valueObject->value().isValid())
             qmlObjectNode.setVariantProperty(name, valueObject->value());
@@ -408,7 +465,7 @@ void PropertyEditorNodeWrapper::setup()
                 valueObject->setName(propertyName);
                 valueObject->setValue(qmlObjectNode.instanceValue(propertyName));
                 connect(valueObject, SIGNAL(valueChanged(QString,QVariant)), &m_valuesPropertyMap, SIGNAL(valueChanged(QString,QVariant)));
-                m_valuesPropertyMap.insert(propertyName, QVariant::fromValue(valueObject));
+                m_valuesPropertyMap.insert(QString::fromUtf8(propertyName), QVariant::fromValue(valueObject));
             }
         }
     }

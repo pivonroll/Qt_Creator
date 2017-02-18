@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,31 +9,24 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
-#ifndef DEBUGGER_WATCHHANDLER_H
-#define DEBUGGER_WATCHHANDLER_H
+#pragma once
 
 #include "watchdata.h"
-
-#include <utils/treemodel.h>
+#include "debuggerengine.h"
 
 #include <QVector>
 
@@ -46,45 +39,7 @@ class WatchModel;
 
 typedef QVector<DisplayFormat> DisplayFormats;
 
-class WatchItem : public Utils::TreeItem, public WatchData
-{
-public:
-    WatchItem() {}
-    WatchItem(const QByteArray &i, const QString &n);
-    explicit WatchItem(const WatchData &data);
-    explicit WatchItem(const GdbMi &data);
-
-    void fetchMore();
-
-    QString displayName() const;
-    QString displayType() const;
-    QString displayValue() const;
-    QString formattedValue() const;
-    QString expression() const;
-
-    int itemFormat() const;
-
-    QVariant editValue() const;
-    int editType() const;
-    QColor valueColor(int column) const;
-
-    int requestedFormat() const;
-    WatchItem *findItem(const QByteArray &iname);
-
-private:
-    WatchItem *parentItem() const;
-    const WatchModel *watchModel() const;
-    WatchModel *watchModel();
-    DisplayFormats typeFormatList() const;
-
-    bool canFetchMore() const;
-    QVariant data(int column, int role) const;
-    Qt::ItemFlags flags(int column) const;
-
-    void parseWatchData(const GdbMi &input);
-};
-
-class WatchModelBase : public Utils::TreeModel
+class WatchModelBase : public Utils::TreeModel<WatchItem, WatchItem>
 {
     Q_OBJECT
 
@@ -94,7 +49,7 @@ public:
 signals:
     void currentIndexRequested(const QModelIndex &idx);
     void itemIsExpanded(const QModelIndex &idx);
-    void inameIsExpanded(const QByteArray &iname);
+    void inameIsExpanded(const QString &iname);
     void columnAdjustmentRequested();
     void updateStarted();
     void updateFinished();
@@ -111,59 +66,59 @@ public:
     WatchModelBase *model() const;
 
     void cleanup();
-    void watchExpression(const QString &exp, const QString &name = QString());
-    void updateWatchExpression(WatchItem *item, const QByteArray &newExp);
+    void grabWidget(QWidget *viewParent);
+    void watchExpression(const QString &exp, const QString &name = QString(),
+                         bool temporary = false);
+    void updateWatchExpression(WatchItem *item, const QString &newExp);
     void watchVariable(const QString &exp);
-    Q_SLOT void clearWatches();
 
     const WatchItem *watchItem(const QModelIndex &) const;
-    void fetchMore(const QByteArray &iname) const;
-    WatchItem *findItem(const QByteArray &iname) const;
+    void fetchMore(const QString &iname) const;
+    WatchItem *findItem(const QString &iname) const;
     const WatchItem *findCppLocalVariable(const QString &name) const;
 
     void loadSessionData();
     void saveSessionData();
 
-    bool isExpandedIName(const QByteArray &iname) const;
-    QSet<QByteArray> expandedINames() const;
+    bool isExpandedIName(const QString &iname) const;
+    QSet<QString> expandedINames() const;
 
     static QStringList watchedExpressions();
-    static QHash<QByteArray, int> watcherNames();
+    static QMap<QString, int> watcherNames();
 
     void appendFormatRequests(DebuggerCommand *cmd);
     void appendWatchersAndTooltipRequests(DebuggerCommand *cmd);
 
-    QByteArray typeFormatRequests() const;
-    QByteArray individualFormatRequests() const;
+    QString typeFormatRequests() const;
+    QString individualFormatRequests() const;
 
-    int format(const QByteArray &iname) const;
+    int format(const QString &iname) const;
     static QString nameForFormat(int format);
 
     void addDumpers(const GdbMi &dumpers);
-    void addTypeFormats(const QByteArray &type, const DisplayFormats &formats);
+    void addTypeFormats(const QString &type, const DisplayFormats &formats);
 
-    void setUnprintableBase(int base);
-    static int unprintableBase();
-
-    QByteArray watcherName(const QByteArray &exp);
-    QString editorContents();
+    QString watcherName(const QString &exp);
 
     void scheduleResetLocation();
     void resetLocation();
 
-    void setCurrentItem(const QByteArray &iname);
+    void setCurrentItem(const QString &iname);
     void updateWatchersWindow();
 
-    void insertItem(WatchItem *item); // Takes ownership.
-    void removeItemByIName(const QByteArray &iname);
+    bool insertItem(WatchItem *item); // Takes ownership, returns whether item was added, not overwritten.
+    void insertItems(const GdbMi &data);
+
+    void removeItemByIName(const QString &iname);
     void removeAllData(bool includeInspectData = false);
     void resetValueCache();
     void resetWatchers();
 
-    void notifyUpdateStarted(const QList<QByteArray> &inames = {});
+    void notifyUpdateStarted(const UpdateParameters &updateParameters = UpdateParameters());
     void notifyUpdateFinished();
 
     void reexpandItems();
+    void recordTypeInfo(const GdbMi &typeInfo);
 
 private:
     WatchModel *m_model; // Owned.
@@ -173,5 +128,3 @@ private:
 } // namespace Debugger
 
 Q_DECLARE_METATYPE(Debugger::Internal::DisplayFormat)
-
-#endif // DEBUGGER_WATCHHANDLER_H

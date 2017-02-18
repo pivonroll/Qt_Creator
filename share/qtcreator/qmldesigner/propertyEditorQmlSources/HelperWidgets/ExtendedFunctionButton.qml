@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,20 +9,19 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-
 
 import QtQuick 2.1
 import QtQuick.Controls 1.0 as Controls
@@ -38,55 +37,60 @@ Item {
 
     property variant backendValue
 
-    property string icon:  "images/placeholder.png"
-    property string hoverIcon:  "images/submenu.png";
+    property string icon: "image://icons/placeholder"
+    property string hoverIcon: "image://icons/submenu"
 
     property bool active: true
 
+    signal reseted
 
     function setIcon() {
         if (backendValue == null) {
-            extendedFunctionButton.icon = "images/placeholder.png"
-        } else if (backendValue.isBound ) {
-            if (backendValue.isTranslated) { //translations are a special case
-                extendedFunctionButton.icon = "images/placeholder.png"
+            extendedFunctionButton.icon = "image://icons/placeholder"
+        } else if (backendValue.isBound) {
+            if (backendValue.isTranslated) {
+                //translations are a special case
+                extendedFunctionButton.icon = "image://icons/placeholder"
             } else {
-                extendedFunctionButton.icon = "images/expression.png"
+                extendedFunctionButton.icon = "image://icons/expression"
             }
         } else {
-            if (backendValue.complexNode != null && backendValue.complexNode.exists) {
-                //extendedFunctionButton.icon = "images/behaivour.png"
+            if (backendValue.complexNode != null
+                    && backendValue.complexNode.exists) {
+
             } else {
-                extendedFunctionButton.icon = "images/placeholder.png"
+                extendedFunctionButton.icon = "image://icons/placeholder"
             }
         }
     }
 
     onBackendValueChanged: {
-        setIcon();
+        setIcon()
     }
 
-    property bool isBoundBackend: backendValue.isBound;
-    property string backendExpression: backendValue.expression;
+    property bool isBoundBackend: backendValue.isBound
+    property string backendExpression: backendValue.expression
 
     onActiveChanged: {
         if (active) {
-            setIcon();
-            opacity = 1;
+            setIcon()
+            opacity = 1
         } else {
-            opacity = 0;
+            opacity = 0
         }
     }
 
     onIsBoundBackendChanged: {
-        setIcon();
+        setIcon()
     }
 
     onBackendExpressionChanged: {
-        setIcon();
+        setIcon()
     }
 
     Image {
+        width: 14
+        height: 14
         source: extendedFunctionButton.icon
         anchors.centerIn: parent
     }
@@ -101,130 +105,130 @@ Item {
                 setIcon()
         }
         onClicked: {
-            menu.popup();
+            menuLoader.show()
         }
     }
 
-    Controls.Menu {
-        id: menu
-        Controls.MenuItem {
-            text: "Reset"
-            onTriggered: {
-                transaction.start();
-                backendValue.resetValue();
-                backendValue.resetValue();
-                transaction.end();
-            }
+    Loader {
+        id: menuLoader
+
+        active: false
+
+        function show() {
+            active = true
+            item.popup()
         }
-        Controls.MenuItem {
-            text: "Set Binding"
-            onTriggered: {
-                textField.text = backendValue.expression
-                expressionDialog.visible = true
+
+        sourceComponent: Component {
+            Controls.Menu {
+
+                id: menu
+
+                onAboutToShow: {
+                    exportMenuItem.checked = backendValue.hasPropertyAlias()
+                    exportMenuItem.enabled = !backendValue.isAttachedProperty()
+                }
+
+                onAboutToHide: menuLoader.active = false
+
+                Controls.MenuItem {
+                    text: qsTr("Reset")
+                    onTriggered: {
+                        transaction.start()
+                        backendValue.resetValue()
+                        backendValue.resetValue()
+                        transaction.end()
+                        extendedFunctionButton.reseted()
+                    }
+                }
+                Controls.MenuItem {
+                    text: qsTr("Set Binding")
+                    onTriggered: expressionDialogLoader.show()
+                }
+                Controls.MenuItem {
+                    id: exportMenuItem
+                    text: qsTr("Export Property as Alias")
+                    onTriggered: {
+                        if (checked)
+                            backendValue.exportPopertyAsAlias()
+                        else
+                            backendValue.removeAliasExport()
+                    }
+                    checkable: true
+                }
             }
         }
     }
 
-    Rectangle {
+    Loader {
+        id: expressionDialogLoader
         parent: itemPane
+        anchors.fill: parent
+
         visible: false
-        x: 10
-        color: "#424242"
+        active: visible
 
-        radius: 3
-        border.color: "black"
-        gradient: Gradient {
-            GradientStop {color: "#2c2c2c" ; position: 0}
-            GradientStop {color: "#343434" ; position: 0.15}
-            GradientStop {color: "#373737" ; position: 1.0}
+        function show() {
+            expressionDialogLoader.visible = true
         }
 
-        id: expressionDialog
+        sourceComponent: Component {
+            Item {
+                id: expressionDialog
+                anchors.fill: parent
 
-        onVisibleChanged: {
-            var pos  = itemPane.mapFromItem(extendedFunctionButton.parent, 0, 0);
-            y = pos.y + 2;
-        }
-
-        width: parent.width - 20
-        height: 120
-
-        Controls.TextField {
-            id: textField
-            anchors.fill: parent
-            anchors.leftMargin: 4
-            anchors.rightMargin: 4
-            anchors.topMargin: 4
-            anchors.bottomMargin: 20
-            onAccepted: {
-                backendValue.expression = textField.text
-                expressionDialog.visible = false
-            }
-
-            style: TextFieldStyle {
-                textColor: Constants.colorsDefaultText
-                padding.top: 3
-                padding.bottom: 1
-                padding.left: 16
-                placeholderTextColor: "gray"
-                background: Rectangle {
-                    implicitWidth: 100
-                    implicitHeight: 23
-                    radius: 3
-                    gradient: Gradient {
-                        GradientStop {color: "#2c2c2c" ; position: 0}
-                        GradientStop {color: "#343434" ; position: 0.15}
-                        GradientStop {color: "#373737" ; position: 1.0}
-                    }
+                Component.onCompleted: {
+                    textField.text = backendValue.expression
+                    textField.forceActiveFocus()
                 }
-            }
-        }
 
-        Row {
-            spacing: 0
-            Button {
-                style: ButtonStyle {
-                    background: Image {
-                        source: "images/apply.png"
-                        Rectangle {
-                            opacity:  control.pressed ? 0.5 : 0
-                            anchors.fill: parent
-                            gradient: Gradient {
-                                GradientStop {color: "#606060" ; position: 0}
-                                GradientStop {color: "#404040" ; position: 0.07}
-                                GradientStop {color: "#303030" ; position: 1}
-                            }
+                Rectangle {
+                    anchors.fill: parent
+                    color: creatorTheme.QmlDesignerBackgroundColorDarker
+                    opacity: 0.6
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onDoubleClicked: expressionDialog.visible = false
+                }
+
+                Rectangle {
+                    x: 4
+                    Component.onCompleted: {
+                        var pos = itemPane.mapFromItem(
+                                    extendedFunctionButton.parent, 0, 0)
+                        y = pos.y + 2
+                    }
+
+                    width: parent.width - 8
+                    height: 260
+
+                    radius: 2
+                    color: creatorTheme.QmlDesignerBackgroundColorDarkAlternate
+                    border.color: creatorTheme.QmlDesignerBorderColor
+
+                    Label {
+                        x: 8
+                        y: 6
+                        font.bold: true
+                        text: qsTr("Binding Editor")
+                    }
+                    ExpressionTextField {
+                        id: textField
+                        onRejected: expressionDialogLoader.visible = false
+                        onAccepted: {
+                            backendValue.expression = textField.text.trim()
+                            expressionDialogLoader.visible = false
                         }
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        anchors.topMargin: 24
+                        anchors.bottomMargin: 32
                     }
                 }
-                onClicked: {
-                    backendValue.expression = textField.text
-                    expressionDialog.visible = false
-                }
             }
-            Button {
-                style: ButtonStyle {
-                    background: Image {
-                        source: "images/cancel.png"
-
-                        Rectangle {
-                            opacity:  control.pressed ? 0.5 : 0
-                            anchors.fill: parent
-                            gradient: Gradient {
-                                GradientStop {color: "#606060" ; position: 0}
-                                GradientStop {color: "#404040" ; position: 0.07}
-                                GradientStop {color: "#303030" ; position: 1}
-                            }
-                        }
-                    }
-                }
-                onClicked: {
-                    expressionDialog.visible = false
-                }
-            }
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
         }
     }
-
 }

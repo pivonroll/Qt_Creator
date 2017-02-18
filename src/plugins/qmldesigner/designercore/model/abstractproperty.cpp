@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,17 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
 ** GNU General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3.0 as published by the Free Software
-** Foundation and appearing in the file LICENSE.GPLv3 included in the
-** packaging of this file. Please review the following information to
-** ensure the GNU General Public License version 3.0 requirements will be
-** met: http://www.gnu.org/copyleft/gpl.html.
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -58,6 +58,7 @@ AbstractProperty::AbstractProperty(const PropertyName &propertyName, const Inter
     m_view(view)
 {
     Q_ASSERT(!m_model || m_view);
+    Q_ASSERT_X(!m_propertyName.contains(' '), Q_FUNC_INFO, "a property name can not contain a space");
 }
 
 AbstractProperty::AbstractProperty(const Internal::InternalPropertyPointer &property, Model* model,  AbstractView *view)
@@ -122,10 +123,6 @@ AbstractView *AbstractProperty::view() const
 */
 PropertyName AbstractProperty::name() const
 {
-    if (m_propertyName == "id") { // the ID for a node is independent of the state, so it has to be set with ModelNode::setId
-        Q_ASSERT_X(0, Q_FUNC_INFO, "id is not a property in the model");
-        throw InvalidPropertyException(__LINE__, __FUNCTION__, __FILE__, name());
-    }
     return m_propertyName;
 }
 
@@ -143,62 +140,17 @@ bool AbstractProperty::isValid() const
     return !m_internalNode.isNull() &&
             !m_model.isNull() &&
             m_internalNode->isValid() &&
-            !m_propertyName.isEmpty();
+            !m_propertyName.isEmpty() &&
+            !m_propertyName.contains(' ') &&
+            m_propertyName != "id";
 }
 
-//bool AbstractProperty::isValueAPropertyBinding() const
-//{
-//    const QVariant propertyValue = value();
-//
-//    return propertyValue.type() == QVariant::UserType && propertyValue.userType() == qMetaTypeId<QmlDesigner::PropertyBinding>();
-//}
-//
-//PropertyBinding AbstractProperty::valueToPropertyBinding() const
-//{
-//    if (isValueAPropertyBinding())
-//        return value().value<PropertyBinding>();
-//    else
-//        return PropertyBinding();
-//}
-//
-//bool AbstractProperty::isValueAModelNode() const
-//{
-//    const QVariant propertyValue = value();
-//
-//    return propertyValue.type() == QVariant::UserType && propertyValue.userType() == ModelNode::variantUserType();
-//}
-//
-//ModelNode AbstractProperty::valueToModelNode() const
-//{
-//    if (isValueAModelNode())
-//        return value().value<ModelNode>();
-//    else
-//        return ModelNode();
-//}
-//
-//bool AbstractProperty::isValueAList() const
-//{
-//    const QVariant propertyValue = value();
-//
-//    return propertyValue.type() == QVariant::List;
-//}
-//
-//QVariantList AbstractProperty::valueToList() const
-//{
-//    if (isValueAList())
-//        return value().toList();
-//    else
-//        return QVariantList();
-//}
-//
-//ModelNode AbstractProperty::addModelNodeToValueList(const QString &type, int majorVersion, int minorVersion, const QList<QPair<QString, QVariant> > &propertyList)
-//{
-//    //if (isValueAList())
-//    //    return m_model->addModelNode(state(), m_propertyName, type, majorVersion, minorVersion, propertyList);
-//    //else
-//     //   throw InvalidPropertyException(__LINE__, __FUNCTION__, __FILE__, m_propertyName);
-//    return ModelNode();
-//}
+bool AbstractProperty::exists() const
+{
+    if (!isValid())
+        return false;
+    return parentModelNode().hasProperty(name());
+}
 
  /*!
     Returns the model node to which the property belongs.

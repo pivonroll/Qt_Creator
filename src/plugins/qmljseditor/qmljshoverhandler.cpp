@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -34,6 +29,7 @@
 #include "qmljseditordocument.h"
 #include "qmlexpressionundercursor.h"
 
+#include <coreplugin/icore.h>
 #include <coreplugin/editormanager/ieditor.h>
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/helpmanager.h>
@@ -54,6 +50,8 @@
 #include <QDir>
 #include <QList>
 #include <QStringRef>
+#include <QRegularExpression>
+#include <QRegularExpressionMatch>
 
 using namespace Core;
 using namespace QmlJS;
@@ -148,30 +146,57 @@ bool QmlJSHoverHandler::setQmlTypeHelp(const ScopeChain &scopeChain, const Docum
                                        const ObjectValue *value, const QStringList &qName)
 {
     QString moduleName = getModuleName(scopeChain, qmlDocument, value);
+
+    QMap<QString, QUrl> urlMap;
+
     QString helpId;
     do {
         QStringList helpIdPieces(qName);
         helpIdPieces.prepend(moduleName);
         helpIdPieces.prepend(QLatin1String("QML"));
         helpId = helpIdPieces.join(QLatin1Char('.'));
-        if (!HelpManager::linksForIdentifier(helpId).isEmpty())
+        urlMap = HelpManager::linksForIdentifier(helpId);
+        if (!urlMap.isEmpty())
             break;
         if (helpIdPieces.size() > 3) {
             QString lm = helpIdPieces.value(2);
             helpIdPieces.removeAt(2);
             helpId = helpIdPieces.join(QLatin1Char('.'));
-            if (!HelpManager::linksForIdentifier(helpId).isEmpty())
+            urlMap = HelpManager::linksForIdentifier(helpId);
+            if (!urlMap.isEmpty())
                 break;
             helpIdPieces.replace(1, lm);
-            if (!HelpManager::linksForIdentifier(helpId).isEmpty())
+            urlMap = HelpManager::linksForIdentifier(helpId);
+            if (!urlMap.isEmpty())
                 break;
         }
         helpIdPieces.removeAt(1);
         helpId = helpIdPieces.join(QLatin1Char('.'));
-        if (!HelpManager::linksForIdentifier(helpId).isEmpty())
+        urlMap = HelpManager::linksForIdentifier(helpId);
+        if (!urlMap.isEmpty())
             break;
         return false;
     } while (0);
+
+    // Check if the module name contains a major version.
+    QRegularExpression version("^([^\\d]*)(\\d+)\\.*\\d*$");
+    QRegularExpressionMatch m = version.match(moduleName);
+    if (m.hasMatch()) {
+        QMap<QString, QUrl> filteredUrlMap;
+        QStringRef maj = m.capturedRef(2);
+        for (auto x = urlMap.begin(); x != urlMap.end(); ++x) {
+            QString urlModuleName = x.value().path().split('/')[1];
+            if (urlModuleName.contains(maj))
+                filteredUrlMap.insert(x.key(), x.value());
+        }
+        if (!filteredUrlMap.isEmpty()) {
+            // Use the url as helpId, to disambiguate different versions
+            helpId = filteredUrlMap.first().toString();
+            const HelpItem helpItem(helpId, qName.join(QLatin1Char('.')), HelpItem::QmlComponent, filteredUrlMap);
+            setLastHelpItemIdentified(helpItem);
+            return true;
+        }
+    }
     setLastHelpItemIdentified(HelpItem(helpId, qName.join(QLatin1Char('.')), HelpItem::QmlComponent));
     return true;
 }
@@ -375,7 +400,7 @@ void QmlJSHoverHandler::operateTooltip(TextEditorWidget *editorWidget, const QPo
     else if (m_colorTip.isValid())
         Utils::ToolTip::show(point, m_colorTip, editorWidget);
     else
-        Utils::ToolTip::show(point, toolTip(), editorWidget);
+        BaseHoverHandler::operateTooltip(editorWidget, point);
 }
 
 void QmlJSHoverHandler::prettyPrintTooltip(const Value *value,

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -36,6 +31,8 @@
 #include <QMenu>
 #include <QResizeEvent>
 #include <QPainter>
+
+#include <algorithm>
 
 namespace Utils {
 
@@ -224,23 +221,10 @@ QVariant CrumblePathButton::data() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct CrumblePathPrivate
-{
-    explicit CrumblePathPrivate(CrumblePath *q);
-
-    QList<CrumblePathButton*> m_buttons;
-};
-
-CrumblePathPrivate::CrumblePathPrivate(CrumblePath *q)
-{
-    Q_UNUSED(q)
-}
-
 //
 // CrumblePath
 //
-CrumblePath::CrumblePath(QWidget *parent) :
-    QWidget(parent), d(new CrumblePathPrivate(this))
+CrumblePath::CrumblePath(QWidget *parent) : QWidget(parent)
 {
     setMinimumHeight(25);
     setMaximumHeight(25);
@@ -249,34 +233,33 @@ CrumblePath::CrumblePath(QWidget *parent) :
 
 CrumblePath::~CrumblePath()
 {
-    qDeleteAll(d->m_buttons);
-    d->m_buttons.clear();
-    delete d;
+    qDeleteAll(m_buttons);
+    m_buttons.clear();
 }
 
 void CrumblePath::selectIndex(int index)
 {
-    if (index > -1 && index < d->m_buttons.length())
-        d->m_buttons[index]->select(true);
+    if (index > -1 && index < m_buttons.length())
+        m_buttons[index]->select(true);
 }
 
 QVariant CrumblePath::dataForIndex(int index) const
 {
-    if (index > -1 && index < d->m_buttons.length())
-        return d->m_buttons[index]->data();
+    if (index > -1 && index < m_buttons.length())
+        return m_buttons[index]->data();
     return QVariant();
 }
 
 QVariant CrumblePath::dataForLastIndex() const
 {
-    if (d->m_buttons.isEmpty())
+    if (m_buttons.isEmpty())
         return QVariant();
-    return d->m_buttons.last()->data();
+    return m_buttons.last()->data();
 }
 
 int CrumblePath::length() const
 {
-    return d->m_buttons.length();
+    return m_buttons.length();
 }
 
 bool lessThan(const QAction *a1, const QAction *a2)
@@ -291,16 +274,14 @@ bool greaterThan(const QAction *a1, const QAction *a2)
 
 void CrumblePath::sortChildren(Qt::SortOrder order)
 {
-    QPushButton *lastButton = d->m_buttons.last();
+    QPushButton *lastButton = m_buttons.last();
 
     QMenu *childList = lastButton->menu();
     QTC_ASSERT(childList, return);
     QList<QAction *> actions = childList->actions();
 
-    if (order == Qt::AscendingOrder)
-        qStableSort(actions.begin(), actions.end(), lessThan);
-    else
-        qStableSort(actions.begin(), actions.end(), greaterThan);
+    std::stable_sort(actions.begin(), actions.end(),
+                     order == Qt::AscendingOrder ? lessThan : greaterThan);
 
     childList->clear();
     childList->addActions(actions);
@@ -313,25 +294,25 @@ void CrumblePath::pushElement(const QString &title, const QVariant &data)
     connect(newButton, &QAbstractButton::clicked, this, &CrumblePath::emitElementClicked);
 
     int segType = CrumblePathButton::MiddleSegment;
-    if (!d->m_buttons.isEmpty()) {
-        if (d->m_buttons.length() == 1)
+    if (!m_buttons.isEmpty()) {
+        if (m_buttons.length() == 1)
             segType = segType | CrumblePathButton::FirstSegment;
-        d->m_buttons.last()->setSegmentType(segType);
+        m_buttons.last()->setSegmentType(segType);
     } else {
         segType = CrumblePathButton::FirstSegment | CrumblePathButton::LastSegment;
         newButton->setSegmentType(segType);
     }
     newButton->setData(data);
-    d->m_buttons.append(newButton);
+    m_buttons.append(newButton);
 
     resizeButtons();
 }
 
 void CrumblePath::addChild(const QString &title, const QVariant &data)
 {
-    QTC_ASSERT(!d->m_buttons.isEmpty(), return);
+    QTC_ASSERT(!m_buttons.isEmpty(), return);
 
-    QPushButton *lastButton = d->m_buttons.last();
+    QPushButton *lastButton = m_buttons.last();
 
     QMenu *childList = lastButton->menu();
     if (childList == 0)
@@ -346,23 +327,23 @@ void CrumblePath::addChild(const QString &title, const QVariant &data)
 
 void CrumblePath::popElement()
 {
-    QWidget *last = d->m_buttons.last();
-    d->m_buttons.removeLast();
+    QWidget *last = m_buttons.last();
+    m_buttons.removeLast();
     last->setParent(0);
     last->deleteLater();
 
     int segType = CrumblePathButton::MiddleSegment | CrumblePathButton::LastSegment;
-    if (!d->m_buttons.isEmpty()) {
-        if (d->m_buttons.length() == 1)
+    if (!m_buttons.isEmpty()) {
+        if (m_buttons.length() == 1)
             segType = CrumblePathButton::FirstSegment | CrumblePathButton::LastSegment;
-        d->m_buttons.last()->setSegmentType(segType);
+        m_buttons.last()->setSegmentType(segType);
     }
     resizeButtons();
 }
 
 void CrumblePath::clear()
 {
-    while (!d->m_buttons.isEmpty())
+    while (!m_buttons.isEmpty())
         popElement();
 }
 
@@ -375,17 +356,17 @@ void CrumblePath::resizeButtons()
 {
     int totalWidthLeft = width();
 
-    if (!d->m_buttons.isEmpty()) {
+    if (!m_buttons.isEmpty()) {
         QPoint nextElementPosition(0, 0);
 
-        d->m_buttons.first()->raise();
+        m_buttons.first()->raise();
         // rearrange all items so that the first item is on top (added last).
 
         // compute relative sizes
         QList<int> sizes;
         int totalSize = 0;
-        for (int i = 0; i < d->m_buttons.length() ; ++i) {
-            CrumblePathButton *button = d->m_buttons.at(i);
+        for (int i = 0; i < m_buttons.length() ; ++i) {
+            CrumblePathButton *button = m_buttons.at(i);
 
             QFontMetrics fm(button->font());
             int originalSize = ArrowBorderSize + fm.width(button->text()) + ArrowBorderSize + 12;
@@ -393,8 +374,8 @@ void CrumblePath::resizeButtons()
             totalSize += originalSize - ArrowBorderSize;
         }
 
-        for (int i = 0; i < d->m_buttons.length() ; ++i) {
-            CrumblePathButton *button = d->m_buttons.at(i);
+        for (int i = 0; i < m_buttons.length() ; ++i) {
+            CrumblePathButton *button = m_buttons.at(i);
 
             int candidateSize = (sizes.at(i) * totalWidthLeft) / totalSize;
             if (candidateSize < ArrowBorderSize)
@@ -412,9 +393,9 @@ void CrumblePath::resizeButtons()
             if (i > 0) {
                 // work-around for a compiler / optimization bug in i686-apple-darwin9-g
                 // without volatile, the optimizer (-O2) seems to do the wrong thing (tm
-                // the d->m_buttons array with an invalid argument.
+                // the m_buttons array with an invalid argument.
                 volatile int prevIndex = i - 1;
-                button->stackUnder(d->m_buttons[prevIndex]);
+                button->stackUnder(m_buttons[prevIndex]);
             }
         }
     }

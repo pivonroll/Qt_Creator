@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,24 +9,21 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+
+#include <qglobal.h>
 
 ////////////////  Some global configuration below ////////////////
 
@@ -117,10 +114,8 @@
 #define USE_EIGEN 1
 #endif
 
-#ifdef QT_SCRIPT_LIB
+#ifdef HAS_SCRIPT
 #define USE_SCRIPTLIB 1
-#else
-#define USE_SCRIPTLIB 0
 #endif
 
 #ifdef QT_WEBKIT_LIB
@@ -133,6 +128,18 @@
 #define USE_TIMEZONE 1
 #else
 #define USE_TIMEZONE 0
+#endif
+
+#if QT_VERSION >= 0x050000
+#define USE_JSON 1
+#else
+#define USE_JSON 0
+#endif
+
+#if QT_VERSION > 0x050000
+#define USE_CXX11LIB 1
+#else
+#define USE_CXX11LIB 0
 #endif
 
 void dummyStatement(...) {}
@@ -170,12 +177,13 @@ void dummyStatement(...) {}
 #include <QFont>
 #include <QLabel>
 #include <QPainter>
+#include <QPixmap>
 #include <QPainterPath>
 #include <QRegion>
 #include <QStandardItemModel>
 #include <QTextCursor>
 #include <QTextDocument>
-# if QT_VERSION >= QT_VERSION_CHECK(5, 2, 0)
+# if USE_TIMEZONE
 #  include <QTimeZone>
 # endif
 #endif
@@ -194,8 +202,10 @@ void dummyStatement(...) {}
 #include <QHostAddress>
 #include <QNetworkRequest>
 
+#if USE_CXX11LIB
 #include <array>
 #include <unordered_map>
+#endif
 #include <complex>
 #include <deque>
 #include <iostream>
@@ -210,11 +220,17 @@ void dummyStatement(...) {}
 #include <string>
 #include <vector>
 
+#include <QMetaMethod>
 #include <stdarg.h>
 #include <stdint.h>
 
 #include "../simple/deep/deep/simple_test_app.h"
 
+#if USE_JSON
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
+#endif
 
 #if USE_BOOST
 #include <boost/optional.hpp>
@@ -243,6 +259,7 @@ void dummyStatement(...) {}
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <basetsd.h>
 #undef min
 #undef max
 #endif
@@ -283,7 +300,11 @@ void dummyStatement(...) {}
 QT_BEGIN_NAMESPACE
 uint qHash(const QMap<int, int> &) { return 0; }
 uint qHash(const double & f) { return int(f); }
+#ifdef Q_OS_WIN
+uint qHash(const QPointer<QObject> &p) { return PtrToUint(p.data()); }
+#else
 uint qHash(const QPointer<QObject> &p) { return (ulong)p.data(); }
+#endif
 QT_END_NAMESPACE
 
 
@@ -720,7 +741,7 @@ namespace qdatetime {
 
     void testQTimeZone()
     {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 2, 0)
+#if USE_TIMEZONE
         QTimeZone zz;
         QTimeZone tz("UTC+05:00");
         BREAK_HERE;
@@ -1124,12 +1145,13 @@ namespace painting {
         pain.drawLine(2, 2, 130, 130);
         pain.end();
         QPixmap pm = QPixmap::fromImage(im);
+        QSize size = pm.size();
         BREAK_HERE;
         // Check im (200x200) QImage.
         // CheckType pain QPainter.
         // Check pm (200x200) QPixmap.
         // Continue.
-        dummyStatement(&im, &pm);
+        dummyStatement(&im, &pm, &size);
         #endif
     }
 
@@ -1775,10 +1797,10 @@ namespace qobject {
         parent.setObjectName("A Parent");
         QObject child(&parent);
         child.setObjectName("A Child");
-        QObject::connect(&child, SIGNAL(destroyed()), &parent, SLOT(deleteLater()));
-        QObject::connect(&child, SIGNAL(destroyed()), &child, SLOT(deleteLater()));
-        QObject::disconnect(&child, SIGNAL(destroyed()), &parent, SLOT(deleteLater()));
-        QObject::disconnect(&child, SIGNAL(destroyed()), &child, SLOT(deleteLater()));
+        QObject::connect(&child, &QObject::destroyed, &parent, &QObject::deleteLater);
+        QObject::connect(&child, &QObject::destroyed, &child, &QObject::deleteLater);
+        QObject::disconnect(&child, &QObject::destroyed, &parent, &QObject::deleteLater);
+        QObject::disconnect(&child, &QObject::destroyed, &child, &QObject::deleteLater);
         child.setObjectName("A renamed Child");
         BREAK_HERE;
         // Check child "A renamed Child" QObject.
@@ -1817,13 +1839,16 @@ namespace qobject {
             Q_SLOT void setMyProp2(const QString&mt) { m_myProp2 = mt; }
 
             Q_PROPERTY(long myProp3 READ myProp3)
-            long myProp3() const { return 54; }
+            long myProp3() const { return -54; }
 
-            Q_PROPERTY(long myProp4 READ myProp4)
-            long myProp4() const { return 44; }
+            Q_PROPERTY(int myProp4 READ myProp4)
+            int myProp4() const { return -44; }
 
             Q_SIGNAL void sigFoo();
             Q_SIGNAL void sigBar(int);
+
+            enum Side { LeftSide, RightSide };
+            Q_ENUMS(Side)
 
         public:
             Ui *m_ui;
@@ -1843,11 +1868,34 @@ namespace qobject {
         test.setObjectName("An object");
         QString s = test.myProp1();
         s += test.myProp2();
+        const QMetaObject *mo = test.metaObject();
+        QMetaMethod mm0;
+        const QMetaObject smo = test.staticMetaObject;
+        QMetaMethod mm = mo->method(0);
+        QByteArray mmname = mm.name();
+
+        QMetaEnum me0;
+        QMetaEnum me = mo->enumerator(0);
+
+        QMetaProperty mp0;
+        QMetaProperty mp = mo->property(0);
+
+        QMetaClassInfo mci0;
+        QMetaClassInfo mci = mo->classInfo(0);
+
+        int n = mo->methodCount();
+        QVector<QMetaMethod> v(n);
+        for (int i = 0; i < n; ++i)
+            v[i] = mo->method(i);
+
+
+        test.setProperty("USER DEFINED 1", 44);
+        test.setProperty("USER DEFINED 2", QStringList() << "FOO" << "BAR");
         BREAK_HERE;
         // Check s "HELLOWORLD" QString.
         // Check test  qobject::Names::Bar::TestObject.
         // Continue.
-        dummyStatement(&s);
+        dummyStatement(&s, &mm, &smo, &mo, &mmname, &mm0, &me, &me0, &mp, &mp0, &mci, &mci0);
     }
 
     void testQObject3()
@@ -1872,11 +1920,11 @@ namespace qobject {
         QObject ob1;
         ob1.setObjectName("Another Object");
 
-        QObject::connect(&ob, SIGNAL(destroyed()), &ob1, SLOT(deleteLater()));
-        QObject::connect(&ob1, SIGNAL(destroyed()), &ob, SLOT(deleteLater()));
+        QObject::connect(&ob, &QObject::destroyed, &ob1, &QObject::deleteLater);
+        QObject::connect(&ob1, &QObject::destroyed, &ob, &QObject::deleteLater);
         BREAK_HERE;
-        QObject::disconnect(&ob, SIGNAL(destroyed()), &ob1, SLOT(deleteLater()));
-        QObject::disconnect(&ob1, SIGNAL(destroyed()), &ob, SLOT(deleteLater()));
+        QObject::disconnect(&ob, &QObject::destroyed, &ob1, &QObject::deleteLater);
+        QObject::disconnect(&ob1, &QObject::destroyed, &ob, &QObject::deleteLater);
         dummyStatement(&ob, &ob1);
         #endif
     }
@@ -1913,7 +1961,6 @@ namespace qobject {
         Q_OBJECT
     public:
         Receiver() { setObjectName("Receiver"); }
-    public slots:
         void aSlot() {
             QObject *s = sender();
             if (s) {
@@ -1928,7 +1975,7 @@ namespace qobject {
     {
         Sender sender;
         Receiver receiver;
-        QObject::connect(&sender, SIGNAL(aSignal()), &receiver, SLOT(aSlot()));
+        QObject::connect(&sender, &Sender::aSignal, &receiver, &Receiver::aSlot);
         // Break here.
         // Single step through signal emission.
         sender.doEmit();
@@ -2232,7 +2279,11 @@ namespace qregion {
         BREAK_HERE;
         // Check region <4 items> QRegion.
         // Continue.
-        dummyStatement(&region);
+        QVector<int> vv = { 1, 2, 3 };
+        dummyStatement(&region, &vv);
+        QRect x(12, 34, 66, 77);
+        QVector<QRect> rr = { {1, 2, 3, 4}, {5, 6, 7, 8} };
+        dummyStatement(&region, &vv, &rr, &x);
         #endif
     }
 
@@ -2598,6 +2649,7 @@ namespace stdarray {
 
     void testStdArray()
     {
+        #if USE_CXX11LIB
         std::array<int, 4> a = { { 1, 2, 3, 4} };
         std::array<QString, 4> b = { { "1", "2", "3", "4"} };
         BREAK_HERE;
@@ -2606,6 +2658,7 @@ namespace stdarray {
         // Check a <4 items> std::array<QString, 4u>.
         // Continue.
         dummyStatement(&a, &b);
+        #endif
     }
 
 } // namespace stdcomplex
@@ -2841,6 +2894,7 @@ namespace stdlist {
 
 namespace stdunorderedmap {
 
+#if USE_CXX11LIB
     void testStdUnorderedMapStringFoo()
     {
         // This is not supposed to work with the compiled dumpers.
@@ -3047,6 +3101,10 @@ namespace stdunorderedmap {
         testStdUnorderedMapIntString();
         testStdUnorderedMapStringPointer();
     }
+#else
+    void testStdUnorderedMap() {}
+
+#endif
 
 } // namespace stdunorderedmap
 
@@ -3262,10 +3320,12 @@ namespace stdmap {
 
     void testStdMultiSetInt()
     {
+#if USE_CXX11LIB
 #ifndef Q_CC_MSVC
         std::multiset<int> set = {1, 1, 2, 3, 3, 3};
         BREAK_HERE;
         dummyStatement(&set);
+#endif
 #endif
     }
 
@@ -3290,6 +3350,7 @@ namespace stdmap {
 
 namespace stdptr {
 
+#if USE_CXX11LIB
     void testStdUniquePtrInt()
     {
         std::unique_ptr<int> p(new int(32));
@@ -3333,6 +3394,9 @@ namespace stdptr {
         testStdSharedPtrInt();
         testStdSharedPtrFoo();
     }
+#else
+    void testStdPtr() {}
+#endif
 
 } // namespace stdptr
 
@@ -3341,15 +3405,17 @@ namespace lambda {
 
     void testLambda()
     {
+#if USE_CXX11LIB
         std::string x;
         auto f = [&] () -> const std::string & {
-                int z = x.size();
+                size_t z = x.size();
                 Q_UNUSED(z);
                 return x;
          };
         auto c = f();
         BREAK_HERE;
         dummyStatement(&x, &f, &c);
+#endif
     }
 
 } // namespace lambda
@@ -4497,6 +4563,7 @@ namespace qvariant {
 
     void testQVariant6()
     {
+#if QT_VERSION > 0x050000
         QList<int> list;
         list << 1 << 2 << 3;
         QVariant variant = qVariantFromValue(list);
@@ -4522,6 +4589,7 @@ namespace qvariant {
         // Check list.2 3 int.
         // Continue.
         dummyStatement(&list);
+#endif
     }
 
     void testQVariantList()
@@ -5245,6 +5313,10 @@ namespace basic {
     namespace ns {
         typedef unsigned long long vl;
         typedef vl verylong;
+#if USE_CXX11LIB
+        using uvl = unsigned long long;
+        using usingverylong = uvl;
+#endif
     }
 
     void testTypedef()
@@ -5262,6 +5334,25 @@ namespace basic {
         // Check t2 0 basic::myType2.
         // Continue.
         dummyStatement(&j, &k, &t1, &t2);
+    }
+
+    void testUsing()
+    {
+#if USE_CXX11LIB
+        using myType1 = quint32;
+        using myType2 = unsigned int;
+        myType1 t1 = 0;
+        myType2 t2 = 0;
+        ns::uvl j = 1000;
+        ns::usingverylong k = 1000;
+        BREAK_HERE;
+        // Check j 1000 basic::ns::uvl.
+        // Check k 1000 basic::ns::usingverylong.
+        // Check t1 0 basic::myType1.
+        // Check t2 0 basic::myType2.
+        // Continue.
+        dummyStatement(&j, &k, &t1, &t2);
+#endif
     }
 
     void testStruct()
@@ -5529,7 +5620,7 @@ namespace basic {
         QDateTime time = QDateTime::currentDateTime();
         const int N = 10000;
         QDateTime x = time;
-#if QT_VERSION >= QT_VERSION_CHECK(5, 2, 0)
+#if USE_TIMEZONE
         QTimeZone tz("UTC+05:00");
         x.setTimeZone(tz);
 #endif
@@ -5809,6 +5900,7 @@ namespace basic {
         testFunction();
         testAlphabeticSorting();
         testTypedef();
+        testUsing();
         testPointer();
         testPointerTypedef();
         testStruct();
@@ -5994,6 +6086,43 @@ namespace qscript {
     }
 
 } // namespace script
+
+
+namespace qjson {
+
+    void testQJson()
+    {
+        #if USE_JSON
+        QJsonObject obj {
+            {"-1", -1},
+            {"3", 3},
+            {"0x3fffff (4194303)", 4194303},
+            {"0x400000 (4194304)", 4194304},
+            {"0x800000 (8388608)", 8388608},
+            {"0x1000000 (16777216)", 16777216},
+            {"-0x3fffff (-4194303)", -4194303},
+            {"-0x400000 (-4194304)", -4194304},
+            {"-0x800000 (-8388608)", -8388608}
+        };
+         QJsonArray arr;
+         for (unsigned int i = 0; i < 32; ++i) {
+             arr.append(QJsonValue(qint64(1u << i) - 1));
+             arr.append(QJsonValue(qint64(1u << i)));
+             arr.append(QJsonValue(qint64(1u << i) + 1));
+         }
+         for (unsigned int i = 0; i < 32; ++i) {
+             arr.append(QJsonValue(-qint64(1u << i) + 1));
+             arr.append(QJsonValue(-qint64(1u << i)));
+             arr.append(QJsonValue(-qint64(1u << i) - 1));
+         }
+        BREAK_HERE;
+        // Check v -1 QJsonValue.
+        // Check obj "foo" -1 QJsonValue.
+        // Continue.
+        #endif
+    }
+
+} // namespace json
 
 
 namespace webkit {
@@ -7169,12 +7298,13 @@ int main(int argc, char *argv[])
     qregexp::testQRegExp();
     qregion::testQRegion();
     qscript::testQScript();
+    qjson::testQJson();
     qset::testQSet();
     qsharedpointer::testQSharedPointer();
     qstack::testQStack();
     qstringlist::testQStringList();
     qstring::testQString();
-    qthread::testQThread();
+    // qthread::testQThread();
     qprocess::testQProcess();
     qurl::testQUrl();
     qvariant::testQVariant();
