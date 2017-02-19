@@ -50,6 +50,7 @@
 #include <visualstudiotoolattributes/toolsectiondescription.h>
 
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/projectnodes.h>
 #include <utils/mimetypes/mimedatabase.h>
 
 #include <utils/qtcassert.h>
@@ -115,18 +116,18 @@ ProjectExplorer::FileType getFileType(const ::Utils::FileName &canonicalFilePath
 
     if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
             || mimeType == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
-        return ProjectExplorer::SourceType;
+        return ProjectExplorer::FileType::Source;
     if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
             || mimeType == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
-        return ProjectExplorer::HeaderType;
+        return ProjectExplorer::FileType::Header;
     if (mimeType == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
-        return ProjectExplorer::ResourceType;
+        return ProjectExplorer::FileType::Resource;
     if (mimeType == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
-        return ProjectExplorer::FormType;
+        return ProjectExplorer::FileType::Form;
     if (mimeType == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
-        return ProjectExplorer::QMLType;
+        return ProjectExplorer::FileType::QML;
 
-    return ProjectExplorer::UnknownFileType;
+    return ProjectExplorer::FileType::Unknown;
 }
 
 QString fileRelativePath(const QString &topPath, const QString &innerPath)

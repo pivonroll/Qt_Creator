@@ -66,10 +66,6 @@ VcXProject::VcXProject(VcXProjectManager *projectManager, const QString &canonic
 {
     m_projectFile = new VcProjectFile(canonicalFilePath, DocumentVersion::DV_MSVC_2010);
     m_rootNode = m_projectFile->createProjectNode();
-
-    setPreferredKitMatcher(ProjectExplorer::KitMatcher([this](const ProjectExplorer::Kit *kit) -> bool {
-                               return matchesKit(kit);
-                           }));
 }
 
 VcXProject::~VcXProject()
@@ -130,10 +126,7 @@ ProjectExplorer::Project::RestoreResult VcXProject::fromMap(const QVariantMap &m
  */
 void VcXProject::importBuildConfigurations()
 {
-    ProjectExplorer::KitMatcher kitMatcher = preferredKitMatcher();
-    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(kitMatcher);
-    if (!kit)
-        kit = ProjectExplorer::KitManager::defaultKit();
+    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::defaultKit();
 
     removeTarget(target(kit));
     addTarget(createTarget(kit));
@@ -144,10 +137,10 @@ void VcXProject::importBuildConfigurations()
 void VcXProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles)
 {
     foreach (const ProjectExplorer::FileNode *file, node->fileNodes()) {
-        if (file->fileType() == ProjectExplorer::HeaderType || file->fileType() == ProjectExplorer::SourceType)
-            projectFiles << file->path().toString();
+        if (file->fileType() == ProjectExplorer::FileType::Header || file->fileType() == ProjectExplorer::FileType::Source)
+            projectFiles << file->filePath().toString();
     }
-    foreach (const ProjectExplorer::FolderNode *subfolder, node->subFolderNodes())
+    foreach (const ProjectExplorer::FolderNode *subfolder, node->folderNodes())
         addCxxModelFiles(subfolder, projectFiles);
 }
 
@@ -162,7 +155,7 @@ void VcXProject::updateCodeModels()
 {
     ProjectExplorer::Kit *k = activeTarget() ? activeTarget()->kit() : ProjectExplorer::KitManager::defaultKit();
     QTC_ASSERT(k, return);
-    ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k);
+    ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     QTC_ASSERT(tc, return);
     CppTools::CppModelManager *modelmanager = CppTools::CppModelManager::instance();
     QTC_ASSERT(modelmanager, return);
@@ -207,7 +200,7 @@ void VcXProject::updateCodeModels()
     QStringList cxxFlags;
     foreach (const ProjectExplorer::HeaderPath &path, tc->systemHeaderPaths(cxxFlags, Utils::FileName())) {
         if (path.kind() != ProjectExplorer::HeaderPath::FrameworkHeaderPath)
-            pPart->headerPaths << CppTools::ProjectPart::HeaderPath(path.path(), CppTools::ProjectPart::HeaderPath::FrameworkPath);
+            pPart->headerPaths << CppTools::ProjectPartHeaderPath(path.path(), CppTools::ProjectPartHeaderPath::FrameworkPath);
     }
     QSet<QString> files;
     addCxxModelFiles(m_rootNode, files);
@@ -220,7 +213,7 @@ void VcXProject::updateCodeModels()
 
     modelmanager->updateProjectInfo(pinfo);
     m_codeModelFuture = modelmanager->updateSourceFiles(files);
-    setProjectLanguage(ProjectExplorer::Constants::LANG_CXX, !pPart->files.isEmpty());
+    setProjectLanguage(ProjectExplorer::Constants::CXX_LANGUAGE_ID, !pPart->files.isEmpty());
 }
 
 } // namespace Internal

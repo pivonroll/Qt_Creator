@@ -95,10 +95,6 @@ VcProject::VcProject(VcProjectManager *projectManager, const QString &projectFil
         setId(Core::Id(Constants::VC_PROJECT_ID));
     else
         setId(Core::Id(Constants::VC_PROJECT_2005_ID));
-
-    setPreferredKitMatcher(ProjectExplorer::KitMatcher([this](const ProjectExplorer::Kit *kit) -> bool {
-                               return matchesKit(kit);
-                           }));
 }
 
 VcProject::~VcProject()
@@ -148,9 +144,7 @@ bool VcProject::needsConfiguration() const
 
 bool VcProject::supportsKit(ProjectExplorer::Kit *k, QString *errorMessage) const
 {
-    ProjectExplorer::KitMatcher kitMather = preferredKitMatcher();
-
-    QTC_ASSERT(kitMather.matches(k), return true);
+    Q_UNUSED(k)
 
     if (errorMessage)
         *errorMessage = tr("Kit toolchain does not support MSVC 2003, 2005 or 2008 ABI");
@@ -236,10 +230,10 @@ ProjectExplorer::Project::RestoreResult VcProject::fromMap(const QVariantMap &ma
 void VcProject::addCxxModelFiles(const ProjectExplorer::FolderNode *node, QSet<QString> &projectFiles)
 {
     foreach (const ProjectExplorer::FileNode *file, node->fileNodes()) {
-        if (file->fileType() == ProjectExplorer::HeaderType || file->fileType() == ProjectExplorer::SourceType)
-            projectFiles << file->path().toString();
+        if (file->fileType() == ProjectExplorer::FileType::Header || file->fileType() == ProjectExplorer::FileType::Source)
+            projectFiles << file->filePath().toString();
     }
-    foreach (const ProjectExplorer::FolderNode *subfolder, node->subFolderNodes())
+    foreach (const ProjectExplorer::FolderNode *subfolder, node->folderNodes())
         addCxxModelFiles(subfolder, projectFiles);
 }
 
@@ -264,7 +258,7 @@ void VcProject::updateCodeModels()
 {
     ProjectExplorer::Kit *k = activeTarget() ? activeTarget()->kit() : ProjectExplorer::KitManager::defaultKit();
     QTC_ASSERT(k, return);
-    ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k);
+    ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     QTC_ASSERT(tc, return);
     CppTools::CppModelManager *modelmanager = CppTools::CppModelManager::instance();
     QTC_ASSERT(modelmanager, return);
@@ -309,7 +303,7 @@ void VcProject::updateCodeModels()
     QStringList cxxFlags;
     foreach (const ProjectExplorer::HeaderPath &path, tc->systemHeaderPaths(cxxFlags, Utils::FileName())) {
         if (path.kind() != ProjectExplorer::HeaderPath::FrameworkHeaderPath)
-            pPart->headerPaths << CppTools::ProjectPart::HeaderPath(path.path(), CppTools::ProjectPart::HeaderPath::FrameworkPath);
+            pPart->headerPaths << CppTools::ProjectPartHeaderPath(path.path(), CppTools::ProjectPartHeaderPath::FrameworkPath);
     }
     QSet<QString> files;
     addCxxModelFiles(m_rootNode, files);
@@ -322,7 +316,7 @@ void VcProject::updateCodeModels()
 
     modelmanager->updateProjectInfo(pinfo);
     m_codeModelFuture = modelmanager->updateSourceFiles(files);
-    setProjectLanguage(ProjectExplorer::Constants::LANG_CXX, !pPart->files.isEmpty());
+    setProjectLanguage(ProjectExplorer::Constants::CXX_LANGUAGE_ID, !pPart->files.isEmpty());
 }
 
 /*!
@@ -331,15 +325,6 @@ void VcProject::updateCodeModels()
  */
 void VcProject::importBuildConfigurations()
 {
-    ProjectExplorer::KitMatcher kitMatcher = preferredKitMatcher();
-    ProjectExplorer::Kit *kit = ProjectExplorer::KitManager::find(kitMatcher);
-    if (!kit)
-        kit = ProjectExplorer::KitManager::defaultKit();
-
-    removeTarget(target(kit));
-    addTarget(createTarget(kit));
-    if (!activeTarget() && kit)
-        addTarget(createTarget(kit));
 }
 
 /*!

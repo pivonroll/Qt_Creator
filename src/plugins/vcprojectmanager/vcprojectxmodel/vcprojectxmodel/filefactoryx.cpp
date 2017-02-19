@@ -59,29 +59,29 @@ IFile *FileFactoryX::createFile(const QString &relativePath, ProjectExplorer::Fi
     file->m_filterItem = new Item;
 
     switch (fileType) {
-    case ProjectExplorer::UnknownFileType:
+    case ProjectExplorer::FileType::Unknown:
         file->m_projectItem->setName(QLatin1String(FILE_ITEM_NONE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_NONE));
         break;
-    case ProjectExplorer::HeaderType:
+    case ProjectExplorer::FileType::Header:
         file->m_projectItem->setName(QLatin1String(FILE_ITEM_CL_INCLUDE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_CL_INCLUDE));
         break;
-    case ProjectExplorer::SourceType:
+    case ProjectExplorer::FileType::Source:
         file->m_projectItem->setName(QLatin1String(FILE_ITEM_CL_COMPILE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_CL_COMPILE));
         break;
-    case ProjectExplorer::FormType:
+    case ProjectExplorer::FileType::Form:
         break;
-    case ProjectExplorer::ResourceType:
+    case ProjectExplorer::FileType::Resource:
         file->m_projectItem->setName(QLatin1String(FILE_ITEM_RESOURCE_COMPILE));
         file->m_filterItem->setName(QLatin1String(FILE_ITEM_RESOURCE_COMPILE));
         break;
-    case ProjectExplorer::QMLType:
+    case ProjectExplorer::FileType::QML:
         break;
-    case ProjectExplorer::ProjectFileType:
+    case ProjectExplorer::FileType::Project:
         break;
-    case ProjectExplorer::FileTypeSize:
+    case ProjectExplorer::FileType::FileTypeSize:
         break;
     default:
         break;

@@ -184,7 +184,7 @@ void MenuHandler::onShowProjectSettings()
 {
     ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-    if (node && node->nodeType() == ProjectExplorer::ProjectNodeType) {
+    if (node && node->nodeType() == ProjectExplorer::NodeType::Project) {
         VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
         projectNode->showSettingsDialog();
     }
@@ -203,12 +203,12 @@ void MenuHandler::onAddFolder()
 
         QTC_ASSERT(node, return);
 
-        if (node->nodeType() == ProjectExplorer::FolderNodeType) {
+        if (node->nodeType() == ProjectExplorer::NodeType::Folder) {
             VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
             folderNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
         }
 
-        if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
+        if (node->nodeType() == ProjectExplorer::NodeType::Project) {
             VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
             projectNode->addFileContainerNode(folderName, VcFileContainerNode::VcContainerType_Folder);
         }
@@ -228,12 +228,12 @@ void MenuHandler::onAddFilter()
 
         QTC_ASSERT(node, return);
 
-        if (node->nodeType() == ProjectExplorer::FolderNodeType) {
+        if (node->nodeType() == ProjectExplorer::NodeType::Folder) {
             VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
             folderNode->addFileContainerNode(filterName);
         }
 
-        if (node->nodeType() == ProjectExplorer::ProjectNodeType) {
+        if (node->nodeType() == ProjectExplorer::NodeType::Project) {
             VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(node);
             projectNode->addFileContainerNode(filterName, VcFileContainerNode::VcContainerType_Filter);
         }
@@ -247,16 +247,16 @@ void MenuHandler::onRemoveFilter()
 {
     ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-    if (node && node->nodeType() == ProjectExplorer::FolderNodeType) {
+    if (node && node->nodeType() == ProjectExplorer::NodeType::Folder) {
         VcFileContainerNode *filterNode = static_cast<VcFileContainerNode *>(node);
         ProjectExplorer::FolderNode *parentNode = filterNode->parentFolderNode();
 
-        if (parentNode->nodeType() == ProjectExplorer::FolderNodeType) {
+        if (parentNode->nodeType() == ProjectExplorer::NodeType::Folder) {
             VcFileContainerNode *projectNode = static_cast<VcFileContainerNode *>(parentNode);
             projectNode->removeFileContainerNode(filterNode);
         }
 
-        else if (parentNode->nodeType() == ProjectExplorer::ProjectNodeType) {
+        else if (parentNode->nodeType() == ProjectExplorer::NodeType::Project) {
             VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(parentNode);
             projectNode->removeFileContainerNode(filterNode);
         }
@@ -270,16 +270,16 @@ void MenuHandler::onRemoveFolder()
 {
     ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-    if (node && node->nodeType() == ProjectExplorer::FolderNodeType) {
+    if (node && node->nodeType() == ProjectExplorer::NodeType::Folder) {
         VcFileContainerNode *folderNode = static_cast<VcFileContainerNode *>(node);
         ProjectExplorer::FolderNode *parentNode = folderNode->parentFolderNode();
 
-        if (parentNode->nodeType() == ProjectExplorer::FolderNodeType) {
+        if (parentNode->nodeType() == ProjectExplorer::NodeType::Folder) {
             VcFileContainerNode *parentFolderNode = static_cast<VcFileContainerNode *>(parentNode);
             parentFolderNode->removeFileContainerNode(folderNode);
         }
 
-        else if (parentNode->nodeType() == ProjectExplorer::ProjectNodeType) {
+        else if (parentNode->nodeType() == ProjectExplorer::NodeType::Project) {
             VcDocProjectNode *projectNode = static_cast<VcDocProjectNode *>(parentNode);
             projectNode->removeFileContainerNode(folderNode);
         }
@@ -293,7 +293,7 @@ void MenuHandler::onShowFileSettings()
 {
     ProjectExplorer::Node *node = ProjectExplorer::ProjectTree::currentNode();
 
-    if (node && node->nodeType() == ProjectExplorer::FileNodeType) {
+    if (node && node->nodeType() == ProjectExplorer::NodeType::File) {
         VcFileNode *fileNode = static_cast<VcFileNode *>(node);
         fileNode->showSettingsWidget();
     }

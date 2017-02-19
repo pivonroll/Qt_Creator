@@ -131,7 +131,7 @@ VcMakeStep::~VcMakeStep()
 {
 }
 
-bool VcMakeStep::init()
+bool VcMakeStep::init(QList<const BuildStep *> &earlierSteps)
 {
     VcProjectBuildConfiguration *bc = vcProjectBuildConfiguration();
     MsBuildInformation *msBuild = VcProjectKitInformation::msBuildInfo(target()->kit());
@@ -156,25 +156,11 @@ bool VcMakeStep::init()
         m_processParams->setArguments(m_buildArguments.join(QLatin1String(" ")));
 
     setOutputParser(new MsBuildOutputParser);
-    return AbstractProcessStep::init();
+    return AbstractProcessStep::init(earlierSteps);
 }
 
 void VcMakeStep::run(QFutureInterface<bool> &fi)
 {
-    bool canContinue = true;
-
-    foreach (const ProjectExplorer::Task &t, m_tasks) {
-        addTask(t);
-        canContinue = false;
-    }
-
-    if (!canContinue) {
-        emit addOutput(tr("Configuration is faulty. Check the Issues view for details."), BuildStep::MessageOutput);
-        fi.reportResult(false);
-        emit finished();
-        return;
-    }
-
     AbstractProcessStep::run(fi);
 }
 
@@ -388,6 +374,14 @@ QString VcMakeStepFactory::displayNameForId(Core::Id id) const
     if (id == MS_ID)
         return tr("Make", "Vc Project Make Step Factory id.");
     return QString();
+}
+
+QList<ProjectExplorer::BuildStepInfo> VcMakeStepFactory::availableSteps(ProjectExplorer::BuildStepList *parent) const
+{
+    if (parent->target()->project()->id() != Constants::VC_PROJECT_ID)
+        return {};
+
+    return {{ MS_ID, tr("Build Visual Studio", "Display name for Visual Studio::MakeStep id.") }};
 }
 
 

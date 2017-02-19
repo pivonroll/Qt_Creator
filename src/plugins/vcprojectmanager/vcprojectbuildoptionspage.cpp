@@ -458,7 +458,7 @@ VcProjectBuildOptionsPage::VcProjectBuildOptionsPage() :
                                                    VcProjectManager::Constants::VC_PROJECT_SETTINGS_TR_CATEGORY));
 
     // TODO(Radovan): create and set proper icon
-    setCategoryIcon(QLatin1String(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY_ICON));
+    setCategoryIcon(Utils::Icon(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY_ICON));
 }
 
 VcProjectBuildOptionsPage::~VcProjectBuildOptionsPage()

@@ -59,6 +59,9 @@ public:
     ItemList toUserOutput(const ProjectExplorer::Kit *) const;
     ProjectExplorer::KitConfigWidget *createConfigWidget(ProjectExplorer::Kit *k) const;
 
+    // KitInformation interface
+    QVariant defaultValue(const ProjectExplorer::Kit *k) const;
+
     static MsBuildInformation *msBuildInfo(const ProjectExplorer::Kit *k);
 
     static void setMsBuild(ProjectExplorer::Kit *k, MsBuildInformation *msBuildId);

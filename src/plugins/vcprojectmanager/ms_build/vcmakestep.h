@@ -50,10 +50,10 @@ public:
     explicit VcMakeStep(ProjectExplorer::BuildStepList *bsl);
     ~VcMakeStep();
 
-    bool init();
-    void run(QFutureInterface<bool> &fi);
-    ProjectExplorer::BuildStepConfigWidget *createConfigWidget();
-    bool immutable() const;
+    bool init(QList<const BuildStep *> &earlierSteps) override;
+    void run(QFutureInterface<bool> &fi) override;
+    ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
+    bool immutable() const override;
 
     VcProjectBuildConfiguration *vcProjectBuildConfiguration() const;
     QStringList buildArguments() const;
@@ -61,11 +61,11 @@ public:
     void addBuildArgument(const QString &argument);
     void removeBuildArgument(const QString &buildArgument);
 
-    QVariantMap toMap() const;
+    QVariantMap toMap() const override;
 
 protected:
-    bool fromMap(const QVariantMap &map);
-    void stdOutput(const QString &line);
+    bool fromMap(const QVariantMap &map) override;
+    void stdOutput(const QString &line) override;
 
 private:
     explicit VcMakeStep(ProjectExplorer::BuildStepList *parent, VcMakeStep *vcMakeStep);
@@ -80,8 +80,8 @@ class VcMakeStepConfigWidget : public ProjectExplorer::BuildStepConfigWidget
     Q_OBJECT
 public:
     VcMakeStepConfigWidget(VcMakeStep *makeStep);
-    QString displayName() const;
-    QString summaryText() const;
+    QString displayName() const override;
+    QString summaryText() const override;
 
 private slots:
     void msBuildUpdated(); // called when current ms build is chenged in kit information
@@ -108,6 +108,9 @@ public:
 
     QList<Core::Id> availableCreationIds(ProjectExplorer::BuildStepList *parent) const;
     QString displayNameForId(Core::Id id) const;
+
+    // IBuildStepFactory interface
+    QList<ProjectExplorer::BuildStepInfo> availableSteps(ProjectExplorer::BuildStepList *parent) const;
 };
 
 } // namespace Internal

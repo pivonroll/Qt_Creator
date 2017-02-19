@@ -135,6 +135,12 @@ ProjectExplorer::KitConfigWidget *VcProjectKitInformation::createConfigWidget(Pr
     return new VcProjectKitConfigWidget(k, this);
 }
 
+QVariant VcProjectKitInformation::defaultValue(const ProjectExplorer::Kit *k) const
+{
+    Q_UNUSED(k);
+    return QString();
+}
+
 /*!
  * \return Information about MS Build set in the kit \a k.
  * Information is contained in \class MsBuildInformation.

@@ -35,7 +35,7 @@
 namespace VcProjectManager {
 namespace Constants {
 
-const char VCPROJ_MIMETYPE[] = "text/x-vc-project"; // TODO: is this good enough?
+const char VCPROJ_MIMETYPE[] = "text/x-vc-project";
 const char VC_X_PROJ_MIMETYPE[] = "text/x-vcx-project";
 const char VC_PROJECT_ID[] = "VcProject.VcProject";  // 2003 and 2008 version
 const char VC_PROJECT_2005_ID[] = "VcProject.VcProject2005"; // 2005 version
