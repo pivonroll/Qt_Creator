@@ -56,12 +56,11 @@ class VcProject : public ProjectExplorer::Project
     Q_OBJECT
 
 public:
-    VcProject(VcProjectManager *projectManager, const QString &projectFilePath, DocumentVersion docVersion);
+    VcProject(const Utils::FileName &fileName);
     ~VcProject();
 
     QString displayName() const;
     Core::IDocument *document() const;
-    ProjectExplorer::IProjectManager *projectManager() const;
     ProjectExplorer::ProjectNode *rootProjectNode() const;
     QStringList files(FilesMode fileMode) const;
     bool needsConfiguration() const;
@@ -83,7 +82,6 @@ private:
     void importBuildConfigurations();
     void allProjectFile(QStringList &allFiles) const;
 
-    VcProjectManager *m_projectManager;
     VcProjectFile *m_projectFile;
     VcDocProjectNode *m_rootNode;
     QFuture<void> m_codeModelFuture;

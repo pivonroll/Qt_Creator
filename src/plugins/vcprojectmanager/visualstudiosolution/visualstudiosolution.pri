@@ -8,11 +8,9 @@ HEADERS += \
     $$PWD/visualstudiosolution/visualstudiosolutionparser/globals.h \
     $$PWD/visualstudiosolution/visualstudiosolutionparser/solutionconfiguration.h \
     $$PWD/visualstudiosolution/visualstudiosolutionfile.h \
-    $$PWD/visualstudiosolution/visualstudiosolutionmanager.h \
     $$PWD/visualstudiosolution/visualstudiosolutionnode.h
 
 SOURCES += \
     $$PWD/visualstudiosolution/visualstudiosolutionparser/visualstudiosolutionparser.cpp \
     $$PWD/visualstudiosolution/visualstudiosolutionfile.cpp \
-    $$PWD/visualstudiosolution/visualstudiosolutionmanager.cpp \
     $$PWD/visualstudiosolution/visualstudiosolutionnode.cpp

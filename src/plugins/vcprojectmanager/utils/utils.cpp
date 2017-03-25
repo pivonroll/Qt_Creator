@@ -111,8 +111,7 @@ DocumentVersion getProjectVersion(const QString &projectPath)
 
 ProjectExplorer::FileType getFileType(const ::Utils::FileName &canonicalFilePath)
 {
-    ::Utils::MimeDatabase mdb;
-    QString mimeType = mdb.mimeTypeForFile(canonicalFilePath.toString()).name();
+    QString mimeType = Utils::mimeTypeForFile(canonicalFilePath.toString()).name();
 
     if (mimeType == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
             || mimeType == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))

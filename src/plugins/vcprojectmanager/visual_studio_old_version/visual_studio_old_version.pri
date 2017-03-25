@@ -1,7 +1,5 @@
 HEADERS += \
-    $$PWD/vcproject.h \
-    $$PWD/vcprojectmanager.h
+    $$PWD/vcproject.h
 
 SOURCES += \
-    $$PWD/vcproject.cpp \
-    $$PWD/vcprojectmanager.cpp
+    $$PWD/vcproject.cpp

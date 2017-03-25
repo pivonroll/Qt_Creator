@@ -52,13 +52,11 @@ VisualStudioSolutionFile::VisualStudioSolutionFile(const QString &filePath)
 
     setFilePath(Utils::FileName::fromString(filePath));
 
-    Utils::MimeDatabase mdb;
-
     QString canonicalSolutionDirectoryPath = QFileInfo(filePath).absolutePath();
     foreach (const VisualStudioProjectNS::Internal::ProjectReference &projectReference, m_visualStudioParser->m_projectReferences) {
         QString fullProjectPath = canonicalSolutionDirectoryPath + QLatin1Char('/') + projectReference.m_relativeProjectPath;
 
-        Utils::MimeType projectMimeType = mdb.mimeTypeForFile(fullProjectPath);
+        Utils::MimeType projectMimeType = Utils::mimeTypeForFile(fullProjectPath);
         IVisualStudioProject *newProject = nullptr;
 
         if (projectMimeType.matchesName(QLatin1String(Constants::VC_X_PROJ_MIMETYPE)) && QFileInfo(fullProjectPath).exists()) {

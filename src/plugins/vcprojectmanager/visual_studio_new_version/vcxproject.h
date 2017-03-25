@@ -46,13 +46,12 @@ class VcXProject : public ProjectExplorer::Project
 {
     Q_OBJECT
 public:
-    VcXProject(VcXProjectManager *projectManager, const QString &canonicalFilePath);
+    VcXProject(const Utils::FileName &fileName);
     ~VcXProject();
 
     // Project interface
     QString displayName() const;
     Core::IDocument *document() const;
-    ProjectExplorer::IProjectManager *projectManager() const;
     ProjectExplorer::ProjectNode *rootProjectNode() const;
     QStringList files(FilesMode fileMode) const;
 
@@ -65,7 +64,6 @@ private:
     void updateCodeModels();
     void importBuildConfigurations();
 
-    VcXProjectManager *m_projectManager;
     QString m_filePath;
     VcDocProjectNode *m_rootNode;
     VcProjectFile *m_projectFile;

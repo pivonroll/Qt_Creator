@@ -42,19 +42,17 @@ class VisualStudioSolutionNode;
 class VisualStudioProject : public ProjectExplorer::Project
 {
 public:
-    VisualStudioProject(VisualStudioSolutionManager *projectManager, const QString &filePath);
+    VisualStudioProject(const Utils::FileName &fileName);
     ~VisualStudioProject();
 
     // Project interface
     QString displayName() const;
     Core::IDocument *document() const;
-    ProjectExplorer::IProjectManager *projectManager() const;
     ProjectExplorer::ProjectNode *rootProjectNode() const;
     QStringList files(FilesMode fileMode) const;
 
 private:
     VisualStudioSolutionFile *m_visualStudioFile;
-    VisualStudioSolutionManager *m_projectManager;
     QString m_filePath;
     VisualStudioSolutionNode *m_rootNode;
 };

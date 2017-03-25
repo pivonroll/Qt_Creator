@@ -1,7 +1,5 @@
 HEADERS += \
-    $$PWD/vcxproject.h \
-    $$PWD/vcxprojectmanager.h
+    $$PWD/vcxproject.h
 
 SOURCES += \
-    $$PWD/vcxproject.cpp \
-    $$PWD/vcxprojectmanager.cpp
+    $$PWD/vcxproject.cpp

@@ -30,16 +30,14 @@
 #include "visualstudioproject.h"
 
 #include "visualstudiosolution/visualstudiosolutionfile.h"
-#include "visualstudiosolution/visualstudiosolutionmanager.h"
 #include "visualstudiosolution/visualstudiosolutionnode.h"
 
 namespace VcProjectManager {
 namespace Internal {
 
-VisualStudioProject::VisualStudioProject(VisualStudioSolutionManager *projectManager, const QString &filePath)
-    : m_visualStudioFile(new VisualStudioSolutionFile(filePath))
-    , m_projectManager(projectManager)
-    , m_filePath(filePath)
+VisualStudioProject::VisualStudioProject(const Utils::FileName &fileName)
+    : m_visualStudioFile(new VisualStudioSolutionFile(fileName.toString()))
+    , m_filePath(fileName.toString())
 {
     m_rootNode = m_visualStudioFile->createSolutionNode();
 }
@@ -60,11 +58,6 @@ QString VisualStudioProject::displayName() const
 Core::IDocument *VisualStudioProject::document() const
 {
     return m_visualStudioFile;
-}
-
-ProjectExplorer::IProjectManager *VisualStudioProject::projectManager() const
-{
-    return m_projectManager;
 }
 
 ProjectExplorer::ProjectNode *VisualStudioProject::rootProjectNode() const

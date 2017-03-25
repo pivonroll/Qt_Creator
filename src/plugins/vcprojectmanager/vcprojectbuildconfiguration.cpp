@@ -145,8 +145,7 @@ int VcProjectBuildConfigurationFactory::priority(const ProjectExplorer::Target *
 
 int VcProjectBuildConfigurationFactory::priority(const ProjectExplorer::Kit *k, const QString &projectPath) const
 {
-    ::Utils::MimeDatabase mdb;
-    if (k && mdb.mimeTypeForFile(projectPath).matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE)))
+    if (k && Utils::mimeTypeForFile(projectPath).matchesName(QLatin1String(Constants::VCPROJ_MIMETYPE)))
         return 0;
     return -1;
 }

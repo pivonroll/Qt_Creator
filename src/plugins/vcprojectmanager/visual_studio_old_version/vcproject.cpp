@@ -35,7 +35,6 @@
 #include "../vcdocprojectnodes.h"
 #include "../vcprojectfile.h"
 #include "../vcprojectkitinformation.h"
-#include "vcprojectmanager.h"
 
 #include <visualstudiointerfaces/iconfigurationbuildtool.h>
 #include <visualstudiointerfaces/iconfigurationbuildtools.h>
@@ -56,6 +55,7 @@
 
 #include "vcprojectmodel/tools/tool_constants.h"
 #include "vcprojectmodel/vcdocumentmodel.h"
+#include "../utils/utils.h"
 
 #include <coreplugin/icontext.h>
 #include <cpptools/cppmodelmanager.h>
@@ -80,18 +80,20 @@
 namespace VcProjectManager {
 namespace Internal {
 
-VcProject::VcProject(VcProjectManager *projectManager, const QString &projectFilePath, DocumentVersion docVersion)
-    : m_projectManager(projectManager)
-    , m_projectFile(new VcProjectFile(projectFilePath, docVersion))
+VcProject::VcProject(const Utils::FileName &fileName)
 {
-    if (m_projectFile->visualStudioProject()->documentVersion() == DV_MSVC_2005)
+    QString canonicalFilePath = fileName.toString();
+    DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(canonicalFilePath);
+    m_projectFile = new VcProjectFile(fileName.toFileInfo().fileName(), docVersion);
+
+    if (docVersion == DV_MSVC_2005)
         setProjectContext(Core::Context(Constants::VC_PROJECT_2005_ID));
     else
         setProjectContext(Core::Context(Constants::VC_PROJECT_ID));
 
     m_rootNode = m_projectFile->createProjectNode();
 
-    if (m_projectFile->visualStudioProject()->documentVersion() != DV_MSVC_2005)
+    if (docVersion != DV_MSVC_2005)
         setId(Core::Id(Constants::VC_PROJECT_ID));
     else
         setId(Core::Id(Constants::VC_PROJECT_2005_ID));
@@ -114,11 +116,6 @@ QString VcProject::displayName() const
 Core::IDocument *VcProject::document() const
 {
     return m_projectFile;
-}
-
-ProjectExplorer::IProjectManager *VcProject::projectManager() const
-{
-    return m_projectManager;
 }
 
 ProjectExplorer::ProjectNode *VcProject::rootProjectNode() const

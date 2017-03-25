@@ -54,8 +54,8 @@ public:
     ~VisualStudioSolutionFolder();
 
     bool canAddSubProject(const QString &proFilePath) const final;
-    bool addSubProjects(const QStringList &proFilePaths) final;
-    bool removeSubProjects(const QStringList &proFilePaths) final;
+    bool addSubProjects(const QStringList &proFilePaths);
+    bool removeSubProjects(const QStringList &proFilePaths);
 
 private:
     VisualStudioProjectNS::Internal::FolderReference m_folderReference;

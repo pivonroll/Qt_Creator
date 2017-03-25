@@ -35,14 +35,15 @@
 #include "vcprojectbuildoptionspage.h"
 #include "vcprojectkitinformation.h"
 #include "vcprojectmanagerplugin.h"
-#include "visual_studio_old_version/vcprojectmanager.h"
-#include "visual_studio_new_version/vcxprojectmanager.h"
-#include "visualstudiosolution/visualstudiosolutionmanager.h"
 
+#include "visual_studio_old_version/vcproject.h"
+#include "visual_studio_new_version/vcxproject.h"
+#include "common/vcprojectmanagerconstants.h"
 #include <visualstudiotoolattributes/tooldescriptiondatamanager.h>
 
 #include <utils/mimetypes/mimedatabase.h>
 #include <projectexplorer/kitmanager.h>
+#include <projectexplorer/projectmanager.h>
 
 #include <QtPlugin>
 
@@ -76,21 +77,19 @@ bool VcProjectManagerPlugin::initialize(const QStringList &arguments, QString *e
     Q_UNUSED(arguments)
     Q_UNUSED(errorString)
 
-    Utils::MimeDatabase::addMimeTypes(QLatin1String(":vcproject/VcProject.mimetypes.xml"));
-
     VcProjectBuildOptionsPage *confPage = new VcProjectBuildOptionsPage;
     addAutoReleasedObject(confPage);
-    addAutoReleasedObject(new VcProjectManager(confPage));
-    addAutoReleasedObject(new VcXProjectManager);
     addAutoReleasedObject(new VcProjectBuildConfigurationFactory);
     addAutoReleasedObject(new VcMakeStepFactory);
     addAutoReleasedObject(new MsBuildVersionManager);
     addAutoReleasedObject(new VcSchemaManager);
     addAutoReleasedObject(new MenuHandler);
     addAutoReleasedObject(new ToolDescriptionDataManager);
-    addAutoReleasedObject(new VisualStudioSolutionManager);
 
     ProjectExplorer::KitManager::registerKitInformation(new VcProjectKitInformation);
+    ProjectExplorer::ProjectManager::registerProjectType<VcProject>(::VcProjectManager::Constants::VCPROJ_MIMETYPE);
+    ProjectExplorer::ProjectManager::registerProjectType<VcXProject>(::VcProjectManager::Constants::VC_X_PROJ_MIMETYPE);
+
 
     return true;
 }
