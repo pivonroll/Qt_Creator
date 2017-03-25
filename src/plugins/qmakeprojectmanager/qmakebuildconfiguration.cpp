@@ -156,6 +156,13 @@ void QmakeBuildConfiguration::ctor()
             this, &QmakeBuildConfiguration::emitProFileEvaluateNeeded);
     connect(target(), &Target::kitChanged,
             this, &QmakeBuildConfiguration::kitChanged);
+    MacroExpander *expander = macroExpander();
+    expander->registerVariable("Qmake:Makefile", "Qmake makefile", [this]() -> QString {
+        const QString file = makefile();
+        if (!file.isEmpty())
+            return file;
+        return QLatin1String("Makefile");
+    });
 }
 
 void QmakeBuildConfiguration::kitChanged()
@@ -227,7 +234,7 @@ bool QmakeBuildConfiguration::isShadowBuild() const
 
 QString QmakeBuildConfiguration::makefile() const
 {
-    return static_cast<QmakeProject *>(target()->project())->rootProjectNode()->makefile();
+    return static_cast<QmakeProject *>(target()->project())->rootProFile()->makefile();
 }
 
 BaseQtVersion::QmakeBuildConfigs QmakeBuildConfiguration::qmakeBuildConfiguration() const
@@ -628,8 +635,7 @@ QList<BuildInfo *> QmakeBuildConfigurationFactory::availableBuilds(const Target 
 
 int QmakeBuildConfigurationFactory::priority(const Kit *k, const QString &projectPath) const
 {
-    MimeDatabase mdb;
-    if (k && mdb.mimeTypeForFile(projectPath).matchesName(QLatin1String(Constants::PROFILE_MIMETYPE)))
+    if (k && Utils::mimeTypeForFile(projectPath).matchesName(Constants::PROFILE_MIMETYPE))
         return 0;
     return -1;
 }

@@ -32,6 +32,7 @@
 
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegExp>
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -76,6 +77,11 @@ bool NimToolChain::isValid() const
     return fi.isExecutable();
 }
 
+ToolChain::PredefinedMacrosRunner NimToolChain::createPredefinedMacrosRunner() const
+{
+    return ToolChain::PredefinedMacrosRunner();
+}
+
 QByteArray NimToolChain::predefinedMacros(const QStringList &) const
 {
     return QByteArray();
@@ -89,6 +95,11 @@ ToolChain::CompilerFlags NimToolChain::compilerFlags(const QStringList &) const
 WarningFlags NimToolChain::warningFlags(const QStringList &) const
 {
     return WarningFlags::NoWarnings;
+}
+
+ToolChain::SystemHeaderPathsRunner NimToolChain::createSystemHeaderPathsRunner() const
+{
+    return ToolChain::SystemHeaderPathsRunner();
 }
 
 QList<HeaderPath> NimToolChain::systemHeaderPaths(const QStringList &, const FileName &) const

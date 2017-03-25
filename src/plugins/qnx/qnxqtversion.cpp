@@ -82,7 +82,7 @@ QSet<Core::Id> QnxQtVersion::availableFeatures() const
 
 QSet<Core::Id> QnxQtVersion::targetDeviceTypes() const
 {
-    return { Constants::QNX_QNX_OS_TYPE };
+    return {Constants::QNX_QNX_OS_TYPE};
 }
 
 QString QnxQtVersion::qnxHost() const
@@ -139,7 +139,7 @@ void QnxQtVersion::fromMap(const QVariantMap &map)
 QList<ProjectExplorer::Abi> QnxQtVersion::detectQtAbis() const
 {
     ensureMkSpecParsed();
-    return qtAbisFromLibrary(qtCorePaths());
+    return QnxUtils::convertAbis(qtAbisFromLibrary(qtCorePaths()));
 }
 
 void QnxQtVersion::addToEnvironment(const ProjectExplorer::Kit *k, Utils::Environment &env) const

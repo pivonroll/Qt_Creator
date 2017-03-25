@@ -51,8 +51,7 @@ public:
     explicit WinRtRunControl(WinRtRunConfiguration *runConfiguration, Core::Id mode);
 
     void start() override;
-    StopResult stop() override;
-    bool isRunning() const override;
+    void stop() override;
 
 private:
     enum State { StartingState, StartedState, StoppedState };

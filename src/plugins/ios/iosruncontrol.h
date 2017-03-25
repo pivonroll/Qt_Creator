@@ -41,10 +41,8 @@ public:
     explicit IosRunControl(IosRunConfiguration *runConfig);
     ~IosRunControl() override;
 
-
     void start() override;
-    StopResult stop() override;
-    bool isRunning() const override;
+    void stop() override;
     QString displayName() const override;
 
 private:
@@ -53,7 +51,6 @@ private:
     void handleRemoteErrorOutput(const QString &output);
 
     IosRunner *const m_runner;
-    bool m_running;
 };
 
 } // namespace Internal

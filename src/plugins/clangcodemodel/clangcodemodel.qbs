@@ -98,6 +98,10 @@ QtcPlugin {
         condition: qtc.testsEnabled
         prefix: "test/"
         files: [
+            "clangautomationutils.cpp",
+            "clangautomationutils.h",
+            "clangbatchfileprocessor.cpp",
+            "clangbatchfileprocessor.h",
             "clangcodecompletion_test.cpp",
             "clangcodecompletion_test.h",
             "data/clangtestdata.qrc",

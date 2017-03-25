@@ -56,6 +56,7 @@
 #include <QFileSystemWatcher>
 #include <QList>
 #include <QProcess>
+#include <QRegExp>
 #include <QMessageBox>
 #include <QApplication>
 #include <QDomDocument>
@@ -408,8 +409,8 @@ bool AndroidManager::checkKeystorePassword(const QString &keystorePath, const QS
 bool AndroidManager::checkCertificatePassword(const QString &keystorePath, const QString &keystorePasswd, const QString &alias, const QString &certificatePasswd)
 {
     // assumes that the keystore password is correct
-    QStringList arguments = { "-certreq", "-keystore", keystorePath,
-                              "--storepass", keystorePasswd, "-alias", alias, "-keypass" };
+    QStringList arguments = {"-certreq", "-keystore", keystorePath,
+                             "--storepass", keystorePasswd, "-alias", alias, "-keypass"};
     if (certificatePasswd.isEmpty())
         arguments << keystorePasswd;
     else

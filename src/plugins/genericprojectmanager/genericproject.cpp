@@ -32,11 +32,13 @@
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/icontext.h>
 #include <coreplugin/icore.h>
+#include <coreplugin/idocument.h>
+
 #include <cpptools/cpptoolsconstants.h>
 #include <cpptools/cppmodelmanager.h>
 #include <cpptools/projectinfo.h>
-#include <cpptools/projectpartbuilder.h>
-#include <extensionsystem/pluginmanager.h>
+#include <cpptools/cppprojectupdater.h>
+
 #include <projectexplorer/abi.h>
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/customexecutablerunconfiguration.h>
@@ -44,20 +46,110 @@
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/kitmanager.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/projectnodes.h>
+#include <projectexplorer/target.h>
+
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
+
 #include <utils/algorithm.h>
 #include <utils/fileutils.h>
 #include <utils/qtcassert.h>
 
 #include <QDir>
-#include <QProcessEnvironment>
+#include <QHash>
+#include <QSet>
+#include <QStringList>
 
 using namespace Core;
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace GenericProjectManager {
 namespace Internal {
+
+////////////////////////////////////////////////////////////////////////////////////
+//
+// GenericProjectFile
+//
+////////////////////////////////////////////////////////////////////////////////////
+
+class GenericProjectFile : public Core::IDocument
+{
+public:
+    GenericProjectFile(GenericProject *parent, const FileName &fileName,
+                       GenericProject::RefreshOptions options) :
+        m_project(parent),
+        m_options(options)
+    {
+        setId("Generic.ProjectFile");
+        setMimeType(Constants::GENERICMIMETYPE);
+        setFilePath(fileName);
+    }
+
+    ReloadBehavior reloadBehavior(ChangeTrigger, ChangeType) const final
+    {
+        return BehaviorSilent;
+    }
+
+    bool reload(QString *errorString, ReloadFlag flag, ChangeType type) override
+    {
+        Q_UNUSED(errorString);
+        Q_UNUSED(flag);
+        if (type == TypePermissions)
+            return true;
+        m_project->refresh(m_options);
+        return true;
+    }
+
+private:
+    GenericProject *m_project = nullptr;
+    GenericProject::RefreshOptions m_options;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////////
+//
+// GenericProjectNode
+//
+////////////////////////////////////////////////////////////////////////////////////
+
+class GenericProjectNode : public ProjectNode
+{
+public:
+    explicit GenericProjectNode(GenericProject *project) :
+        ProjectNode(project->projectDirectory()),
+        m_project(project)
+    {
+        setDisplayName(project->projectFilePath().toFileInfo().completeBaseName());
+    }
+
+    bool showInSimpleTree() const override { return true; }
+
+    QList<ProjectExplorer::ProjectAction> supportedActions(Node *) const override
+    {
+        return {AddNewFile, AddExistingFile, AddExistingDirectory, RemoveFile, Rename};
+    }
+
+    bool addFiles(const QStringList &filePaths, QStringList * = 0) override
+    {
+        return m_project->addFiles(filePaths);
+    }
+
+    bool removeFiles(const QStringList &filePaths, QStringList * = 0) override
+    {
+        return m_project->removeFiles(filePaths);
+    }
+
+    bool renameFile(const QString &filePath, const QString &newFilePath) override
+    {
+        return m_project->renameFile(filePath, newFilePath);
+    }
+
+private:
+    GenericProject *m_project = nullptr;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////////
 //
@@ -65,54 +157,36 @@ namespace Internal {
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
-GenericProject::GenericProject(Manager *manager, const QString &fileName)
+GenericProject::GenericProject(const Utils::FileName &fileName)
+    : m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
 {
     setId(Constants::GENERICPROJECT_ID);
-    setProjectManager(manager);
     setDocument(new GenericProjectFile(this, fileName, GenericProject::Everything));
-    setRootProjectNode(new GenericProjectNode(this));
     setProjectContext(Context(GenericProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
 
     const QFileInfo fileInfo = projectFilePath().toFileInfo();
     const QDir dir = fileInfo.dir();
 
-    m_projectName      = fileInfo.completeBaseName();
-    m_filesFileName    = QFileInfo(dir, m_projectName + ".files").absoluteFilePath();
-    m_includesFileName = QFileInfo(dir, m_projectName + ".includes").absoluteFilePath();
-    m_configFileName   = QFileInfo(dir, m_projectName + ".config").absoluteFilePath();
+    const QString projectName = fileInfo.completeBaseName();
 
-    m_filesIDocument    = new GenericProjectFile(this, m_filesFileName, GenericProject::Files);
-    m_includesIDocument = new GenericProjectFile(this, m_includesFileName, GenericProject::Configuration);
-    m_configIDocument   = new GenericProjectFile(this, m_configFileName, GenericProject::Configuration);
+    m_filesFileName    = QFileInfo(dir, projectName + ".files").absoluteFilePath();
+    m_includesFileName = QFileInfo(dir, projectName + ".includes").absoluteFilePath();
+    m_configFileName   = QFileInfo(dir, projectName + ".config").absoluteFilePath();
+
+    m_filesIDocument    = new GenericProjectFile(this, FileName::fromString(m_filesFileName), GenericProject::Files);
+    m_includesIDocument = new GenericProjectFile(this, FileName::fromString(m_includesFileName), GenericProject::Configuration);
+    m_configIDocument   = new GenericProjectFile(this, FileName::fromString(m_configFileName), GenericProject::Configuration);
 
     DocumentManager::addDocument(document());
     DocumentManager::addDocument(m_filesIDocument);
     DocumentManager::addDocument(m_includesIDocument);
     DocumentManager::addDocument(m_configIDocument);
-
-    projectManager()->registerProject(this);
 }
 
 GenericProject::~GenericProject()
 {
-    m_codeModelFuture.cancel();
-    projectManager()->unregisterProject(this);
-}
-
-QString GenericProject::filesFileName() const
-{
-    return m_filesFileName;
-}
-
-QString GenericProject::includesFileName() const
-{
-    return m_includesFileName;
-}
-
-QString GenericProject::configFileName() const
-{
-    return m_configFileName;
+    delete m_cppCodeModelUpdater;
 }
 
 static QStringList readLines(const QString &absoluteFileName)
@@ -137,7 +211,7 @@ static QStringList readLines(const QString &absoluteFileName)
 
 bool GenericProject::saveRawFileList(const QStringList &rawFileList)
 {
-    bool result = saveRawList(rawFileList, filesFileName());
+    bool result = saveRawList(rawFileList, m_filesFileName);
     refresh(GenericProject::Files);
     return result;
 }
@@ -171,7 +245,7 @@ bool GenericProject::addFiles(const QStringList &filePaths)
     for (const QString &filePath : filePaths)
         insertSorted(&newList, baseDir.relativeFilePath(filePath));
 
-    const QSet<QString> includes = projectIncludePaths().toSet();
+    const QSet<QString> includes = m_projectIncludePaths.toSet();
     QSet<QString> toAdd;
 
     for (const QString &filePath : filePaths) {
@@ -189,8 +263,8 @@ bool GenericProject::addFiles(const QStringList &filePaths)
         m_rawProjectIncludePaths.append(relative);
     }
 
-    bool result = saveRawList(newList, filesFileName());
-    result &= saveRawList(m_rawProjectIncludePaths, includesFileName());
+    bool result = saveRawList(newList, m_filesFileName);
+    result &= saveRawList(m_rawProjectIncludePaths, m_includesFileName);
     refresh(GenericProject::Everything);
 
     return result;
@@ -241,12 +315,12 @@ void GenericProject::parseProject(RefreshOptions options)
 {
     if (options & Files) {
         m_rawListEntries.clear();
-        m_rawFileList = readLines(filesFileName());
+        m_rawFileList = readLines(m_filesFileName);
         m_files = processEntries(m_rawFileList, &m_rawListEntries);
     }
 
     if (options & Configuration) {
-        m_rawProjectIncludePaths = readLines(includesFileName());
+        m_rawProjectIncludePaths = readLines(m_includesFileName);
         m_projectIncludePaths = processEntries(m_rawProjectIncludePaths);
 
         // TODO: Possibly load some configuration from the project file
@@ -262,26 +336,26 @@ void GenericProject::refresh(RefreshOptions options)
     parseProject(options);
 
     if (options & Files) {
-        QList<FileNode *> fileNodes = Utils::transform(files(), [](const QString &f) {
+        auto newRoot = new GenericProjectNode(this);
+
+        for (const QString &f : m_files) {
             FileType fileType = FileType::Source; // ### FIXME
             if (f.endsWith(".qrc"))
                 fileType = FileType::Resource;
-            return new FileNode(Utils::FileName::fromString(f), fileType, false);
-        });
+            newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(f), fileType, false));
+        }
 
-        auto projectFilesNode = new FileNode(Utils::FileName::fromString(m_filesFileName),
+        newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(m_filesFileName),
                                              FileType::Project,
-                                             /* generated = */ false);
+                                             /* generated = */ false));
+        newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(m_includesFileName),
+                                             FileType::Project,
+                                             /* generated = */ false));
+        newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(m_configFileName),
+                                             FileType::Project,
+                                             /* generated = */ false));
 
-        auto projectIncludesNode = new FileNode(Utils::FileName::fromString(m_includesFileName),
-                                                FileType::Project,
-                                                /* generated = */ false);
-
-        auto projectConfigNode = new FileNode(Utils::FileName::fromString(m_configFileName),
-                                              FileType::Project,
-                                              /* generated = */ false);
-        fileNodes << projectFilesNode << projectIncludesNode << projectConfigNode;
-        rootProjectNode()->buildTree(fileNodes);
+        setRootProjectNode(newRoot);
     }
 
     refreshCppCodeModel();
@@ -338,12 +412,19 @@ QStringList GenericProject::processEntries(const QStringList &paths,
 
 void GenericProject::refreshCppCodeModel()
 {
-    CppTools::CppModelManager *modelManager = CppTools::CppModelManager::instance();
+    const Kit *k = nullptr;
+    if (Target *target = activeTarget())
+        k = target->kit();
+    else
+        k = KitManager::defaultKit();
+    QTC_ASSERT(k, return);
 
-    m_codeModelFuture.cancel();
+    ToolChain *cToolChain
+            = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::C_LANGUAGE_ID);
+    ToolChain *cxxToolChain
+            = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
 
-    CppTools::ProjectInfo pInfo(this);
-    CppTools::ProjectPartBuilder ppBuilder(pInfo);
+    m_cppCodeModelUpdater->cancel();
 
     CppTools::ProjectPart::QtVersion activeQtVersion = CppTools::ProjectPart::NoQt;
     if (QtSupport::BaseQtVersion *qtVersion =
@@ -354,16 +435,16 @@ void GenericProject::refreshCppCodeModel()
             activeQtVersion = CppTools::ProjectPart::Qt5;
     }
 
-    ppBuilder.setProjectFile(projectFilePath().toString());
-    ppBuilder.setQtVersion(activeQtVersion);
-    ppBuilder.setIncludePaths(projectIncludePaths());
-    ppBuilder.setConfigFileName(configFileName());
+    CppTools::RawProjectPart rpp;
+    rpp.setDisplayName(displayName());
+    rpp.setProjectFileLocation(projectFilePath().toString());
+    rpp.setQtVersion(activeQtVersion);
+    rpp.setIncludePaths(m_projectIncludePaths);
+    rpp.setConfigFileName(m_configFileName);
+    rpp.setFiles(m_files);
 
-    const QList<Id> languages = ppBuilder.createProjectPartsForFiles(files());
-    for (Id language : languages)
-        setProjectLanguage(language, true);
-
-    m_codeModelFuture = modelManager->updateProjectInfo(pInfo);
+    const CppTools::ProjectUpdateInfo projectInfoUpdate(this, cToolChain, cxxToolChain, k, {rpp});
+    m_cppCodeModelUpdater->update(projectInfoUpdate);
 }
 
 void GenericProject::activeTargetWasChanged()
@@ -388,11 +469,6 @@ void GenericProject::activeBuildConfigurationWasChanged()
     refresh(Everything);
 }
 
-QStringList GenericProject::projectIncludePaths() const
-{
-    return m_projectIncludePaths;
-}
-
 QStringList GenericProject::files() const
 {
     return m_files;
@@ -400,12 +476,7 @@ QStringList GenericProject::files() const
 
 QString GenericProject::displayName() const
 {
-    return m_projectName;
-}
-
-Manager *GenericProject::projectManager() const
-{
-    return static_cast<Manager *>(Project::projectManager());
+    return projectFilePath().toFileInfo().completeBaseName();
 }
 
 QStringList GenericProject::files(FilesMode fileMode) const
@@ -454,39 +525,6 @@ Project::RestoreResult GenericProject::fromMap(const QVariantMap &map, QString *
             this, &GenericProject::activeTargetWasChanged);
     refresh(Everything);
     return RestoreResult::Ok;
-}
-
-////////////////////////////////////////////////////////////////////////////////////
-//
-// GenericProjectFile
-//
-////////////////////////////////////////////////////////////////////////////////////
-
-GenericProjectFile::GenericProjectFile(GenericProject *parent, QString fileName,
-                                       GenericProject::RefreshOptions options) :
-      m_project(parent),
-      m_options(options)
-{
-    setId("Generic.ProjectFile");
-    setMimeType(Constants::GENERICMIMETYPE);
-    setFilePath(Utils::FileName::fromString(fileName));
-}
-
-IDocument::ReloadBehavior GenericProjectFile::reloadBehavior(ChangeTrigger state, ChangeType type) const
-{
-    Q_UNUSED(state);
-    Q_UNUSED(type);
-    return BehaviorSilent;
-}
-
-bool GenericProjectFile::reload(QString *errorString, ReloadFlag flag, ChangeType type)
-{
-    Q_UNUSED(errorString);
-    Q_UNUSED(flag);
-    if (type == TypePermissions)
-        return true;
-    m_project->refresh(m_options);
-    return true;
 }
 
 } // namespace Internal

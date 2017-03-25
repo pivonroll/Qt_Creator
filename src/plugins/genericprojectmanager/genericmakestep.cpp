@@ -29,15 +29,17 @@
 #include "ui_genericmakestep.h"
 #include "genericbuildconfiguration.h"
 
-#include <extensionsystem/pluginmanager.h>
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/gnumakeparser.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/target.h>
 #include <projectexplorer/toolchain.h>
+
 #include <qtsupport/qtkitinformation.h>
 #include <qtsupport/qtparser.h>
+
 #include <utils/stringutils.h>
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
@@ -326,9 +328,9 @@ QList<BuildStepInfo> GenericMakeStepFactory::availableSteps(BuildStepList *paren
     if (parent->target()->project()->id() != Constants::GENERICPROJECT_ID)
         return {};
 
-    return {{ GENERIC_MS_ID,
-              QCoreApplication::translate("GenericProjectManager::Internal::GenericMakeStep",
-              GENERIC_MS_DISPLAY_NAME) }};
+    return {{GENERIC_MS_ID,
+             QCoreApplication::translate("GenericProjectManager::Internal::GenericMakeStep",
+             GENERIC_MS_DISPLAY_NAME)}};
 }
 
 BuildStep *GenericMakeStepFactory::create(BuildStepList *parent, const Id id)

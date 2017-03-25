@@ -151,9 +151,10 @@ bool isSkippedNode(const ModelNode &node)
 void NodeInstanceView::modelAttached(Model *model)
 {
     AbstractView::modelAttached(model);
-    m_nodeInstanceServer = new NodeInstanceServerProxy(this, m_runModus, m_currentKit, m_currentProject);
+    auto server = new NodeInstanceServerProxy(this, m_runModus, m_currentKit, m_currentProject);
+    m_nodeInstanceServer = server;
     m_lastCrashTime.start();
-    connect(m_nodeInstanceServer.data(), SIGNAL(processCrashed()), this, SLOT(handleCrash()));
+    connect(server, &NodeInstanceServerProxy::processCrashed, this, &NodeInstanceView::handleCrash);
 
     if (!isSkippedRootNode(rootModelNode()))
         nodeInstanceServer()->createScene(createCreateSceneCommand());
@@ -204,8 +205,9 @@ void NodeInstanceView::restartProcess()
     if (model()) {
         delete nodeInstanceServer();
 
-        m_nodeInstanceServer = new NodeInstanceServerProxy(this, m_runModus, m_currentKit, m_currentProject);
-        connect(m_nodeInstanceServer.data(), SIGNAL(processCrashed()), this, SLOT(handleCrash()));
+        auto server = new NodeInstanceServerProxy(this, m_runModus, m_currentKit, m_currentProject);
+        m_nodeInstanceServer = server;
+        connect(server, &NodeInstanceServerProxy::processCrashed, this, &NodeInstanceView::handleCrash);
 
         if (!isSkippedRootNode(rootModelNode()))
             nodeInstanceServer()->createScene(createCreateSceneCommand());
@@ -1129,6 +1131,8 @@ void NodeInstanceView::pixmapChanged(const PixmapChangedCommand &command)
         }
     }
 
+    m_nodeInstanceServer->benchmark(Q_FUNC_INFO + QString::number(renderImageChangeSet.count()));
+
     if (!renderImageChangeSet.isEmpty())
         emitInstancesRenderImageChanged(renderImageChangeSet.toList().toVector());
 }
@@ -1157,6 +1161,8 @@ void NodeInstanceView::informationChanged(const InformationChangedCommand &comma
         return;
 
     QMultiHash<ModelNode, InformationName> informationChangeHash = informationChanged(command.informations());
+
+    m_nodeInstanceServer->benchmark(Q_FUNC_INFO + QString::number(informationChangeHash.count()));
 
     if (!informationChangeHash.isEmpty())
         emitInstanceInformationsChange(informationChangeHash);
@@ -1221,6 +1227,8 @@ void NodeInstanceView::componentCompleted(const ComponentCompletedCommand &comma
         if (hasModelNodeForInternalId(instanceId))
             nodeVector.append(modelNodeForInternalId(instanceId));
     }
+
+    m_nodeInstanceServer->benchmark(Q_FUNC_INFO + QString::number(nodeVector.count()));
 
     if (!nodeVector.isEmpty())
         emitInstancesCompleted(nodeVector);

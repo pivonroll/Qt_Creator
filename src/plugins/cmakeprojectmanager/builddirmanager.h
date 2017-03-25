@@ -37,8 +37,6 @@
 #include <functional>
 #include <memory>
 
-namespace CppTools { class ProjectPartBuilder; }
-
 namespace ProjectExplorer {
 class FileNode;
 class IOutputParser;
@@ -71,9 +69,9 @@ public:
     bool updateCMakeStateBeforeBuild();
     bool persistCMakeState();
 
-    void generateProjectTree(CMakeListsNode *root,
+    void generateProjectTree(CMakeProjectNode *root,
                              const QList<const ProjectExplorer::FileNode *> &allFiles);
-    QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
+    void updateCodeModel(CppTools::RawProjectParts &rpps);
 
     QList<CMakeBuildTarget> buildTargets() const;
     CMakeConfig parsedConfiguration() const;

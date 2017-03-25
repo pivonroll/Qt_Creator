@@ -42,6 +42,8 @@
 #include <qmljseditor/qmljseditorconstants.h>
 #include <qmljseditor/qmljseditordocument.h>
 
+#include <coreplugin/icore.h>
+
 #include <utils/hostosinfo.h>
 #include <utils/proxyaction.h>
 #include <utils/utilsicons.h>
@@ -120,7 +122,7 @@ void ShortCutManager::registerActions(const Core::Context &qmlDesignerMainContex
             QmlDesignerPlugin::instance()->mainWidget(),
             &Internal::DesignModeWidget::restoreDefaultView);
 
-    connect(&m_goIntoComponentAction, SIGNAL(triggered()), SLOT(goIntoComponent()));
+    connect(&m_goIntoComponentAction, &QAction::triggered, this, &ShortCutManager::goIntoComponent);
 
     connect(&m_toggleLeftSidebarAction,
             &QAction::triggered,
@@ -198,15 +200,7 @@ void ShortCutManager::registerActions(const Core::Context &qmlDesignerMainContex
 
     m_deleteAction.setIcon(QIcon::fromTheme(QLatin1String("edit-cut"), Utils::Icons::EDIT_CLEAR_TOOLBAR.icon()));
 
-    Core::ActionManager::registerAction(&m_deleteAction, QmlDesigner::Constants::C_BACKSPACE, qmlDesignerFormEditorContext);
-    command = Core::ActionManager::registerAction(&m_deleteAction, QmlDesigner::Constants::C_BACKSPACE, qmlDesignerNavigatorContext);
-    command->setDefaultKeySequence(QKeySequence(Qt::Key_Backspace));
-    command->setAttribute(Core::Command::CA_Hide); // don't show delete in other modes
-    if (Utils::HostOsInfo::isMacHost())
-        editMenu->addAction(command, Core::Constants::G_EDIT_COPYPASTE);
-
-    Core::ActionManager::registerAction(&m_deleteAction, QmlDesigner::Constants::C_DELETE, qmlDesignerFormEditorContext);
-    command = Core::ActionManager::registerAction(&m_deleteAction, QmlDesigner::Constants::C_DELETE, qmlDesignerNavigatorContext);
+    command = Core::ActionManager::registerAction(&m_deleteAction, QmlDesigner::Constants::C_DELETE, qmlDesignerMainContext);
     command->setDefaultKeySequence(QKeySequence::Delete);
     command->setAttribute(Core::Command::CA_Hide); // don't show delete in other modes
     if (!Utils::HostOsInfo::isMacHost())
@@ -266,12 +260,21 @@ void ShortCutManager::registerActions(const Core::Context &qmlDesignerMainContex
     command->setDefaultKeySequence(QKeySequence(Qt::Key_Escape));
     m_escapeAction.setEnabled(false);
 
-    Core::ActionManager::registerAction(&m_hideSidebarsAction, Core::Constants::TOGGLE_SIDEBAR, qmlDesignerMainContext);
+    Core::ActionManager::registerAction(&m_hideSidebarsAction, Core::Constants::TOGGLE_LEFT_SIDEBAR, qmlDesignerMainContext);
 
     connect(designerActionManager.view(), &DesignerActionManagerView::selectionChanged, this, [this](bool itemsSelected, bool rootItemIsSelected) {
         m_deleteAction.setEnabled(itemsSelected && !rootItemIsSelected);
         m_cutAction.setEnabled(itemsSelected && !rootItemIsSelected);
         m_copyAction.setEnabled(itemsSelected);
+    });
+
+    connect(Core::ICore::instance(), &Core::ICore::contextChanged, this, [this](const Core::Context &context){
+        if (!context.contains(Constants::C_QMLFORMEDITOR) && !context.contains(Constants::C_QMLNAVIGATOR)) {
+            m_deleteAction.setEnabled(false);
+            m_cutAction.setEnabled(false);
+            m_copyAction.setEnabled(false);
+            m_pasteAction.setEnabled(false);
+        }
     });
 
     updateClipboard(&m_pasteAction);
@@ -368,16 +371,16 @@ void ShortCutManager::toggleRightSidebar()
 void ShortCutManager::connectUndoActions(DesignDocument *designDocument)
 {
     if (designDocument) {
-        connect(designDocument, SIGNAL(undoAvailable(bool)), this, SLOT(undoAvailable(bool)));
-        connect(designDocument, SIGNAL(redoAvailable(bool)), this, SLOT(redoAvailable(bool)));
+        connect(designDocument, &DesignDocument::undoAvailable, this, &ShortCutManager::undoAvailable);
+        connect(designDocument, &DesignDocument::redoAvailable, this, &ShortCutManager::redoAvailable);
     }
 }
 
 void ShortCutManager::disconnectUndoActions(DesignDocument *designDocument)
 {
     if (currentDesignDocument()) {
-        disconnect(designDocument, SIGNAL(undoAvailable(bool)), this, SLOT(undoAvailable(bool)));
-        disconnect(designDocument, SIGNAL(redoAvailable(bool)), this, SLOT(redoAvailable(bool)));
+        disconnect(designDocument, &DesignDocument::undoAvailable, this, &ShortCutManager::undoAvailable);
+        disconnect(designDocument, &DesignDocument::redoAvailable, this, &ShortCutManager::redoAvailable);
     }
 }
 

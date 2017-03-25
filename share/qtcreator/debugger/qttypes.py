@@ -317,7 +317,7 @@ def qdump__QDateTime(d, value):
                 spec = (status & 0x30) >> 4
                 isValid = True
 
-            d.putValue('%s/%s/%s/%s/%s' % (msecs, spec, offsetFromUtc, timeZone, status),
+            d.putValue('%s/%s/%s/%s/%s/%s' % (msecs, spec, offsetFromUtc, timeZone, status, tiVersion),
                 'datetimeinternal')
         else:
             if d.isWindowsTarget():
@@ -344,7 +344,7 @@ def qdump__QDateTime(d, value):
                 else:
                     idBase = tzp + 2 * d.ptrSize() # [QSharedData] + [vptr]
                     elided, tz = d.encodeByteArrayHelper(d.extractPointer(idBase), limit=100)
-                d.putValue('%s/%s/%s/%s/%s' % (msecs, spec, offset, tz, status),
+                d.putValue('%s/%s/%s/%s/%s/%s' % (msecs, spec, offset, tz, status, 0),
                     'datetimeinternal')
     else:
         # This relies on the Qt4/Qt5 internal structure layout:
@@ -487,12 +487,20 @@ def qdump__QFile(d, value):
     # 9fc0965 and a373ffcd change the layout of the private structure
     qtVersion = d.qtVersion()
     is32bit = d.ptrSize() == 4
-    if qtVersion >= 0x050600:
+    if qtVersion >= 0x050700:
         if d.isWindowsTarget():
             if d.isMsvcTarget():
                 offset = 184 if is32bit else 248
             else:
-                offset = 164 if is32bit else 248
+                offset = 172 if is32bit else 248
+        else:
+            offset = 168 if is32bit else 248
+    elif qtVersion >= 0x050600:
+        if d.isWindowsTarget():
+            if d.isMsvcTarget():
+                offset = 184 if is32bit else 248
+            else:
+                offset = 180 if is32bit else 248
         else:
             offset = 168 if is32bit else 248
     elif qtVersion >= 0x050500:
@@ -1078,6 +1086,26 @@ def qdump__QMetaObject(d, value):
             d.putMembersItem(value)
 
 
+def qdump__QObjectPrivate__ConnectionList(d, value):
+    d.putNumChild(1)
+    if d.isExpanded():
+        i = 0
+        with Children(d):
+            first, last = value.split('pp')
+            currentConnection = first
+            connectionType = d.createType('QObjectPrivate::Connection')
+            while currentConnection and currentConnection != last:
+                sender, receiver, slotObj, nextConnectionList, nextp, prev = \
+                    d.split('pppppp', currentConnection)
+                d.putSubItem(i, d.createValue(currentConnection, connectionType))
+                currentConnection = nextp
+                i += 1
+            d.putFields(value)
+        d.putItemCount(i)
+    else:
+        d.putSpecialValue('minimumitemcount', 0)
+
+
 def qdump__QPixmap(d, value):
     if d.qtVersion() < 0x050000:
         (vtbl, painters, dataPtr) = value.split('ppp');
@@ -1288,7 +1316,12 @@ def qdump__QPolygon(d, value):
 def qdump__QGraphicsPolygonItem(d, value):
     (vtbl, dptr) = value.split('pp')
     # Assume sizeof(QGraphicsPolygonItemPrivate) == 400
-    offset = 308 if d.ptrSize() == 4 else 384
+    if d.ptrSize() == 8:
+        offset = 384
+    elif d.isWindowsTarget():
+        offset = 328 if d.isMsvcTarget() else 320
+    else:
+        offset = 308
     data, size, alloc = d.vectorDataHelper(d.extractPointer(dptr + offset))
     d.putItemCount(size)
     d.putPlotData(data, size, d.createType('QPointF'))
@@ -2572,7 +2605,7 @@ def qdumpHelper_QJsonValue(d, data, base, pv):
         else:
             length = d.extractUInt(data)
             d.putValue(d.readMemory(data + 4, length * 2), 'utf16')
-        d.putNumChild(1)
+        d.putNumChild(0)
         return
     if t == 4:
         d.putType('QJsonValue (Array)')

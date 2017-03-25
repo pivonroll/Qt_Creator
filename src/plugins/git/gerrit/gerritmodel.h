@@ -25,6 +25,9 @@
 
 #pragma once
 
+#include "gerritparameters.h"
+#include "gerritserver.h"
+
 #include <QStandardItemModel>
 #include <QSharedPointer>
 #include <QDateTime>
@@ -35,8 +38,6 @@ QT_END_NAMESPACE
 
 namespace Gerrit {
 namespace Internal {
-class GerritServer;
-class GerritParameters;
 class QueryContext;
 
 class GerritApproval {
@@ -45,8 +46,7 @@ public:
 
     QString type; // Review type
     QString description; // Type description, possibly empty
-    QString reviewer;
-    QString email;
+    GerritUser reviewer;
     int approval;
 };
 
@@ -55,9 +55,10 @@ public:
     GerritPatchSet() : patchSetNumber(1) {}
     QString approvalsToHtml() const;
     QString approvalsColumn() const;
-    bool hasApproval(const QString &userName) const;
+    bool hasApproval(const GerritUser &user) const;
     int approvalLevel() const;
 
+    QString url;
     QString ref;
     int patchSetNumber;
     QList<GerritApproval> approvals;
@@ -76,9 +77,7 @@ public:
     int dependsOnNumber = 0;
     int neededByNumber = 0;
     QString title;
-    QString owner;
-    QString user;
-    QString email;
+    GerritUser owner;
     QString project;
     QString branch;
     QString status;
@@ -118,6 +117,7 @@ public:
     QString toHtml(const QModelIndex &index) const;
 
     QStandardItem *itemForNumber(int number) const;
+    QSharedPointer<GerritServer> server() const { return m_server; }
 
     enum QueryState { Idle, Running, Ok, Error };
     QueryState state() const { return m_state; }
@@ -127,6 +127,7 @@ public:
 signals:
     void refreshStateChanged(bool isRefreshing); // For disabling the "Refresh" button.
     void stateChanged();
+    void errorText(const QString &text);
 
 private:
     void resultRetrieved(const QByteArray &);

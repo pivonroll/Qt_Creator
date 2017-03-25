@@ -39,12 +39,12 @@ NimProjectNode::NimProjectNode(NimProject &project,
 
 QList<ProjectAction> NimProjectNode::supportedActions(Node *node) const
 {
-    static const QList<ProjectAction> fileActions = { ProjectAction::Rename,
-                                                      ProjectAction::RemoveFile
+    static const QList<ProjectAction> fileActions = {ProjectAction::Rename,
+                                                     ProjectAction::RemoveFile
                                                     };
-    static const QList<ProjectAction> folderActions = { ProjectAction::AddNewFile,
-                                                        ProjectAction::RemoveFile,
-                                                        ProjectAction::AddExistingFile
+    static const QList<ProjectAction> folderActions = {ProjectAction::AddNewFile,
+                                                       ProjectAction::RemoveFile,
+                                                       ProjectAction::AddExistingFile
                                                       };
     switch (node->nodeType()) {
     case NodeType::File:
@@ -55,21 +55,6 @@ QList<ProjectAction> NimProjectNode::supportedActions(Node *node) const
     default:
         return ProjectNode::supportedActions(node);
     }
-}
-
-bool NimProjectNode::addSubProjects(const QStringList &)
-{
-    return false;
-}
-
-bool NimProjectNode::canAddSubProject(const QString &) const
-{
-    return false;
-}
-
-bool NimProjectNode::removeSubProjects(const QStringList &)
-{
-    return false;
 }
 
 bool NimProjectNode::addFiles(const QStringList &filePaths, QStringList *)

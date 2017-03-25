@@ -25,17 +25,9 @@
 
 #pragma once
 
-#include "genericprojectmanager.h"
-#include "genericprojectnodes.h"
-
 #include <projectexplorer/project.h>
-#include <projectexplorer/projectnodes.h>
-#include <projectexplorer/target.h>
-#include <projectexplorer/toolchain.h>
-#include <projectexplorer/buildconfiguration.h>
-#include <coreplugin/idocument.h>
 
-#include <QFuture>
+namespace CppTools { class CppProjectUpdater; }
 
 namespace GenericProjectManager {
 namespace Internal {
@@ -47,15 +39,10 @@ class GenericProject : public ProjectExplorer::Project
     Q_OBJECT
 
 public:
-    GenericProject(Manager *manager, const QString &filename);
+    explicit GenericProject(const Utils::FileName &filename);
     ~GenericProject() override;
 
-    QString filesFileName() const;
-    QString includesFileName() const;
-    QString configFileName() const;
-
     QString displayName() const override;
-    Manager *projectManager() const override;
 
     QStringList files(FilesMode fileMode) const override;
 
@@ -74,7 +61,6 @@ public:
 
     void refresh(RefreshOptions options);
 
-    QStringList projectIncludePaths() const;
     QStringList files() const;
 
 protected:
@@ -94,7 +80,6 @@ private:
     QString m_filesFileName;
     QString m_includesFileName;
     QString m_configFileName;
-    QString m_projectName;
     GenericProjectFile *m_filesIDocument;
     GenericProjectFile *m_includesIDocument;
     GenericProjectFile *m_configIDocument;
@@ -104,22 +89,9 @@ private:
     QStringList m_rawProjectIncludePaths;
     QStringList m_projectIncludePaths;
 
-    QFuture<void> m_codeModelFuture;
+    CppTools::CppProjectUpdater *m_cppCodeModelUpdater = nullptr;
 
     ProjectExplorer::Target *m_activeTarget = nullptr;
-};
-
-class GenericProjectFile : public Core::IDocument
-{
-public:
-    GenericProjectFile(GenericProject *parent, QString fileName, GenericProject::RefreshOptions options);
-
-    ReloadBehavior reloadBehavior(ChangeTrigger state, ChangeType type) const override;
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type) override;
-
-private:
-    GenericProject *m_project;
-    GenericProject::RefreshOptions m_options;
 };
 
 } // namespace Internal

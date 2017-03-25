@@ -227,7 +227,7 @@ void QbsBuildStep::setQbsConfiguration(const QVariantMap &config)
     QbsProject *pro = static_cast<QbsProject *>(project());
 
     QVariantMap tmp = config;
-    tmp.insert(QLatin1String(Constants::QBS_CONFIG_PROFILE_KEY), pro->projectManager()->profileForKit(target()->kit()));
+    tmp.insert(QLatin1String(Constants::QBS_CONFIG_PROFILE_KEY), pro->profileForTarget(target()));
     if (!tmp.contains(QLatin1String(Constants::QBS_CONFIG_VARIANT_KEY)))
         tmp.insert(QLatin1String(Constants::QBS_CONFIG_VARIANT_KEY),
                    QString::fromLatin1(Constants::QBS_VARIANT_DEBUG));
@@ -849,7 +849,7 @@ QList<ProjectExplorer::BuildStepInfo> QbsBuildStepFactory::availableSteps(Projec
     if (parent->id() == ProjectExplorer::Constants::BUILDSTEPS_BUILD
             && qobject_cast<QbsBuildConfiguration *>(parent->parent())
             && qobject_cast<QbsProject *>(parent->target()->project()))
-       return {{ Constants::QBS_BUILDSTEP_ID, tr("Qbs Build") }};
+       return {{Constants::QBS_BUILDSTEP_ID, tr("Qbs Build")}};
 
     return {};
 }

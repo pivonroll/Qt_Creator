@@ -74,8 +74,18 @@ static QString msgAttachDebuggerTooltip(const QString &handleDescription = QStri
            AppOutputPane::tr("Attach debugger to %1").arg(handleDescription);
 }
 
+static void replaceAllChildWidgets(QLayout *layout, const QList<QWidget *> &newChildren)
+{
+    while (QLayoutItem *child = layout->takeAt(0))
+        delete child;
+
+    foreach (QWidget *widget, newChildren)
+        layout->addWidget(widget);
+}
+
 namespace {
 const char SETTINGS_KEY[] = "ProjectExplorer/AppOutput/Zoom";
+const char C_APP_OUTPUT[] = "ProjectExplorer.ApplicationOutput";
 }
 
 namespace ProjectExplorer {
@@ -152,7 +162,8 @@ AppOutputPane::AppOutputPane() :
     m_stopButton(new QToolButton),
     m_attachButton(new QToolButton),
     m_zoomInButton(new QToolButton),
-    m_zoomOutButton(new QToolButton)
+    m_zoomOutButton(new QToolButton),
+    m_formatterWidget(new QWidget)
 {
     setObjectName(QLatin1String("AppOutputPane")); // Used in valgrind engine
 
@@ -166,10 +177,11 @@ AppOutputPane::AppOutputPane() :
 
     // Stop
     m_stopAction->setIcon(Utils::Icons::STOP_SMALL_TOOLBAR.icon());
-    m_stopAction->setToolTip(tr("Stop"));
+    m_stopAction->setToolTip(tr("Stop Running Program"));
     m_stopAction->setEnabled(false);
 
     Core::Command *cmd = Core::ActionManager::registerAction(m_stopAction, Constants::STOP);
+    cmd->setDescription(m_stopAction->toolTip());
 
     m_stopButton->setDefaultAction(cmd->action());
     m_stopButton->setAutoRaise(true);
@@ -199,6 +211,10 @@ AppOutputPane::AppOutputPane() :
 
     connect(m_zoomOutButton, &QToolButton::clicked,
             this, &AppOutputPane::zoomOut);
+
+    auto formatterWidgetsLayout = new QHBoxLayout;
+    formatterWidgetsLayout->setContentsMargins(QMargins());
+    m_formatterWidget->setLayout(formatterWidgetsLayout);
 
     // Spacer (?)
 
@@ -245,8 +261,10 @@ AppOutputPane::~AppOutputPane()
     if (debug)
         qDebug() << "OutputPane::~OutputPane: Entries left" << m_runControlTabs.size();
 
-    foreach (const RunControlTab &rt, m_runControlTabs)
+    foreach (const RunControlTab &rt, m_runControlTabs) {
+        rt.window->setFormatter(nullptr);
         delete rt.runControl;
+    }
     delete m_mainWidget;
 }
 
@@ -268,7 +286,7 @@ RunControl *AppOutputPane::currentRunControl() const
     const int index = currentIndex();
     if (index != -1)
         return m_runControlTabs.at(index).runControl;
-    return 0;
+    return nullptr;
 }
 
 int AppOutputPane::indexOf(const RunControl *rc) const
@@ -321,7 +339,8 @@ QWidget *AppOutputPane::outputWidget(QWidget *)
 
 QList<QWidget*> AppOutputPane::toolBarWidgets() const
 {
-    return { m_reRunButton, m_stopButton, m_attachButton, m_zoomInButton, m_zoomOutButton };
+    return { m_reRunButton, m_stopButton, m_attachButton, m_zoomInButton,
+                m_zoomOutButton, m_formatterWidget };
 }
 
 QString AppOutputPane::displayName() const
@@ -389,8 +408,6 @@ void AppOutputPane::createNewOutputWindow(RunControl *rc)
     connect(rc, &RunControl::appendMessageRequested,
             this, &AppOutputPane::appendMessage);
 
-    Utils::OutputFormatter *formatter = rc->outputFormatter();
-
     // First look if we can reuse a tab
     const int tabIndex = Utils::indexOf(m_runControlTabs, [rc](const RunControlTab &tab) {
         return rc->canReUseOutputPane(tab.runControl);
@@ -399,22 +416,22 @@ void AppOutputPane::createNewOutputWindow(RunControl *rc)
         RunControlTab &tab = m_runControlTabs[tabIndex];
         // Reuse this tab
         delete tab.runControl;
-        tab.runControl = rc;
         handleOldOutput(tab.window);
+        tab.runControl = rc;
+        tab.window->setFormatter(nullptr);
         tab.window->scrollToBottom();
-        tab.window->setFormatter(formatter);
         if (debug)
             qDebug() << "OutputPane::createNewOutputWindow: Reusing tab" << tabIndex << " for " << rc;
         return;
     }
     // Create new
-    static uint counter = 0;
-    Core::Id contextId = Core::Id(Constants::C_APP_OUTPUT).withSuffix(counter++);
+    static int counter = 0;
+    Core::Id contextId = Core::Id(C_APP_OUTPUT).withSuffix(counter++);
     Core::Context context(contextId);
     Core::OutputWindow *ow = new Core::OutputWindow(context, m_tabWidget);
     ow->setWindowTitle(tr("Application Output Window"));
     ow->setWindowIcon(Icons::WINDOW.icon());
-    ow->setFormatter(formatter);
+    ow->setFormatter(nullptr);
     ow->setWordWrapEnabled(ProjectExplorerPlugin::projectExplorerSettings().wrapAppOutput);
     ow->setMaxLineCount(ProjectExplorerPlugin::projectExplorerSettings().maxAppOutputLines);
     ow->setWheelZoomEnabled(TextEditor::TextEditorSettings::behaviorSettings().m_scrollWheelZooming);
@@ -489,7 +506,7 @@ void AppOutputPane::reRunRunControl()
 
     handleOldOutput(tab.window);
     tab.window->scrollToBottom();
-    tab.runControl->start();
+    tab.runControl->initiateStart();
 }
 
 void AppOutputPane::attachToRunControl()
@@ -508,7 +525,7 @@ void AppOutputPane::stopRunControl()
 
     RunControl *rc = m_runControlTabs.at(index).runControl;
     if (rc->isRunning() && optionallyPromptToStop(rc))
-        rc->stop();
+        rc->initiateStop();
 
     if (debug)
         qDebug() << "OutputPane::stopRunControl " << rc;
@@ -539,7 +556,7 @@ bool AppOutputPane::closeTab(int tabIndex, CloseTabMode closeTabMode)
 
     if (debug)
         qDebug() << "OutputPane::closeTab tab " << tabIndex << m_runControlTabs[index].runControl
-                        << m_runControlTabs[index].window << m_runControlTabs[index].asyncClosing;
+                 << m_runControlTabs[index].window;
     // Prompt user to stop
     if (m_runControlTabs[index].runControl->isRunning()) {
         switch (closeTabMode) {
@@ -558,19 +575,13 @@ bool AppOutputPane::closeTab(int tabIndex, CloseTabMode closeTabMode)
             break;
         }
         if (m_runControlTabs[index].runControl->isRunning()) { // yes it might have stopped already, then just close
-            QWidget *tabWidget = m_tabWidget->widget(tabIndex);
-            if (m_runControlTabs[index].runControl->stop() == RunControl::AsynchronousStop) {
-                m_runControlTabs[index].asyncClosing = true;
-                return false;
-            }
-            tabIndex = m_tabWidget->indexOf(tabWidget);
-            index = indexOf(tabWidget);
-            if (tabIndex == -1 || index == -1)
-                return false;
+            m_runControlTabs[index].runControl->initiateStop();
+            return false;
         }
     }
 
     m_tabWidget->removeTab(tabIndex);
+    m_runControlTabs[index].window->setFormatter(nullptr);
     delete m_runControlTabs[index].runControl;
     delete m_runControlTabs[index].window;
     m_runControlTabs.removeAt(index);
@@ -639,6 +650,10 @@ void AppOutputPane::enableButtons(const RunControl *rc, bool isRunning)
         }
         m_zoomInButton->setEnabled(true);
         m_zoomOutButton->setEnabled(true);
+
+        replaceAllChildWidgets(m_formatterWidget->layout(), rc->outputFormatter() ?
+                                   rc->outputFormatter()->toolbarWidgets() :
+                                   QList<QWidget *>());
     } else {
         m_reRunButton->setEnabled(false);
         m_reRunButton->setIcon(Utils::Icons::RUN_SMALL_TOOLBAR.icon());
@@ -648,6 +663,7 @@ void AppOutputPane::enableButtons(const RunControl *rc, bool isRunning)
         m_zoomInButton->setEnabled(false);
         m_zoomOutButton->setEnabled(false);
     }
+    m_formatterWidget->setVisible(m_formatterWidget->layout()->count());
 }
 
 void AppOutputPane::tabChanged(int i)
@@ -681,6 +697,10 @@ void AppOutputPane::contextMenuRequested(const QPoint &pos, int index)
 void AppOutputPane::slotRunControlStarted()
 {
     RunControl *current = currentRunControl();
+    const int rcIndex = indexOf(current);
+    if (rcIndex >= 0 && m_runControlTabs.at(rcIndex).window)
+        m_runControlTabs.at(rcIndex).window->setFormatter(current->outputFormatter());
+
     if (current && current == sender())
         enableButtons(current, true); // RunControl::isRunning() cannot be trusted in signal handler.
     emit runControlStarted(current);
@@ -690,7 +710,8 @@ void AppOutputPane::slotRunControlFinished()
 {
     RunControl *rc = qobject_cast<RunControl *>(sender());
     QTimer::singleShot(0, this, [this, rc]() { slotRunControlFinished2(rc); });
-    rc->outputFormatter()->flush();
+    if (rc->outputFormatter())
+        rc->outputFormatter()->flush();
 }
 
 void AppOutputPane::slotRunControlFinished2(RunControl *sender)
@@ -711,9 +732,7 @@ void AppOutputPane::slotRunControlFinished2(RunControl *sender)
     if (current && current == sender)
         enableButtons(current, false); // RunControl::isRunning() cannot be trusted in signal handler.
 
-    // Check for asynchronous close. Close the tab.
-    if (m_runControlTabs.at(senderIndex).asyncClosing)
-        closeTab(tabWidgetIndexOf(senderIndex), CloseTabNoPrompt);
+    m_runControlTabs.at(senderIndex).window->setFormatter(nullptr); // Reset formater for this RC
 
     emit runControlFinished(sender);
 

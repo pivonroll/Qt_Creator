@@ -28,7 +28,9 @@
 #include "quicktestvisitors.h"
 #include "quicktest_utils.h"
 #include "../autotest_utils.h"
+#include "../testcodeparser.h"
 
+#include <projectexplorer/session.h>
 #include <qmljs/parser/qmljsast_p.h>
 #include <qmljs/qmljsdialect.h>
 #include <qmljstools/qmljsmodelmanager.h>
@@ -57,8 +59,8 @@ static bool includesQtQuickTest(const CPlusPlus::Document::Ptr &doc,
 {
     static QStringList expectedHeaderPrefixes
             = Utils::HostOsInfo::isMacHost()
-            ? QStringList({ "QtQuickTest.framework/Headers", "QtQuickTest" })
-            : QStringList({ "QtQuickTest" });
+            ? QStringList({"QtQuickTest.framework/Headers", "QtQuickTest"})
+            : QStringList({"QtQuickTest"});
 
     const QList<CPlusPlus::Document::Include> includes = doc->resolvedIncludes();
 
@@ -120,7 +122,7 @@ static QString quickTestName(const CPlusPlus::Document::Ptr &doc)
     return QString();
 }
 
-static QList<QmlJS::Document::Ptr> scanDirectoryForQuickTestQmlFiles(const QString &srcDir)
+QList<QmlJS::Document::Ptr> QuickTestParser::scanDirectoryForQuickTestQmlFiles(const QString &srcDir) const
 {
     QStringList dirs(srcDir);
     QmlJS::ModelManagerInterface *qmlJsMM = QmlJSTools::Internal::ModelManager::instance();
@@ -128,24 +130,28 @@ static QList<QmlJS::Document::Ptr> scanDirectoryForQuickTestQmlFiles(const QStri
     QFutureInterface<void> future;
     QmlJS::PathsAndLanguages paths;
     paths.maybeInsert(Utils::FileName::fromString(srcDir), QmlJS::Dialect::Qml);
-    const bool emitDocumentChanges = false;
-    const bool onlyTheLib = false;
     QmlJS::ModelManagerInterface::importScan(future, qmlJsMM->workingCopy(), paths, qmlJsMM,
-        emitDocumentChanges, onlyTheLib);
+        false /*emitDocumentChanges*/, false /*onlyTheLib*/, true /*forceRescan*/ );
 
     const QmlJS::Snapshot snapshot = QmlJSTools::Internal::ModelManager::instance()->snapshot();
     QDirIterator it(srcDir, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         it.next();
         QFileInfo fi(it.fileInfo().canonicalFilePath());
-        dirs << fi.filePath();
+        dirs.append(fi.filePath());
     }
+    emit updateWatchPaths(dirs);
+
     QList<QmlJS::Document::Ptr> foundDocs;
 
     for (const QString &path : dirs) {
         const QList<QmlJS::Document::Ptr> docs = snapshot.documentsInDirectory(path);
         for (const QmlJS::Document::Ptr &doc : docs) {
-            const QString fileName(QFileInfo(doc->fileName()).fileName());
+            const QFileInfo fi(doc->fileName());
+            // using working copy above might provide no more existing files
+            if (!fi.exists())
+                continue;
+            const QString fileName(fi.fileName());
             if (fileName.startsWith("tst_") && fileName.endsWith(".qml"))
                 foundDocs << doc;
         }
@@ -163,8 +169,11 @@ static bool checkQmlDocumentForQuickTestCode(QFutureInterface<TestParseResultPtr
         return false;
     QmlJS::AST::Node *ast = qmlJSDoc->ast();
     QTC_ASSERT(ast, return false);
-    TestQmlVisitor qmlVisitor(qmlJSDoc);
+    QmlJS::Snapshot snapshot = QmlJS::ModelManagerInterface::instance()->snapshot();
+    TestQmlVisitor qmlVisitor(qmlJSDoc, snapshot);
     QmlJS::AST::Node::accept(ast, &qmlVisitor);
+    if (!qmlVisitor.isValid())
+        return false;
 
     const QString testCaseName = qmlVisitor.testCaseName();
     const TestCodeLocationAndType tcLocationAndType = qmlVisitor.testCaseLocation();
@@ -198,9 +207,9 @@ static bool checkQmlDocumentForQuickTestCode(QFutureInterface<TestParseResultPtr
     return true;
 }
 
-static bool handleQtQuickTest(QFutureInterface<TestParseResultPtr> futureInterface,
-                              CPlusPlus::Document::Ptr document,
-                              const Core::Id &id)
+bool QuickTestParser::handleQtQuickTest(QFutureInterface<TestParseResultPtr> futureInterface,
+                                        CPlusPlus::Document::Ptr document,
+                                        const Core::Id &id) const
 {
     const CppTools::CppModelManager *modelManager = CppTools::CppModelManager::instance();
     if (quickTestName(document).isEmpty())
@@ -216,11 +225,35 @@ static bool handleQtQuickTest(QFutureInterface<TestParseResultPtr> futureInterfa
     if (srcDir.isEmpty())
         return false;
 
+    if (futureInterface.isCanceled())
+        return false;
     const QList<QmlJS::Document::Ptr> qmlDocs = scanDirectoryForQuickTestQmlFiles(srcDir);
     bool result = false;
-    for (const QmlJS::Document::Ptr &qmlJSDoc : qmlDocs)
+    for (const QmlJS::Document::Ptr &qmlJSDoc : qmlDocs) {
+        if (futureInterface.isCanceled())
+            break;
         result |= checkQmlDocumentForQuickTestCode(futureInterface, qmlJSDoc, id, proFile);
+    }
     return result;
+}
+
+QuickTestParser::QuickTestParser()
+    : CppParser()
+{
+    connect(ProjectExplorer::SessionManager::instance(),
+            &ProjectExplorer::SessionManager::startupProjectChanged, [this] {
+        const QStringList &dirs = m_directoryWatcher.directories();
+        if (!dirs.isEmpty())
+            m_directoryWatcher.removePaths(dirs);
+    });
+    connect(&m_directoryWatcher, &QFileSystemWatcher::directoryChanged,
+                     [this] { TestTreeModel::instance()->parser()->emitUpdateTestTree(this); });
+    connect(this, &QuickTestParser::updateWatchPaths,
+            &m_directoryWatcher, &QFileSystemWatcher::addPaths, Qt::QueuedConnection);
+}
+
+QuickTestParser::~QuickTestParser()
+{
 }
 
 void QuickTestParser::init(const QStringList &filesToParse)

@@ -116,10 +116,10 @@ public:
         TextColorDisabled,
         TextColorError,
         TextColorHighlight,
+        TextColorHighlightBackground,
         TextColorLink,
         TextColorLinkVisited,
         TextColorNormal,
-        TodoItemTextColor,
         ToggleButtonBackgroundColor,
         ToolBarBackgroundColor,
         TreeViewArrowColorNormal,
@@ -342,14 +342,12 @@ public:
     QString displayName() const;
     void setDisplayName(const QString &displayName);
 
-    const QVariantMap &values() const;
-
     void readSettings(QSettings &settings);
 
     static QPalette initialPalette();
 
 protected:
-    Theme(ThemePrivate &dd, QObject *parent = nullptr);
+    Theme(Theme *originTheme, QObject *parent = nullptr);
     ThemePrivate *d;
 
 private:

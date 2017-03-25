@@ -54,7 +54,7 @@ FormEditorItem::FormEditorItem(const QmlItemNode &qmlItemNode, FormEditorScene* 
     m_isContentVisible(true),
     m_isFormEditorVisible(true)
 {
-    setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+    setCacheMode(QGraphicsItem::NoCache);
     setup();
 }
 
@@ -68,10 +68,8 @@ void FormEditorItem::setup()
 
     setFlag(QGraphicsItem::ItemClipsChildrenToShape, qmlItemNode().instanceValue("clip").toBool());
 
-    if (NodeHints::fromModelNode(qmlItemNode()).forceClip()) {
+    if (NodeHints::fromModelNode(qmlItemNode()).forceClip())
         setFlag(QGraphicsItem::ItemClipsChildrenToShape, true);
-        setFlag(QGraphicsItem::ItemClipsToShape, true);
-    }
 
     if (QGraphicsItem::parentItem() == scene()->formLayerItem())
         m_borderWidth = 0.0;

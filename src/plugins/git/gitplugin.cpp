@@ -59,7 +59,6 @@
 
 #include <coreplugin/messagebox.h>
 #include <utils/asconst.h>
-#include <utils/mimetypes/mimedatabase.h>
 #include <utils/qtcassert.h>
 #include <utils/parameteraction.h>
 #include <utils/pathchooser.h>
@@ -98,8 +97,7 @@ using namespace VcsBase;
 namespace Git {
 namespace Internal {
 
-const unsigned minimumRequiredVersion = 0x010800;
-const char RC_GIT_MIME_XML[] = ":/git/Git.mimetypes.xml";
+const unsigned minimumRequiredVersion = 0x010900;
 
 const VcsBaseEditorParameters editorParameters[] = {
 {
@@ -173,6 +171,26 @@ QString GitPlugin::msgRepositoryLabel(const QString &repository)
     return repository.isEmpty() ?
             tr("<No repository>")  :
             tr("Repository: %1").arg(QDir::toNativeSeparators(repository));
+}
+
+// Returns a regular expression pattern with characters not allowed
+// in branch and remote names.
+QString GitPlugin::invalidBranchAndRemoteNamePattern()
+{
+    return QLatin1String(
+        "\\s"     // no whitespace
+        "|~"      // no "~"
+        "|\\^"    // no "^"
+        "|\\["    // no "["
+        "|\\.\\." // no ".."
+        "|/\\."   // no slashdot
+        "|:"      // no ":"
+        "|@\\{"   // no "@{" sequence
+        "|\\\\"   // no backslash
+        "|//"     // no double slash
+        "|^[/-]"  // no leading slash or dash
+        "|\""     // no quotes
+    );
 }
 
 const VcsBaseSubmitEditorParameters submitParameters = {
@@ -642,8 +660,6 @@ bool GitPlugin::initialize(const QStringList &arguments, QString *errorMessage)
     connect(VcsManager::instance(), &VcsManager::repositoryChanged,
             this, &GitPlugin::updateBranches, Qt::QueuedConnection);
 
-    Utils::MimeDatabase::addMimeTypes(RC_GIT_MIME_XML);
-
     /* "Gerrit" */
     m_gerritPlugin = new Gerrit::Internal::GerritPlugin(this);
     const bool ok = m_gerritPlugin->initialize(remoteRepositoryMenu);
@@ -743,7 +759,7 @@ void GitPlugin::undoFileChanges(bool revertStaging)
     const VcsBasePluginState state = currentState();
     QTC_ASSERT(state.hasFile(), return);
     FileChangeBlocker fcb(state.currentFile());
-    m_gitClient->revert({ state.currentFile() }, revertStaging);
+    m_gitClient->revert({state.currentFile()}, revertStaging);
 }
 
 class ResetItemDelegate : public LogItemDelegate
@@ -858,7 +874,7 @@ void GitPlugin::unstageFile()
 {
     const VcsBasePluginState state = currentState();
     QTC_ASSERT(state.hasFile(), return);
-    m_gitClient->synchronousReset(state.currentFileTopLevel(), { state.relativeCurrentFile() });
+    m_gitClient->synchronousReset(state.currentFileTopLevel(), {state.relativeCurrentFile()});
 }
 
 void GitPlugin::gitkForCurrentFile()

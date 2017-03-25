@@ -24,7 +24,9 @@
 ############################################################################
 
 import os
+import codecs
 import copy
+import collections
 import struct
 import sys
 import base64
@@ -151,6 +153,12 @@ class ReportItem:
 
 def warn(message):
     print('bridgemessage={msg="%s"},' % message.replace('"', '$').encode('latin1'))
+
+def xwarn(message):
+    print('bridgemessage={msg="%s"},' % message.replace('"', '$').encode('latin1'))
+    import traceback
+    traceback.print_stack()
+
 
 def error(message):
     raise RuntimeError(message)
@@ -279,8 +287,6 @@ class DumperBase:
             'personaltypes',
         ]
 
-        self.currentQtNamespaceGuess = None
-
         # These values are never used, but the variables need to have
         # some value base for the swapping logic in Children.__enter__()
         # and Children.__exit__().
@@ -316,11 +322,6 @@ class DumperBase:
         #warn('NAMESPACE: "%s"' % self.qtNamespace())
         #warn('EXPANDED INAMES: %s' % self.expandedINames)
         #warn('WATCHERS: %s' % self.watchers)
-
-        # The guess does not need to be updated during a fetchVariables()
-        # as the result is fixed during that time (ignoring "active"
-        # dumpers causing loading of shared objects etc).
-        self.currentQtNamespaceGuess = None
 
     def resetCaches(self):
         # This is a cache mapping from 'type name' to 'display alternatives'.
@@ -436,7 +437,7 @@ class DumperBase:
                     elif self.currentValue.encoding == 'utf8':
                         value = self.hexdecode(value)
                     elif self.currentValue.encoding == 'utf16':
-                        b = bytes.fromhex(value)
+                        b = bytes(bytearray.fromhex(value))
                         value = codecs.decode(b, 'utf-16')
                     self.put('"%s"' % value)
                     if self.currentValue.elided:
@@ -510,12 +511,7 @@ class DumperBase:
         tdata.typeId = typeId
         tdata.lbitsize = 16
         tdata.code = TypeCodeStruct
-        field = self.Field(self)
-        field.name = 'ucs'
-        field.ltype = 'unsigned short'
-        field.lbitsize = 16
-        field.lbitpos = 0
-        tdata.lfields = [field]
+        tdata.lfields = [self.Field(dumper=self, name='ucs', type='unsigned short', bitsize=16, bitpos=0)]
         tdata.lalignment = 2
         tdata.templateArguments = []
         self.registerType(typeId, tdata)
@@ -880,7 +876,6 @@ class DumperBase:
     def putFields(self, value, dumpBase = True):
         baseIndex = 0
         for item in value.members(True):
-            #warn('FIELD: %s' % item)
             if item.name is not None:
                 if item.name.startswith('_vptr.') or item.name.startswith('__vfptr'):
                     with SubItem(self, '[vptr]'):
@@ -1499,28 +1494,65 @@ class DumperBase:
         return self.couldBeQObjectVTable(vtablePtr)
 
     def couldBeQObjectVTable(self, vtablePtr):
+        def getJumpAddress_x86(dumper, address):
+            relativeJumpCode = 0xe9
+            jumpCode = 0xff
+            data = dumper.readRawMemory(address, 6)
+            primaryOpcode = data[0]
+            if primaryOpcode == relativeJumpCode:
+                # relative jump on 32 and 64 bit with a 32bit offset
+                offset = int.from_bytes(data[1:5], byteorder='little')
+                return address + 5 + offset
+            if primaryOpcode == jumpCode:
+                if data[1] != 0x25: # check for known extended opcode
+                    return 0
+                # 0xff25 is a relative jump on 64bit and an absolute jump on 32 bit
+                if self.ptrSize() == 8:
+                    offset = int.from_bytes(data[2:6], byteorder='little')
+                    return address + 6 + offset
+                else:
+                    return int.from_bytes(data[2:6], byteorder='little')
+            return 0
+
+        # Do not try to extract a function pointer if there are no values to compare with
+        if self.qtCustomEventFunc == 0 and self.qtCustomEventPltFunc == 0:
+            return False
+
         try:
-            customEventFunc = self.extractPointer(vtablePtr + 9 * self.ptrSize())
+            customEventOffset = 8 if self.isMsvcTarget() else 9
+            customEventFunc = self.extractPointer(vtablePtr + customEventOffset * self.ptrSize())
         except:
             self.bump('nostruct-3')
             return False
 
+        if self.isWindowsTarget():
+            if customEventFunc in (self.qtCustomEventFunc, self.qtCustomEventPltFunc):
+                return True
+            # The vtable may point to a function that is just calling the customEvent function
+            customEventFunc = getJumpAddress_x86(self, customEventFunc)
+            if customEventFunc in (self.qtCustomEventFunc, self.qtCustomEventPltFunc):
+                return True
+            customEventFunc = self.extractPointer(customEventFunc)
+            if customEventFunc in (self.qtCustomEventFunc, self.qtCustomEventPltFunc):
+                return True
+            # If the object is defined in another module there may be another level of indirection
+            customEventFunc = getJumpAddress_x86(self, customEventFunc)
         return customEventFunc in (self.qtCustomEventFunc, self.qtCustomEventPltFunc)
 
-    def extractQObjectProperty(objectPtr):
-        vtablePtr = self.extractPointer(objectPtr)
-        metaObjectFunc = self.extractPointer(vtablePtr)
-        cmd = '((void*(*)(void*))0x%x)((void*)0x%x)' % (metaObjectFunc, objectPtr)
-        try:
-            #warn('MO CMD: %s' % cmd)
-            res = self.parseAndEvaluate(cmd)
-            #warn('MO RES: %s' % res)
-            self.bump('successfulMetaObjectCall')
-            return res.pointer()
-        except:
-            self.bump('failedMetaObjectCall')
-            #warn('COULD NOT EXECUTE: %s' % cmd)
-        return 0
+#    def extractQObjectProperty(objectPtr):
+#        vtablePtr = self.extractPointer(objectPtr)
+#        metaObjectFunc = self.extractPointer(vtablePtr)
+#        cmd = '((void*(*)(void*))0x%x)((void*)0x%x)' % (metaObjectFunc, objectPtr)
+#        try:
+#            #warn('MO CMD: %s' % cmd)
+#            res = self.parseAndEvaluate(cmd)
+#            #warn('MO RES: %s' % res)
+#            self.bump('successfulMetaObjectCall')
+#            return res.pointer()
+#        except:
+#            self.bump('failedMetaObjectCall')
+#            #warn('COULD NOT EXECUTE: %s' % cmd)
+#        return 0
 
     def extractMetaObjectPtr(self, objectPtr, typeobj):
         """ objectPtr - address of *potential* instance of QObject derived class
@@ -1561,7 +1593,7 @@ class DumperBase:
             if typeName.find('<') >= 0:
                 return 0
 
-            result = self.findStaticMetaObject(typeName)
+            result = self.findStaticMetaObject(someTypeObj)
 
             # We need to distinguish Q_OBJECT from Q_GADGET:
             # a Q_OBJECT SMO has a non-null superdata (unless it's QObject itself),
@@ -1869,16 +1901,46 @@ class DumperBase:
                             self.putTypedPointer('[extraData]', extraData,
                                  ns + 'QObjectPrivate::ExtraData')
 
-                        if connectionListsPtr:
-                            self.putTypedPointer('[connectionLists]', connectionListsPtr,
-                                 ns + 'QObjectConnectionListVector')
-
                         with SubItem(self, '[metaObject]'):
                             self.putAddress(metaObjectPtr)
                             self.putNumChild(1)
                             if self.isExpanded():
                                 with Children(self):
                                     self.putQObjectGutsHelper(0, 0, -1, metaObjectPtr, 'QMetaObject')
+
+                        with SubItem(self, '[connections]'):
+                            if connectionListsPtr:
+                                typeName = ns + 'QVector<' + ns + 'QObjectPrivate::ConnectionList>'
+                                self.putItem(self.createValue(connectionListsPtr, typeName))
+                            else:
+                                self.putItemCount(0)
+
+                        with SubItem(self, '[signals]'):
+                            self.putItemCount(signalCount)
+                            if self.isExpanded():
+                                with Children(self):
+                                    j = -1
+                                    for i in range(signalCount):
+                                        t = self.split('IIIII', dataPtr + 56 + 20 * i)
+                                        flags = t[4]
+                                        if flags != 0x06:
+                                            continue
+                                        j += 1
+                                        with SubItem(self, j):
+                                            name = self.metaString(metaObjectPtr, t[0], revision)
+                                            self.putType(' ')
+                                            self.putValue(name)
+                                            self.putNumChild(1)
+                                            with Children(self):
+                                                putt('[nameindex]', t[0])
+                                                #putt('[type]', 'signal')
+                                                putt('[argc]', t[1])
+                                                putt('[parameter]', t[2])
+                                                putt('[tag]', t[3])
+                                                putt('[flags]', t[4])
+                                                putt('[localindex]', str(i))
+                                                putt('[globalindex]', str(globalOffset + i))
+                                                #self.putQObjectConnections(dd)
 
 
         if isQMetaObject or isQObject:
@@ -2017,20 +2079,6 @@ class DumperBase:
                 self.putField('sortgroup', 11)
                 self.putValue(globalOffset + localIndex)
 
-
-        #with SubItem(self, '[signals]'):
-        #    self.putItemCount(signalCount)
-        #    signalNames = metaData(52, -14, 5)
-        #    warn('NAMES: %s' % signalNames)
-        #    if self.isExpanded():
-        #        with Children(self):
-        #            putt('A', 'b')
-        #            for i in range(signalCount):
-        #                k = signalNames[i]
-        #                with SubItem(self, k):
-        #                    self.putEmptyValue()
-        #            if dd:
-        #                self.putQObjectConnections(dd)
 
     def putQObjectConnections(self, dd):
         with SubItem(self, '[connections]'):
@@ -2771,6 +2819,7 @@ class DumperBase:
             self.lbitsize = None
             self.targetValue = None # For references.
             self.isBaseClass = None
+            self.nativeValue = None
 
         def copy(self):
             val = self.dumper.Value(self.dumper)
@@ -2784,6 +2833,7 @@ class DumperBase:
             val.lbitpos = self.lbitpos
             val.lbitsize = self.lbitsize
             val.targetValue = self.targetValue
+            val.nativeValue = self.nativeValue
             return val
 
         def check(self):
@@ -2808,7 +2858,7 @@ class DumperBase:
         def display(self):
             if self.type.code == TypeCodeEnum:
                 intval = self.extractInteger(self.type.bitsize(), False)
-                return self.type.typeData().enumDisplay(intval)
+                return self.type.typeData().enumDisplay(intval, self.laddress)
             simple = self.value()
             if simple is not None:
                 return str(simple)
@@ -2875,6 +2925,7 @@ class DumperBase:
             if self.type.code == TypeCodeStruct:
                 #warn('SEARCHING FOR MEMBER: %s IN %s' % (name, self.type.name))
                 members = self.members(True)
+                #warn('MEMBERS: %s' % members)
                 for member in members:
                     #warn('CHECKING FIELD %s' % member.name)
                     if member.type.code == TypeCodeTypedef:
@@ -2882,12 +2933,9 @@ class DumperBase:
                     if member.name == name:
                         return member
                 for member in members:
-                    #warn('CHECKING BASE %s' % member.name)
-                    #if member.name == name:
-                    #    return member
                     if member.type.code == TypeCodeTypedef:
                         member = member.detypedef()
-                    if member.name == name:
+                    if member.name == name: # Could be base class.
                         return member
                     if member.type.code == TypeCodeStruct:
                         res = member.findMemberByName(name)
@@ -2905,8 +2953,6 @@ class DumperBase:
                 if self.type.code == TypeCodePointer:
                     #warn('GET ITEM %s DEREFERENCE TO %s' % (self, self.dereference()))
                     return self.dereference().__getitem__(index)
-                #field = self.dumper.Field(self.dumper)
-                #field.name = index
                 res = self.findMemberByName(index)
                 if res is None:
                     raise RuntimeError('No member named %s in type %s'
@@ -2932,20 +2978,26 @@ class DumperBase:
                 res = self.dereference()
                 #warn('WAS POINTER: %s' % res)
 
-            return self.extractField(field)
+            return field.extract(self)
 
         def extractField(self, field):
+            if not isinstance(field, self.dumper.Field):
+                error('BAD INDEX TYPE %s' % type(field))
+
+            if field.extractor is not None:
+                val = field.extractor(self)
+                if val is not None:
+                    #warn('EXTRACTOR SUCCEEDED: %s ' % val)
+                    return val
+
             if self.type.code == TypeCodeTypedef:
                 return self.cast(self.type.ltarget).extractField(field)
             if self.type.code == TypeCodeReference:
                 return self.dereference().extractField(field)
-            if not isinstance(field, self.dumper.Field):
-                error('BAD INDEX TYPE %s' % type(field))
-
             #warn('FIELD: %s ' % field)
             val = self.dumper.Value(self.dumper)
             val.name = field.name
-            val.isBaseClass = field.isBaseClass
+            val.isBaseClass = field.isBase
             val.type = field.fieldType()
 
             if field.isArtificial:
@@ -2955,9 +3007,9 @@ class DumperBase:
                     val.ldata = self.ldata
                 return val
 
-            fieldBitsize = field.lbitsize
+            fieldBitsize = field.bitsize
             fieldSize = (fieldBitsize + 7) // 8
-            fieldBitpos = field.lbitpos
+            fieldBitpos = field.bitpos
             fieldOffset = fieldBitpos // 8
             fieldType = field.fieldType()
 
@@ -2999,6 +3051,7 @@ class DumperBase:
         # The native backends replace it in their fromNativeValue()
         # implementations.
         def members(self, includeBases):
+            #warn("LISTING MEMBERS OF %s" % self)
             if self.type.code == TypeCodeTypedef:
                 return self.detypedef().members(includeBases)
 
@@ -3015,20 +3068,16 @@ class DumperBase:
 
             #warn("FIELDS: %s" % fields)
             res = []
-            anonNumber = 0
             for field in fields:
                 if isinstance(field, self.dumper.Value):
+                    #warn("USING VALUE DIRECTLY %s" % field.name)
                     res.append(field)
                     continue
-                if field.isBaseClass and not includeBases:
+                if field.isBase and not includeBases:
+                    #warn("DROPPING BASE %s" % field.name)
                     continue
-                if field.name is None or len(field.name) == 0:
-                    # Something without a name.
-                    # Anonymous union? We need a dummy name to distinguish
-                    # multiple anonymous unions in the struct.
-                    anonNumber += 1
-                    field.name = '#%s' % anonNumber
                 res.append(self.extractField(field))
+            #warn("GOT MEMBERS: %s" % res)
             return res
 
         def __add__(self, other):
@@ -3050,13 +3099,19 @@ class DumperBase:
                 return self.detypedef().dereference()
             val = self.dumper.Value(self.dumper)
             if self.type.code == TypeCodeReference:
-                val.laddress = self.pointer()
-                if val.laddress is None and self.laddress is not None:
-                    val.laddress = self.laddress
-                val.type = self.dumper.nativeDynamicType(val.laddress, self.type.dereference())
+                if self.nativeValue is None:
+                    val.laddress = self.pointer()
+                    if val.laddress is None and self.laddress is not None:
+                        val.laddress = self.laddress
+                    val.type = self.dumper.nativeDynamicType(val.laddress, self.type.dereference())
+                else:
+                    val = self.dumper.nativeValueDereferenceReference(self.nativeValue)
             elif self.type.code == TypeCodePointer:
-                val.laddress = self.pointer()
-                val.type = self.dumper.nativeDynamicType(val.laddress, self.type.dereference())
+                if self.nativeValue is None:
+                    val.laddress = self.pointer()
+                    val.type = self.dumper.nativeDynamicType(val.laddress, self.type.dereference())
+                else:
+                    val = self.dumper.nativeValueDereferencePointer(self.nativeValue)
             else:
                 error("WRONG: %s" % self.type.code)
             #warn("DEREFERENCING FROM: %s" % self)
@@ -3102,10 +3157,6 @@ class DumperBase:
             val.ldata = self.ldata
             val.type = self.dumper.createType(typish)
             return val
-
-        def downcast(self):
-            self.check()
-            return self
 
         def address(self):
             self.check()
@@ -3175,9 +3226,9 @@ class DumperBase:
             def structFixer(field, thing):
                 #warn('STRUCT MEMBER: %s' % type(thing))
                 if field.isStruct:
-                    #if field.ltype != field.fieldType():
+                    #if field.type != field.fieldType():
                     #    error('DO NOT SIMPLIFY')
-                    #warn('FIELD POS: %s' % field.ltype.stringify())
+                    #warn('FIELD POS: %s' % field.type.stringify())
                     #warn('FIELD TYE: %s' % field.fieldType().stringify())
                     res = self.dumper.createValue(thing, field.fieldType())
                     #warn('RES TYPE: %s' % res.type)
@@ -3220,6 +3271,7 @@ class DumperBase:
             self.name = None
             self.typeId = None
             self.enumDisplay = str
+            self.moduleName = None
 
         def copy(self):
             tdata = self.dumper.TypeData(self.dumper)
@@ -3233,6 +3285,7 @@ class DumperBase:
             tdata.name = self.name
             tdata.typeId = self.typeId
             tdata.enumDisplay = self.enumDisplay
+            tdata.moduleName = self.moduleName
             return tdata
 
     class Type:
@@ -3259,7 +3312,7 @@ class DumperBase:
 
         @property
         def name(self):
-            tdata = self.typeData()
+            tdata = self.dumper.typeData.get(self.typeId)
             if tdata is None:
                 return self.typeId
             return tdata.name
@@ -3279,6 +3332,10 @@ class DumperBase:
         @property
         def ltarget(self):
             return self.typeData().ltarget
+
+        @property
+        def moduleName(self):
+            return self.typeData().moduleName
 
         def stringify(self):
             tdata = self.typeData()
@@ -3382,7 +3439,8 @@ class DumperBase:
                 return tdata.ltarget.alignment()
             if tdata.code in (TypeCodeIntegral, TypeCodeFloat, TypeCodeEnum):
                 if tdata.name in ('double', 'long long', 'unsigned long long'):
-                    return self.dumper.ptrSize() # Crude approximation.
+                    # Crude approximation.
+                    return 8 if self.dumper.isWindowsTarget() else self.dumper.ptrSize()
                 return self.size()
             if tdata.code in (TypeCodePointer, TypeCodeReference):
                 return self.dumper.ptrSize()
@@ -3423,8 +3481,8 @@ class DumperBase:
                     #warn('FOUND: %s' % ff)
                     return ff
                 if f.isBaseClass:
-                    #warn('EXAMINING BASE %s' % f.ltype)
-                    res = f.ltype.field(name, bitoffset + f.bitpos())
+                    #warn('EXAMINING BASE %s' % f.type)
+                    res = f.type.field(name, bitoffset + f.bitpos())
                     if res is not None:
                         return res
             #warn('FIELD %s NOT FOUND IN %s' % (name, self))
@@ -3469,40 +3527,39 @@ class DumperBase:
                 return True
             return strippedName == 'QStringList' and self.dumper.qtVersion() >= 0x050000
 
-    class Field:
-        def __init__(self, dumper):
-            self.dumper = dumper
-            self.name = None
-            self.isBaseClass = False
-            self.isArtificial = False
-            self.ltype = None
-            self.lbitsize = None
-            self.lbitpos = None
-            self.isStruct = False
+    class Field(collections.namedtuple('Field',
+                ['dumper', 'name', 'type', 'bitsize', 'bitpos',
+                 'extractor', 'isBase', 'isStruct', 'isArtificial' ])):
+
+        def __new__(cls, dumper, name=None, type=None, bitsize=None, bitpos=None,
+                    extractor=None, isBase=False, isStruct=False, isArtificial=False):
+            return super(DumperBase.Field, cls).__new__(
+                        cls, dumper, name, type, bitsize, bitpos,
+                        extractor, isBase, isStruct, isArtificial)
+
+        __slots__ = ()
 
         def __str__(self):
-            typename = None if self.ltype is None else self.ltype.stringify()
-            return ('Field(name="%s",ltype=%s,bpos=%s,bsize=%s)') \
-                    % (self.name, typename, self.lbitpos, self.lbitsize)
+            return self.stringify()
+
+        def stringify(self):
+            #return 'Field(name="%s")' % self.name
+            typename = None if self.type is None else self.type.stringify()
+            return 'Field(name="%s",type=%s,bitpos=%s,bitsize=%s)' \
+                    % (self.name, typename, self.bitpos, self.bitsize)
 
         def check(self):
             pass
 
         def size(self):
-            return self.lbitsize // 8
+            return self.bitsize() // 8
 
         def offset(self):
-            return self.lbitpos // 8
-
-        def bitsize(self):
-            return self.lbitsize
-
-        def bitpos(self):
-            return self.lbitpos
+            return self.bitpos // 8
 
         def fieldType(self):
-            if self.ltype is not None:
-                return self.ltype
+            if self.type is not None:
+                return self.type
             error('CANT GET FIELD TYPE FOR %s' % self)
             return None
 
@@ -3743,10 +3800,8 @@ class DumperBase:
                 self.currentBitsize = 8 * ((self.currentBitsize + 7) >> 3)  # Fill up byte.
                 padding = (fieldAlign - (self.currentBitsize >> 3)) % fieldAlign
                 #warn('AUTO PADDING AT %s BITS BY %s BYTES' % (self.currentBitsize, padding))
-                field = self.dumper.Field(self.dumper)
-                field.code = None
-                #field.lbitpos = self.currentBitsize
-                #field.lbitsize = padding * 8
+                field = self.dumper.Field(self.dumper, bitpos=self.currentBitsize,
+                          bitsize=padding*8)
                 self.pattern += '%ds' % padding
                 self.currentBitsize += padding * 8
                 self.fields.append(field)
@@ -3756,13 +3811,9 @@ class DumperBase:
                 self.maxAlign = fieldAlign
             #warn("MAX ALIGN: %s" % self.maxAlign)
 
-            field = self.dumper.Field(self.dumper)
-            field.name = fieldName
-            field.ltype = fieldType
-            field.code = fieldCode
-            field.isStruct = fieldIsStruct
-            field.lbitpos = self.currentBitsize
-            field.lbitsize = fieldSize * 8
+            field = self.dumper.Field(dumper=self.dumper, name=fieldName, type=fieldType,
+                                      isStruct=fieldIsStruct, bitpos=self.currentBitsize,
+                                      bitsize=fieldSize * 8)
 
             self.pattern += fieldCode
             self.currentBitsize += fieldSize * 8
@@ -3823,7 +3874,6 @@ class DumperBase:
                     builder.currentBitsize = 8 * ((builder.currentBitsize + 7) >> 3)
                     padding = (int(n) - (builder.currentBitsize >> 3)) % int(n)
                     field = self.Field(self)
-                    field.code = None
                     builder.pattern += '%ds' % padding
                     builder.currentBitsize += padding * 8
                     builder.fields.append(field)

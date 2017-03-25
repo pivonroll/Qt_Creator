@@ -113,10 +113,10 @@ public:
         void stashPrompt(const QString &command, const QString &statusOutput, QString *errorMessage);
         void executeStash(const QString &command, QString *errorMessage);
 
-        StashResult m_stashResult;
+        StashResult m_stashResult = NotStashed;
         QString m_message;
         QString m_workingDir;
-        StashFlag m_flags;
+        StashFlag m_flags = Default;
         PushAction m_pushAction = NoPush;
     };
 
@@ -378,6 +378,18 @@ private:
     bool m_disableEditor;
     QPointer<DiffEditor::DiffEditorController> m_contextController;
     QFutureSynchronizer<void> m_synchronizer; // for commit updates
+};
+
+class GitRemote {
+public:
+    GitRemote(const QString &url);
+
+    QString protocol;
+    QString userName;
+    QString host;
+    QString path;
+    quint16 port = 0;
+    bool    isValid = false;
 };
 
 } // namespace Internal

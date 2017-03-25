@@ -29,6 +29,7 @@
 #include "resizetool.h"
 #include "dragtool.h"
 #include "formeditorwidget.h"
+#include <formeditorgraphicsview.h>
 #include "formeditoritem.h"
 #include "formeditorscene.h"
 #include "abstractcustomtool.h"
@@ -36,16 +37,18 @@
 #include <designmodecontext.h>
 #include <modelnode.h>
 #include <model.h>
+#include <nodeabstractproperty.h>
+#include <nodelistproperty.h>
+#include <rewriterview.h>
+#include <zoomaction.h>
+
+#include <coreplugin/icore.h>
+#include <utils/algorithm.h>
+
 #include <QDebug>
 #include <QPair>
 #include <QString>
 #include <QTimer>
-#include <zoomaction.h>
-#include <nodeabstractproperty.h>
-#include <nodelistproperty.h>
-
-#include <coreplugin/icore.h>
-#include <utils/algorithm.h>
 
 namespace QmlDesigner {
 
@@ -70,6 +73,7 @@ void FormEditorView::modelAttached(Model *model)
     Q_ASSERT(model);
 
     AbstractView::modelAttached(model);
+    temporaryBlockView();
 
     Q_ASSERT(m_scene->formLayerItem());
 
@@ -77,6 +81,14 @@ void FormEditorView::modelAttached(Model *model)
         setupFormEditorItemTree(rootModelNode());
 
     m_formEditorWidget->updateActions();
+
+    if (!rewriterView()->errors().isEmpty())
+        formEditorWidget()->showErrorMessageBox(rewriterView()->errors());
+    else
+        formEditorWidget()->hideErrorMessageBox();
+
+    if (!rewriterView()->warnings().isEmpty())
+        formEditorWidget()->showWarningMessageBox(rewriterView()->warnings());
 }
 
 
@@ -150,6 +162,16 @@ void FormEditorView::createFormEditorWidget()
     });
     connect(formEditorWidget()->showBoundingRectAction(), &QAction::toggled,
             scene(), &FormEditorScene::setShowBoundingRects);
+}
+
+void FormEditorView::temporaryBlockView()
+{
+    formEditorWidget()->graphicsView()->setBlockPainting(true);
+
+    QTimer::singleShot(1000, this, [this]() {
+        formEditorWidget()->graphicsView()->setBlockPainting(false);
+
+    });
 }
 
 void FormEditorView::nodeCreated(const ModelNode &node)
@@ -279,21 +301,20 @@ void FormEditorView::selectedNodesChanged(const QList<ModelNode> &selectedNodeLi
     m_scene->update();
 }
 
-void FormEditorView::documentMessagesChanged(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings)
+void FormEditorView::documentMessagesChanged(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &)
 {
     if (!errors.isEmpty())
         formEditorWidget()->showErrorMessageBox(errors);
     else
         formEditorWidget()->hideErrorMessageBox();
-
-    if (!warnings.isEmpty())
-        formEditorWidget()->showWarningMessageBox(warnings);
 }
 
 void FormEditorView::customNotification(const AbstractView * /*view*/, const QString &identifier, const QList<ModelNode> &/*nodeList*/, const QList<QVariant> &/*data*/)
 {
     if (identifier == QStringLiteral("puppet crashed"))
         m_dragTool->clearMoveDelay();
+    if (identifier == QStringLiteral("reset QmlPuppet"))
+        temporaryBlockView();
 }
 
 AbstractFormEditorTool* FormEditorView::currentTool() const
@@ -583,7 +604,7 @@ bool FormEditorView::isMoveToolAvailable() const
 
 void FormEditorView::reset()
 {
-   QTimer::singleShot(200, this, SLOT(delayedReset()));
+   QTimer::singleShot(200, this, &FormEditorView::delayedReset);
 }
 
 void FormEditorView::delayedReset()

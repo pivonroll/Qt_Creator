@@ -68,15 +68,15 @@ struct MsvcPlatform {
 
 const MsvcPlatform platforms[] =
 {
-    { MsvcToolChain::x86, "x86", "/bin", "vcvars32.bat" },
-    { MsvcToolChain::amd64, "amd64", "/bin/amd64", "vcvars64.bat" },
-    { MsvcToolChain::x86_amd64, "x86_amd64", "/bin/x86_amd64", "vcvarsx86_amd64.bat" },
-    { MsvcToolChain::ia64, "ia64", "/bin/ia64", "vcvars64.bat" },
-    { MsvcToolChain::x86_ia64, "x86_ia64", "/bin/x86_ia64", "vcvarsx86_ia64.bat" },
-    { MsvcToolChain::arm, "arm", "/bin/arm", "vcvarsarm.bat" },
-    { MsvcToolChain::x86_arm, "x86_arm", "/bin/x86_arm", "vcvarsx86_arm.bat" },
-    { MsvcToolChain::amd64_arm, "amd64_arm", "/bin/amd64_arm", "vcvarsamd64_arm.bat" },
-    { MsvcToolChain::amd64_x86, "amd64_x86", "/bin/amd64_x86", "vcvarsamd64_x86.bat" }
+    {MsvcToolChain::x86, "x86", "/bin", "vcvars32.bat"},
+    {MsvcToolChain::amd64, "amd64", "/bin/amd64", "vcvars64.bat"},
+    {MsvcToolChain::x86_amd64, "x86_amd64", "/bin/x86_amd64", "vcvarsx86_amd64.bat"},
+    {MsvcToolChain::ia64, "ia64", "/bin/ia64", "vcvars64.bat"},
+    {MsvcToolChain::x86_ia64, "x86_ia64", "/bin/x86_ia64", "vcvarsx86_ia64.bat"},
+    {MsvcToolChain::arm, "arm", "/bin/arm", "vcvarsarm.bat"},
+    {MsvcToolChain::x86_arm, "x86_arm", "/bin/x86_arm", "vcvarsx86_arm.bat"},
+    {MsvcToolChain::amd64_arm, "amd64_arm", "/bin/amd64_arm", "vcvarsamd64_arm.bat"},
+    {MsvcToolChain::amd64_x86, "amd64_x86", "/bin/amd64_x86", "vcvarsamd64_x86.bat"}
 };
 
 static const MsvcPlatform *platformEntry(MsvcToolChain::Platform t)
@@ -260,22 +260,85 @@ static QString generateDisplayName(const QString &name,
 
 static QByteArray msvcCompilationFile()
 {
-    static const char* macros[] = {"_ATL_VER", "_CHAR_UNSIGNED", "__CLR_VER",
-                                   "__cplusplus_cli", "__COUNTER__", "__cplusplus",
-                                   "_CPPLIB_VER", "_CPPRTTI", "_CPPUNWIND",
-                                   "_DEBUG", "_DLL", "__FUNCDNAME__",
-                                   "__FUNCSIG__", "__FUNCTION__", "_INTEGRAL_MAX_BITS",
-                                   "_M_ALPHA", "_M_AAMD64", "_M_CEE", "_M_CEE_PURE",
-                                   "_M_CEE_SAFE", "_M_IX86", "_M_IA64",
-                                   "_M_IX86_FP", "_M_MPPC", "_M_MRX000",
-                                   "_M_PPC", "_M_X64", "_MANAGED",
-                                   "_MFC_VER", "_MSC_BUILD", "_MSC_EXTENSIONS",
-                                   "_MSC_FULL_VER", "_MSC_VER", "__MSVC_RUNTIME_CHECKS",
-                                   "_MT", "_NATIVE_WCHAR_T_DEFINED", "_OPENMP",
-                                   "_VC_NODEFAULTLIB", "_WCHAR_T_DEFINED", "_WIN32",
-                                   "_WIN32_WCE", "_WIN64", "_Wp64",
-                                   "__DATE__", "__TIME__", "__TIMESTAMP__",
-                                   0};
+    static const char* macros[] = {
+        "_ATL_VER",
+        "__ATOM__",
+        "__AVX__",
+        "__AVX2__",
+        "_CHAR_UNSIGNED",
+        "__CLR_VER",
+        "_CMMN_INTRIN_FUNC",
+        "_CONTROL_FLOW_GUARD",
+        "__COUNTER__",
+        "__cplusplus",
+        "__cplusplus_cli",
+        "__cplusplus_winrt",
+        "_CPPLIB_VER",
+        "_CPPRTTI",
+        "_CPPUNWIND",
+        "__DATE__",
+        "_DEBUG",
+        "_DLL",
+        "__FILE__",
+        "__func__",
+        "__FUNCDNAME__",
+        "__FUNCSIG__",
+        "__FUNCTION__",
+        "_INTEGRAL_MAX_BITS",
+        "__INTELLISENSE__",
+        "_ISO_VOLATILE",
+        "_KERNEL_MODE",
+        "__LINE__",
+        "_M_AAMD64",
+        "_M_ALPHA",
+        "_M_AMD64",
+        "_MANAGED",
+        "_M_ARM",
+        "_M_ARM64",
+        "_M_ARM_ARMV7VE",
+        "_M_ARM_FP",
+        "_M_ARM_NT",
+        "_M_ARMT",
+        "_M_CEE",
+        "_M_CEE_PURE",
+        "_M_CEE_SAFE",
+        "_MFC_VER",
+        "_M_FP_EXCEPT",
+        "_M_FP_FAST",
+        "_M_FP_PRECISE",
+        "_M_FP_STRICT",
+        "_M_IA64",
+        "_M_IX86",
+        "_M_IX86_FP",
+        "_M_MPPC",
+        "_M_MRX000",
+        "_M_PPC",
+        "_MSC_BUILD",
+        "_MSC_EXTENSIONS",
+        "_MSC_FULL_VER",
+        "_MSC_VER",
+        "_MSVC_LANG",
+        "__MSVC_RUNTIME_CHECKS",
+        "_MT",
+        "_M_THUMB",
+        "_M_X64",
+        "_NATIVE_WCHAR_T_DEFINED",
+        "_OPENMP",
+        "_PREFAST_",
+        "__STDC__",
+        "__STDC_HOSTED__",
+        "__STDCPP_THREADS__",
+        "__TIME__",
+        "__TIMESTAMP__",
+        "_VC_NODEFAULTLIB",
+        "_WCHAR_T_DEFINED",
+        "_WIN32",
+        "_WIN32_WCE",
+        "_WIN64",
+        "_WINRT_DLL",
+        "_Wp64",
+        0
+    };
     QByteArray file = "#define __PPOUT__(x) V##x=x\n\n";
     for (int i = 0; macros[i] != 0; ++i) {
         const QByteArray macro(macros[i]);
@@ -287,10 +350,66 @@ static QByteArray msvcCompilationFile()
 }
 
 // Run MSVC 'cl' compiler to obtain #defines.
+// This function must be thread-safe!
+//
+// Some notes regarding the used approach:
+//
+// It seems that there is no reliable way to get all the
+// predefined macros for a cl invocation. The following two
+// approaches are unfortunately limited since both lead to an
+// incomplete list of actually predefined macros and come with
+// other problems, too.
+//
+// 1) Maintain a list of predefined macros from the official
+//    documentation (for MSVC2015, e.g. [1]). Feed cl with a
+//    temporary file that queries the values of those macros.
+//
+//    Problems:
+//     * Maintaining that list.
+//     * The documentation is incomplete, we do not get all
+//       predefined macros. E.g. the cl from MSVC2015, set up
+//       with "vcvars.bat x86_arm", predefines among others
+//       _M_ARMT, but that's not reflected in the
+//       documentation.
+//
+// 2) Run cl with the undocumented options /B1 and /Bx, as
+//    described in [2].
+//
+//    Note: With qmake from Qt >= 5.8 it's possible to print
+//    the macros formatted as preprocessor code in an easy to
+//    read/compare/diff way:
+//
+//      > cl /nologo /c /TC /B1 qmake NUL
+//      > cl /nologo /c /TP /Bx qmake NUL
+//
+//    Problems:
+//     * Using undocumented options.
+//     * Resulting macros are incomplete.
+//       For example, the nowadays default option /Zc:wchar_t
+//       predefines _WCHAR_T_DEFINED, but this is not reflected
+//       with this approach.
+//
+//       To work around this we would need extra cl invocations
+//       to get the actual values of the missing macros
+//       (approach 1).
+//
+// Currently we combine both approaches in this way:
+//  * As base, maintain the list from the documentation and
+//    update it once a new MSVC version is released.
+//  * Enrich it with macros that we discover with approach 2
+//    once a new MSVC version is released.
+//  * Enrich it further with macros that are not covered with
+//    the above points.
+//
+// TODO: Update the predefined macros for MSVC 2017 once the
+//       page exists.
+//
+// [1] https://msdn.microsoft.com/en-us/library/b0084kay.aspx
+// [2] http://stackoverflow.com/questions/3665537/how-to-find-out-cl-exes-built-in-macros
 QByteArray MsvcToolChain::msvcPredefinedMacros(const QStringList cxxflags,
                                                const Utils::Environment &env) const
 {
-    QByteArray predefinedMacros = AbstractMsvcToolChain::msvcPredefinedMacros(cxxflags, env);
+    QByteArray predefinedMacros;
 
     QStringList toProcess;
     foreach (const QString &arg, cxxflags) {
@@ -667,7 +786,7 @@ MsvcToolChainFactory::MsvcToolChainFactory()
 
 QSet<Core::Id> MsvcToolChainFactory::supportedLanguages() const
 {
-    return { Constants::C_LANGUAGE_ID, Constants::CXX_LANGUAGE_ID };
+    return {Constants::C_LANGUAGE_ID, Constants::CXX_LANGUAGE_ID};
 }
 
 QString MsvcToolChainFactory::vcVarsBatFor(const QString &basePath, MsvcToolChain::Platform platform,
@@ -692,7 +811,7 @@ static QList<ToolChain *> findOrCreateToolChain(
         ToolChain::Detection d = ToolChain::ManualDetection)
 {
     QList<ToolChain *> res;
-    for (auto language: { Constants::C_LANGUAGE_ID, Constants::CXX_LANGUAGE_ID }) {
+    for (auto language: {Constants::C_LANGUAGE_ID, Constants::CXX_LANGUAGE_ID}) {
         ToolChain *tc = Utils::findOrDefault(
                     alreadyKnown,
                     [&varsBat, &varsBatArg, &abi, &language](ToolChain *tc) -> bool {
@@ -746,7 +865,7 @@ static void detectCppBuildTools(QList<ToolChain *> *list)
         const Entry &e = entries[i];
         const Abi abi(e.architecture, Abi::WindowsOS, Abi::WindowsMsvc2015Flavor,
                       e.format, e.wordSize);
-        for (auto language: { Constants::C_LANGUAGE_ID, Constants::CXX_LANGUAGE_ID }) {
+        for (auto language: {Constants::C_LANGUAGE_ID, Constants::CXX_LANGUAGE_ID}) {
             list->append(new MsvcToolChain(name + QLatin1String(e.postFix), abi,
                                            vcVarsBat, QLatin1String(e.varsBatArg),
                                            language, ToolChain::AutoDetection));

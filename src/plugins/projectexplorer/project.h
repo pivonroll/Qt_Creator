@@ -47,11 +47,11 @@ namespace ProjectExplorer {
 
 class BuildInfo;
 class EditorConfiguration;
-class IProjectManager;
 class NamedWidget;
 class ProjectImporter;
 class ProjectNode;
 class ProjectPrivate;
+class Session;
 class Target;
 
 // Documentation inside.
@@ -80,9 +80,8 @@ public:
     Utils::FileName projectDirectory() const;
     static Utils::FileName projectDirectory(const Utils::FileName &top);
 
-    virtual IProjectManager *projectManager() const;
-
     virtual ProjectNode *rootProjectNode() const;
+    ProjectNode *containerNode() const;
 
     bool hasActiveBuildSettings() const;
 
@@ -176,7 +175,6 @@ protected:
 
     void setId(Core::Id id);
     void setDocument(Core::IDocument *doc); // takes ownership!
-    void setProjectManager(IProjectManager *manager);
     void setRootProjectNode(ProjectNode *root); // takes ownership!
     void setProjectContext(Core::Context context);
     void setProjectLanguages(Core::Context language);
@@ -192,6 +190,8 @@ private:
 
     void setActiveTarget(Target *target);
     ProjectPrivate *d;
+
+    friend class Session;
 };
 
 } // namespace ProjectExplorer

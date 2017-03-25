@@ -88,8 +88,7 @@ public:
     Gerrit::Internal::GerritPlugin *gerritPlugin() const;
     bool isCommitEditorOpen() const;
     static QString msgRepositoryLabel(const QString &repository);
-
-public slots:
+    static QString invalidBranchAndRemoteNamePattern();
     void startCommit();
     void updateBranches(const QString &repository);
 

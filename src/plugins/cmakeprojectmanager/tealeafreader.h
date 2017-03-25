@@ -56,9 +56,9 @@ public:
 
     QList<CMakeBuildTarget> buildTargets() const final;
     CMakeConfig takeParsedConfiguration() final;
-    void generateProjectTree(CMakeListsNode *root,
+    void generateProjectTree(CMakeProjectNode *root,
                              const QList<const ProjectExplorer::FileNode *> &allFiles) final;
-    QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder) final;
+    void updateCodeModel(CppTools::RawProjectParts &rpps) final;
 
 private:
     void cleanUpProcess();

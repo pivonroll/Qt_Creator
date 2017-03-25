@@ -26,7 +26,6 @@
 #include "nimproject.h"
 #include "nimbuildconfiguration.h"
 #include "nimprojectnode.h"
-#include "nimprojectmanager.h"
 #include "nimtoolchain.h"
 
 #include "../nimconstants.h"
@@ -54,16 +53,12 @@ namespace Nim {
 
 const int MIN_TIME_BETWEEN_PROJECT_SCANS = 4500;
 
-NimProject::NimProject(NimProjectManager *projectManager, const QString &fileName)
+NimProject::NimProject(const FileName &fileName)
 {
     setId(Constants::C_NIMPROJECT_ID);
-    setProjectManager(projectManager);
-    setDocument(new TextEditor::TextDocument);
-    document()->setFilePath(FileName::fromString(fileName));
-    QFileInfo fi = QFileInfo(fileName);
-    QDir dir = fi.dir();
-    setRootProjectNode(new NimProjectNode(*this, FileName::fromString(dir.absolutePath())));
-    rootProjectNode()->setDisplayName(dir.dirName());
+    auto doc = new TextEditor::TextDocument;
+    doc->setFilePath(fileName);
+    setDocument(doc);
 
     m_projectScanTimer.setSingleShot(true);
     connect(&m_projectScanTimer, &QTimer::timeout, this, &NimProject::collectProjectFiles);
@@ -75,7 +70,7 @@ NimProject::NimProject(NimProjectManager *projectManager, const QString &fileNam
 
 QString NimProject::displayName() const
 {
-    return rootProjectNode()->displayName();
+    return projectFilePath().toFileInfo().completeBaseName();
 }
 
 QStringList NimProject::files(FilesMode) const
@@ -159,7 +154,10 @@ void NimProject::updateProject()
     if (oldFiles == m_files)
         return;
 
-    rootProjectNode()->buildTree(fileNodes);
+    auto newRoot = new NimProjectNode(*this, projectDirectory());
+    newRoot->setDisplayName(displayName());
+    newRoot->addNestedNodes(fileNodes);
+    setRootProjectNode(newRoot);
 
     emit fileListChanged();
 
@@ -185,19 +183,10 @@ bool NimProject::supportsKit(Kit *k, QString *errorMessage) const
 FileNameList NimProject::nimFiles() const
 {
     FileNameList result;
-
-    QQueue<FolderNode *> folders;
-    folders.enqueue(rootProjectNode());
-
-    while (!folders.isEmpty()) {
-        FolderNode *folder = folders.takeFirst();
-        for (FileNode *file : folder->fileNodes()) {
-            if (file->displayName().endsWith(QLatin1String(".nim")))
-                result.append(file->filePath());
-        }
-        folders.append(folder->folderNodes());
-    }
-
+    rootProjectNode()->forEachNode([&](FileNode *file) {
+        if (file->displayName().endsWith(QLatin1String(".nim")))
+            result.append(file->filePath());
+    });
     return result;
 }
 

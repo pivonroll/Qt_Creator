@@ -84,8 +84,8 @@ static TypeName resolveTypeName(const ASTPropertyReference *ref, const ContextPt
 {
     TypeName type = "unknown";
 
-    if (!ref->ast()->memberType.isEmpty()) {
-        type = ref->ast()->memberType.toUtf8();
+    if (ref->ast()->isValid()) {
+        type = ref->ast()->memberTypeName().toUtf8();
 
         if (type == "alias") {
             const Value *value = context->lookupReference(ref);
@@ -1560,7 +1560,9 @@ bool NodeMetaInfo::isSubclassOf(const TypeName &type, int majorVersion, int mino
 
 bool NodeMetaInfo::isGraphicalItem() const
 {
-    return isSubclassOf("QtQuick.Item") || isSubclassOf("QtQuick.Window.Window");
+    return isSubclassOf("QtQuick.Item")
+            || isSubclassOf("QtQuick.Window.Window")
+            || isSubclassOf("QtQuick.Controls.Popup");
 }
 
 void NodeMetaInfo::clearCache()

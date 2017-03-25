@@ -29,7 +29,7 @@
 #include "stateseditorimageprovider.h"
 
 #include <designersettings.h>
-#include <theming.h>
+#include <theme.h>
 
 #include <invalidqmlsourceexception.h>
 
@@ -91,7 +91,7 @@ StatesEditorWidget::StatesEditorWidget(StatesEditorView *statesEditorView, State
     engine()->addImportPath(qmlSourcesPath());
 
     m_qmlSourceUpdateShortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_F4), this);
-    connect(m_qmlSourceUpdateShortcut, SIGNAL(activated()), this, SLOT(reloadQmlSource()));
+    connect(m_qmlSourceUpdateShortcut, &QShortcut::activated, this, &StatesEditorWidget::reloadQmlSource);
 
     setResizeMode(QQuickWidget::SizeRootObjectToView);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -100,9 +100,7 @@ StatesEditorWidget::StatesEditorWidget(StatesEditorView *statesEditorView, State
 
     rootContext()->setContextProperty(QLatin1String("canAddNewStates"), true);
 
-    rootContext()->setContextProperty(QLatin1String("creatorTheme"), Theming::theme());
-
-    Theming::registerIconProvider(engine());
+    Theme::setupTheme(engine());
 
     setWindowTitle(tr("States", "Title of Editor widget"));
 

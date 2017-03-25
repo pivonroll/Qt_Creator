@@ -80,12 +80,15 @@ public:
     void showWarningMessageBox(const QList<DocumentMessage> &warnings);
 
     void exportAsImage(const QRectF &boundingRect);
+
+    FormEditorGraphicsView *graphicsView() const;
+
 protected:
     void wheelEvent(QWheelEvent *event);
     QActionGroup *toolActionGroup() const;
     DocumentWarningWidget *errorWidget();
 
-private slots:
+private:
     void changeTransformTool(bool checked);
     void setZoomLevel(double zoomLevel);
     void changeRootItemWidth(const QString &widthText);

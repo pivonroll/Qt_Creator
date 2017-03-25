@@ -30,9 +30,14 @@
 
 #include <rewriterview.h>
 
-#include <theming.h>
+#include <qmldesignerplugin.h>
+
+#include <theme.h>
 
 #include <utils/fileutils.h>
+
+#include <texteditor/textdocument.h>
+#include <coreplugin/editormanager/editormanager.h>
 
 #include <QEvent>
 #include <QVBoxLayout>
@@ -56,19 +61,34 @@ TextEditorWidget::TextEditorWidget(TextEditorView *textEditorView)
     m_updateSelectionTimer.setInterval(200);
 
     connect(&m_updateSelectionTimer, &QTimer::timeout, this, &TextEditorWidget::updateSelectionByCursorPosition);
-    setStyleSheet(Theming::replaceCssColors(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/scrollbar.css")))));
+    setStyleSheet(Theme::replaceCssColors(QString::fromUtf8(Utils::FileReader::fetchQrc(QLatin1String(":/qmldesigner/scrollbar.css")))));
 }
 
 void TextEditorWidget::setTextEditor(TextEditor::BaseTextEditor *textEditor)
 {
+    TextEditor::BaseTextEditor *oldEditor = m_textEditor.release();
     m_textEditor.reset(textEditor);
-    layout()->removeWidget(m_statusBar);
-    layout()->addWidget(textEditor->editorWidget());
-    layout()->addWidget(m_statusBar);
 
-    connect(textEditor->editorWidget(), &QPlainTextEdit::cursorPositionChanged,
-            &m_updateSelectionTimer, static_cast<void (QTimer::*)()>(&QTimer::start));
-    textEditor->editorWidget()->installEventFilter(this);
+    if (textEditor) {
+        layout()->removeWidget(m_statusBar);
+        layout()->addWidget(textEditor->editorWidget());
+        layout()->addWidget(m_statusBar);
+        setFocusProxy(textEditor->editorWidget());
+
+        QmlDesignerPlugin::instance()->emitCurrentTextEditorChanged(textEditor);
+
+        connect(textEditor->editorWidget(), &QPlainTextEdit::cursorPositionChanged,
+                this, [this]() {
+            /* Cursor position is changed by rewriter */
+            if (!m_blockCurserSelectionSyncronisation)
+                m_updateSelectionTimer.start();
+        });
+
+        textEditor->editorWidget()->installEventFilter(this);
+    }
+
+    if (oldEditor)
+        oldEditor->deleteLater();
 }
 
 QString TextEditorWidget::contextHelpId() const
@@ -87,7 +107,7 @@ void TextEditorWidget::updateSelectionByCursorPosition()
 
     if (rewriterView) {
         ModelNode modelNode = rewriterView->nodeAtTextCursorPosition(cursorPosition);
-        if (modelNode.isValid())
+        if (modelNode.isValid() && !m_textEditorView->isSelectedModelNode(modelNode))
             m_textEditorView->setSelectedModelNode(modelNode);
     }
 }
@@ -95,6 +115,12 @@ void TextEditorWidget::updateSelectionByCursorPosition()
 void TextEditorWidget::jumpTextCursorToSelectedModelNode()
 {
     ModelNode selectedNode;
+
+    if (hasFocus())
+        return;
+
+    if (m_textEditor && m_textEditor->editorWidget()->hasFocus())
+        return;
 
     if (!m_textEditorView->selectedModelNodes().isEmpty())
         selectedNode = m_textEditorView->selectedModelNodes().first();
@@ -104,16 +130,14 @@ void TextEditorWidget::jumpTextCursorToSelectedModelNode()
 
         const int nodeOffset = rewriterView->nodeOffset(selectedNode);
         if (nodeOffset > 0) {
-            const ModelNode currentSelectedNode = rewriterView->
-                nodeAtTextCursorPosition(m_textEditor->editorWidget()->textCursor().position());
-
-            if (currentSelectedNode != selectedNode) {
+            if (!rewriterView->nodeContainsCursor(selectedNode, m_textEditor->editorWidget()->textCursor().position())) {
                 int line, column;
                 m_textEditor->editorWidget()->convertPosition(nodeOffset, &line, &column);
                 m_textEditor->editorWidget()->gotoLine(line, column);
             }
         }
     }
+    m_updateSelectionTimer.stop();
 }
 
 void TextEditorWidget::gotoCursorPosition(int line, int column)
@@ -139,6 +163,11 @@ int TextEditorWidget::currentLine() const
     if (m_textEditor)
         return m_textEditor->currentLine();
     return -1;
+}
+
+void TextEditorWidget::setBlockCurserSelectionSyncronisation(bool b)
+{
+    m_blockCurserSelectionSyncronisation = b;
 }
 
 bool TextEditorWidget::eventFilter( QObject *, QEvent *event)

@@ -67,6 +67,8 @@
 #include <qplugin.h>
 #include <QDebug>
 #include <QProcessEnvironment>
+#include <QScreen>
+#include <QWindow>
 
 Q_LOGGING_CATEGORY(qmldesignerLog, "qtc.qmldesigner")
 
@@ -82,6 +84,7 @@ public:
 
     DesignerSettings settings;
     Internal::DesignModeContext *context = nullptr;
+    bool blockEditorChange = false;
 };
 
 QmlDesignerPlugin *QmlDesignerPlugin::m_instance = nullptr;
@@ -185,7 +188,6 @@ bool QmlDesignerPlugin::initialize(const QStringList & /*arguments*/, QString *e
 
 bool QmlDesignerPlugin::delayedInitialize()
 {
-    integrateIntoQtCreator(d->mainWidget);
     // adding default path to item library plugins
     const QString pluginPath = Utils::HostOsInfo::isMacHost()
             ? QString(QCoreApplication::applicationDirPath() + "/../PlugIns/QmlDesigner")
@@ -207,6 +209,7 @@ bool QmlDesignerPlugin::delayedInitialize()
 
 void QmlDesignerPlugin::extensionsInitialized()
 {
+    integrateIntoQtCreator(d->mainWidget);
 }
 
 static QStringList allUiQmlFilesforCurrentProject(const Utils::FileName &fileName)
@@ -280,15 +283,14 @@ void QmlDesignerPlugin::integrateIntoQtCreator(QWidget *modeWidget)
         if (d && currentEditor && checkIfEditorIsQtQuick(currentEditor) &&
                 !documentIsAlreadyOpen(currentDesignDocument(), currentEditor, newMode)) {
 
-            if (!isDesignerMode(newMode) && isDesignerMode(oldMode))
-                hideDesigner();
-            else if (currentEditor && isDesignerMode(newMode))
+            if (isDesignerMode(newMode)) {
                 showDesigner();
-            else if (currentDesignDocument())
-                hideDesigner();
+            } else if (currentDesignDocument() ||
+                     (!isDesignerMode(newMode) && isDesignerMode(oldMode))) {
+                    hideDesigner();
+            }
         }
     });
-
 
     d->viewManager.designerActionManager().polishActions();
 }
@@ -345,6 +347,9 @@ void QmlDesignerPlugin::hideDesigner()
 
 void QmlDesignerPlugin::changeEditor()
 {
+    if (d->blockEditorChange)
+         return;
+
     if (d->documentManager.hasCurrentDesignDocument()) {
         deactivateAutoSynchronization();
         d->mainWidget->saveSettings();
@@ -470,6 +475,24 @@ void QmlDesignerPlugin::switchToTextModeDeferred()
     QTimer::singleShot(0, this, [] () {
         Core::ModeManager::activateMode(Core::Constants::MODE_EDIT);
     });
+}
+
+void QmlDesignerPlugin::emitCurrentTextEditorChanged(Core::IEditor *editor)
+{
+    d->blockEditorChange = true;
+    Core::EditorManager::instance()->currentEditorChanged(editor);
+    d->blockEditorChange = false;
+}
+
+double QmlDesignerPlugin::formEditorDevicePixelRatio()
+{
+    if (DesignerSettings::getValue(DesignerSettingsKey::IGNORE_DEVICE_PIXEL_RATIO).toBool())
+        return 1;
+
+    const QList<QWindow *> topLevelWindows = QApplication::topLevelWindows();
+    if (topLevelWindows.isEmpty())
+        return 1;
+    return topLevelWindows.first()->screen()->devicePixelRatio();
 }
 
 QmlDesignerPlugin *QmlDesignerPlugin::instance()

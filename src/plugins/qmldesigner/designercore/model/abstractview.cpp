@@ -34,6 +34,8 @@
 #include <coreplugin/helpmanager.h>
 #include <utils/qtcassert.h>
 
+#include <QRegExp>
+
 namespace QmlDesigner {
 
 
@@ -386,7 +388,7 @@ void AbstractView::setSelectedModelNodes(const QList<ModelNode> &selectedNodeLis
 
 void AbstractView::setSelectedModelNode(const ModelNode &modelNode)
 {
-    setSelectedModelNodes(QList<ModelNode>() << modelNode);
+    setSelectedModelNodes({modelNode});
 }
 
 /*!
@@ -577,7 +579,7 @@ QList<ModelNode> AbstractView::allModelNodes() const
 
 void AbstractView::emitDocumentMessage(const QString &error)
 {
-    emitDocumentMessage( { DocumentMessage(error) } );
+    emitDocumentMessage({DocumentMessage(error)});
 }
 
 void AbstractView::emitDocumentMessage(const QList<DocumentMessage> &errors, const QList<DocumentMessage> &warnings)

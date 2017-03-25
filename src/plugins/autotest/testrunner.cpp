@@ -134,7 +134,7 @@ static void performTestRun(QFutureInterface<TestResultPtr> &futureInterface,
         if (commandFilePath.isEmpty()) {
             futureInterface.reportResult(TestResultPtr(new FaultyTestResult(Result::MessageFatal,
                 TestRunner::tr("Could not find command \"%1\". (%2)")
-                                                   .arg(testConfiguration->targetFile())
+                                                   .arg(testConfiguration->executableFilePath())
                                                    .arg(testConfiguration->displayName()))));
             continue;
         }
@@ -166,11 +166,11 @@ static void performTestRun(QFutureInterface<TestResultPtr> &futureInterface,
             }
         } else {
             futureInterface.reportResult(TestResultPtr(new FaultyTestResult(Result::MessageFatal,
-                QString("Failed to start test for project \"%1\".").arg(testConfiguration->displayName()))));
+                TestRunner::tr("Failed to start test for project \"%1\".").arg(testConfiguration->displayName()))));
         }
         if (testProcess.exitStatus() == QProcess::CrashExit) {
             futureInterface.reportResult(TestResultPtr(new FaultyTestResult(Result::MessageFatal,
-                QString("Test for project \"%1\" crashed.").arg(testConfiguration->displayName()))));
+                TestRunner::tr("Test for project \"%1\" crashed.").arg(testConfiguration->displayName()))));
         }
 
         if (canceledByTimeout) {
@@ -294,7 +294,7 @@ void TestRunner::debugTests()
     if (commandFilePath.isEmpty()) {
         emit testResultReady(TestResultPtr(new FaultyTestResult(Result::MessageFatal,
             TestRunner::tr("Could not find command \"%1\". (%2)")
-                                               .arg(config->targetFile())
+                                               .arg(config->executableFilePath())
                                                .arg(config->displayName()))));
         onFinished();
         return;

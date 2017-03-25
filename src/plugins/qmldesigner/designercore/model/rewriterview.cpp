@@ -38,6 +38,7 @@
 #include <customnotifications.h>
 #include <modelnodepositionstorage.h>
 #include <modelnode.h>
+#include <nodeproperty.h>
 
 #include <qmljs/parser/qmljsengine_p.h>
 #include <qmljs/qmljsmodelmanagerinterface.h>
@@ -343,12 +344,12 @@ TextModifier *RewriterView::textModifier() const
 void RewriterView::setTextModifier(TextModifier *textModifier)
 {
     if (m_textModifier)
-        disconnect(m_textModifier, SIGNAL(textChanged()), this, SLOT(qmlTextChanged()));
+        disconnect(m_textModifier, &TextModifier::textChanged, this, &RewriterView::qmlTextChanged);
 
     m_textModifier = textModifier;
 
     if (m_textModifier)
-        connect(m_textModifier, SIGNAL(textChanged()), this, SLOT(qmlTextChanged()));
+        connect(m_textModifier, &TextModifier::textChanged, this, &RewriterView::qmlTextChanged);
 }
 
 QString RewriterView::textModifierContent() const
@@ -556,24 +557,55 @@ static bool isInNodeDefinition(int nodeTextOffset, int nodeTextLength, int curso
     return (nodeTextOffset <= cursorPosition) && (nodeTextOffset + nodeTextLength > cursorPosition);
 }
 
-ModelNode RewriterView::nodeAtTextCursorPosition(int cursorPosition) const
+ModelNode RewriterView::nodeAtTextCursorPositionRekursive(const ModelNode &root, int cursorPosition) const
 {
-    const QList<ModelNode> allNodes = allModelNodes();
+    ModelNode node = root;
 
-    ModelNode nearestNode;
-    int nearestNodeTextOffset = -1;
+    int lastOffset = -1;
 
-    foreach (const ModelNode &currentNode, allNodes) {
-        const int nodeTextOffset = nodeOffset(currentNode);
-        const int nodeTextLength = nodeLength(currentNode);
-        if (isInNodeDefinition(nodeTextOffset, nodeTextLength, cursorPosition)
-            && (nodeTextOffset > nearestNodeTextOffset)) {
-            nearestNode = currentNode;
-            nearestNodeTextOffset = nodeTextOffset;
+    bool sorted = true;
+
+    if (!root.nodeProperties().isEmpty())
+        sorted = false;
+
+    foreach (const ModelNode &currentNode, node.directSubModelNodes()) {
+        const int offset = nodeOffset(currentNode);
+
+        if (offset < cursorPosition && offset > lastOffset) {
+            node = nodeAtTextCursorPositionRekursive(currentNode, cursorPosition);
+            lastOffset = offset;
+        } else {
+            if (sorted)
+                break;
         }
     }
 
-    return nearestNode;
+    const int nodeTextLength = nodeLength(node);
+    const int nodeTextOffset = nodeOffset(node);
+
+    if (nodeTextLength < 0)
+        return ModelNode();
+
+    if (isInNodeDefinition(nodeTextOffset, nodeTextLength, cursorPosition))
+        return node;
+
+    return root;
+}
+
+ModelNode RewriterView::nodeAtTextCursorPosition(int cursorPosition) const
+{
+    return nodeAtTextCursorPositionRekursive(rootModelNode(), cursorPosition);
+}
+
+bool RewriterView::nodeContainsCursor(const ModelNode &node, int cursorPosition) const
+{
+    const int nodeTextLength = nodeLength(node);
+    const int nodeTextOffset = nodeOffset(node);
+
+    if (isInNodeDefinition(nodeTextOffset, nodeTextLength, cursorPosition))
+        return true;
+
+    return false;
 }
 
 bool RewriterView::renameId(const QString& oldId, const QString& newId)

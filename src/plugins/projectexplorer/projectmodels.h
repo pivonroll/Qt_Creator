@@ -59,8 +59,6 @@ class FlatModel : public Utils::TreeModel<WrapperNode, WrapperNode>
 public:
     FlatModel(QObject *parent);
 
-    void setView(QTreeView *view);
-
     // QAbstractItemModel
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     Qt::ItemFlags flags(const QModelIndex &index) const override;
@@ -79,37 +77,31 @@ public:
     void setProjectFilterEnabled(bool filter);
     void setGeneratedFilesFilterEnabled(bool filter);
 
+    void onExpanded(const QModelIndex &idx);
+    void onCollapsed(const QModelIndex &idx);
+
 signals:
     void renamed(const Utils::FileName &oldName, const Utils::FileName &newName);
+    void requestExpansion(const QModelIndex &index);
 
 private:
-    void startupProjectChanged(Project *project);
-    void nodeUpdated(ProjectExplorer::Node *node);
-
     bool filter(Node *node) const; // Returns true if node is hidden.
 
     bool m_filterProjects = false;
     bool m_filterGeneratedFiles = true;
 
-    ProjectNode *m_startupProject = nullptr;
-
     static const QLoggingCategory &logger();
 
     void update();
-    void doUpdate();
     void rebuildModel();
-    void addProjectNode(WrapperNode *parent, ProjectNode *projectNode, QSet<Node *> *seen);
     void addFolderNode(WrapperNode *parent, FolderNode *folderNode, QSet<Node *> *seen);
 
     ExpandData expandDataForNode(const Node *node) const;
-    void onExpanded(const QModelIndex &idx);
-    void onCollapsed(const QModelIndex &idx);
     void loadExpandData();
     void saveExpandData();
     void handleProjectAdded(Project *project);
 
     QTimer m_timer;
-    QTreeView *m_view = nullptr;
     QSet<ExpandData> m_toExpand;
 };
 

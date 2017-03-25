@@ -11,7 +11,7 @@ include(benchmark_dependency.pri)
 
 OBJECTS_DIR = $$OUT_PWD/obj # workaround for qmake bug in object_parallel_to_source
 
-force_debug_info:QMAKE_CXXFLAGS += -fno-omit-frame-pointer
+!msvc:force_debug_info:QMAKE_CXXFLAGS += -fno-omit-frame-pointer
 
 DEFINES += \
     QT_RESTRICTED_CAST_FROM_ASCII \
@@ -28,11 +28,18 @@ QMAKE_LFLAGS += -fno-merge-debug-strings -fuse-ld=gold
 CONFIG(release, debug|release):QMAKE_LFLAGS += -Wl,--strip-debug
 }
 
+# create fake CppTools.json for the mime type definitions
+dependencyList = "\"Dependencies\" : []"
+cpptoolsjson.input = $$PWD/../../../src/plugins/cpptools/CppTools.json.in
+cpptoolsjson.output = $$OUT_PWD/CppTools.json
+QMAKE_SUBSTITUTES += cpptoolsjson
+DEFINES += CPPTOOLS_JSON=\"R\\\"xxx($${cpptoolsjson.output})xxx\\\"\"
+
 SOURCES += \
     clientserverinprocess-test.cpp \
     lineprefixer-test.cpp \
     cppprojectfilecategorizer-test.cpp \
-    cppbaseprojectpartbuilder-test.cpp \
+    cppprojectinfogenerator-test.cpp \
     cppprojectpartchooser-test.cpp \
     processevents-utilities.cpp \
     mimedatabase-utilities.cpp \

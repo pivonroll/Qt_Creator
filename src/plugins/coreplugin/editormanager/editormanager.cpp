@@ -513,8 +513,7 @@ bool EditorManagerPrivate::skipOpeningBigTextFile(const QString &filePath)
     if (!fileInfo.exists(filePath))
         return false;
 
-    Utils::MimeDatabase mdb;
-    Utils::MimeType mimeType = mdb.mimeTypeForFile(filePath);
+    Utils::MimeType mimeType = Utils::mimeTypeForFile(filePath);
     if (!mimeType.inherits("text/plain"))
         return false;
 
@@ -590,8 +589,7 @@ IEditor *EditorManagerPrivate::openEditor(EditorView *view, const QString &fileN
 
     EditorManager::EditorFactoryList factories = EditorManagerPrivate::findFactories(Id(), fn);
     if (factories.isEmpty()) {
-        Utils::MimeDatabase mdb;
-        Utils::MimeType mimeType = mdb.mimeTypeForFile(fn);
+        Utils::MimeType mimeType = Utils::mimeTypeForFile(fn);
         QMessageBox msgbox(QMessageBox::Critical, EditorManager::tr("File Error"),
                            tr("Could not open \"%1\": Cannot open files of type \"%2\".")
                            .arg(FileName::fromString(realFn).toUserOutput()).arg(mimeType.name()),
@@ -920,11 +918,10 @@ void EditorManagerPrivate::showPopupOrSelectDocument()
 Id EditorManagerPrivate::getOpenWithEditorId(const QString &fileName, bool *isExternalEditor)
 {
     // Collect editors that can open the file
-    Utils::MimeDatabase mdb;
-    Utils::MimeType mt = mdb.mimeTypeForFile(fileName);
+    Utils::MimeType mt = Utils::mimeTypeForFile(fileName);
     //Unable to determine mime type of fileName. Falling back to text/plain",
     if (!mt.isValid())
-        mt = mdb.mimeTypeForName("text/plain");
+        mt = Utils::mimeTypeForName("text/plain");
     QList<Id> allEditorIds;
     QStringList allEditorDisplayNames;
     QList<Id> externalEditorIds;
@@ -1036,6 +1033,12 @@ void EditorManagerPrivate::readSettings()
         d->m_autoSaveEnabled = qs->value(autoSaveEnabledKey).toBool();
         d->m_autoSaveInterval = qs->value(autoSaveIntervalKey).toInt();
     }
+
+    if (qs->contains(autoSuspendEnabledKey)) {
+        d->m_autoSuspendEnabled = qs->value(autoSuspendEnabledKey).toBool();
+        d->m_autoSuspendMinDocumentCount = qs->value(autoSuspendMinDocumentCountKey).toInt();
+    }
+
     updateAutoSave();
 }
 
@@ -1110,17 +1113,16 @@ EditorManager::EditorFactoryList EditorManagerPrivate::findFactories(Id editorId
     if (!editorId.isValid()) {
         const QFileInfo fileInfo(fileName);
         // Find by mime type
-        Utils::MimeDatabase mdb;
-        Utils::MimeType mimeType = mdb.mimeTypeForFile(fileInfo);
+        Utils::MimeType mimeType = Utils::mimeTypeForFile(fileInfo);
         if (!mimeType.isValid()) {
             qWarning("%s unable to determine mime type of %s/%s. Falling back to text/plain",
                      Q_FUNC_INFO, fileName.toUtf8().constData(), editorId.name().constData());
-            mimeType = mdb.mimeTypeForName("text/plain");
+            mimeType = Utils::mimeTypeForName("text/plain");
         }
         // open text files > 48 MB in binary editor
         if (fileInfo.size() > EditorManager::maxTextFileSize()
                 && mimeType.name().startsWith("text")) {
-            mimeType = mdb.mimeTypeForName("application/octet-stream");
+            mimeType = Utils::mimeTypeForName("application/octet-stream");
         }
         factories = EditorManager::editorFactories(mimeType, false);
     } else {
@@ -2439,8 +2441,7 @@ void EditorManager::populateOpenWithMenu(QMenu *menu, const QString &fileName)
 
     bool anyMatches = false;
 
-    Utils::MimeDatabase mdb;
-    const Utils::MimeType mt = mdb.mimeTypeForFile(fileName);
+    const Utils::MimeType mt = Utils::mimeTypeForFile(fileName);
     if (mt.isValid()) {
         const EditorFactoryList factories = editorFactories(mt, false);
         const ExternalEditorList extEditors = externalEditors(mt, false);
@@ -2553,7 +2554,6 @@ static void mimeTypeFactoryLookup(const Utils::MimeType &mimeType,
                                      bool firstMatchOnly,
                                      QList<EditorFactoryLike*> *list)
 {
-    Utils::MimeDatabase mdb;
     QSet<EditorFactoryLike *> matches;
     // search breadth-first through parent hierarchy, e.g. for hierarchy
     // * application/x-ruby
@@ -2582,7 +2582,7 @@ static void mimeTypeFactoryLookup(const Utils::MimeType &mimeType,
         // add parent mime types
         QStringList parentNames = mt.parentMimeTypes();
         foreach (const QString &parentName, parentNames) {
-            const Utils::MimeType parent = mdb.mimeTypeForName(parentName);
+            const Utils::MimeType parent = Utils::mimeTypeForName(parentName);
             if (parent.isValid()) {
                 int seenSize = seen.size();
                 seen.insert(parent.name());
@@ -2709,7 +2709,7 @@ void EditorManager::addCloseEditorListener(const std::function<bool (IEditor *)>
 QStringList EditorManager::getOpenFileNames()
 {
     QString selectedFilter;
-    const QString &fileFilters = Utils::MimeDatabase::allFiltersString(&selectedFilter);
+    const QString &fileFilters = Utils::allFiltersString(&selectedFilter);
     return DocumentManager::getOpenFileNames(fileFilters, QString(), &selectedFilter);
 }
 
@@ -2989,12 +2989,14 @@ bool EditorManager::restoreState(const QByteArray &state)
 }
 
 void EditorManager::showEditorStatusBar(const QString &id,
-                                      const QString &infoText,
-                                      const QString &buttonText,
-                                      QObject *object, const char *member)
+                                        const QString &infoText,
+                                        const QString &buttonText,
+                                        QObject *object,
+                                        const std::function<void()> &function)
 {
 
-    EditorManagerPrivate::currentEditorView()->showEditorStatusBar(id, infoText, buttonText, object, member);
+    EditorManagerPrivate::currentEditorView()->showEditorStatusBar(
+                id, infoText, buttonText, object, function);
 }
 
 void EditorManager::hideEditorStatusBar(const QString &id)

@@ -24,44 +24,26 @@
 ****************************************************************************/
 
 #include "builddirmanager.h"
+
 #include "cmakebuildconfiguration.h"
 #include "cmakekitinformation.h"
-#include "cmakeparser.h"
-#include "cmakeprojectconstants.h"
-#include "cmakeprojectmanager.h"
 #include "cmakeprojectnodes.h"
 #include "cmaketool.h"
 
 #include <coreplugin/icore.h>
-#include <coreplugin/documentmanager.h>
-#include <coreplugin/messagemanager.h>
-#include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/progressmanager/progressmanager.h>
-#include <cpptools/cpptoolsconstants.h>
-#include <cpptools/projectpartbuilder.h>
-#include <projectexplorer/headerpath.h>
 #include <projectexplorer/kit.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/projectexplorerconstants.h>
-#include <projectexplorer/projectnodes.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/taskhub.h>
 #include <projectexplorer/toolchain.h>
 
 #include <utils/algorithm.h>
 #include <utils/fileutils.h>
-#include <utils/mimetypes/mimedatabase.h>
 #include <utils/qtcassert.h>
-#include <utils/qtcprocess.h>
-#include <utils/synchronousprocess.h>
-#include <utils/temporarydirectory.h>
 
-#include <QDateTime>
-#include <QFile>
-#include <QFileInfo>
 #include <QMessageBox>
-#include <QRegularExpression>
 #include <QSet>
 
 using namespace ProjectExplorer;
@@ -157,7 +139,7 @@ void BuildDirManager::maybeForceReparseOnceReaderReady()
     const QByteArray CMAKE_CXX_COMPILER_KEY = "CMAKE_CXX_COMPILER";
 
     const QByteArrayList criticalKeys
-            = { GENERATOR_KEY, CMAKE_COMMAND_KEY, CMAKE_C_COMPILER_KEY, CMAKE_CXX_COMPILER_KEY };
+            = {GENERATOR_KEY, CMAKE_COMMAND_KEY, CMAKE_C_COMPILER_KEY, CMAKE_CXX_COMPILER_KEY};
 
     const CMakeConfig currentConfig = parsedConfiguration();
 
@@ -275,13 +257,12 @@ bool BuildDirManager::persistCMakeState()
     return true;
 }
 
-void BuildDirManager::generateProjectTree(CMakeListsNode *root, const QList<const FileNode *> &allFiles)
+void BuildDirManager::generateProjectTree(CMakeProjectNode *root, const QList<const FileNode *> &allFiles)
 {
     QTC_ASSERT(m_reader, return);
 
     const Utils::FileName projectFile = m_buildConfiguration->target()->project()->projectFilePath();
 
-    root->makeEmpty();
     m_reader->generateProjectTree(root, allFiles);
 
     // Make sure the top level CMakeLists.txt is always visible:
@@ -289,10 +270,10 @@ void BuildDirManager::generateProjectTree(CMakeListsNode *root, const QList<cons
         root->addNode(new FileNode(projectFile, FileType::Project, false));
 }
 
-QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
+void BuildDirManager::updateCodeModel(CppTools::RawProjectParts &rpps)
 {
-    QTC_ASSERT(m_reader, return QSet<Core::Id>());
-    return m_reader->updateCodeModel(ppBuilder);
+    QTC_ASSERT(m_reader, return);
+    return m_reader->updateCodeModel(rpps);
 }
 
 void BuildDirManager::parse()

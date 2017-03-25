@@ -33,7 +33,6 @@
 #include <debugger/debuggerkitinformation.h>
 
 #include <projectexplorer/buildconfiguration.h>
-#include <projectexplorer/devicesupport/deviceapplicationrunner.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/runnables.h>
 #include <projectexplorer/target.h>
@@ -92,6 +91,16 @@ LinuxDeviceDebugSupport::~LinuxDeviceDebugSupport()
     delete d;
 }
 
+bool LinuxDeviceDebugSupport::isCppDebugging() const
+{
+    return d->cppDebugging;
+}
+
+bool LinuxDeviceDebugSupport::isQmlDebugging() const
+{
+    return d->qmlDebugging;
+}
+
 void LinuxDeviceDebugSupport::showMessage(const QString &msg, int channel)
 {
     if (state() != Inactive && d->runControl)
@@ -128,21 +137,26 @@ void LinuxDeviceDebugSupport::startExecution()
     setState(StartingRunner);
     d->gdbserverOutput.clear();
 
-    DeviceApplicationRunner *runner = appRunner();
-    connect(runner, &DeviceApplicationRunner::remoteStderr,
+    ApplicationLauncher *launcher = appRunner();
+    connect(launcher, &ApplicationLauncher::remoteStderr,
             this, &LinuxDeviceDebugSupport::handleRemoteErrorOutput);
-    connect(runner, &DeviceApplicationRunner::remoteStdout,
+    connect(launcher, &ApplicationLauncher::remoteStdout,
             this, &LinuxDeviceDebugSupport::handleRemoteOutput);
-    connect(runner, &DeviceApplicationRunner::finished,
+    connect(launcher, &ApplicationLauncher::finished,
             this, &LinuxDeviceDebugSupport::handleAppRunnerFinished);
-    connect(runner, &DeviceApplicationRunner::reportProgress,
+    connect(launcher, &ApplicationLauncher::reportProgress,
             this, &LinuxDeviceDebugSupport::handleProgressReport);
-    connect(runner, &DeviceApplicationRunner::reportError,
+    connect(launcher, &ApplicationLauncher::reportError,
             this, &LinuxDeviceDebugSupport::handleAppRunnerError);
     if (d->qmlDebugging && !d->cppDebugging)
-        connect(runner, &DeviceApplicationRunner::remoteProcessStarted,
+        connect(launcher, &ApplicationLauncher::remoteProcessStarted,
                 this, &LinuxDeviceDebugSupport::handleRemoteProcessStarted);
 
+    launcher->start(realRunnable(), device());
+}
+
+Runnable LinuxDeviceDebugSupport::realRunnable() const
+{
     StandardRunnable r = runnable();
     QStringList args = QtcProcess::splitArgs(r.commandLineArguments, OsTypeLinux);
     QString command;
@@ -162,7 +176,7 @@ void LinuxDeviceDebugSupport::startExecution()
     }
     r.executable = command;
     r.commandLineArguments = QtcProcess::joinArgs(args, OsTypeLinux);
-    runner->start(device(), r);
+    return r;
 }
 
 void LinuxDeviceDebugSupport::handleAppRunnerError(const QString &error)

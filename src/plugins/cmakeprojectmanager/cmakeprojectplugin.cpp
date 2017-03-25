@@ -45,9 +45,9 @@
 #include <coreplugin/fileiconprovider.h>
 
 #include <projectexplorer/kitmanager.h>
+#include <projectexplorer/projectmanager.h>
 #include <projectexplorer/projecttree.h>
 
-#include <utils/mimetypes/mimedatabase.h>
 #include <utils/parameteraction.h>
 
 using namespace CMakeProjectManager::Internal;
@@ -59,14 +59,15 @@ bool CMakeProjectPlugin::initialize(const QStringList & /*arguments*/, QString *
     Q_UNUSED(errorMessage)
     const Context projectContext(Constants::PROJECTCONTEXT);
 
-    Utils::MimeDatabase::addMimeTypes(QLatin1String(":cmakeproject/CMakeProjectManager.mimetypes.xml"));
-
     Core::FileIconProvider::registerIconOverlayForSuffix(Constants::FILEOVERLAY_CMAKE, "cmake");
     Core::FileIconProvider::registerIconOverlayForFilename(Constants::FILEOVERLAY_CMAKE, "CMakeLists.txt");
 
     addAutoReleasedObject(new Internal::CMakeSnippetProvider);
     addAutoReleasedObject(new CMakeSettingsPage);
     addAutoReleasedObject(new CMakeManager);
+
+    ProjectManager::registerProjectType<CMakeProject>(Constants::CMAKEPROJECTMIMETYPE);
+
     addAutoReleasedObject(new CMakeBuildStepFactory);
     addAutoReleasedObject(new CMakeRunConfigurationFactory);
     addAutoReleasedObject(new CMakeBuildConfigurationFactory);
@@ -108,9 +109,10 @@ void CMakeProjectPlugin::extensionsInitialized()
     CMakeToolManager::restoreCMakeTools();
 }
 
-void CMakeProjectPlugin::updateContextActions(ProjectExplorer::Node *node,
-                                              ProjectExplorer::Project *project)
+void CMakeProjectPlugin::updateContextActions()
 {
+    Project *project = ProjectTree::currentProject();
+    Node *node = ProjectTree::currentNode();
     CMakeTargetNode *targetNode = dynamic_cast<CMakeTargetNode *>(node);
     // as targetNode can be deleted while the menu is open, we keep only the
     const QString targetDisplayName = targetNode ? targetNode->displayName() : QString();

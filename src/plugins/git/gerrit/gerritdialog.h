@@ -59,15 +59,13 @@ public:
     ~GerritDialog();
     QString repositoryPath() const;
     void setCurrentPath(const QString &path);
+    void fetchStarted(const QSharedPointer<Gerrit::Internal::GerritChange> &change);
+    void fetchFinished();
 
 signals:
     void fetchDisplay(const QSharedPointer<Gerrit::Internal::GerritChange> &);
     void fetchCherryPick(const QSharedPointer<Gerrit::Internal::GerritChange> &);
     void fetchCheckout(const QSharedPointer<Gerrit::Internal::GerritChange> &);
-
-public slots:
-    void fetchStarted(const QSharedPointer<Gerrit::Internal::GerritChange> &change);
-    void fetchFinished();
 
 private:
     void slotCurrentChanged();
@@ -78,7 +76,7 @@ private:
     void slotFetchCheckout();
     void slotRefresh();
     void remoteChanged();
-    void updateRemotes();
+    void updateRemotes(bool forceReload = false);
     void addRemote(const GerritServer &server, const QString &name);
 
     void manageProgressIndicator();

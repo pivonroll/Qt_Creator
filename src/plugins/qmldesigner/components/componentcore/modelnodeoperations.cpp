@@ -31,7 +31,7 @@
 #include "addsignalhandlerdialog.h"
 
 #include <bindingproperty.h>
-#include <nodeabstractproperty.h>
+#include <nodelistproperty.h>
 #include <nodehints.h>
 #include <nodemetainfo.h>
 #include <modelnode.h>
@@ -219,47 +219,52 @@ void toBack(const SelectionContext &selectionState)
     }
 }
 
-void raise(const SelectionContext &selectionState)
+enum OderAction {RaiseItem, LowerItem};
+
+void changeOrder(const SelectionContext &selectionState, OderAction orderAction)
 {
     if (!selectionState.view())
         return;
 
+    QTC_ASSERT(selectionState.singleNodeIsSelected(), return);
+    ModelNode modelNode = selectionState.currentSingleSelectedNode();
+
+    if (modelNode.isRootNode())
+        return;
+    if (!modelNode.parentProperty().isNodeListProperty())
+        return;
+
     try {
         RewriterTransaction transaction(selectionState.view(), QByteArrayLiteral("DesignerActionManager|raise"));
-        foreach (ModelNode modelNode, selectionState.selectedModelNodes()) {
-            QmlItemNode node = modelNode;
-            if (node.isValid()) {
-                signed int z  = node.instanceValue("z").toInt();
-                z++;
-                node.setVariantProperty("z", z);
-            }
+
+        ModelNode modelNode = selectionState.currentSingleSelectedNode();
+        NodeListProperty parentProperty = modelNode.parentProperty().toNodeListProperty();
+        const int index = parentProperty.indexOf(modelNode);
+
+        if (orderAction == RaiseItem) {
+
+            if (index < parentProperty.count() - 1)
+                parentProperty.slide(index, index + 1);
+        } else if (orderAction == LowerItem) {
+            if (index > 0)
+                parentProperty.slide(index, index - 1);
         }
+
         transaction.commit();
     } catch (const RewritingException &e) { //better save then sorry
          e.showException();
     }
 }
 
+void raise(const SelectionContext &selectionState)
+{
+    changeOrder(selectionState, RaiseItem);
+}
+
 void lower(const SelectionContext &selectionState)
 {
 
-    if (!selectionState.view())
-        return;
-
-    try {
-        RewriterTransaction transaction(selectionState.view(), QByteArrayLiteral("DesignerActionManager|lower"));
-        foreach (ModelNode modelNode, selectionState.selectedModelNodes()) {
-            QmlItemNode node = modelNode;
-            if (node.isValid()) {
-                signed int z  = node.instanceValue("z").toInt();
-                z--;
-                node.setVariantProperty("z", z);
-            }
-        }
-        transaction.commit();
-    } catch (const RewritingException &e) { //better save then sorry
-        e.showException();
-    }
+    changeOrder(selectionState, LowerItem);
 }
 
 void paste(const SelectionContext &)
@@ -320,8 +325,9 @@ void resetSize(const SelectionContext &selectionState)
     try {
         RewriterTransaction transaction(selectionState.view(), QByteArrayLiteral("DesignerActionManager|resetSize"));
         foreach (ModelNode node, selectionState.selectedModelNodes()) {
-            node.removeProperty("width");
-            node.removeProperty("height");
+            QmlItemNode itemNode(node);
+            itemNode.removeProperty("width");
+            itemNode.removeProperty("height");
         }
     } catch (const RewritingException &e) { //better save then sorry
         e.showException();
@@ -336,8 +342,9 @@ void resetPosition(const SelectionContext &selectionState)
     try {
         RewriterTransaction transaction(selectionState.view(), QByteArrayLiteral("DesignerActionManager|resetPosition"));
         foreach (ModelNode node, selectionState.selectedModelNodes()) {
-            node.removeProperty("x");
-            node.removeProperty("y");
+            QmlItemNode itemNode(node);
+            itemNode.removeProperty("x");
+            itemNode.removeProperty("y");
         }
         transaction.commit();
     } catch (const RewritingException &e) { //better save then sorry
@@ -361,7 +368,8 @@ void resetZ(const SelectionContext &selectionState)
 
     RewriterTransaction transaction(selectionState.view(), QByteArrayLiteral("DesignerActionManager|resetZ"));
     foreach (ModelNode node, selectionState.selectedModelNodes()) {
-        node.removeProperty("z");
+        QmlItemNode itemNode(node);
+        itemNode.removeProperty("z");
     }
 }
 

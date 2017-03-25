@@ -143,42 +143,7 @@ static bool generateEnvironmentSettings(Utils::Environment &env,
 #define CDBEXT_PATH ""
 #endif
 
-static void setupCdb(QString *makeBinary, QProcessEnvironment *environment, int *msvcVersion)
-{
-    QByteArray envBat = qgetenv("QTC_MSVC_ENV_BAT");
-    QMap <QString, QString> envPairs;
-    Utils::Environment env = Utils::Environment::systemEnvironment();
-    QVERIFY(generateEnvironmentSettings(env, QString::fromLatin1(envBat), QString(), envPairs));
-    for (auto envIt = envPairs.begin(); envIt != envPairs.end(); ++envIt)
-        env.set(envIt.key(), envIt.value());
-    QByteArray cdbextPath = qgetenv("QTC_CDBEXT_PATH");
-    if (cdbextPath.isEmpty())
-        cdbextPath = CDBEXT_PATH "\\qtcreatorcdbext64";
-    QVERIFY(QFile::exists(QString::fromLatin1(cdbextPath + QByteArray("\\qtcreatorcdbext.dll"))));
-    env.set(QLatin1String("_NT_DEBUGGER_EXTENSION_PATH"), QString::fromLatin1(cdbextPath));
-    *makeBinary = env.searchInPath(QLatin1String("nmake.exe")).toString();
-    *environment = env.toProcessEnvironment();
-
-    QProcess cl;
-    cl.start(env.searchInPath(QLatin1String("cl.exe")).toString(), QStringList());
-    QVERIFY(cl.waitForFinished());
-    QString output = cl.readAllStandardError();
-    int pos = output.indexOf('\n');
-    if (pos != -1)
-        output = output.left(pos);
-    qDebug() << "Extracting MSVC version from: " << output;
-    QRegularExpression reg(" (\\d\\d)\\.(\\d\\d)\\.");
-    QRegularExpressionMatch match = reg.match(output);
-    if (match.matchType() != QRegularExpression::NoMatch)
-        *msvcVersion = QString(match.captured(1) + match.captured(2)).toInt();
-}
-
-#else
-
-static void setupCdb(QString *, QProcessEnvironment *, int *) {}
-
 #endif // Q_CC_MSVC
-
 
 struct VersionBase
 {
@@ -717,7 +682,6 @@ class Data
 {
 public:
     Data() {}
-    Data(const QString &code) : code(code) {}
 
     Data(const QString &includes, const QString &code)
         : includes(includes), code(code)
@@ -1091,7 +1055,35 @@ void tst_Dumpers::initTestCase()
         qDebug() << "Make path          : " << m_makeBinary;
         qDebug() << "Gdb version        : " << m_debuggerVersion;
     } else if (m_debuggerEngine == CdbEngine) {
-        setupCdb(&m_makeBinary, &m_env, &m_msvcVersion);
+#ifdef Q_CC_MSVC
+        QByteArray envBat = qgetenv("QTC_MSVC_ENV_BAT");
+        QMap <QString, QString> envPairs;
+        Utils::Environment env = Utils::Environment::systemEnvironment();
+        QVERIFY(generateEnvironmentSettings(env, QString::fromLatin1(envBat), QString(), envPairs));
+        for (auto envIt = envPairs.begin(); envIt != envPairs.end(); ++envIt)
+            env.set(envIt.key(), envIt.value());
+        QByteArray cdbextPath = qgetenv("QTC_CDBEXT_PATH");
+        if (cdbextPath.isEmpty())
+            cdbextPath = CDBEXT_PATH "\\qtcreatorcdbext64";
+        QVERIFY(QFile::exists(QString::fromLatin1(cdbextPath + QByteArray("\\qtcreatorcdbext.dll"))));
+        env.set(QLatin1String("_NT_DEBUGGER_EXTENSION_PATH"), QString::fromLatin1(cdbextPath));
+        env.prependOrSetPath(QDir::toNativeSeparators(QFileInfo(m_qmakeBinary).absolutePath()));
+        m_makeBinary = env.searchInPath(QLatin1String("nmake.exe")).toString();
+        m_env = env.toProcessEnvironment();
+
+        QProcess cl;
+        cl.start(env.searchInPath(QLatin1String("cl.exe")).toString(), QStringList());
+        QVERIFY(cl.waitForFinished());
+        QString output = cl.readAllStandardError();
+        int pos = output.indexOf('\n');
+        if (pos != -1)
+            output = output.left(pos);
+        qDebug() << "Extracting MSVC version from: " << output;
+        QRegularExpression reg(" (\\d\\d)\\.(\\d\\d)\\.");
+        QRegularExpressionMatch match = reg.match(output);
+        if (match.matchType() != QRegularExpression::NoMatch)
+            m_msvcVersion = QString(match.captured(1) + match.captured(2)).toInt();
+#endif //Q_CC_MSVC
     } else if (m_debuggerEngine == LldbEngine) {
         qDebug() << "Dumper dir         : " << DUMPERDIR;
         QProcess debugger;
@@ -1397,7 +1389,7 @@ void tst_Dumpers::dumper()
     if (data.neededDwarfVersion.isRestricted) {
         QProcess readelf;
         readelf.setWorkingDirectory(t->buildPath);
-        readelf.start("readelf", { "-wi", "doit" });
+        readelf.start("readelf", {"-wi", "doit"});
         QVERIFY(readelf.waitForFinished());
         output = readelf.readAllStandardOutput();
         error = readelf.readAllStandardError();
@@ -1933,8 +1925,8 @@ void tst_Dumpers::dumper_data()
                + CheckType("t1.(SystemLocale)", "@QString") % Optional()
 
                + Check("dt0", "(invalid)", "@QDateTime")
-               //+ Check("dt1", Value4("Tue Jan 1 13:15:32 1980"), "@QDateTime")
-               //+ Check("dt1", Value5("Tue Jan 1 13:15:32 1980 GMT"), "@QDateTime")
+               + Check("dt1", Value4("Tue Jan 1 13:15:32 1980"), "@QDateTime")
+               + Check("dt1", Value5("Tue Jan 1 13:15:32 1980 GMT"), "@QDateTime")
                + Check("dt1.(ISO)",
                     "\"1980-01-01T13:15:32Z\"", "@QString") % Optional()
                + CheckType("dt1.(Locale)", "@QString") % Optional()
@@ -1997,6 +1989,7 @@ void tst_Dumpers::dumper_data()
     QTest::newRow("QFixed")
             << Data("#include <private/qfixed_p.h>\n",
                     "QFixed f(1234);\n")
+               + Qt5
                + GuiPrivateProfile()
                + Check("f", "78976/64 = 1234.0", "@QFixed");
 
@@ -2730,7 +2723,9 @@ void tst_Dumpers::dumper_data()
 
                + Check("ob", "\"An Object\"", "@QWidget")
                + Check("ob1", "\"Another Object\"", "@QObject")
-               + Check("ob2", "\"A Subobject\"", "@QObject");
+               + Check("ob2", "\"A Subobject\"", "@QObject")
+               + Check("ob.[extra].[connections].0.0.receiver", "\"Another Object\"",
+                       "@QObject") % NoCdbEngine;
 
 
     QString senderData =
@@ -5119,7 +5114,8 @@ void tst_Dumpers::dumper_data()
 
     const FloatValue ff("5.88545355e-44");
     QTest::newRow("AnonymousStruct")
-            << Data("union {\n"
+            << Data("",
+                    "union {\n"
                     "     struct { int i; int b; };\n"
                     "     struct { float f; };\n"
                     "     double d;\n"
@@ -5157,7 +5153,8 @@ void tst_Dumpers::dumper_data()
 
 
     QTest::newRow("CharArrays")
-            << Data("char s[] = \"aöa\";\n"
+            << Data("",
+                    "char s[] = \"aöa\";\n"
                     "char t[] = \"aöax\";\n"
                     "wchar_t w[] = L\"aöa\";\n"
                     "unused(&s, &t, &w);\n")
@@ -5172,7 +5169,8 @@ void tst_Dumpers::dumper_data()
 
 
     QTest::newRow("CharPointers")
-            << Data("const char *s = \"aöa\";\n"
+            << Data("",
+                    "const char *s = \"aöa\";\n"
                     "const char *t = \"a\\xc3\\xb6\";\n"
                     "unsigned char uu[] = { 'a', 153 /* ö Latin1 */, 'a' };\n"
                     "const unsigned char *u = uu;\n"
@@ -5191,7 +5189,7 @@ void tst_Dumpers::dumper_data()
 
 
     QTest::newRow("GccExtensions")
-            << Data(
+            << Data("",
                    "char v[8] = { 1, 2 };\n"
                    "char w __attribute__ ((vector_size (8))) = { 1, 2 };\n"
                    "int y[2] = { 1, 2 };\n"
@@ -5241,7 +5239,6 @@ void tst_Dumpers::dumper_data()
                     "Foo fb = b; unused(&fb);\n"
                     "Foo fc = c; unused(&fc);\n"
                     "Foo fd = d; unused(&fd);\n")
-                + NoCdbEngine // This doesn't work in cdb for now
                 + Check("fa", "a (-1000)", "Foo")
                 + Check("fb", "b (-999)", "Foo")
                 + Check("fc", "c (1)", "Foo")
@@ -5263,7 +5260,8 @@ void tst_Dumpers::dumper_data()
 
 
     QTest::newRow("Array")
-            << Data("double a1[3][3];\n"
+            << Data("",
+                    "double a1[3][3];\n"
                     "for (int i = 0; i != 3; ++i)\n"
                     "    for (int j = 0; j != 3; ++j)\n"
                     "        a1[i][j] = i + j;\n"
@@ -5327,7 +5325,8 @@ void tst_Dumpers::dumper_data()
 
 
     QTest::newRow("Bitfields")
-            << Data("struct S\n"
+            << Data("",
+                    "struct S\n"
                     "{\n"
                     "    S() : x(2), y(3), z(39), c(1), b(0), f(5), d(6), i(7) {}\n"
                     "    unsigned int x : 3;\n"
@@ -5588,7 +5587,8 @@ void tst_Dumpers::dumper_data()
 */
 
     QTest::newRow("LongEvaluation2")
-            << Data("const int N = 10000;\n"
+            << Data("",
+                    "const int N = 10000;\n"
                     "int bigv[N];\n"
                     "for (int i = 0; i < N; ++i)\n"
                     "    bigv[i] = i;\n"
@@ -5855,6 +5855,9 @@ void tst_Dumpers::dumper_data()
              + Check("p3", "Thu Jan 1 00:00:00 1970", "boost::posix_time::ptime");
 
 
+/*
+    FIXME
+
     QTest::newRow("BoostList")
             << Data("#include <boost/container/list.hpp>\n",
                     "typedef std::pair<int, double> p;\n"
@@ -5866,6 +5869,7 @@ void tst_Dumpers::dumper_data()
              + BoostProfile()
              + Check("l", "<4 items>", TypePattern("boost::container::list<std::pair<int,double>.*>"))
              + Check("l.2.second", FloatValue("65"), "double");
+*/
 
 
     QTest::newRow("BoostUnorderedSet")
@@ -5944,7 +5948,8 @@ void tst_Dumpers::dumper_data()
 
     // https://bugreports.qt.io/browse/QTCREATORBUG-3611
     QTest::newRow("Bug3611")
-        << Data("typedef unsigned char byte;\n"
+        << Data("",
+                "typedef unsigned char byte;\n"
                 "byte f = '2';\n"
                 "int *x = (int*)&f;\n")
          + Check("f", "50", TypeDef("unsigned char", "byte"));
@@ -6049,7 +6054,8 @@ void tst_Dumpers::dumper_data()
 
     // https://bugreports.qt.io/browse/QTCREATORBUG-6465
     QTest::newRow("Bug6465")
-        << Data("typedef char Foo[20];\n"
+        << Data("",
+                "typedef char Foo[20];\n"
                 "Foo foo = \"foo\";\n"
                 "char bar[20] = \"baz\";\n")
         + CheckType("bar", "char[20]");
@@ -6144,6 +6150,45 @@ void tst_Dumpers::dumper_data()
                + NoCdbEngine // FIXME
                + Check("b.@1.a", "a", "21", "int")
                + Check("b.b", "b", "42", "int");
+
+
+
+    // https://bugreports.qt.io/browse/QTCREATORBUG-17823
+    QTest::newRow("Bug17823")
+            << Data("struct Base1\n"
+                    "{\n"
+                    "    virtual ~Base1() {}\n"
+                    "    int foo = 42;\n"
+                    "};\n\n"
+                    "struct Base2\n"
+                    "{\n"
+                    "    virtual ~Base2() {}\n"
+                    "    int bar = 43;\n"
+                    "};\n\n"
+                    "struct Derived : Base1, Base2\n"
+                    "{\n"
+                    "    int baz = 84;\n"
+                    "};\n\n"
+                    "struct Container\n"
+                    "{\n"
+                    "    Container(Base2 *b) : b2(b) {}\n"
+                    "    Base2 *b2;\n"
+                    "};\n",
+
+                    "Derived d;\n"
+                    "Container c(&d); // c.b2 has wrong address\n"
+                    "unused(&c);\n"
+                    "Base2 *b2 = &d; // This has the right address\n"
+                    "unused(&b2);\n")
+                + NoCdbEngine // FIXME
+
+                + Check("c.b2.@1.foo", "42", "int")
+                + Check("c.b2.@2.bar", "43", "int")
+                + Check("c.b2.baz", "84", "int")
+
+                + Check("d.@1.foo", "42", "int")
+                + Check("d.@2.bar", "43", "int")
+                + Check("d.baz", "84", "int");
 
 
 
@@ -6376,7 +6421,8 @@ void tst_Dumpers::dumper_data()
     // The proposed fix has been reported to crash gdb steered from eclipse");
     // http://sourceware.org/ml/gdb-patches/2011-12/msg00420.html
     QTest::newRow("Gdb10586")
-            << Data("struct Test {\n"
+            << Data("",
+                    "struct Test {\n"
                     "    struct { int a; float b; };\n"
                     "    struct { int c; float d; };\n"
                     "} v = {{1, 2}, {3, 4}};\n"
@@ -6390,7 +6436,8 @@ void tst_Dumpers::dumper_data()
 
 
     QTest::newRow("Gdb10586eclipse")
-            << Data("struct { int x; struct { int a; }; struct { int b; }; } "
+            << Data("",
+                    "struct { int x; struct { int a; }; struct { int b; }; } "
                     "   v = {1, {2}, {3}};\n"
                     "struct S { int x, y; } n = {10, 20};\n"
                     "unused(&v, &n);\n")

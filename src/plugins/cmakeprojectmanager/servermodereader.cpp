@@ -34,7 +34,6 @@
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/messagemanager.h>
 #include <coreplugin/progressmanager/progressmanager.h>
-#include <cpptools/projectpartbuilder.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/toolchain.h>
 #include <projectexplorer/task.h>
@@ -96,6 +95,8 @@ void ServerModeReader::setParameters(const BuildDirReader::Parameters &p)
                 this, &ServerModeReader::handleError);
         connect(m_cmakeServer.get(), &ServerMode::cmakeProgress,
                 this, &ServerModeReader::handleProgress);
+        connect(m_cmakeServer.get(), &ServerMode::cmakeSignal,
+                this, &ServerModeReader::handleSignal);
         connect(m_cmakeServer.get(), &ServerMode::cmakeMessage,
                 this, [this](const QString &m) { Core::MessageManager::write(m); });
         connect(m_cmakeServer.get(), &ServerMode::message,
@@ -225,12 +226,12 @@ static void addCMakeVFolder(FolderNode *base, const Utils::FileName &basePath, i
     auto folder = new VirtualFolderNode(basePath, priority);
     folder->setDisplayName(displayName);
     base->addNode(folder);
-    folder->buildTree(files);
+    folder->addNestedNodes(files);
     for (FolderNode *fn : folder->folderNodes())
         fn->compress();
 }
 
-static void addCMakeInputs(CMakeListsNode *root,
+static void addCMakeInputs(FolderNode *root,
                            const Utils::FileName &sourceDir,
                            const Utils::FileName &buildDir,
                            QList<FileNode *> &sourceInputs,
@@ -251,7 +252,7 @@ static void addCMakeInputs(CMakeListsNode *root,
                     rootInputs);
 }
 
-void ServerModeReader::generateProjectTree(CMakeListsNode *root,
+void ServerModeReader::generateProjectTree(CMakeProjectNode *root,
                                            const QList<const FileNode *> &allFiles)
 {
     // Split up cmake inputs into useful chunks:
@@ -287,9 +288,8 @@ void ServerModeReader::generateProjectTree(CMakeListsNode *root,
     addProjects(root, m_projects, allFiles);
 }
 
-QSet<Core::Id> ServerModeReader::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
+void ServerModeReader::updateCodeModel(CppTools::RawProjectParts &rpps)
 {
-    QSet<Core::Id> languages;
     int counter = 0;
     foreach (const FileGroup *fg, m_fileGroups) {
         ++counter;
@@ -304,23 +304,30 @@ QSet<Core::Id> ServerModeReader::updateCodeModel(CppTools::ProjectPartBuilder &p
         const QStringList flags = QtcProcess::splitArgs(fg->compileFlags);
         const QStringList includes = transform(fg->includePaths, [](const IncludePath *ip)  { return ip->path.toString(); });
 
-        ppBuilder.setProjectFile(fg->target->sourceDirectory.toString() + "/CMakeLists.txt");
-        ppBuilder.setDisplayName(fg->target->name + QString::number(counter));
-        ppBuilder.setDefines(defineArg.toUtf8());
-        ppBuilder.setIncludePaths(includes);
-        ppBuilder.setCFlags(flags);
-        ppBuilder.setCxxFlags(flags);
+        CppTools::RawProjectPart rpp;
+        rpp.setProjectFileLocation(fg->target->sourceDirectory.toString() + "/CMakeLists.txt");
+        rpp.setBuildSystemTarget(fg->target->name);
+        rpp.setDisplayName(fg->target->name + QString::number(counter));
+        rpp.setDefines(defineArg.toUtf8());
+        rpp.setIncludePaths(includes);
 
+        CppTools::RawProjectPartFlags cProjectFlags;
+        cProjectFlags.commandLineFlags = flags;
+        rpp.setFlagsForC(cProjectFlags);
 
-        languages.unite(QSet<Core::Id>::fromList(ppBuilder.createProjectPartsForFiles(transform(fg->sources, &FileName::toString))));
+        CppTools::RawProjectPartFlags cxxProjectFlags;
+        cxxProjectFlags.commandLineFlags = flags;
+        rpp.setFlagsForCxx(cxxProjectFlags);
+
+        rpp.setFiles(transform(fg->sources, &FileName::toString));
+
+        rpps.append(rpp);
     }
 
     qDeleteAll(m_projects); // Not used anymore!
     m_projects.clear();
     m_targets.clear();
     m_fileGroups.clear();
-
-    return languages;
 }
 
 void ServerModeReader::handleReply(const QVariantMap &data, const QString &inReplyTo)
@@ -381,6 +388,13 @@ void ServerModeReader::handleProgress(int min, int cur, int max, const QString &
     int progress = m_progressStepMinimum
             + (((max - min) / (cur - min)) * (m_progressStepMaximum  - m_progressStepMinimum));
     m_future->setProgressValue(progress);
+}
+
+void ServerModeReader::handleSignal(const QString &signal, const QVariantMap &data)
+{
+    Q_UNUSED(data);
+    if (signal == "dirty")
+        emit dirty();
 }
 
 void ServerModeReader::extractCodeModelData(const QVariantMap &data)
@@ -514,97 +528,29 @@ void ServerModeReader::extractCacheData(const QVariantMap &data)
     m_cmakeCache = config;
 }
 
-void ServerModeReader::addCMakeLists(CMakeListsNode *root, const QList<FileNode *> &cmakeLists)
+void ServerModeReader::addCMakeLists(CMakeProjectNode *root, const QList<FileNode *> &cmakeLists)
 {
     const QDir baseDir = QDir(m_parameters.sourceDirectory.toString());
 
-    QHash<QString, FileNode *> nodeHash;
-    for (FileNode *cm : cmakeLists) {
-        const QString relPath = baseDir.relativeFilePath(cm->filePath().parentDir().toString());
-        QTC_CHECK(!nodeHash.contains(relPath));
-        nodeHash[(relPath == ".") ? QString() : relPath ] = cm;
-    }
-    QStringList tmp = nodeHash.keys();
-    Utils::sort(tmp, [](const QString &a, const QString &b) { return a.count() < b.count(); });
-    const QStringList keys = tmp;
-
-    QHash<QString, CMakeListsNode *> knownNodes;
-    knownNodes[QString()] = root;
-
-    for (const QString &k : keys) {
-        FileNode *fn = nodeHash[k];
-        CMakeListsNode *parentNode = nullptr;
-        QString prefix = k;
-        forever {
-            if (knownNodes.contains(prefix)) {
-                parentNode = knownNodes.value(prefix);
-                break;
-            }
-            const int pos = prefix.lastIndexOf('/');
-            prefix = (pos < 0) ? QString() : prefix.left(prefix.lastIndexOf('/'));
-        }
-
-        // Find or create CMakeListsNode:
-        CMakeListsNode *cmln = nullptr;
-        if (parentNode->filePath() == fn->filePath())
-            cmln = parentNode; // Top level!
+    root->addNestedNodes(cmakeLists, Utils::FileName(),
+                         [&cmakeLists](const Utils::FileName &fp) -> ProjectExplorer::FolderNode * {
+        if (Utils::contains(cmakeLists, [&fp](const FileNode *fn) { return fn->filePath().parentDir() == fp; }))
+            return new CMakeListsNode(fp);
         else
-            cmln = static_cast<CMakeListsNode *>(parentNode->projectNode(fn->filePath()));
-        if (!cmln) {
-            cmln = new CMakeListsNode(fn->filePath());
-            parentNode->addNode(cmln);
-        }
-
-        // Find or create CMakeLists.txt filenode below CMakeListsNode:
-        FileNode *cmFn = cmln->fileNode(fn->filePath());
-        if (!cmFn) {
-            cmFn = fn;
-            cmln->addNode(cmFn);
-        }
-        // Update displayName of CMakeListsNode:
-        const QString dn = prefix.isEmpty() ? k : k.mid(prefix.count() + 1);
-        if (!dn.isEmpty())
-            cmln->setDisplayName(dn); // Set partial path as display name
-
-        knownNodes.insert(k, cmln);
-    }
+            return new FolderNode(fp);
+    });
 }
 
-static CMakeListsNode *findCMakeNode(CMakeListsNode *root, const Utils::FileName &dir)
+static ProjectNode *findCMakeNode(ProjectNode *root, const Utils::FileName &dir)
 {
-    const Utils::FileName stepDir = dir;
-    const Utils::FileName topDir = root->filePath().parentDir();
-
-    QStringList relative = stepDir.relativeChildPath(topDir).toString().split('/', QString::SkipEmptyParts);
-
-    CMakeListsNode *result = root;
-
-    QString relativePathElement;
-    while (!relative.isEmpty()) {
-        const QString nextDirPath = result->filePath().parentDir().toString();
-        Utils::FileName nextFullPath;
-        // Some directory may not contain CMakeLists.txt file, skip it:
-        do {
-            relativePathElement += '/' + relative.takeFirst();
-            nextFullPath = Utils::FileName::fromString(nextDirPath + relativePathElement + "/CMakeLists.txt");
-        } while (!nextFullPath.exists() && !relative.isEmpty());
-        result = static_cast<CMakeListsNode *>(result->projectNode(nextFullPath));
-        // Intermediate directory can contain CMakeLists.txt file
-        // that is not a part of the root node, skip it:
-        if (!result && !relative.isEmpty()) {
-            result = root;
-        } else {
-            relativePathElement.clear();
-        }
-        QTC_ASSERT(result, return nullptr);
-    }
-    return result;
+    Node *n = root->findNode([&dir](Node *n) { return n->asProjectNode() && n->filePath() == dir; });
+    return n ? n->asProjectNode() : nullptr;
 }
 
-static CMakeProjectNode *findOrCreateProjectNode(CMakeListsNode *root, const Utils::FileName &dir,
-                                                 const QString &displayName)
+static ProjectNode *findOrCreateProjectNode(ProjectNode *root, const Utils::FileName &dir,
+                                            const QString &displayName)
 {
-    CMakeListsNode *cmln = findCMakeNode(root, dir);
+    ProjectNode *cmln = findCMakeNode(root, dir);
     QTC_ASSERT(cmln, return nullptr);
 
     Utils::FileName projectName = dir;
@@ -619,7 +565,7 @@ static CMakeProjectNode *findOrCreateProjectNode(CMakeListsNode *root, const Uti
     return pn;
 }
 
-void ServerModeReader::addProjects(CMakeListsNode *root,
+void ServerModeReader::addProjects(CMakeProjectNode *root,
                                    const QList<Project *> &projects,
                                    const QList<const FileNode *> &allFiles)
 {
@@ -631,17 +577,16 @@ void ServerModeReader::addProjects(CMakeListsNode *root,
     }
 
     for (const Project *p : projects) {
-        CMakeProjectNode *pNode = findOrCreateProjectNode(root, p->sourceDirectory, p->name);
+        ProjectNode *pNode = findOrCreateProjectNode(root, p->sourceDirectory, p->name);
         QTC_ASSERT(pNode, continue);
-        QTC_ASSERT(root, continue);
         addTargets(root, p->targets, includeFiles);
     }
 }
 
-static CMakeTargetNode *findOrCreateTargetNode(CMakeListsNode *root, const Utils::FileName &dir,
+static CMakeTargetNode *findOrCreateTargetNode(ProjectNode *root, const Utils::FileName &dir,
                                                const QString &displayName)
 {
-    CMakeListsNode *cmln = findCMakeNode(root, dir);
+    ProjectNode *cmln = findCMakeNode(root, dir);
     QTC_ASSERT(cmln, return nullptr);
 
     Utils::FileName targetName = dir;
@@ -656,7 +601,7 @@ static CMakeTargetNode *findOrCreateTargetNode(CMakeListsNode *root, const Utils
     return tn;
 }
 
-void ServerModeReader::addTargets(CMakeListsNode *root,
+void ServerModeReader::addTargets(CMakeProjectNode *root,
                                   const QList<ServerModeReader::Target *> &targets,
                                   const QHash<FileName, QList<const FileNode *>> &headers)
 {
@@ -683,7 +628,7 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
             return count != alreadyListed.count();
         });
         const QList<FileNode *> newFileNodes = Utils::transform(newSources, [f](const Utils::FileName &fn) {
-            return new FileNode(fn, FileType::Source, f->isGenerated);
+            return new FileNode(fn, Node::fileTypeForFileName(fn), f->isGenerated);
         });
         toList.append(newFileNodes);
 

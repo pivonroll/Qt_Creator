@@ -2814,8 +2814,7 @@ void TextEditorWidgetPrivate::updateCodeFoldingVisible()
 
 void TextEditorWidgetPrivate::reconfigure()
 {
-    Utils::MimeDatabase mdb;
-    m_document->setMimeType(mdb.mimeTypeForFile(m_document->filePath().toString()).name());
+    m_document->setMimeType(Utils::mimeTypeForFile(m_document->filePath().toString()).name());
     q->configureGenericHighlighter();
 }
 
@@ -5663,7 +5662,7 @@ void TextEditorWidgetPrivate::highlightSearchResultsInScrollBar()
 
     const QString &fileName = m_document->filePath().toString();
     FileListIterator *it =
-            new FileListIterator( { fileName } , { const_cast<QTextCodec *>(m_document->codec()) } );
+            new FileListIterator({fileName} , {const_cast<QTextCodec *>(m_document->codec())});
     QMap<QString, QString> fileToContentsMap;
     fileToContentsMap[fileName] = m_document->plainText();
 
@@ -7660,8 +7659,7 @@ void TextEditorWidget::configureGenericHighlighter()
     setCodeFoldingSupported(false);
 
     const QString type = textDocument()->mimeType();
-    Utils::MimeDatabase mdb;
-    const Utils::MimeType mimeType = mdb.mimeTypeForName(type);
+    const MimeType mimeType = Utils::mimeTypeForName(type);
     if (mimeType.isValid()) {
         d->m_isMissingSyntaxDefinition = true;
 

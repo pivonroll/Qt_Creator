@@ -34,10 +34,6 @@
 #include <QWidget>
 #include <QScopedPointer>
 
-QT_BEGIN_NAMESPACE
-class QTabWidget;
-QT_END_NAMESPACE
-
 namespace Core {
     class SideBar;
     class SideBarItem;
@@ -50,6 +46,7 @@ namespace QmlDesigner {
 class ItemLibraryWidget;
 class CrumbleBar;
 class DocumentWarningWidget;
+class SwitchSplitTabWidget;
 
 namespace Internal {
 
@@ -85,20 +82,18 @@ public:
     bool gotoCodeWasClicked();
 
     CrumbleBar* crumbleBar() const;
-    QTabWidget* centralTabWidget() const;
+    void showInternalTextEditor();
 
-public slots:
     void restoreDefaultView();
     void toggleSidebars();
     void toggleLeftSidebar();
     void toggleRightSidebar();
 
-private slots:
-    void toolBarOnGoBackClicked();
-    void toolBarOnGoForwardClicked();
-
 private: // functions
     enum InitializeStatus { NotInitialized, Initializing, Initialized };
+
+    void toolBarOnGoBackClicked();
+    void toolBarOnGoForwardClicked();
 
     void setup();
     bool isInNodeDefinition(int nodeOffset, int nodeLength, int cursorPos) const;
@@ -112,7 +107,7 @@ private: // functions
 private: // variables
     QSplitter *m_mainSplitter = nullptr;
     QPointer<DocumentWarningWidget> m_warningWidget;
-    QTabWidget* m_centralTabWidget = nullptr;
+    SwitchSplitTabWidget* m_centralTabWidget = nullptr;
 
     QScopedPointer<Core::SideBar> m_leftSideBar;
     QScopedPointer<Core::SideBar> m_rightSideBar;

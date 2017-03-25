@@ -41,6 +41,7 @@
 #include "project.h"
 #include "projectexplorersettings.h"
 #include "projectexplorersettingspage.h"
+#include "projectmanager.h"
 #include "removetaskhandler.h"
 #include "kitfeatureprovider.h"
 #include "kitmanager.h"
@@ -62,12 +63,11 @@
 #include "codestylesettingspropertiespage.h"
 #include "dependenciespanel.h"
 #include "foldernavigationwidget.h"
-#include "iprojectmanager.h"
-#include "nodesvisitor.h"
 #include "appoutputpane.h"
 #include "processstep.h"
 #include "kitinformation.h"
 #include "projectfilewizardextension.h"
+#include "projectmanager.h"
 #include "projecttreewidget.h"
 #include "projectwindow.h"
 #include "runsettingspropertiespage.h"
@@ -122,6 +122,7 @@
 #include <utils/fileutils.h>
 #include <utils/macroexpander.h>
 #include <utils/mimetypes/mimedatabase.h>
+#include <utils/objectpool.h>
 #include <utils/parameteraction.h>
 #include <utils/processhandle.h>
 #include <utils/qtcassert.h>
@@ -164,6 +165,77 @@ using namespace Core;
 using namespace ProjectExplorer::Internal;
 
 namespace ProjectExplorer {
+
+namespace Constants {
+const int  P_MODE_SESSION         = 85;
+
+// Actions
+const char NEWSESSION[]           = "ProjectExplorer.NewSession";
+const char NEWPROJECT[]           = "ProjectExplorer.NewProject";
+const char LOAD[]                 = "ProjectExplorer.Load";
+const char UNLOAD[]               = "ProjectExplorer.Unload";
+const char UNLOADCM[]             = "ProjectExplorer.UnloadCM";
+const char CLEARSESSION[]         = "ProjectExplorer.ClearSession";
+const char BUILDPROJECTONLY[]     = "ProjectExplorer.BuildProjectOnly";
+const char BUILDCM[]              = "ProjectExplorer.BuildCM";
+const char BUILDDEPENDCM[]        = "ProjectExplorer.BuildDependenciesCM";
+const char BUILDSESSION[]         = "ProjectExplorer.BuildSession";
+const char REBUILDPROJECTONLY[]   = "ProjectExplorer.RebuildProjectOnly";
+const char REBUILD[]              = "ProjectExplorer.Rebuild";
+const char REBUILDCM[]            = "ProjectExplorer.RebuildCM";
+const char REBUILDDEPENDCM[]      = "ProjectExplorer.RebuildDependenciesCM";
+const char REBUILDSESSION[]       = "ProjectExplorer.RebuildSession";
+const char DEPLOYPROJECTONLY[]    = "ProjectExplorer.DeployProjectOnly";
+const char DEPLOY[]               = "ProjectExplorer.Deploy";
+const char DEPLOYCM[]             = "ProjectExplorer.DeployCM";
+const char DEPLOYSESSION[]        = "ProjectExplorer.DeploySession";
+const char CLEANPROJECTONLY[]     = "ProjectExplorer.CleanProjectOnly";
+const char CLEAN[]                = "ProjectExplorer.Clean";
+const char CLEANCM[]              = "ProjectExplorer.CleanCM";
+const char CLEANDEPENDCM[]        = "ProjectExplorer.CleanDependenciesCM";
+const char CLEANSESSION[]         = "ProjectExplorer.CleanSession";
+const char CANCELBUILD[]          = "ProjectExplorer.CancelBuild";
+const char RUN[]                  = "ProjectExplorer.Run";
+const char RUNWITHOUTDEPLOY[]     = "ProjectExplorer.RunWithoutDeploy";
+const char RUNCONTEXTMENU[]       = "ProjectExplorer.RunContextMenu";
+const char ADDNEWFILE[]           = "ProjectExplorer.AddNewFile";
+const char ADDEXISTINGFILES[]     = "ProjectExplorer.AddExistingFiles";
+const char ADDEXISTINGDIRECTORY[] = "ProjectExplorer.AddExistingDirectory";
+const char ADDNEWSUBPROJECT[]     = "ProjectExplorer.AddNewSubproject";
+const char REMOVEPROJECT[]        = "ProjectExplorer.RemoveProject";
+const char OPENFILE[]             = "ProjectExplorer.OpenFile";
+const char SEARCHONFILESYSTEM[]   = "ProjectExplorer.SearchOnFileSystem";
+const char SHOWINGRAPHICALSHELL[] = "ProjectExplorer.ShowInGraphicalShell";
+const char OPENTERMIANLHERE[]     = "ProjectExplorer.OpenTerminalHere";
+const char REMOVEFILE[]           = "ProjectExplorer.RemoveFile";
+const char DUPLICATEFILE[]        = "ProjectExplorer.DuplicateFile";
+const char DELETEFILE[]           = "ProjectExplorer.DeleteFile";
+const char RENAMEFILE[]           = "ProjectExplorer.RenameFile";
+const char SETSTARTUP[]           = "ProjectExplorer.SetStartup";
+const char PROJECTTREE_COLLAPSE_ALL[] = "ProjectExplorer.CollapseAll";
+
+const char SELECTTARGET[]         = "ProjectExplorer.SelectTarget";
+const char SELECTTARGETQUICK[]    = "ProjectExplorer.SelectTargetQuick";
+
+// Action priorities
+const int  P_ACTION_RUN            = 100;
+const int  P_ACTION_BUILDPROJECT   = 80;
+
+// Context
+const char C_PROJECTEXPLORER[]    = "Project Explorer";
+
+// Menus
+const char M_RECENTPROJECTS[]     = "ProjectExplorer.Menu.Recent";
+const char M_UNLOADPROJECTS[]     = "ProjectExplorer.Menu.Unload";
+const char M_SESSION[]            = "ProjectExplorer.Menu.Session";
+
+// Menu groups
+const char G_BUILD_RUN[]          = "ProjectExplorer.Group.Run";
+const char G_BUILD_CANCEL[]       = "ProjectExplorer.Group.BuildCancel";
+
+const char RUNMENUCONTEXTMENU[]   = "Project.RunMenu";
+
+} // namespace Constants
 
 static Target *activeTarget()
 {
@@ -340,6 +412,7 @@ public:
     QStringList m_profileMimeTypes;
     AppOutputPane *m_outputPane = nullptr;
 
+    QHash<QString, std::function<Project *(const Utils::FileName &)>> m_projectCreators;
     QList<QPair<QString, QString> > m_recentProjects; // pair of filename, displayname
     static const int m_maxRecentProjects = 25;
 
@@ -859,6 +932,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
     dd->m_cancelBuildAction = new QAction(Utils::Icons::STOP_SMALL.icon(), tr("Cancel Build"),
                                           this);
     cmd = ActionManager::registerAction(dd->m_cancelBuildAction, Constants::CANCELBUILD);
+    cmd->setDefaultKeySequence(QKeySequence(tr("Alt+Backspace")));
     mbuild->addAction(cmd, Constants::G_BUILD_CANCEL);
 
     // run action
@@ -1247,7 +1321,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
             return projectFilePath.toString();
         });
 
-    expander->registerVariable(Constants::VAR_CURRENTPROJECT_BUILDPATH,
+    expander->registerVariable("CurrentProject:BuildPath",
         tr("Full build path of the current project's active build configuration."),
         []() -> QString {
             BuildConfiguration *bc = activeBuildConfiguration();
@@ -1282,7 +1356,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
             return kit ? kit->id().toString() : QString();
         });
 
-    expander->registerVariable(Constants::VAR_CURRENTDEVICE_HOSTADDRESS,
+    expander->registerVariable("CurrentDevice:HostAddress",
         tr("The host address of the device in the currently active kit."),
         []() -> QString {
             Kit *kit = currentKit();
@@ -1290,7 +1364,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
             return device ? device->sshParameters().host : QString();
         });
 
-    expander->registerVariable(Constants::VAR_CURRENTDEVICE_SSHPORT,
+    expander->registerVariable("CurrentDevice:SshPort",
         tr("The SSH port of the device in the currently active kit."),
         []() -> QString {
             Kit *kit = currentKit();
@@ -1298,7 +1372,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
             return device ? QString::number(device->sshParameters().port) : QString();
         });
 
-    expander->registerVariable(Constants::VAR_CURRENTDEVICE_USERNAME,
+    expander->registerVariable("CurrentDevice:UserName",
         tr("The username with which to log into the device in the currently active kit."),
         []() -> QString {
             Kit *kit = currentKit();
@@ -1307,7 +1381,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
         });
 
 
-    expander->registerVariable(Constants::VAR_CURRENTDEVICE_PRIVATEKEYFILE,
+    expander->registerVariable("CurrentDevice:PrivateKeyFile",
         tr("The private key file with which to authenticate when logging into the device "
            "in the currently active kit."),
         []() -> QString {
@@ -1333,7 +1407,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
             return QString();
         });
 
-    expander->registerFileVariables(Constants::VAR_CURRENTRUN_EXECUTABLE_PREFIX,
+    expander->registerFileVariables("CurrentRun:Executable",
         tr("The currently active run configuration's executable (if applicable)"),
         [this]() -> QString {
             if (Target *target = activeTarget()) {
@@ -1343,8 +1417,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
                 }
             }
             return QString();
-        },
-        true);
+        });
 
     expander->registerVariable(Constants::VAR_CURRENTBUILD_TYPE,
         tr("The currently active build configuration's type."),
@@ -1452,9 +1525,6 @@ void ProjectExplorerPluginPrivate::closeAllProjects()
 void ProjectExplorerPlugin::extensionsInitialized()
 {
     // Register factories for all project managers
-    QList<IProjectManager*> projectManagers =
-        ExtensionSystem::PluginManager::getObjects<IProjectManager>();
-
     QStringList allGlobPatterns;
 
     const QString filterSeparator = QLatin1String(";;");
@@ -1472,15 +1542,12 @@ void ProjectExplorerPlugin::extensionsInitialized()
         return nullptr;
     });
 
-    Utils::MimeDatabase mdb;
     factory->addMimeType(QStringLiteral("inode/directory"));
-    foreach (IProjectManager *manager, projectManagers) {
-        const QString mimeType = manager->mimeType();
+    for (const QString &mimeType : dd->m_projectCreators.keys()) {
         factory->addMimeType(mimeType);
-        Utils::MimeType mime = mdb.mimeTypeForName(mimeType);
+        Utils::MimeType mime = Utils::mimeTypeForName(mimeType);
         allGlobPatterns.append(mime.globPatterns());
         filterStrings.append(mime.filterString());
-
         dd->m_profileMimeTypes += mimeType;
     }
 
@@ -1572,14 +1639,15 @@ void ProjectExplorerPluginPrivate::savePersistentSettings()
         return;
 
     if (!SessionManager::loadingSession())  {
-        foreach (Project *pro, SessionManager::projects())
+        for (Project *pro : SessionManager::projects())
             pro->saveSettings();
 
         SessionManager::save();
     }
 
     QSettings *s = ICore::settings();
-    s->setValue(QLatin1String("ProjectExplorer/StartupSession"), SessionManager::activeSession());
+    if (!SessionManager::isDefaultVirgin())
+        s->setValue(QLatin1String("ProjectExplorer/StartupSession"), SessionManager::activeSession());
     s->remove(QLatin1String("ProjectExplorer/RecentProjects/Files"));
 
     QStringList fileNames;
@@ -1659,11 +1727,6 @@ void ProjectExplorerPlugin::showOpenProjectError(const OpenProjectResult &result
     }
 }
 
-static QList<IProjectManager*> allProjectManagers()
-{
-    return ExtensionSystem::PluginManager::getObjects<IProjectManager>();
-}
-
 static void appendError(QString &errorString, const QString &error)
 {
     if (error.isEmpty())
@@ -1676,8 +1739,6 @@ static void appendError(QString &errorString, const QString &error)
 
 ProjectExplorerPlugin::OpenProjectResult ProjectExplorerPlugin::openProjects(const QStringList &fileNames)
 {
-    const QList<IProjectManager*> projectManagers = allProjectManagers();
-
     QList<Project*> openedPro;
     QList<Project *> alreadyOpen;
     QString errorString;
@@ -1687,7 +1748,7 @@ ProjectExplorerPlugin::OpenProjectResult ProjectExplorerPlugin::openProjects(con
         const QFileInfo fi(fileName);
         const QString filePath = fi.absoluteFilePath();
         bool found = false;
-        foreach (Project *pi, SessionManager::projects()) {
+        for (Project *pi : SessionManager::projects()) {
             if (filePath == pi->projectFilePath().toString()) {
                 alreadyOpen.append(pi);
                 found = true;
@@ -1699,37 +1760,30 @@ ProjectExplorerPlugin::OpenProjectResult ProjectExplorerPlugin::openProjects(con
             continue;
         }
 
-        Utils::MimeDatabase mdb;
-        Utils::MimeType mt = mdb.mimeTypeForFile(fileName);
+        Utils::MimeType mt = Utils::mimeTypeForFile(fileName);
         if (mt.isValid()) {
-            bool foundProjectManager = false;
-            foreach (IProjectManager *manager, projectManagers) {
-                if (mt.matchesName(manager->mimeType())) {
-                    foundProjectManager = true;
-                    QString tmp;
-                    if (Project *pro = manager->openProject(filePath, &tmp)) {
-                        QObject::connect(pro, &Project::parsingFinished, [pro]() {
-                            emit SessionManager::instance()->projectFinishedParsing(pro);
-                        });
-                        QString restoreError;
-                        Project::RestoreResult restoreResult = pro->restoreSettings(&restoreError);
-                        if (restoreResult == Project::RestoreResult::Ok) {
-                            connect(pro, &Project::fileListChanged,
-                                    m_instance, &ProjectExplorerPlugin::fileListChanged);
-                            SessionManager::addProject(pro);
-                            openedPro += pro;
-                        } else {
-                            if (restoreResult == Project::RestoreResult::Error)
-                                appendError(errorString, restoreError);
-                            delete pro;
-                        }
+            if (ProjectManager::canOpenProjectForMimeType(mt)) {
+                if (!QFileInfo(filePath).isFile()) {
+                    appendError(errorString,
+                                tr("Failed opening project \"%1\": Project is not a file").arg(fileName));
+                } else if (Project *pro = ProjectManager::openProject(mt, Utils::FileName::fromString(filePath))) {
+                    QObject::connect(pro, &Project::parsingFinished, [pro]() {
+                        emit SessionManager::instance()->projectFinishedParsing(pro);
+                    });
+                    QString restoreError;
+                    Project::RestoreResult restoreResult = pro->restoreSettings(&restoreError);
+                    if (restoreResult == Project::RestoreResult::Ok) {
+                        connect(pro, &Project::fileListChanged,
+                                m_instance, &ProjectExplorerPlugin::fileListChanged);
+                        SessionManager::addProject(pro);
+                        openedPro += pro;
+                    } else {
+                        if (restoreResult == Project::RestoreResult::Error)
+                            appendError(errorString, restoreError);
+                        delete pro;
                     }
-                    if (!tmp.isEmpty())
-                        appendError(errorString, tmp);
-                    break;
                 }
-            }
-            if (!foundProjectManager) {
+            } else {
                 appendError(errorString, tr("Failed opening project \"%1\": No plugin can open project type \"%2\".")
                             .arg(QDir::toNativeSeparators(fileName))
                             .arg(mt.name()));
@@ -1800,9 +1854,8 @@ void ProjectExplorerPluginPrivate::determineSessionToRestoreAtStartup()
 QStringList ProjectExplorerPlugin::projectFileGlobs()
 {
     QStringList result;
-    Utils::MimeDatabase mdb;
-    foreach (const IProjectManager *ipm, ExtensionSystem::PluginManager::getObjects<IProjectManager>()) {
-        Utils::MimeType mimeType = mdb.mimeTypeForName(ipm->mimeType());
+    for (const QString &mt : dd->m_projectCreators.keys()) {
+        Utils::MimeType mimeType = Utils::mimeTypeForName(mt);
         if (mimeType.isValid()) {
             const QStringList patterns = mimeType.globPatterns();
             if (!patterns.isEmpty())
@@ -1951,7 +2004,7 @@ void ProjectExplorerPluginPrivate::startRunControl(RunControl *runControl, Core:
             || ((runMode == Constants::DEBUG_RUN_MODE || runMode == Constants::DEBUG_RUN_MODE_WITH_BREAK_ON_MAIN)
                 && m_projectExplorerSettings.showDebugOutput);
     m_outputPane->setBehaviorOnOutput(runControl, popup ? AppOutputPane::Popup : AppOutputPane::Flash);
-    runControl->start();
+    runControl->initiateStart();
     emit m_instance->updateRunActions();
 }
 
@@ -2253,16 +2306,11 @@ int ProjectExplorerPluginPrivate::queue(QList<Project *> projects, QList<Id> ste
                 }
             }
 
-            QList<RunControl *> asyncStop;
             if (stopThem) {
-                foreach (RunControl *rc, toStop) {
-                    if (rc->stop() == RunControl::AsynchronousStop)
-                        asyncStop << rc;
-                }
-            }
+                foreach (RunControl *rc, toStop)
+                    rc->initiateStop();
 
-            if (!asyncStop.isEmpty()) {
-                WaitForStopDialog dialog(asyncStop);
+                WaitForStopDialog dialog(toStop);
                 dialog.exec();
 
                 if (dialog.canceled())
@@ -2865,7 +2913,7 @@ void ProjectExplorerPluginPrivate::updateUnloadProjectMenu()
     ActionContainer *aci = ActionManager::actionContainer(Constants::M_UNLOADPROJECTS);
     QMenu *menu = aci->menu();
     menu->clear();
-    foreach (Project *project, SessionManager::projects()) {
+    for (Project *project : SessionManager::projects()) {
         QAction *action = menu->addAction(tr("Close Project \"%1\"").arg(project->displayName()));
         connect(action, &QAction::triggered,
                 [project] { ProjectExplorerPlugin::unloadProject(project); } );
@@ -3158,7 +3206,7 @@ void ProjectExplorerPluginPrivate::removeProject()
         RemoveFileDialog removeFileDialog(subProjectNode->filePath().toString(), ICore::mainWindow());
         removeFileDialog.setDeleteFileVisible(false);
         if (removeFileDialog.exec() == QDialog::Accepted)
-            projectNode->removeSubProjects(QStringList() << subProjectNode->filePath().toString());
+            projectNode->removeSubProject(subProjectNode->filePath().toString());
     }
 }
 
@@ -3402,9 +3450,8 @@ ProjectExplorerSettings ProjectExplorerPlugin::projectExplorerSettings()
 QStringList ProjectExplorerPlugin::projectFilePatterns()
 {
     QStringList patterns;
-    Utils::MimeDatabase mdb;
-    foreach (const IProjectManager *pm, allProjectManagers()) {
-        Utils::MimeType mt = mdb.mimeTypeForName(pm->mimeType());
+    for (const QString &mime : dd->m_projectCreators.keys()) {
+        Utils::MimeType mt = Utils::mimeTypeForName(mime);
         if (mt.isValid())
             patterns.append(mt.globPatterns());
     }
@@ -3422,6 +3469,34 @@ void ProjectExplorerPlugin::openOpenProjectDialog()
 QList<QPair<QString, QString> > ProjectExplorerPlugin::recentProjects()
 {
     return dd->recentProjects();
+}
+
+void ProjectManager::registerProjectCreator(const QString &mimeType,
+    const std::function<Project *(const Utils::FileName &)> &creator)
+{
+    dd->m_projectCreators[mimeType] = creator;
+}
+
+Project *ProjectManager::openProject(const Utils::MimeType &mt, const Utils::FileName &fileName)
+{
+    if (mt.isValid()) {
+        for (const QString &mimeType : dd->m_projectCreators.keys()) {
+            if (mt.matchesName(mimeType))
+                return dd->m_projectCreators[mimeType](fileName);
+        }
+    }
+    return nullptr;
+}
+
+bool ProjectManager::canOpenProjectForMimeType(const Utils::MimeType &mt)
+{
+    if (mt.isValid()) {
+        for (const QString &mimeType : dd->m_projectCreators.keys()) {
+            if (mt.matchesName(mimeType))
+                return true;
+        }
+    }
+    return false;
 }
 
 } // namespace ProjectExplorer

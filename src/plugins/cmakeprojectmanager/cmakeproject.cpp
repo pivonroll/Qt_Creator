@@ -33,11 +33,11 @@
 #include "cmakeprojectmanager.h"
 
 #include <coreplugin/progressmanager/progressmanager.h>
-#include <cpptools/cppmodelmanager.h>
+#include <cpptools/cpprawprojectpart.h>
+#include <cpptools/cppprojectupdater.h>
 #include <cpptools/generatedcodemodelsupport.h>
 #include <cpptools/projectinfo.h>
 #include <cpptools/cpptoolsconstants.h>
-#include <cpptools/projectpartbuilder.h>
 #include <projectexplorer/buildtargetinfo.h>
 #include <projectexplorer/deploymentdata.h>
 #include <projectexplorer/headerpath.h>
@@ -73,21 +73,18 @@ using namespace Internal;
 /*!
   \class CMakeProject
 */
-CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
+CMakeProject::CMakeProject(const FileName &fileName)
+    : m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
 {
     setId(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
-    setProjectManager(manager);
-    setDocument(new TextEditor::TextDocument);
-    document()->setFilePath(fileName);
+    auto doc = new TextEditor::TextDocument;
+    doc->setFilePath(fileName);
+    setDocument(doc);
 
-    setRootProjectNode(new CMakeListsNode(fileName));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
 
-    rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
-
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
-
     connect(&m_treeScanner, &TreeScanner::finished, this, &CMakeProject::handleTreeScanningFinished);
 
     m_treeScanner.setFilter([this](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
@@ -133,8 +130,7 @@ CMakeProject::~CMakeProject()
         future.cancel();
         future.waitForFinished();
     }
-    setRootProjectNode(nullptr);
-    m_codeModelFuture.cancel();
+    delete m_cppCodeModelUpdater;
     qDeleteAll(m_extraCompilers);
     qDeleteAll(m_allFiles);
 }
@@ -152,7 +148,9 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 
     Kit *k = t->kit();
 
-    bc->generateProjectTree(static_cast<CMakeListsNode *>(rootProjectNode()), m_allFiles);
+    auto newRoot = bc->generateProjectTree(m_allFiles);
+    if (newRoot)
+        setRootProjectNode(newRoot);
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -165,10 +163,6 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
         return;
     }
 
-    CppTools::CppModelManager *modelmanager = CppTools::CppModelManager::instance();
-    CppTools::ProjectInfo pinfo(this);
-    CppTools::ProjectPartBuilder ppBuilder(pinfo);
-
     CppTools::ProjectPart::QtVersion activeQtVersion = CppTools::ProjectPart::NoQt;
     if (QtSupport::BaseQtVersion *qtVersion = QtSupport::QtKitInformation::qtVersion(k)) {
         if (qtVersion->qtVersion() < QtSupport::QtVersionNumber(5,0,0))
@@ -177,14 +171,17 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
             activeQtVersion = CppTools::ProjectPart::Qt5;
     }
 
-    ppBuilder.setQtVersion(activeQtVersion);
+    CppTools::RawProjectParts rpps;
+    bc->updateCodeModel(rpps);
 
-    const QSet<Core::Id> languages = bc->updateCodeModel(ppBuilder);
-    for (const auto &lid : languages)
-        setProjectLanguage(lid, true);
+    for (CppTools::RawProjectPart &rpp : rpps) {
+        // TODO: Set the Qt version only if target actually depends on Qt.
+        rpp.setQtVersion(activeQtVersion);
+        // TODO: Support also C
+        rpp.setFlagsForCxx({tc, rpp.flagsForCxx.commandLineFlags});
+    }
 
-    m_codeModelFuture.cancel();
-    m_codeModelFuture = modelmanager->updateProjectInfo(pinfo);
+    m_cppCodeModelUpdater->update({this, nullptr, tc, k, rpps});
 
     updateQmlJSCodeModel();
 
@@ -306,26 +303,23 @@ bool CMakeProject::hasBuildTarget(const QString &title) const
 
 QString CMakeProject::displayName() const
 {
-    return rootProjectNode()->displayName();
+    auto root = dynamic_cast<CMakeProjectNode *>(rootProjectNode());
+    return root ? root->displayName() : projectDirectory().fileName();
 }
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
-    const QList<FileNode *> nodes = filtered(rootProjectNode()->recursiveFileNodes(),
-                                             [fileMode](const FileNode *fn) {
-        const bool isGenerated = fn->isGenerated();
-        switch (fileMode)
-        {
-        case Project::SourceFiles:
-            return !isGenerated;
-        case Project::GeneratedFiles:
-            return isGenerated;
-        case Project::AllFiles:
-        default:
-            return true;
-        }
-    });
-    return transform(nodes, [fileMode](const FileNode* fn) { return fn->filePath().toString(); });
+    QStringList result;
+    if (ProjectNode *rpn = rootProjectNode()) {
+        rpn->forEachNode([&](const FileNode *fn) {
+            const bool isGenerated = fn->isGenerated();
+            if ((fileMode & Project::SourceFiles) && !isGenerated)
+                result.append(fn->filePath().toString());
+            if ((fileMode & Project::GeneratedFiles) && isGenerated)
+                result.append(fn->filePath().toString());
+        });
+    }
+    return result;
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
@@ -456,8 +450,8 @@ QStringList CMakeProject::filesGeneratedFrom(const QString &sourceFile) const
     } else if (fi.suffix() == "scxml") {
         generatedFilePath += "/";
         generatedFilePath += QDir::cleanPath(fi.completeBaseName());
-        return QStringList({ generatedFilePath + ".h",
-                             generatedFilePath + ".cpp" });
+        return QStringList({generatedFilePath + ".h",
+                            generatedFilePath + ".cpp"});
     } else {
         // TODO: Other types will be added when adapters for their compilers become available.
         return QStringList();

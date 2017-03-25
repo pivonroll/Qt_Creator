@@ -30,50 +30,44 @@
 #include "qmlprojectrunconfiguration.h"
 #include "qmlprojectconstants.h"
 #include "qmlprojectnodes.h"
-#include "qmlprojectmanager.h"
 
+#include <coreplugin/icontext.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/messagemanager.h>
 #include <coreplugin/documentmanager.h>
-#include <qtsupport/baseqtversion.h>
-#include <qtsupport/qtkitinformation.h>
-#include <qmljs/qmljsmodelmanagerinterface.h>
+
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/kitmanager.h>
 #include <projectexplorer/target.h>
+
+#include <qtsupport/baseqtversion.h>
+#include <qtsupport/qtkitinformation.h>
 #include <qtsupport/qtsupportconstants.h>
+#include <qmljs/qmljsmodelmanagerinterface.h>
+
+#include <utils/algorithm.h>
 
 #include <QDebug>
+#include <QRegExp>
 
 using namespace Core;
 using namespace ProjectExplorer;
 
 namespace QmlProjectManager {
-namespace Internal {
 
-} // namespace Internal
-
-QmlProject::QmlProject(Internal::Manager *manager, const Utils::FileName &fileName) :
+QmlProject::QmlProject(const Utils::FileName &fileName) :
     m_defaultImport(UnknownImport)
 {
     setId("QmlProjectManager.QmlProject");
-    setProjectManager(manager);
     setDocument(new Internal::QmlProjectFile(this, fileName));
     DocumentManager::addDocument(document(), true);
-    setRootProjectNode(new Internal::QmlProjectNode(this));
 
     setProjectContext(Context(QmlProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Context(ProjectExplorer::Constants::QMLJS_LANGUAGE_ID));
-
-    m_projectName = projectFilePath().toFileInfo().completeBaseName();
-
-    projectManager()->registerProject(this);
 }
 
 QmlProject::~QmlProject()
 {
-    projectManager()->unregisterProject(this);
-
     delete m_projectItem.data();
 }
 
@@ -117,10 +111,8 @@ QDir QmlProject::projectDir() const
     return projectFilePath().toFileInfo().dir();
 }
 
-Utils::FileName QmlProject::filesFileName() const
-{ return projectFilePath(); }
-
-static QmlProject::QmlImport detectImport(const QString &qml) {
+static QmlProject::QmlImport detectImport(const QString &qml)
+{
     static QRegExp qtQuick1RegExp(QLatin1String("import\\s+QtQuick\\s+1"));
     static QRegExp qtQuick2RegExp(QLatin1String("import\\s+QtQuick\\s+2"));
 
@@ -153,8 +145,8 @@ void QmlProject::parseProject(RefreshOptions options)
         }
         if (m_projectItem) {
             m_projectItem.data()->setSourceDirectory(projectDir().path());
-            if (modelManager())
-                modelManager()->updateSourceFiles(m_projectItem.data()->files(), true);
+            if (auto modelManager = QmlJS::ModelManagerInterface::instance())
+                modelManager->updateSourceFiles(m_projectItem.data()->files(), true);
 
             QString mainFilePath = m_projectItem.data()->mainFile();
             if (!mainFilePath.isEmpty()) {
@@ -170,7 +162,7 @@ void QmlProject::parseProject(RefreshOptions options)
                 }
             }
         }
-        rootProjectNode()->refresh();
+        generateProjectTree();
     }
 
     if (options & Configuration) {
@@ -186,37 +178,21 @@ void QmlProject::refresh(RefreshOptions options)
     parseProject(options);
 
     if (options & Files)
-        rootProjectNode()->refresh();
+        generateProjectTree();
 
-    if (!modelManager())
+    auto modelManager = QmlJS::ModelManagerInterface::instance();
+    if (!modelManager)
         return;
 
     QmlJS::ModelManagerInterface::ProjectInfo projectInfo =
-            modelManager()->defaultProjectInfoForProject(this);
+            modelManager->defaultProjectInfoForProject(this);
     foreach (const QString &searchPath, customImportPaths())
         projectInfo.importPaths.maybeInsert(Utils::FileName::fromString(searchPath),
                                             QmlJS::Dialect::Qml);
 
-    modelManager()->updateProjectInfo(projectInfo, this);
+    modelManager->updateProjectInfo(projectInfo, this);
 
     emit parsingFinished();
-}
-
-QStringList QmlProject::convertToAbsoluteFiles(const QStringList &paths) const
-{
-    const QDir projectDir(projectDirectory().toString());
-    QStringList absolutePaths;
-    foreach (const QString &file, paths) {
-        QFileInfo fileInfo(projectDir, file);
-        absolutePaths.append(fileInfo.absoluteFilePath());
-    }
-    absolutePaths.removeDuplicates();
-    return absolutePaths;
-}
-
-QmlJS::ModelManagerInterface *QmlProject::modelManager() const
-{
-    return QmlJS::ModelManagerInterface::instance();
 }
 
 QStringList QmlProject::files() const
@@ -273,18 +249,15 @@ QmlProject::QmlImport QmlProject::defaultImport() const
 void QmlProject::refreshFiles(const QSet<QString> &/*added*/, const QSet<QString> &removed)
 {
     refresh(Files);
-    if (!removed.isEmpty() && modelManager())
-        modelManager()->removeFiles(removed.toList());
+    if (!removed.isEmpty()) {
+        if (auto modelManager = QmlJS::ModelManagerInterface::instance())
+            modelManager->removeFiles(removed.toList());
+    }
 }
 
 QString QmlProject::displayName() const
 {
-    return m_projectName;
-}
-
-Internal::Manager *QmlProject::projectManager() const
-{
-    return static_cast<Internal::Manager *>(Project::projectManager());
+    return projectFilePath().toFileInfo().completeBaseName();
 }
 
 bool QmlProject::supportsKit(Kit *k, QString *errorMessage) const
@@ -394,6 +367,20 @@ Project::RestoreResult QmlProject::fromMap(const QVariantMap &map, QString *erro
     onActiveTargetChanged(activeTarget());
 
     return RestoreResult::Ok;
+}
+
+void QmlProject::generateProjectTree()
+{
+    auto newRoot = new Internal::QmlProjectNode(this);
+
+    for (const QString &f : files()) {
+        FileType fileType = FileType::Source; // ### FIXME
+        if (f == projectFilePath().toString())
+            fileType = FileType::Project;
+        newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(f), fileType, false));
+    }
+
+    setRootProjectNode(newRoot);
 }
 
 } // namespace QmlProjectManager

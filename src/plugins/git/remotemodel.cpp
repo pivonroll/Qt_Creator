@@ -27,12 +27,19 @@
 #include "gitplugin.h"
 #include "gitclient.h"
 
+#include <utils/algorithm.h>
+
 namespace Git {
 namespace Internal {
 
 // ------ RemoteModel
 RemoteModel::RemoteModel(QObject *parent) : QAbstractTableModel(parent)
 { }
+
+QStringList RemoteModel::allRemoteNames() const
+{
+    return Utils::transform(m_remotes, std::mem_fn(&Remote::name));
+}
 
 QString RemoteModel::remoteName(int row) const
 {
@@ -49,7 +56,7 @@ bool RemoteModel::removeRemote(int row)
     QString output;
     QString error;
     bool success = GitPlugin::client()->synchronousRemoteCmd(
-                m_workingDirectory, { "rm", remoteName(row) }, &output, &error);
+                m_workingDirectory, {"rm", remoteName(row)}, &output, &error);
     if (success)
         success = refresh(m_workingDirectory, &error);
     return success;
@@ -63,7 +70,7 @@ bool RemoteModel::addRemote(const QString &name, const QString &url)
         return false;
 
     bool success = GitPlugin::client()->synchronousRemoteCmd(
-                m_workingDirectory, { "add", name, url }, &output, &error);
+                m_workingDirectory, {"add", name, url}, &output, &error);
     if (success)
         success = refresh(m_workingDirectory, &error);
     return success;
@@ -74,7 +81,7 @@ bool RemoteModel::renameRemote(const QString &oldName, const QString &newName)
     QString output;
     QString error;
     bool success = GitPlugin::client()->synchronousRemoteCmd(
-                m_workingDirectory, { "rename", oldName, newName }, &output, &error);
+                m_workingDirectory, {"rename", oldName, newName}, &output, &error);
     if (success)
         success = refresh(m_workingDirectory, &error);
     return success;
@@ -85,7 +92,7 @@ bool RemoteModel::updateUrl(const QString &name, const QString &newUrl)
     QString output;
     QString error;
     bool success = GitPlugin::client()->synchronousRemoteCmd(
-                m_workingDirectory, { "set-url", name, newUrl }, &output, &error);
+                m_workingDirectory, {"set-url", name, newUrl}, &output, &error);
     if (success)
         success = refresh(m_workingDirectory, &error);
     return success;

@@ -77,7 +77,7 @@ CMakeBuildConfiguration::~CMakeBuildConfiguration()
 
 bool CMakeBuildConfiguration::isEnabled() const
 {
-    return m_error.isEmpty();
+    return m_error.isEmpty() && !isParsing();
 }
 
 QString CMakeBuildConfiguration::disabledReason() const
@@ -145,6 +145,7 @@ void CMakeBuildConfiguration::ctor()
     connect(m_buildDirManager.get(), &BuildDirManager::dataAvailable,
             this, [this, project]() {
         project->updateProjectData(this);
+        emit enabledChanged();
         emit dataAvailable();
     });
     connect(m_buildDirManager.get(), &BuildDirManager::errorOccured,
@@ -155,6 +156,7 @@ void CMakeBuildConfiguration::ctor()
     connect(m_buildDirManager.get(), &BuildDirManager::configurationStarted,
             this, [this, project]() {
         project->handleParsingStarted();
+        emit enabledChanged();
         emit parsingStarted();
     });
 
@@ -166,6 +168,7 @@ void CMakeBuildConfiguration::ctor()
 
 void CMakeBuildConfiguration::maybeForceReparse()
 {
+    clearError();
     m_buildDirManager->maybeForceReparse();
 }
 
@@ -194,6 +197,7 @@ void CMakeBuildConfiguration::runCMake()
     if (!m_buildDirManager || m_buildDirManager->isParsing())
         return;
 
+    clearError();
     m_buildDirManager->forceReparse();
 }
 
@@ -211,18 +215,20 @@ QList<CMakeBuildTarget> CMakeBuildConfiguration::buildTargets() const
     return m_buildDirManager->buildTargets();
 }
 
-void CMakeBuildConfiguration::generateProjectTree(CMakeListsNode *root,
-                                                  const QList<const FileNode*> &allFiles) const
+CMakeProjectNode *
+CMakeBuildConfiguration::generateProjectTree(const QList<const FileNode*> &allFiles) const
 {
     if (!m_buildDirManager || m_buildDirManager->isParsing())
-        return;
+        return nullptr;
 
+    auto root = new CMakeProjectNode(target()->project()->projectDirectory());
     m_buildDirManager->generateProjectTree(root, allFiles);
+    return root;
 }
 
-QSet<Core::Id> CMakeBuildConfiguration::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
+void CMakeBuildConfiguration::updateCodeModel(CppTools::RawProjectParts &rpps)
 {
-    return m_buildDirManager->updateCodeModel(ppBuilder);
+    m_buildDirManager->updateCodeModel(rpps);
 }
 
 FileName CMakeBuildConfiguration::shadowBuildDirectory(const FileName &projectFilePath,
@@ -339,6 +345,14 @@ void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigMod
     m_buildDirManager->forceReparse();
 }
 
+void CMakeBuildConfiguration::clearError()
+{
+    if (!m_error.isEmpty()) {
+        m_error.clear();
+        emit enabledChanged();
+    }
+}
+
 void CMakeBuildConfiguration::emitBuildTypeChanged()
 {
     emit buildTypeChanged();
@@ -388,10 +402,11 @@ CMakeConfig CMakeBuildConfiguration::cmakeConfiguration() const
 
 void CMakeBuildConfiguration::setError(const QString &message)
 {
-    if (m_error != message) {
-        emit enabledChanged();
+    QString oldMessage = m_error;
+    if (m_error != message)
         m_error = message;
-    }
+    if (oldMessage.isEmpty() && !message.isEmpty())
+        emit enabledChanged();
     emit errorOccured(m_error);
 }
 
@@ -473,8 +488,7 @@ QList<ProjectExplorer::BuildInfo *> CMakeBuildConfigurationFactory::availableBui
 
 int CMakeBuildConfigurationFactory::priority(const ProjectExplorer::Kit *k, const QString &projectPath) const
 {
-    Utils::MimeDatabase mdb;
-    if (k && mdb.mimeTypeForFile(projectPath).matchesName(QLatin1String(Constants::CMAKEPROJECTMIMETYPE)))
+    if (k && Utils::mimeTypeForFile(projectPath).matchesName(Constants::CMAKEPROJECTMIMETYPE))
         return 0;
     return -1;
 }
@@ -598,22 +612,22 @@ CMakeBuildInfo *CMakeBuildConfigurationFactory::createBuildInfo(const ProjectExp
         info->typeName = tr("Build");
         break;
     case BuildTypeDebug:
-        buildTypeItem = { CMakeConfigItem("CMAKE_BUILD_TYPE", "Debug") };
+        buildTypeItem = {CMakeConfigItem("CMAKE_BUILD_TYPE", "Debug")};
         info->typeName = tr("Debug");
         info->buildType = BuildConfiguration::Debug;
         break;
     case BuildTypeRelease:
-        buildTypeItem = { CMakeConfigItem("CMAKE_BUILD_TYPE", "Release") };
+        buildTypeItem = {CMakeConfigItem("CMAKE_BUILD_TYPE", "Release")};
         info->typeName = tr("Release");
         info->buildType = BuildConfiguration::Release;
         break;
     case BuildTypeMinSizeRel:
-        buildTypeItem = { CMakeConfigItem("CMAKE_BUILD_TYPE", "MinSizeRel") };
+        buildTypeItem = {CMakeConfigItem("CMAKE_BUILD_TYPE", "MinSizeRel")};
         info->typeName = tr("Minimum Size Release");
         info->buildType = BuildConfiguration::Release;
         break;
     case BuildTypeRelWithDebInfo:
-        buildTypeItem = { CMakeConfigItem("CMAKE_BUILD_TYPE", "RelWithDebInfo") };
+        buildTypeItem = {CMakeConfigItem("CMAKE_BUILD_TYPE", "RelWithDebInfo")};
         info->typeName = tr("Release with Debug Information");
         info->buildType = BuildConfiguration::Profile;
         break;

@@ -466,7 +466,7 @@ WatchModel::WatchModel(WatchHandler *handler, DebuggerEngine *engine)
 
     m_contentsValid = true;
 
-    setHeader({ tr("Name"), tr("Value"), tr("Type") });
+    setHeader({tr("Name"), tr("Value"), tr("Type")});
     m_localsRoot = new WatchItem;
     m_localsRoot->iname = "local";
     m_localsRoot->name = tr("Locals");
@@ -1126,7 +1126,7 @@ bool WatchModel::setData(const QModelIndex &idx, const QVariant &value, int role
                 m_expandedINames.remove(item->iname);
             }
             if (item->iname.contains('.'))
-                emit columnAdjustmentRequested();
+                m_handler->updateWatchersWindow();
             return true;
 
         case LocalsTypeFormatRole:
@@ -2008,7 +2008,7 @@ bool WatchHandler::insertItem(WatchItem *item)
 
     bool found = false;
     const std::vector<TreeItem *> siblings(parent->begin(), parent->end());
-    for (int row = 0, n = siblings.size(); row < n; ++row) {
+    for (int row = 0, n = int(siblings.size()); row < n; ++row) {
         if (static_cast<WatchItem *>(siblings[row])->iname == item->iname) {
             m_model->destroyItem(parent->childAt(row));
             parent->insertChild(row, item);
@@ -2070,7 +2070,7 @@ void WatchHandler::notifyUpdateStarted(const UpdateParameters &updateParameters)
 {
     QStringList inames = updateParameters.partialVariables();
     if (inames.isEmpty())
-        inames = QStringList({ "local", "return" });
+        inames = QStringList({"local", "return"});
 
     auto marker = [](WatchItem *item) { item->outdated = true; };
 
@@ -2347,8 +2347,6 @@ void WatchModel::clearWatches()
 
 void WatchHandler::updateWatchersWindow()
 {
-    emit m_model->columnAdjustmentRequested();
-
     // Force show/hide of watchers and return view.
     int showWatch = !theWatcherNames.isEmpty();
     int showReturn = m_model->m_returnRoot->childCount() != 0;

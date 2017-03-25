@@ -48,8 +48,7 @@ public:
     void notifyRemoteSetupDone(Utils::Port port) override;
     void notifyRemoteSetupFailed(const QString &errorMessage) override;
     void start() override;
-    StopResult stop() override;
-    bool isRunning() const override;
+    void stop() override;
     void cancelProcess();
     void notifyRemoteFinished() override;
     bool supportsReRunning() const override { return false; }

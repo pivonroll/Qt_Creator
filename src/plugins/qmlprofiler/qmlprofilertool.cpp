@@ -36,6 +36,7 @@
 #include "qmlprofilerrunconfigurationaspect.h"
 #include "qmlprofilersettings.h"
 #include "qmlprofilerplugin.h"
+#include "qmlprofilertextmark.h"
 
 #include <debugger/debuggericons.h>
 #include <debugger/analyzer/analyzermanager.h>
@@ -241,7 +242,7 @@ QmlProfilerTool::QmlProfilerTool(QObject *parent)
 
     // When the widgets are requested we assume that the session data
     // is available, then we can populate the file finder
-    d->m_profilerModelManager->qmlModel()->populateFileFinder();
+    d->m_profilerModelManager->populateFileFinder();
 
     auto runControlCreator = [this](RunConfiguration *runConfiguration, Core::Id) {
         return createRunControl(runConfiguration);
@@ -285,6 +286,15 @@ QmlProfilerTool::QmlProfilerTool(QObject *parent)
 
     connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::updateRunActions,
             this, &QmlProfilerTool::updateRunActions);
+
+    QmlProfilerTextMarkModel *model = d->m_profilerModelManager->textMarkModel();
+    if (EditorManager *editorManager = EditorManager::instance()) {
+        connect(editorManager, &EditorManager::editorCreated,
+                model, [this, model](Core::IEditor *editor, const QString &fileName) {
+            Q_UNUSED(editor);
+            model->createMarks(this, fileName);
+        });
+    }
 }
 
 QmlProfilerTool::~QmlProfilerTool()
@@ -358,7 +368,7 @@ void QmlProfilerTool::finalizeRunControl(QmlProfilerRunControl *runControl)
 
     RunConfiguration *runConfiguration = runControl->runConfiguration();
     if (runConfiguration) {
-        d->m_profilerModelManager->qmlModel()->populateFileFinder(runConfiguration);
+        d->m_profilerModelManager->populateFileFinder(runConfiguration);
     }
 
     if (connection.analyzerSocket.isEmpty()) {
@@ -450,7 +460,7 @@ void QmlProfilerTool::gotoSourceLocation(const QString &fileUrl, int lineNumber,
     if (lineNumber < 0 || fileUrl.isEmpty())
         return;
 
-    const QString projectFileName = d->m_profilerModelManager->qmlModel()->findLocalFile(fileUrl);
+    const QString projectFileName = d->m_profilerModelManager->findLocalFile(fileUrl);
 
     QFileInfo fileInfo(projectFileName);
     if (!fileInfo.exists() || !fileInfo.isReadable())
@@ -461,6 +471,11 @@ void QmlProfilerTool::gotoSourceLocation(const QString &fileUrl, int lineNumber,
     EditorManager::openEditorAt(
                 projectFileName, lineNumber == 0 ? 1 : lineNumber, columnNumber - 1, Id(),
                 EditorManager::DoNotSwitchToDesignMode | EditorManager::DoNotSwitchToEditMode);
+}
+
+void QmlProfilerTool::selectType(int typeId)
+{
+    d->m_viewContainer->typeSelected(typeId);
 }
 
 void QmlProfilerTool::updateTimeDisplay()
@@ -515,6 +530,18 @@ void QmlProfilerTool::setButtonsEnabled(bool enable)
     d->m_displayFeaturesButton->setEnabled(enable);
     d->m_searchButton->setEnabled(d->m_viewContainer->traceView()->isUsable() && enable);
     d->m_recordFeaturesMenu->setEnabled(enable);
+}
+
+void QmlProfilerTool::createTextMarks()
+{
+    QmlProfilerTextMarkModel *model = d->m_profilerModelManager->textMarkModel();
+    foreach (IDocument *document, DocumentModel::openedDocuments())
+        model->createMarks(this, document->filePath().toString());
+}
+
+void QmlProfilerTool::clearTextMarks()
+{
+    d->m_profilerModelManager->textMarkModel()->clear();
 }
 
 bool QmlProfilerTool::prepareTool()
@@ -572,6 +599,16 @@ void QmlProfilerTool::startRemoteTool(ProjectExplorer::RunConfiguration *rc)
     runControl->setConnection(connection);
 
     ProjectExplorerPlugin::startRunControl(runControl, ProjectExplorer::Constants::QML_PROFILER_RUN_MODE);
+}
+
+QString QmlProfilerTool::summary(const QVector<int> &typeIds) const
+{
+    return d->m_viewContainer->statisticsView()->summary(typeIds);
+}
+
+QStringList QmlProfilerTool::details(int typeId) const
+{
+    return d->m_viewContainer->statisticsView()->details(typeId);
 }
 
 void QmlProfilerTool::logState(const QString &msg)
@@ -651,7 +688,7 @@ void QmlProfilerTool::showLoadDialog()
         Debugger::enableMainWindow(false);
         connect(d->m_profilerModelManager, &QmlProfilerModelManager::recordedFeaturesChanged,
                 this, &QmlProfilerTool::setRecordedFeatures);
-        d->m_profilerModelManager->qmlModel()->populateFileFinder();
+        d->m_profilerModelManager->populateFileFinder();
         d->m_profilerModelManager->load(filename);
     }
 }
@@ -765,6 +802,7 @@ void QmlProfilerTool::profilerDataModelStateChanged()
         setButtonsEnabled(true);
         break;
     case QmlProfilerModelManager::ClearingData :
+        clearTextMarks();
         d->m_recordButton->setEnabled(false);
         setButtonsEnabled(false);
         clearDisplay();
@@ -783,6 +821,7 @@ void QmlProfilerTool::profilerDataModelStateChanged()
         updateTimeDisplay();
         d->m_recordButton->setEnabled(true);
         setButtonsEnabled(true);
+        createTextMarks();
     break;
     default:
         break;

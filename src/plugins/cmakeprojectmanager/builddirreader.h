@@ -29,6 +29,8 @@
 #include "cmakeproject.h"
 #include "cmaketool.h"
 
+#include <cpptools/cpprawprojectpart.h>
+
 #include <utils/environment.h>
 #include <utils/fileutils.h>
 #include <utils/macroexpander.h>
@@ -36,13 +38,11 @@
 #include <QFutureInterface>
 #include <QObject>
 
-namespace CppTools { class ProjectPartBuilder; }
-
 namespace CMakeProjectManager {
 namespace Internal {
 
 class CMakeBuildConfiguration;
-class CMakeListsNode;
+class CMakeProjectNode;
 
 class BuildDirReader : public QObject
 {
@@ -95,9 +95,9 @@ public:
 
     virtual CMakeConfig takeParsedConfiguration() = 0;
     virtual QList<CMakeBuildTarget> buildTargets() const = 0;
-    virtual void generateProjectTree(CMakeListsNode *root,
+    virtual void generateProjectTree(CMakeProjectNode *root,
                                      const QList<const ProjectExplorer::FileNode *> &allFiles) = 0;
-    virtual QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder) = 0;
+    virtual void updateCodeModel(CppTools::RawProjectParts &rpps) = 0;
 
 signals:
     void isReadyNow() const;

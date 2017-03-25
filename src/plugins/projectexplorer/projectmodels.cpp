@@ -71,40 +71,18 @@ static bool sortWrapperNodes(const WrapperNode *w1, const WrapperNode *w2)
 }
 
 FlatModel::FlatModel(QObject *parent)
-    : TreeModel<WrapperNode, WrapperNode>(new WrapperNode(SessionManager::sessionNode()), parent)
+    : TreeModel<WrapperNode, WrapperNode>(new WrapperNode(nullptr), parent)
 {
-    m_timer.setInterval(200);
-    connect(&m_timer, &QTimer::timeout, this, &FlatModel::doUpdate);
-
     ProjectTree *tree = ProjectTree::instance();
-    connect(tree, &ProjectTree::dataChanged, this, &FlatModel::update);
-    connect(tree, &ProjectTree::nodeUpdated, this, &FlatModel::nodeUpdated);
+    connect(tree, &ProjectTree::subtreeChanged, this, &FlatModel::update);
 
     SessionManager *sm = SessionManager::instance();
     connect(sm, &SessionManager::projectRemoved, this, &FlatModel::update);
-    connect(sm, &SessionManager::startupProjectChanged, this, &FlatModel::startupProjectChanged);
-
     connect(sm, &SessionManager::sessionLoaded, this, &FlatModel::loadExpandData);
     connect(sm, &SessionManager::aboutToSaveSession, this, &FlatModel::saveExpandData);
     connect(sm, &SessionManager::projectAdded, this, &FlatModel::handleProjectAdded);
+    connect(sm, &SessionManager::startupProjectChanged, this, [this] { layoutChanged(); });
     update();
-}
-
-void FlatModel::setView(QTreeView *view)
-{
-    QTC_CHECK(!m_view);
-    m_view = view;
-    connect(m_view, &QTreeView::expanded, this, &FlatModel::onExpanded);
-    connect(m_view, &QTreeView::collapsed, this, &FlatModel::onCollapsed);
-}
-
-void FlatModel::startupProjectChanged(Project *project)
-{
-    ProjectNode *projectNode = project ? project->rootProjectNode() : nullptr;
-    if (m_startupProject == projectNode)
-        return;
-    m_startupProject = projectNode;
-    layoutChanged();
 }
 
 QVariant FlatModel::data(const QModelIndex &index, int role) const
@@ -115,17 +93,7 @@ QVariant FlatModel::data(const QModelIndex &index, int role) const
         FolderNode *folderNode = node->asFolderNode();
         switch (role) {
         case Qt::DisplayRole: {
-            QString name = node->displayName();
-            if (node->nodeType() == NodeType::Project
-                    && node->parentFolderNode()
-                    && node->parentFolderNode()->nodeType() == NodeType::Session) {
-                const QString vcsTopic = static_cast<ProjectNode *>(node)->vcsTopic();
-
-                if (!vcsTopic.isEmpty())
-                    name += QLatin1String(" [") + vcsTopic + QLatin1Char(']');
-            }
-
-            result = name;
+            result = node->displayName();
             break;
         }
         case Qt::EditRole: {
@@ -145,8 +113,10 @@ QVariant FlatModel::data(const QModelIndex &index, int role) const
         }
         case Qt::FontRole: {
             QFont font;
-            if (node == m_startupProject)
-                font.setBold(true);
+            if (Project *project = SessionManager::startupProject()) {
+                if (node == project->containerNode())
+                    font.setBold(true);
+            }
             result = font;
             break;
         }
@@ -173,8 +143,6 @@ Qt::ItemFlags FlatModel::flags(const QModelIndex &index) const
     // We control the only view, and that one does the checks
     Qt::ItemFlags f = Qt::ItemIsSelectable|Qt::ItemIsEnabled|Qt::ItemIsDragEnabled;
     if (Node *node = nodeForIndex(index)) {
-        if (node->asSessionNode())
-            return 0; // no flags for session node...
         if (!node->asProjectNode()) {
             // either folder or file node
             if (node->supportedActions(node).contains(Rename))
@@ -204,33 +172,49 @@ bool FlatModel::setData(const QModelIndex &index, const QVariant &value, int rol
 
 void FlatModel::update()
 {
-    m_timer.start(300);
-}
-
-void FlatModel::doUpdate()
-{
-    m_timer.stop();
     rebuildModel();
 }
 
 void FlatModel::rebuildModel()
 {
+    QList<Project *> projects = SessionManager::projects();
+
+    Utils::sort(projects, [](Project *p1, Project *p2) {
+        const int displayNameResult = caseFriendlyCompare(p1->displayName(), p2->displayName());
+        if (displayNameResult != 0)
+            return displayNameResult < 0;
+        return p1 < p2; // sort by pointer value
+    });
+
     QSet<Node *> seen;
 
     rootItem()->removeChildren();
-    const QList<ProjectNode *> projectNodes = SessionManager::sessionNode()->projectNodes();
-    for (ProjectNode *projectNode : projectNodes) {
-        if (!seen.contains(projectNode))
-            addProjectNode(rootItem(), projectNode, &seen);
+    for (Project *project : projects) {
+        WrapperNode *container = new WrapperNode(project->containerNode());
+
+        ProjectNode *projectNode = project->rootProjectNode();
+        if (projectNode) {
+            addFolderNode(container, projectNode, &seen);
+        } else {
+            FileNode *projectFileNode = new FileNode(project->projectFilePath(), FileType::Project, false);
+            seen.insert(projectFileNode);
+            container->appendChild(new WrapperNode(projectFileNode));
+        }
+
+        container->sortChildren(&sortWrapperNodes);
+        rootItem()->appendChild(container);
     }
-    rootItem()->sortChildren(&sortWrapperNodes);
 
     forAllItems([this](WrapperNode *node) {
-        const QString path = node->m_node->filePath().toString();
-        const QString displayName = node->m_node->displayName();
-        ExpandData ed(path, displayName);
-        if (m_toExpand.contains(ed))
-            m_view->expand(node->index());
+        if (node->m_node) {
+            const QString path = node->m_node->filePath().toString();
+            const QString displayName = node->m_node->displayName();
+            ExpandData ed(path, displayName);
+            if (m_toExpand.contains(ed))
+                emit requestExpansion(node->index());
+        } else {
+            emit requestExpansion(node->index());
+        }
     });
 }
 
@@ -261,7 +245,7 @@ void FlatModel::handleProjectAdded(Project *project)
             m_toExpand.insert(expandDataForNode(child->m_node));
         });
     }
-    doUpdate();
+    update();
 }
 
 void FlatModel::loadExpandData()
@@ -278,39 +262,27 @@ void FlatModel::saveExpandData()
     SessionManager::setValue(QLatin1String("ProjectTree.ExpandData"), data);
 }
 
-void FlatModel::addProjectNode(WrapperNode *parent, ProjectNode *projectNode, QSet<Node *> *seen)
-{
-    seen->insert(projectNode);
-    auto node = new WrapperNode(projectNode);
-    parent->appendChild(node);
-    addFolderNode(node, projectNode, seen);
-    const QList<ProjectNode *> subProjectNodes = projectNode->projectNodes();
-    for (ProjectNode *subProjectNode : subProjectNodes) {
-        if (!seen->contains(subProjectNode))
-            addProjectNode(node, subProjectNode, seen);
-    }
-    node->sortChildren(&sortWrapperNodes);
-}
-
 void FlatModel::addFolderNode(WrapperNode *parent, FolderNode *folderNode, QSet<Node *> *seen)
 {
-    const QList<FolderNode *> subFolderNodes = folderNode->folderNodes();
-    for (FolderNode *subFolderNode : subFolderNodes) {
-        if (!filter(subFolderNode) && !seen->contains(subFolderNode)) {
-            seen->insert(subFolderNode);
-            auto node = new WrapperNode(subFolderNode);
-            parent->appendChild(node);
-            addFolderNode(node, subFolderNode, seen);
-            node->sortChildren(&sortWrapperNodes);
-        } else {
-            addFolderNode(parent, subFolderNode, seen);
+    for (Node *node : folderNode->nodes()) {
+        if (FolderNode *subFolderNode = node->asFolderNode()) {
+            if (!filter(subFolderNode) && !seen->contains(subFolderNode)) {
+                seen->insert(subFolderNode);
+                auto node = new WrapperNode(subFolderNode);
+                parent->appendChild(node);
+                addFolderNode(node, subFolderNode, seen);
+                node->sortChildren(&sortWrapperNodes);
+            } else {
+                addFolderNode(parent, subFolderNode, seen);
+            }
         }
     }
-    const QList<FileNode *> fileNodes = folderNode->fileNodes();
-    for (FileNode *fileNode : fileNodes) {
-        if (!filter(fileNode) && !seen->contains(fileNode)) {
-            seen->insert(fileNode);
-            parent->appendChild(new WrapperNode(fileNode));
+    for (Node *node : folderNode->nodes()) {
+        if (FileNode *fileNode = node->asFileNode()) {
+            if (!filter(fileNode) && !seen->contains(fileNode)) {
+                seen->insert(fileNode);
+                parent->appendChild(new WrapperNode(fileNode));
+            }
         }
     }
 }
@@ -398,21 +370,6 @@ const QLoggingCategory &FlatModel::logger()
 {
     static QLoggingCategory logger("qtc.projectexplorer.flatmodel");
     return logger;
-}
-
-bool isSorted(const QList<Node *> &nodes)
-{
-    int size = nodes.size();
-    for (int i = 0; i < size -1; ++i) {
-        if (!sortNodes(nodes.at(i), nodes.at(i+1)))
-            return false;
-    }
-    return true;
-}
-
-void FlatModel::nodeUpdated(Node *)
-{
-    update();
 }
 
 namespace Internal {

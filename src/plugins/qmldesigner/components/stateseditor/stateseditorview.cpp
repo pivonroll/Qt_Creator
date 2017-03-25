@@ -29,6 +29,7 @@
 #include <rewritingexception.h>
 
 #include <QDebug>
+#include <QRegExp>
 #include <math.h>
 
 #include <nodemetainfo.h>
@@ -200,7 +201,8 @@ void StatesEditorView::duplicateCurrentState()
 void StatesEditorView::checkForWindow()
 {
     if (m_statesEditorWidget)
-        m_statesEditorWidget->showAddNewStatesButton(!rootModelNode().metaInfo().isSubclassOf("QtQuick.Window.Window"));
+        m_statesEditorWidget->showAddNewStatesButton(!rootModelNode().metaInfo().isSubclassOf("QtQuick.Window.Window")
+                                                     && !rootModelNode().metaInfo().isSubclassOf("QtQuick.Window.Popup"));
 }
 
 void StatesEditorView::setCurrentState(const QmlModelState &state)

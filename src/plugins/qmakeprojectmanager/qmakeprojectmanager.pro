@@ -15,6 +15,7 @@ HEADERS += \
     qmakeprojectmanager.h \
     qmakeproject.h \
     qmakenodes.h \
+    qmakenodetreebuilder.h \
     profileeditor.h \
     profilehighlighter.h \
     profilehoverhandler.h \
@@ -43,7 +44,6 @@ HEADERS += \
     qmakeparser.h \
     addlibrarywizard.h \
     librarydetailscontroller.h \
-    findqmakeprofiles.h \
     qmakeprojectmanager_global.h \
     desktopqmakerunconfiguration.h \
     profilecompletionassist.h \
@@ -59,6 +59,7 @@ SOURCES += \
     qmakeprojectmanager.cpp \
     qmakeproject.cpp \
     qmakenodes.cpp \
+    qmakenodetreebuilder.cpp \
     profileeditor.cpp \
     profilehighlighter.cpp \
     profilehoverhandler.cpp \
@@ -86,7 +87,6 @@ SOURCES += \
     qmakeparser.cpp \
     addlibrarywizard.cpp \
     librarydetailscontroller.cpp \
-    findqmakeprofiles.cpp \
     desktopqmakerunconfiguration.cpp \
     profilecompletionassist.cpp \
     makefileparse.cpp

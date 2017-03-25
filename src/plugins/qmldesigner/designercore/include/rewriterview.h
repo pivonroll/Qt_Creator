@@ -130,6 +130,7 @@ public:
     int firstDefinitionInsideLength(const ModelNode &node) const;
     bool modificationGroupActive();
     ModelNode nodeAtTextCursorPosition(int cursorPosition) const;
+    bool nodeContainsCursor(const ModelNode &node, int cursorPosition) const;
 
     bool renameId(const QString& oldId, const QString& newId);
 
@@ -158,7 +159,6 @@ public:
 
     void setWidgetStatusCallback(std::function<void(bool)> setWidgetStatusCallback);
 
-public slots:
     void qmlTextChanged();
     void delayedSetup();
 
@@ -176,6 +176,8 @@ protected: // functions
     void notifyErrorsAndWarnings(const QList<DocumentMessage> &errors);
 
 private: //variables
+    ModelNode nodeAtTextCursorPositionRekursive(const ModelNode &root, int cursorPosition) const;
+
     TextModifier *m_textModifier = nullptr;
     int transactionLevel = 0;
     bool m_modificationGroupActive = false;

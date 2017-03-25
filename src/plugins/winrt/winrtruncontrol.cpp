@@ -63,27 +63,22 @@ void WinRtRunControl::start()
         return;
     if (!startWinRtRunner())
         m_state = StoppedState;
+    else
+        reportApplicationStart();
 }
 
-RunControl::StopResult WinRtRunControl::stop()
+void WinRtRunControl::stop()
 {
     if (m_state == StoppedState)
-        return StoppedSynchronously;
+        return;
 
     m_runner->stop();
-    return AsynchronousStop;
-}
-
-bool WinRtRunControl::isRunning() const
-{
-    return m_state == StartedState;
 }
 
 void WinRtRunControl::onProcessStarted()
 {
     QTC_CHECK(m_state == StartingState);
     m_state = StartedState;
-    emit started();
 }
 
 void WinRtRunControl::onProcessFinished()
@@ -99,7 +94,7 @@ void WinRtRunControl::onProcessError()
     m_runner->deleteLater();
     m_runner = 0;
     m_state = StoppedState;
-    emit finished();
+    reportApplicationStop();
 }
 
 bool WinRtRunControl::startWinRtRunner()

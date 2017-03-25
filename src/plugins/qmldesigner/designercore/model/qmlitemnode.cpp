@@ -54,6 +54,9 @@ bool QmlItemNode::isItemOrWindow(const ModelNode &modelNode)
     if (modelNode.metaInfo().isSubclassOf("QtQuick.Window.Window") && modelNode.isRootNode())
         return true;
 
+    if (modelNode.metaInfo().isSubclassOf("QtQuick.Controls.Popup"))
+        return true;
+
     return false;
 }
 
@@ -368,6 +371,8 @@ bool itemIsMovable(const ModelNode &modelNode)
     if (modelNode.metaInfo().isSubclassOf("QtQuick.Controls.Tab"))
         return false;
 
+    if (!modelNode.parentProperty().isNodeListProperty())
+        return false;
 
     return NodeHints::fromModelNode(modelNode).isMovable();
 }
@@ -404,7 +409,7 @@ bool QmlItemNode::modelIsInLayout() const
                 && parentModelNode.metaInfo().isLayoutable())
             return true;
 
-        return NodeHints::fromModelNode(modelNode()).doesLayoutChildren();
+        return NodeHints::fromModelNode(parentModelNode).doesLayoutChildren();
     }
 
     return false;

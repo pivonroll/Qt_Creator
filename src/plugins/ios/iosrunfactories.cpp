@@ -97,15 +97,11 @@ QList<Core::Id> IosRunConfigurationFactory::availableCreationIds(Target *parent,
 {
     if (!IosManager::supportsIos(parent))
         return QList<Core::Id>();
-    QmakeProject *project = static_cast<QmakeProject *>(parent->project());
 
-    QList<QmakeProFileNode *> nodes = project->allProFiles({ ProjectType::ApplicationTemplate,
-                                                             ProjectType::SharedLibraryTemplate,
-                                                             ProjectType::AuxTemplate });
-    if (mode == AutoCreate)
-        nodes = QmakeProject::nodesWithQtcRunnable(nodes);
-    Core::Id baseId(IOS_RC_ID_PREFIX);
-    return QmakeProject::idsForNodes(baseId, nodes);
+    auto project = static_cast<QmakeProject *>(parent->project());
+    return project->creationIds(IOS_RC_ID_PREFIX, mode, {ProjectType::ApplicationTemplate,
+                                                         ProjectType::SharedLibraryTemplate,
+                                                         ProjectType::AuxTemplate});
 }
 
 QString IosRunConfigurationFactory::displayNameForId(Core::Id id) const
@@ -183,7 +179,7 @@ RunControl *IosRunControlFactory::create(RunConfiguration *runConfig,
     // The device can only run an application at a time, if an app is running stop it.
     if (m_activeRunControls.contains(devId)) {
         if (QPointer<RunControl> activeRunControl = m_activeRunControls[devId])
-            activeRunControl->stop();
+            activeRunControl->initiateStop();
         m_activeRunControls.remove(devId);
     }
     if (mode == ProjectExplorer::Constants::NORMAL_RUN_MODE)
