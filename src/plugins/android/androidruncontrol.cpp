@@ -38,7 +38,7 @@ using namespace ProjectExplorer;
 namespace Android {
 namespace Internal {
 
-AndroidRunControl::AndroidRunControl(AndroidRunConfiguration *rc)
+AndroidRunControl::AndroidRunControl(RunConfiguration *rc)
     : RunControl(rc, ProjectExplorer::Constants::NORMAL_RUN_MODE)
     , m_runner(new AndroidRunner(this, rc, ProjectExplorer::Constants::NORMAL_RUN_MODE))
 {
@@ -62,6 +62,13 @@ void AndroidRunControl::start()
         this, &AndroidRunControl::handleRemoteOutput);
     connect(m_runner, &AndroidRunner::remoteProcessFinished,
         this, &AndroidRunControl::handleRemoteProcessFinished);
+
+    auto formatter = static_cast<AndroidOutputFormatter *>(outputFormatter());
+    connect(m_runner, &AndroidRunner::pidFound,
+            formatter, &AndroidOutputFormatter::appendPid);
+    connect(m_runner, &AndroidRunner::pidLost,
+            formatter, &AndroidOutputFormatter::removePid);
+
     appendMessage(tr("Starting remote process."), Utils::NormalMessageFormat);
     m_runner->setRunnable(runnable().as<AndroidRunnable>());
     m_runner->start();

@@ -85,14 +85,12 @@ signals:
     void requestExpansion(const QModelIndex &index);
 
 private:
-    bool filter(Node *node) const; // Returns true if node is hidden.
-
     bool m_filterProjects = false;
     bool m_filterGeneratedFiles = true;
 
     static const QLoggingCategory &logger();
 
-    void update();
+    void updateSubtree(FolderNode *node);
     void rebuildModel();
     void addFolderNode(WrapperNode *parent, FolderNode *folderNode, QSet<Node *> *seen);
 
@@ -100,6 +98,9 @@ private:
     void loadExpandData();
     void saveExpandData();
     void handleProjectAdded(Project *project);
+    void handleProjectRemoved(Project *project);
+    WrapperNode *nodeForProject(Project *project);
+    void addOrRebuildProjectModel(Project *project);
 
     QTimer m_timer;
     QSet<ExpandData> m_toExpand;

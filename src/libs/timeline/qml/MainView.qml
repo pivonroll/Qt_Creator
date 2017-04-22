@@ -46,10 +46,7 @@ Rectangle {
     property bool selectionRangeMode: false
     property bool selectionRangeReady: selectionRange.ready
     property int typeId: content.typeId
-    onWidthChanged: {
-        zoomSliderToolBar.updateZoomLevel();
-        content.scroll();
-    }
+    onWidthChanged: zoomSliderToolBar.updateZoomLevel();
 
     color: Theme.color(Theme.Timeline_BackgroundColor1)
 
@@ -95,7 +92,7 @@ Rectangle {
     // This is called from outside to synchronize the timeline to other views
     function selectByTypeId(typeId)
     {
-        if (lockItemSelection || typeId === -1)
+        if (lockItemSelection || typeId === -1 || content.typeId === typeId)
             return;
 
         var itemIndex = -1;

@@ -526,7 +526,7 @@ struct Check
 
     const Check &operator%(GccVersion version) const
     {
-        enginesForCheck = GdbEngine;
+        enginesForCheck = NoCdbEngine;
         gccVersionForCheck = version;
         return *this;
     }
@@ -1307,10 +1307,16 @@ void tst_Dumpers::dumper()
             "\n\n" + data.includes +
             "\n\n" + (data.useQHash ?
                 "\n#include <QByteArray>"
-                "\n#if QT_VERSION >= 0x050000"
+                "\n#if QT_VERSION >= 0x050900"
+                "\n#include <QHash>"
+                "\nvoid initHashSeed() { qSetGlobalQHashSeed(0); }"
+                "\n#elif QT_VERSION >= 0x050000"
                 "\nQT_BEGIN_NAMESPACE"
                 "\nQ_CORE_EXPORT extern QBasicAtomicInt qt_qhash_seed; // from qhash.cpp"
                 "\nQT_END_NAMESPACE"
+                "\nvoid initHashSeed() { qt_qhash_seed.store(0); }"
+                "\n#else"
+                "\nvoid initHashSeed() {}"
                 "\n#endif" : "") +
             "\n\nint main(int argc, char *argv[])"
             "\n{"
@@ -1324,6 +1330,7 @@ void tst_Dumpers::dumper()
             "\n#endif"
             "\n#ifdef __clang__"
             "\n    int clangversion = 10000 * __clang_major__ + 100 * __clang_minor__; unused(&clangversion);"
+            "\n    gccversion = 0;"
             "\n#else"
             "\n    int clangversion = 0; unused(&clangversion);"
             "\n#endif"
@@ -1332,10 +1339,7 @@ void tst_Dumpers::dumper()
             "\n#else"
             "\n    int boostversion = 0; unused(&boostversion);"
             "\n#endif"
-            "\n" + (data.useQHash ?
-                "\n#if QT_VERSION >= 0x050000"
-                "\nqt_qhash_seed.store(0);"
-                "\n#endif\n" : "") +
+            "\n" + (data.useQHash ? "initHashSeed();" : "") +
             "\n" + data.code +
             "\n    BREAK;"
             "\n    return 0;"
@@ -1543,6 +1547,7 @@ void tst_Dumpers::dumper()
 
     Context context(m_debuggerEngine);
     QByteArray contents;
+    GdbMi actual;
     if (m_debuggerEngine == GdbEngine) {
         int posDataStart = output.indexOf("data=");
         if (posDataStart == -1) {
@@ -1552,9 +1557,9 @@ void tst_Dumpers::dumper()
         contents = output.mid(posDataStart);
         contents.replace("\\\"", "\"");
 
-        GdbMi actualx;
-        actualx.fromStringMultiple(contents);
-        context.nameSpace = actualx["qtnamespace"].data();
+        actual.fromStringMultiple(contents);
+        context.nameSpace = actual["qtnamespace"].data();
+        actual = actual["data"];
         //qDebug() << "FOUND NS: " << context.nameSpace;
 
     } else if (m_debuggerEngine == LldbEngine) {
@@ -1576,6 +1581,7 @@ void tst_Dumpers::dumper()
         if (context.nameSpace == "::")
             context.nameSpace.clear();
         contents.replace("\\\"", "\"");
+        actual.fromString(contents);
     } else {
         QByteArray localsAnswerStart("<qtcreatorcdbext>|R|42|");
         QByteArray locals("|script|");
@@ -1591,14 +1597,9 @@ void tst_Dumpers::dumper()
             if (localsBeginPos != -1)
                 localsBeginPos = output.indexOf(locals, localsBeginPos);
         } while (localsBeginPos != -1);
-        GdbMi result;
-        result.fromString(contents);
-        if (result.childCount() != 0)
-            contents = result.childAt(0).toString().toLocal8Bit();
+        actual.fromString(contents);
+        actual = actual["result"]["data"];
     }
-
-    GdbMi actual;
-    actual.fromString(contents);
 
     WatchItem local;
     local.iname = "local";
@@ -1891,6 +1892,17 @@ void tst_Dumpers::dumper_data()
 
                + Check("c", "120", "@QChar");
 
+
+    QTest::newRow("QFlags")
+            << Data("#include <QFlags>\n"
+                    "enum Foo { a = 0x1, b = 0x2 };\n"
+                    "Q_DECLARE_FLAGS(FooFlags, Foo)\n"
+                    "Q_DECLARE_OPERATORS_FOR_FLAGS(FooFlags)\n",
+                    "FooFlags f1(a);\n"
+                    "FooFlags f2(a | b);\n")
+               + CoreProfile()
+               + Check("f1", "a (1)", TypeDef("QFlags<enum Foo>", "FooFlags"))
+               + Check("f2", "(a | b) (3)", "FooFlags") % GdbEngine;
 
     QTest::newRow("QDateTime")
             << Data("#include <QDateTime>\n",
@@ -2677,12 +2689,14 @@ void tst_Dumpers::dumper_data()
                + Check("s", "\"HelloWorld\"", "@QString")
                + Check("test", "\"Name\"", "Bar::TestObject")
                + Check("test.[properties]", "<6 items>", "")
+#ifndef Q_OS_WIN
                + Check("test.[properties].myProp1",
-                    "\"Hello\"", "@QVariant (QString)") % NoCdbEngine
+                    "\"Hello\"", "@QVariant (QString)")
                + Check("test.[properties].myProp2",
-                    "\"World\"", "@QVariant (QByteArray)") % NoCdbEngine
-               + Check("test.[properties].myProp3", "54", "@QVariant (long)") % NoCdbEngine
-               + Check("test.[properties].myProp4", "44", "@QVariant (int)") % NoCdbEngine
+                    "\"World\"", "@QVariant (QByteArray)")
+               + Check("test.[properties].myProp3", "54", "@QVariant (long)")
+               + Check("test.[properties].myProp4", "44", "@QVariant (int)")
+#endif
                + Check("test.[properties].4", "\"New\"",
                     "\"Stuff\"", "@QVariant (QByteArray)")
                + Check("test.[properties].5", "\"Old\"",
@@ -5231,6 +5245,18 @@ void tst_Dumpers::dumper_data()
                + Check("s32s", "-2147483648", TypeDef("int", "@qint32"));
 
 
+    QTest::newRow("Float")
+            << Data("#include <QFloat16>\n",
+                    "qfloat16 f1 = 45.3f; unused(&f1);\n"
+                    "qfloat16 f2 = 45.1f; unused(&f2);\n")
+               + CoreProfile()
+               + QtVersion(0x50900)
+               // Using numpy:
+               // + Check("f1", "45.281", "@qfloat16")
+               // + Check("f2", "45.094", "@qfloat16");
+               + Check("f1", "45.28125", "@qfloat16")
+               + Check("f2", "45.09375", "@qfloat16");
+
 
     QTest::newRow("Enum")
             << Data("\n"
@@ -5424,6 +5450,30 @@ void tst_Dumpers::dumper_data()
                 + Check("k", "1000", "ns::verylong")
                 + Check("t1", "0", "myType1")
                 + Check("t2", "0", "myType2");
+
+
+    QTest::newRow("Typedef2")
+            << Data("#include <vector>\n"
+                    "template<typename T> using TVector = std::vector<T>;\n",
+                    "std::vector<bool> b1(10); unused(&b1);\n"
+                    "std::vector<int> b2(10); unused(&b2);\n"
+                    "TVector<bool> b3(10); unused(&b3);\n"
+                    "TVector<int> b4(10); unused(&b4);\n"
+                    "TVector<bool> b5(10); unused(&b5);\n"
+                    "TVector<int> b6(10); unused(&b6);\n")
+
+                + NoCdbEngine
+
+                // The test is for a gcc bug
+                // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80466,
+                // so check for any gcc version vs any other compiler
+                // (identified by gccversion == 0).
+                + Check("b1", "<10 items>", "std::vector<bool>")
+                + Check("b2", "<10 items>", "std::vector<int>")
+                + Check("b3", "<10 items>", "TVector") % GccVersion(1)
+                + Check("b4", "<10 items>", "TVector") % GccVersion(1)
+                + Check("b5", "<10 items>", "TVector<bool>") % GccVersion(0, 0)
+                + Check("b6", "<10 items>", "TVector<int>") % GccVersion(0, 0);
 
 
     QTest::newRow("Struct")
@@ -6147,7 +6197,6 @@ void tst_Dumpers::dumper_data()
                     "Derived d;\n"
                     "Base *b = &d;\n"
                     "unused(&d, &b);\n")
-               + NoCdbEngine // FIXME
                + Check("b.@1.a", "a", "21", "int")
                + Check("b.b", "b", "42", "int");
 
@@ -6180,8 +6229,6 @@ void tst_Dumpers::dumper_data()
                     "unused(&c);\n"
                     "Base2 *b2 = &d; // This has the right address\n"
                     "unused(&b2);\n")
-                + NoCdbEngine // FIXME
-
                 + Check("c.b2.@1.foo", "42", "int")
                 + Check("c.b2.@2.bar", "43", "int")
                 + Check("c.b2.baz", "84", "int")

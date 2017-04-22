@@ -1,8 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 Openismus GmbH.
-** Author: Peter Penz (ppenz@openismus.com)
-** Author: Patricia Santana Cruz (patriciasantanacruz@gmail.com)
+** Copyright (C) 2016 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
@@ -25,19 +23,40 @@
 **
 ****************************************************************************/
 
-#include "autotoolsprojectfile.h"
-#include "autotoolsproject.h"
-#include "autotoolsprojectconstants.h"
+import QtQml 2.2
+import QtQuick 2.4
 
-namespace AutotoolsProjectManager {
-namespace Internal {
+Rectangle {
+    width: 200; height: 200
 
-AutotoolsProjectFile::AutotoolsProjectFile(const Utils::FileName &fileName)
-{
-    setId("Autotools.ProjectFile");
-    setMimeType(QLatin1String(Constants::MAKEFILE_MIMETYPE));
-    setFilePath(fileName);
+    ListModel {
+        id: fruitModel
+        ListElement {
+            name: "Apple"
+            cost: 2.45
+        }
+        ListElement {
+            name: "Orange"
+            cost: 3.25
+        }
+        ListElement {
+            name: "Banana"
+            cost: 1.95
+        }
+    }
+
+    Component {
+        id: fruitDelegate
+        Row {
+            spacing: 10
+            Text { text: name }
+            Text { text: '$' + cost }
+        }
+    }
+
+    ListView {
+        anchors.fill: parent
+        model: fruitModel
+        delegate: fruitDelegate
+    }
 }
-
-} // namespace Internal
-} // namespace AutotoolsProjectManager

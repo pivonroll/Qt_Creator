@@ -55,6 +55,7 @@ namespace Debugger {
 
 class DebuggerRunControl;
 class RemoteSetupResult;
+class DebuggerRunTool;
 
 DEBUGGER_EXPORT QDebug operator<<(QDebug str, DebuggerState state);
 
@@ -199,6 +200,7 @@ public:
 
     const DebuggerRunParameters &runParameters() const;
     DebuggerRunParameters &runParameters();
+    DebuggerRunTool *runTool() const;
 
     enum {
         // Remove need to qualify each use.
@@ -335,6 +337,8 @@ public:
 
     QString expand(const QString &string) const;
     QString nativeStartupCommands() const;
+
+    bool prepareCommand();
 
 signals:
     void stateChanged(Debugger::DebuggerState state);
@@ -485,8 +489,7 @@ private:
 };
 
 DebuggerEngine *createEngine(DebuggerEngineType et, const DebuggerRunParameters &rp, QStringList *errors);
-
-DebuggerRunControl *createAndScheduleRun(const DebuggerRunParameters &rp, const ProjectExplorer::Kit *kit);
+ProjectExplorer::RunControl *createAndScheduleRun(const DebuggerRunParameters &rp, ProjectExplorer::Kit *kit);
 
 } // namespace Internal
 } // namespace Debugger

@@ -37,6 +37,7 @@
 #include "settingsaccessor.h"
 
 #include <coreplugin/idocument.h>
+#include <coreplugin/documentmanager.h>
 #include <coreplugin/icontext.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/iversioncontrol.h>
@@ -84,37 +85,40 @@ const char PLUGIN_SETTINGS_KEY[] = "ProjectExplorer.Project.PluginSettings";
 
 namespace ProjectExplorer {
 
-class ContainerNode : public ProjectNode
+// --------------------------------------------------------------------
+// ProjectDocument:
+// --------------------------------------------------------------------
+
+ProjectDocument::ProjectDocument(const QString &mimeType, const Utils::FileName &fileName,
+                                 const ProjectDocument::ProjectCallback &callback) :
+    m_callback(callback)
 {
-public:
-    ContainerNode(Project *project)
-        : ProjectNode(Utils::FileName()),
-          m_project(project)
-    {}
+    setFilePath(fileName);
+    setMimeType(mimeType);
+    if (m_callback)
+        Core::DocumentManager::addDocument(this);
+}
 
-    QString displayName() const final
-    {
-        QString name = m_project->displayName();
+Core::IDocument::ReloadBehavior
+ProjectDocument::reloadBehavior(Core::IDocument::ChangeTrigger state,
+                                Core::IDocument::ChangeType type) const
+{
+    Q_UNUSED(state);
+    Q_UNUSED(type);
+    return BehaviorSilent;
+}
 
-        const QFileInfo fi = m_project->projectFilePath().toFileInfo();
-        const QString dir = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
-        if (Core::IVersionControl *vc = Core::VcsManager::findVersionControlForDirectory(dir)) {
-            QString vcsTopic = vc->vcsTopic(dir);
-            if (!vcsTopic.isEmpty())
-                name += " [" + vcsTopic + ']';
-        }
+bool ProjectDocument::reload(QString *errorString, Core::IDocument::ReloadFlag flag,
+                             Core::IDocument::ChangeType type)
+{
+    Q_UNUSED(errorString);
+    Q_UNUSED(flag);
+    Q_UNUSED(type);
 
-        return name;
-    }
-
-    QList<ProjectAction> supportedActions(Node *) const final
-    {
-        return {};
-    }
-
-private:
-    Project *m_project;
-};
+    if (m_callback)
+        m_callback();
+    return true;
+}
 
 // -------------------------------------------------------------------------
 // Project
@@ -122,13 +126,13 @@ private:
 class ProjectPrivate
 {
 public:
-    ProjectPrivate(Project *owner) : m_containerNode(owner) {}
+    ProjectPrivate(Core::IDocument *document) : m_document(document) { }
     ~ProjectPrivate();
 
     Core::Id m_id;
     Core::IDocument *m_document = nullptr;
     ProjectNode *m_rootProjectNode = nullptr;
-    ContainerNode m_containerNode;
+    ContainerNode *m_containerNode = nullptr;
     QList<Target *> m_targets;
     Target *m_activeTarget = nullptr;
     EditorConfiguration m_editorConfiguration;
@@ -136,6 +140,8 @@ public:
     Core::Context m_projectLanguages;
     QVariantMap m_pluginSettings;
     Internal::UserFileAccessor *m_accessor = nullptr;
+
+    QString m_displayName;
 
     Kit::Predicate m_requiredKitPredicate;
     Kit::Predicate m_preferredKitPredicate;
@@ -150,21 +156,33 @@ ProjectPrivate::~ProjectPrivate()
     m_rootProjectNode = nullptr;
     delete oldNode;
 
+    delete m_containerNode;
+
     delete m_document;
     delete m_accessor;
 }
 
-Project::Project() : d(new ProjectPrivate(this))
+Project::Project(const QString &mimeType, const Utils::FileName &fileName,
+                 const ProjectDocument::ProjectCallback &callback) :
+    d(new ProjectPrivate(new ProjectDocument(mimeType, fileName, callback)))
 {
     d->m_macroExpander.setDisplayName(tr("Project"));
     d->m_macroExpander.registerVariable("Project:Name", tr("Project Name"),
             [this] { return displayName(); });
+
+    // Only set up containernode after d is set so that it will find the project directory!
+    d->m_containerNode = new ContainerNode(this);
 }
 
 Project::~Project()
 {
     qDeleteAll(d->m_targets);
     delete d;
+}
+
+QString Project::displayName() const
+{
+    return d->m_displayName;
 }
 
 Core::Id Project::id() const
@@ -444,16 +462,17 @@ bool Project::setupTarget(Target *t)
     return true;
 }
 
+void Project::setDisplayName(const QString &name)
+{
+    if (name == d->m_displayName)
+        return;
+    d->m_displayName = name;
+    emit displayNameChanged();
+}
+
 void Project::setId(Core::Id id)
 {
     d->m_id = id;
-}
-
-void Project::setDocument(Core::IDocument *doc)
-{
-    QTC_ASSERT(doc, return);
-    QTC_ASSERT(!d->m_document, return);
-    d->m_document = doc;
 }
 
 void Project::setRootProjectNode(ProjectNode *root)
@@ -461,13 +480,25 @@ void Project::setRootProjectNode(ProjectNode *root)
     if (d->m_rootProjectNode == root)
         return;
 
+    if (root && root->nodes().isEmpty()) {
+        // Something went wrong with parsing: At least the project file needs to be
+        // shown so that the user can fix the breakage.
+        // Do not leak root and use default project tree in this case.
+        delete root;
+        root = nullptr;
+    }
+
     ProjectTree::applyTreeManager(root);
 
     ProjectNode *oldNode = d->m_rootProjectNode;
     d->m_rootProjectNode = root;
-    if (root)
-        root->setParentFolderNode(&d->m_containerNode);
-    ProjectTree::emitSubtreeChanged(root);
+    if (root) {
+        root->setParentFolderNode(d->m_containerNode);
+        // Only announce non-null root, null is only used when project is destroyed.
+        // In that case SessionManager::projectRemoved() triggers the update.
+        ProjectTree::emitSubtreeChanged(root);
+        emit fileListChanged();
+    }
 
     delete oldNode;
 }
@@ -513,6 +544,25 @@ Project::RestoreResult Project::restoreSettings(QString *errorMessage)
     RestoreResult result = fromMap(map, errorMessage);
     if (result == RestoreResult::Ok)
         emit settingsLoaded();
+    return result;
+}
+
+QStringList Project::files(Project::FilesMode fileMode,
+                           const std::function<bool (const FileNode *)> &filter) const
+{
+    QStringList result;
+
+    if (!rootProjectNode())
+        return result;
+
+    rootProjectNode()->forEachNode([&](const FileNode *fn) {
+        if (filter && !filter(fn))
+            return;
+        if ((fileMode == AllFiles)
+                || (fileMode == SourceFiles && !fn->isGenerated())
+                || (fileMode == GeneratedFiles && fn->isGenerated()))
+            result.append(fn->filePath().toString());
+    });
     return result;
 }
 
@@ -573,9 +623,9 @@ ProjectNode *Project::rootProjectNode() const
     return d->m_rootProjectNode;
 }
 
-ProjectNode *Project::containerNode() const
+ContainerNode *Project::containerNode() const
 {
-    return &d->m_containerNode;
+    return d->m_containerNode;
 }
 
 Project::RestoreResult Project::fromMap(const QVariantMap &map, QString *errorMessage)

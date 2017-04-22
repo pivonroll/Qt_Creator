@@ -65,6 +65,7 @@
 #include <utils/macroexpander.h>
 #include <utils/processhandle.h>
 #include <utils/qtcassert.h>
+#include <utils/qtcprocess.h>
 #include <utils/savedaction.h>
 
 #include <QDebug>
@@ -551,32 +552,6 @@ void DebuggerEngine::setRegisterValue(const QString &name, const QString &value)
 {
     Q_UNUSED(name);
     Q_UNUSED(value);
-}
-
-void DebuggerEngine::showMessage(const QString &msg, int channel, int timeout) const
-{
-    if (d->m_masterEngine) {
-        d->m_masterEngine->showMessage(msg, channel, timeout);
-        return;
-    }
-    //if (msg.size() && msg.at(0).isUpper() && msg.at(1).isUpper())
-    //    qDebug() << qPrintable(msg) << "IN STATE" << state();
-    if (channel == ConsoleOutput)
-        debuggerConsole()->printItem(ConsoleItem::DefaultType, msg);
-
-    Internal::showMessage(msg, channel, timeout);
-    switch (channel) {
-    case AppOutput:
-    case AppError:
-    case AppStuff:
-        if (d->m_runControl)
-            d->m_runControl->handleApplicationOutput(msg, channel);
-        else
-            qWarning("Warning: %s (no active run control)", qPrintable(msg));
-        break;
-    default:
-        break;
-    }
 }
 
 void DebuggerEngine::startDebugger(DebuggerRunControl *runControl)
@@ -1386,6 +1361,30 @@ QString DebuggerEngine::nativeStartupCommands() const
                                runParameters().additionalStartupCommands}).join('\n'));
 }
 
+bool DebuggerEngine::prepareCommand()
+{
+    if (HostOsInfo::isWindowsHost()) {
+        DebuggerRunParameters &rp = runParameters();
+        QtcProcess::SplitError perr;
+        rp.inferior.commandLineArguments =
+                QtcProcess::prepareArgs(rp.inferior.commandLineArguments, &perr,
+                                        HostOsInfo::hostOs(), nullptr,
+                                        &rp.inferior.workingDirectory).toWindowsArgs();
+        if (perr != QtcProcess::SplitOk) {
+            // perr == BadQuoting is never returned on Windows
+            // FIXME? QTCREATORBUG-2809
+            showMessage("ADAPTER START FAILED");
+            const QString title = tr("Adapter start failed");
+            const QString msg = tr("Debugging complex command lines "
+                                   "is currently not supported on Windows.");
+            ICore::showWarningWithOptions(title, msg);
+            notifyEngineSetupFailed();
+            return false;
+        }
+    }
+    return true;
+}
+
 void DebuggerEngine::updateBreakpointMarker(const Breakpoint &bp)
 {
     d->m_disassemblerAgent.updateBreakpointMarker(bp);
@@ -1453,6 +1452,12 @@ bool DebuggerEngine::isReverseDebugging() const
     return Internal::isReverseDebugging();
 }
 
+void DebuggerEngine::showMessage(const QString &msg, int channel, int timeout) const
+{
+    if (DebuggerRunTool *tool = runTool())
+        tool->showMessage(msg, channel, timeout);
+}
+
 // Called by DebuggerRunControl.
 void DebuggerEngine::quitDebugger()
 {
@@ -1512,6 +1517,13 @@ void DebuggerEngine::progressPing()
 DebuggerRunControl *DebuggerEngine::runControl() const
 {
     return d->runControl();
+}
+
+DebuggerRunTool *DebuggerEngine::runTool() const
+{
+    if (DebuggerRunControl *rc = d->runControl())
+        return qobject_cast<DebuggerRunTool *>(rc->toolRunner());
+    return nullptr;
 }
 
 Terminal *DebuggerEngine::terminal() const
@@ -2125,7 +2137,7 @@ void DebuggerEngine::checkState(DebuggerState state, const char *file, int line)
         return;
 
     QString msg = QString("UNEXPECTED STATE: %1  WANTED: %2 IN %3:%4")
-                .arg(current).arg(state).arg(QLatin1String(file)).arg(line);
+                .arg(stateName(current)).arg(stateName(state)).arg(QLatin1String(file)).arg(line);
 
     showMessage(msg, LogError);
     qDebug("%s", qPrintable(msg));

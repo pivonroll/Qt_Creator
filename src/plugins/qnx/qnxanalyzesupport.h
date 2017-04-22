@@ -31,24 +31,19 @@
 #include <utils/outputformat.h>
 #include <qmldebug/qmloutputparser.h>
 
-namespace Debugger { class AnalyzerRunControl; }
-
 namespace Qnx {
 namespace Internal {
 
-class QnxRunConfiguration;
 class Slog2InfoRunner;
 
 class QnxAnalyzeSupport : public QnxAbstractRunSupport
 {
     Q_OBJECT
+
 public:
-    QnxAnalyzeSupport(QnxRunConfiguration *runConfig, Debugger::AnalyzerRunControl *engine);
+    explicit QnxAnalyzeSupport(ProjectExplorer::RunControl *runControl);
 
-public slots:
-    void handleProfilingFinished();
-
-private slots:
+private:
     void handleAdapterSetupRequested() override;
 
     void handleRemoteProcessFinished(bool success) override;
@@ -60,12 +55,9 @@ private slots:
     void printMissingWarning();
 
     void remoteIsRunning();
-
-private:
     void startExecution() override;
 
     ProjectExplorer::StandardRunnable m_runnable;
-    Debugger::AnalyzerRunControl *m_runControl;
     QmlDebug::QmlOutputParser m_outputParser;
     Utils::Port m_qmlPort;
 

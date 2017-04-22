@@ -50,8 +50,7 @@ class AndroidRunner : public QObject
     Q_OBJECT
 
 public:
-    AndroidRunner(QObject *parent, AndroidRunConfiguration *runConfig,
-                  Core::Id runMode);
+    AndroidRunner(QObject *parent, ProjectExplorer::RunConfiguration *runConfig, Core::Id runMode);
     ~AndroidRunner();
 
     QString displayName() const;
@@ -75,6 +74,9 @@ signals:
 
     void adbParametersChanged(const QString &packageName, const QStringList &selector);
     void avdDetected();
+
+    void pidFound(qint64, const QString &name);
+    void pidLost(qint64);
 
 private:
     void checkAVD();

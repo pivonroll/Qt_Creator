@@ -315,7 +315,8 @@ class Dumper(DumperBase):
             while nativeTargetType.code == gdb.TYPE_CODE_TYPEDEF:
                 nativeTargetType = nativeTargetType.strip_typedefs().unqualified()
             targetType = self.fromNativeType(nativeTargetType)
-            return self.createTypedefedType(targetType, str(nativeType))
+            return self.createTypedefedType(targetType, str(nativeType),
+                                            self.nativeTypeId(nativeType))
 
         if code == gdb.TYPE_CODE_ERROR:
             warn('Type error: %s' % nativeType)
@@ -408,6 +409,8 @@ class Dumper(DumperBase):
         return '%d' % intval
 
     def nativeTypeId(self, nativeType):
+        if nativeType.code == gdb.TYPE_CODE_TYPEDEF:
+            return '%s{%s}' % (nativeType, nativeType.strip_typedefs())
         name = str(nativeType)
         if len(name) == 0:
             c = '0'
@@ -1050,11 +1053,12 @@ class Dumper(DumperBase):
         n = ("'%sQWidget'" % ns) if lenns else 'QWidget'
         self.reportResult('selected="0x%x",expr="(%s*)0x%x"' % (p, n, p), args)
 
-    def nativeValueDereferencePointer(self, nativeValue):
-        deref = nativeValue.dereference()
+    def nativeValueDereferencePointer(self, value):
+        deref = value.nativeValue.dereference()
         return self.fromNativeValue(deref.cast(deref.dynamic_type))
 
-    def nativeValueDereferenceReference(self, nativeValue):
+    def nativeValueDereferenceReference(self, value):
+        nativeValue = value.nativeValue
         return self.fromNativeValue(nativeValue.cast(nativeValue.type.target()))
 
     def nativeDynamicTypeName(self, address, baseType):

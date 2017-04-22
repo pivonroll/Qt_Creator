@@ -34,6 +34,7 @@
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/kit.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/projectnodes.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/toolchain.h>
 #include <projectexplorer/kitinformation.h>
@@ -53,12 +54,10 @@ namespace Nim {
 
 const int MIN_TIME_BETWEEN_PROJECT_SCANS = 4500;
 
-NimProject::NimProject(const FileName &fileName)
+NimProject::NimProject(const FileName &fileName) : Project(Constants::C_NIM_MIMETYPE, fileName)
 {
     setId(Constants::C_NIMPROJECT_ID);
-    auto doc = new TextEditor::TextDocument;
-    doc->setFilePath(fileName);
-    setDocument(doc);
+    setDisplayName(fileName.toFileInfo().completeBaseName());
 
     m_projectScanTimer.setSingleShot(true);
     connect(&m_projectScanTimer, &QTimer::timeout, this, &NimProject::collectProjectFiles);
@@ -66,16 +65,6 @@ NimProject::NimProject(const FileName &fileName)
     connect(&m_futureWatcher, &QFutureWatcher<QList<FileNode *>>::finished, this, &NimProject::updateProject);
 
     collectProjectFiles();
-}
-
-QString NimProject::displayName() const
-{
-    return projectFilePath().toFileInfo().completeBaseName();
-}
-
-QStringList NimProject::files(FilesMode) const
-{
-    return m_files;
 }
 
 bool NimProject::needsConfiguration() const
@@ -133,7 +122,7 @@ void NimProject::collectProjectFiles()
 
 void NimProject::updateProject()
 {
-    QStringList oldFiles = m_files;
+    const QStringList oldFiles = m_files;
     m_files.clear();
 
     QList<FileNode *> fileNodes = Utils::filtered(m_futureWatcher.future().result(),
@@ -158,9 +147,6 @@ void NimProject::updateProject()
     newRoot->setDisplayName(displayName());
     newRoot->addNestedNodes(fileNodes);
     setRootProjectNode(newRoot);
-
-    emit fileListChanged();
-
     emit parsingFinished();
 }
 
@@ -169,12 +155,12 @@ bool NimProject::supportsKit(Kit *k, QString *errorMessage) const
     auto tc = dynamic_cast<NimToolChain*>(ToolChainKitInformation::toolChain(k, Constants::C_NIMLANGUAGE_ID));
     if (!tc) {
         if (errorMessage)
-            *errorMessage = tr("No nim compiler set.");
+            *errorMessage = tr("No Nim compiler set.");
         return false;
     }
     if (!tc->compilerCommand().exists()) {
         if (errorMessage)
-            *errorMessage = tr("Nim compiler doesn't exist");
+            *errorMessage = tr("Nim compiler does not exist");
         return false;
     }
     return true;
@@ -182,12 +168,10 @@ bool NimProject::supportsKit(Kit *k, QString *errorMessage) const
 
 FileNameList NimProject::nimFiles() const
 {
-    FileNameList result;
-    rootProjectNode()->forEachNode([&](FileNode *file) {
-        if (file->displayName().endsWith(QLatin1String(".nim")))
-            result.append(file->filePath());
+    const QStringList nim = files(AllFiles, [](const ProjectExplorer::FileNode *fn) {
+        return fn->filePath().endsWith(".nim");
     });
-    return result;
+    return Utils::transform(nim, [](const QString &fp) { return Utils::FileName::fromString(fp); });
 }
 
 QVariantMap NimProject::toMap() const
@@ -203,4 +187,4 @@ Project::RestoreResult NimProject::fromMap(const QVariantMap &map, QString *erro
     return Project::fromMap(map, errorMessage);
 }
 
-}
+} // namespace Nim

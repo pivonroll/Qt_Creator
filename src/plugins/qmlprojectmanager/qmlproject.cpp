@@ -24,7 +24,6 @@
 ****************************************************************************/
 
 #include "qmlproject.h"
-#include "qmlprojectfile.h"
 #include "fileformat/qmlprojectfileformat.h"
 #include "fileformat/qmlprojectitem.h"
 #include "qmlprojectrunconfiguration.h"
@@ -56,14 +55,13 @@ using namespace ProjectExplorer;
 namespace QmlProjectManager {
 
 QmlProject::QmlProject(const Utils::FileName &fileName) :
+    Project(QString::fromLatin1(Constants::QMLPROJECT_MIMETYPE), fileName, [this]() { refreshProjectFile(); }),
     m_defaultImport(UnknownImport)
 {
     setId("QmlProjectManager.QmlProject");
-    setDocument(new Internal::QmlProjectFile(this, fileName));
-    DocumentManager::addDocument(document(), true);
-
     setProjectContext(Context(QmlProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Context(ProjectExplorer::Constants::QMLJS_LANGUAGE_ID));
+    setDisplayName(fileName.toFileInfo().completeBaseName());
 }
 
 QmlProject::~QmlProject()
@@ -168,9 +166,6 @@ void QmlProject::parseProject(RefreshOptions options)
     if (options & Configuration) {
         // update configuration
     }
-
-    if (options & Files)
-        emit fileListChanged();
 }
 
 void QmlProject::refresh(RefreshOptions options)
@@ -193,16 +188,6 @@ void QmlProject::refresh(RefreshOptions options)
     modelManager->updateProjectInfo(projectInfo, this);
 
     emit parsingFinished();
-}
-
-QStringList QmlProject::files() const
-{
-    QStringList files;
-    if (m_projectItem)
-        files = m_projectItem.data()->files();
-    else
-        files = m_files;
-    return files;
 }
 
 QString QmlProject::mainFile() const
@@ -255,11 +240,6 @@ void QmlProject::refreshFiles(const QSet<QString> &/*added*/, const QSet<QString
     }
 }
 
-QString QmlProject::displayName() const
-{
-    return projectFilePath().toFileInfo().completeBaseName();
-}
-
 bool QmlProject::supportsKit(Kit *k, QString *errorMessage) const
 {
     Id deviceType = DeviceTypeKitInformation::deviceTypeId(k);
@@ -294,11 +274,6 @@ bool QmlProject::supportsKit(Kit *k, QString *errorMessage) const
 Internal::QmlProjectNode *QmlProject::rootProjectNode() const
 {
     return static_cast<Internal::QmlProjectNode *>(Project::rootProjectNode());
-}
-
-QStringList QmlProject::files(FilesMode) const
-{
-    return files();
 }
 
 Project::RestoreResult QmlProject::fromMap(const QVariantMap &map, QString *errorMessage)
@@ -371,9 +346,12 @@ Project::RestoreResult QmlProject::fromMap(const QVariantMap &map, QString *erro
 
 void QmlProject::generateProjectTree()
 {
+    if (!m_projectItem)
+        return;
+
     auto newRoot = new Internal::QmlProjectNode(this);
 
-    for (const QString &f : files()) {
+    for (const QString &f : m_projectItem.data()->files()) {
         FileType fileType = FileType::Source; // ### FIXME
         if (f == projectFilePath().toString())
             fileType = FileType::Project;

@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <debugger/analyzer/analyzerruncontrol.h>
+#include <projectexplorer/runconfiguration.h>
 #include <cpptools/projectinfo.h>
 #include <utils/environment.h>
 
@@ -60,7 +60,6 @@ public:
     void stop() override;
 
     bool success() const { return m_success; } // For testing.
-    bool supportsReRunning() const override { return false; }
 
 signals:
     void newDiagnosticsAvailable(const QList<Diagnostic> &diagnostics);

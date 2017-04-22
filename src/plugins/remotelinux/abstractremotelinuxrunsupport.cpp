@@ -41,19 +41,10 @@ namespace Internal {
 class AbstractRemoteLinuxRunSupportPrivate
 {
 public:
-    AbstractRemoteLinuxRunSupportPrivate(const RunConfiguration *runConfig)
-        : state(AbstractRemoteLinuxRunSupport::Inactive),
-          runnable(runConfig->runnable().as<StandardRunnable>()),
-          device(DeviceKitInformation::device(runConfig->target()->kit()))
-    {
-    }
-
-    AbstractRemoteLinuxRunSupport::State state;
-    StandardRunnable runnable;
+    AbstractRemoteLinuxRunSupport::State state = AbstractRemoteLinuxRunSupport::Inactive;
     ApplicationLauncher appLauncher;
     DeviceUsedPortsGatherer portsGatherer;
     ApplicationLauncher fifoCreator;
-    const IDevice::ConstPtr device;
     Utils::PortList portList;
     QString fifo;
 };
@@ -62,9 +53,9 @@ public:
 
 using namespace Internal;
 
-AbstractRemoteLinuxRunSupport::AbstractRemoteLinuxRunSupport(RunConfiguration *runConfig, QObject *parent)
-    : QObject(parent),
-      d(new AbstractRemoteLinuxRunSupportPrivate(runConfig))
+AbstractRemoteLinuxRunSupport::AbstractRemoteLinuxRunSupport(RunControl *runControl)
+    : ToolRunner(runControl),
+      d(new AbstractRemoteLinuxRunSupportPrivate)
 {
 }
 
@@ -94,7 +85,7 @@ void AbstractRemoteLinuxRunSupport::handleResourcesAvailable()
 {
     QTC_ASSERT(d->state == GatheringResources, return);
 
-    d->portList = d->device->freePorts();
+    d->portList = device()->freePorts();
     startExecution();
 }
 
@@ -136,7 +127,7 @@ void AbstractRemoteLinuxRunSupport::startPortsGathering()
             this, &AbstractRemoteLinuxRunSupport::handleResourcesError);
     connect(&d->portsGatherer, &DeviceUsedPortsGatherer::portListReady,
             this, &AbstractRemoteLinuxRunSupport::handleResourcesAvailable);
-    d->portsGatherer.start(d->device);
+    d->portsGatherer.start(device());
 }
 
 void AbstractRemoteLinuxRunSupport::createRemoteFifo()
@@ -173,17 +164,7 @@ void AbstractRemoteLinuxRunSupport::createRemoteFifo()
         errors->append(data);
     });
 
-    d->fifoCreator.start(r, d->device);
-}
-
-const IDevice::ConstPtr AbstractRemoteLinuxRunSupport::device() const
-{
-    return d->device;
-}
-
-const StandardRunnable &AbstractRemoteLinuxRunSupport::runnable() const
-{
-    return d->runnable;
+    d->fifoCreator.start(r, device());
 }
 
 void AbstractRemoteLinuxRunSupport::reset()

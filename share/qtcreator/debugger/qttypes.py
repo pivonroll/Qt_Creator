@@ -642,10 +642,10 @@ def qdump__QFiniteStack(d, value):
 def qdump__QFlags(d, value):
     i = value.split('{int}')[0]
     enumType = value.type[0]
-    if d.isLldb:
-        d.putValue(i.cast(enumType.name).display())
-    else:
+    if d.isGdb:
         d.putValue(i.cast('enum ' + enumType.name).display())
+    else:
+        d.putValue(i.cast(enumType.name).display())
     d.putNumChild(0)
 
 
@@ -763,7 +763,7 @@ def qdump__QHostAddress(d, value):
             (ipString, scopeId, a4, pad, a6, protocol, isParsed) \
                 = d.split('{QString}{QString}{quint32}I16sI{bool}', dd)
     elif qtVersion >= 0x050600: # 5.6.0 at f3aabb42
-        if d.ptrSize() == 8 or d.isMsvcTarget():
+        if d.ptrSize() == 8 or d.isWindowsTarget():
             (ipString, scopeId, a4, pad, a6, protocol, isParsed) \
                 = d.split('{QString}{QString}{quint32}I16sI{bool}', dd)
         else:
@@ -2757,4 +2757,26 @@ def qdump__QSqlField(d, value):
     d.putNumChild(1)
     qdump__QVariant(d, val)
     d.putBetterType(d.currentType.value.replace('QVariant', 'QSqlField'))
+    d.putPlainChildren(value)
+
+
+def qdump__qfloat16(d, value):
+    h = value.split('H')[0]
+    # Stole^H^H^HHeavily inspired by J.F. Sebastian at
+    # http://math.stackexchange.com/questions/1128204/how-to-convert-
+    # from-floating-point-binary-to-decimal-in-half-precision16-bits
+    sign = h >> 15
+    exp = (h >> 10) & 0b011111
+    fraction = h & (2**10 - 1)
+    if exp == 0:
+        if fraction == 0:
+            res = -0.0 if sign else 0.0
+        else:
+            res = (-1)**sign * fraction / 2**10 * 2**(-14)  # subnormal
+    elif exp == 0b11111:
+        res = ('-inf' if sign else 'inf') if fraction == 0 else 'nan'
+    else:
+        res = (-1)**sign * (1 + fraction / 2**10) * 2**(exp - 15)
+    d.putValue(res)
+    d.putNumChild(1)
     d.putPlainChildren(value)

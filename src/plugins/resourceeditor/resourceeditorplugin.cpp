@@ -220,6 +220,7 @@ void ResourceEditorPlugin::extensionsInitialized()
 
         for (FileNode *file : toReplace) {
             FolderNode *const pn = file->parentFolderNode();
+            QTC_ASSERT(pn, continue);
             const Utils::FileName path = file->filePath();
             pn->replaceSubtree(file, new ResourceTopLevelNode(path, QString(), pn));
         }
@@ -337,8 +338,8 @@ void ResourceEditorPlugin::updateContextActions()
 
     if (isResourceNode) {
         FolderNode *parent = node ? node->parentFolderNode() : 0;
-        enableRename = parent && parent->supportedActions(node).contains(Rename);
-        enableRemove = parent && parent->supportedActions(node).contains(RemoveFile);
+        enableRename = parent && parent->supportsAction(Rename, node);
+        enableRemove = parent && parent->supportsAction(RemoveFile, node);
     }
 
     m_renameResourceFile->setEnabled(isResourceNode && enableRename);

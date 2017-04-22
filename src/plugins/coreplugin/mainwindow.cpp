@@ -212,15 +212,8 @@ NavigationWidget *MainWindow::navigationWidget(Side side) const
 
 void MainWindow::setSidebarVisible(bool visible, Side side)
 {
-    if (NavigationWidgetPlaceHolder::current(side)) {
-        NavigationWidget *navWidget = navigationWidget(side);
-        if (navWidget->isSuppressed() && visible) {
-            navWidget->setShown(true);
-            navWidget->setSuppressed(false);
-        } else {
-            navWidget->setShown(visible);
-        }
-    }
+    if (NavigationWidgetPlaceHolder::current(side))
+        navigationWidget(side)->setShown(visible);
 }
 
 void MainWindow::setOverrideColor(const QColor &color)
@@ -710,7 +703,7 @@ void MainWindow::registerDefaultActions()
     m_toggleRightSideBarAction->setCheckable(true);
     cmd = ActionManager::registerAction(m_toggleRightSideBarAction, Constants::TOGGLE_RIGHT_SIDEBAR);
     cmd->setAttribute(Command::CA_UpdateText);
-    cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Ctrl+Meta+0") : tr("Ctrl+Shift+0")));
+    cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Ctrl+Shift+0") : tr("Alt+Shift+0")));
     connect(m_toggleRightSideBarAction, &QAction::triggered,
             this, [this](bool visible) { setSidebarVisible(visible, Side::Right); });
     ProxyAction *toggleRightSideBarProxyAction =

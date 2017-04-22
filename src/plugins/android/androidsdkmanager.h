@@ -1,7 +1,6 @@
 /****************************************************************************
 **
 ** Copyright (C) 2016 The Qt Company Ltd.
-** Author: Andreas Hartmetz, KDAB (andreas.hartmetz@kdab.com)
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
@@ -23,35 +22,30 @@
 ** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-
 #pragma once
 
-#include <debugger/debugger_global.h>
+#include "utils/fileutils.h"
+#include "androidconfigurations.h"
 
-#include <projectexplorer/runconfiguration.h>
+#include <memory>
 
-#include <utils/port.h>
+namespace Android {
+namespace Internal {
 
-namespace Debugger {
+class SdkManagerOutputParser;
 
-/**
- * An AnalyzerRunControl instance handles the launch of an analyzation tool.
- *
- * It gets created for each launch and deleted when the launch is stopped or ended.
- */
-class DEBUGGER_EXPORT AnalyzerRunControl : public ProjectExplorer::RunControl
+class AndroidSdkManager
 {
-    Q_OBJECT
-
 public:
-    AnalyzerRunControl(ProjectExplorer::RunConfiguration *runConfiguration, Core::Id runMode);
+    AndroidSdkManager(const AndroidConfig &config);
+    ~AndroidSdkManager();
 
-    virtual void notifyRemoteSetupDone(Utils::Port) {}
-    virtual void notifyRemoteSetupFailed(const QString &) {}
-    virtual void notifyRemoteFinished() {}
+    SdkPlatformList availableSdkPlatforms();
 
-signals:
-    void starting();
+private:
+    const AndroidConfig &m_config;
+    std::unique_ptr<SdkManagerOutputParser> m_parser;
 };
 
-} // namespace Debugger
+} // namespace Internal
+} // namespace Android

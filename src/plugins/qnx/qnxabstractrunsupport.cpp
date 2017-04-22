@@ -38,9 +38,8 @@ using namespace RemoteLinux;
 namespace Qnx {
 namespace Internal {
 
-QnxAbstractRunSupport::QnxAbstractRunSupport(QnxRunConfiguration *runConfig, QObject *parent)
-    : QObject(parent)
-    , m_device(DeviceKitInformation::device(runConfig->target()->kit()))
+QnxAbstractRunSupport::QnxAbstractRunSupport(RunControl *runControl)
+    : ToolRunner(runControl)
     , m_state(Inactive)
 {
     m_launcher = new ApplicationLauncher(this);
@@ -63,7 +62,7 @@ void QnxAbstractRunSupport::handleAdapterSetupRequested()
 void QnxAbstractRunSupport::handlePortListReady()
 {
     QTC_ASSERT(m_state == GatheringPorts, return);
-    m_portList = m_device->freePorts();
+    m_portList = device()->freePorts();
     startExecution();
 }
 
@@ -97,11 +96,6 @@ void QnxAbstractRunSupport::setState(QnxAbstractRunSupport::State state)
 ApplicationLauncher *QnxAbstractRunSupport::appRunner() const
 {
     return m_launcher;
-}
-
-const IDevice::ConstPtr QnxAbstractRunSupport::device() const
-{
-    return m_device;
 }
 
 void QnxAbstractRunSupport::handleProgressReport(const QString &)

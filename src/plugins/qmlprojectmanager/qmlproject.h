@@ -46,12 +46,9 @@ public:
     explicit QmlProject(const Utils::FileName &filename);
     ~QmlProject() override;
 
-    QString displayName() const override;
-
     bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage) const override;
 
     Internal::QmlProjectNode *rootProjectNode() const override;
-    QStringList files(FilesMode fileMode) const override;
 
     bool validProjectFile() const;
 
@@ -66,7 +63,6 @@ public:
     void refresh(RefreshOptions options);
 
     QDir projectDir() const;
-    QStringList files() const;
     QString mainFile() const;
     QStringList customImportPaths() const;
 
@@ -92,10 +88,7 @@ private:
     void parseProject(RefreshOptions options);
 
     QmlImport m_defaultImport;
-    ProjectExplorer::Target *m_activeTarget = 0;
-
-    // plain format
-    QStringList m_files;
+    ProjectExplorer::Target *m_activeTarget = nullptr;
 
     QPointer<QmlProjectItem> m_projectItem;
 };

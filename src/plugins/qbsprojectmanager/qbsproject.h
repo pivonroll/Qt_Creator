@@ -61,10 +61,8 @@ public:
     explicit QbsProject(const Utils::FileName &filename);
     ~QbsProject() override;
 
-    QString displayName() const override;
     QbsRootProjectNode *rootProjectNode() const override;
 
-    QStringList files(FilesMode fileMode) const override;
     QStringList filesGeneratedFrom(const QString &sourceFile) const override;
 
     bool isProjectEditable() const;
@@ -78,7 +76,8 @@ public:
             const qbs::GroupData &groupData);
 
     qbs::BuildJob *build(const qbs::BuildOptions &opts, QStringList products, QString &error);
-    qbs::CleanJob *clean(const qbs::CleanOptions &opts);
+    qbs::CleanJob *clean(const qbs::CleanOptions &opts, const QStringList &productNames,
+                         QString &error);
     qbs::InstallJob *install(const qbs::InstallOptions &opts);
 
     static ProjectExplorer::FileType fileTypeFor(const QSet<QString> &tags);
@@ -140,6 +139,9 @@ private:
     void projectLoaded() override;
 
     static bool ensureWriteableQbsFile(const QString &file);
+
+    template<typename Options> qbs::AbstractJob *buildOrClean(const Options &opts,
+            const QStringList &productNames, QString &error);
 
     QHash<ProjectExplorer::Target *, qbs::Project> m_qbsProjects;
     qbs::Project m_qbsProject;

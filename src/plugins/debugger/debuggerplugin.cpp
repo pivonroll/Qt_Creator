@@ -66,7 +66,6 @@
 
 #include "analyzer/analyzerconstants.h"
 #include "analyzer/analyzermanager.h"
-#include "analyzer/analyzerruncontrol.h"
 #include "analyzer/analyzerstartparameters.h"
 
 #include <coreplugin/actionmanager/actioncontainer.h>
@@ -662,7 +661,7 @@ public:
         m_threadBox->blockSignals(state);
     }
 
-    DebuggerRunControl *attachToRunningProcess(Kit *kit, DeviceProcessItem process, bool contAfterAttach);
+    RunControl *attachToRunningProcess(Kit *kit, DeviceProcessItem process, bool contAfterAttach);
 
     void writeSettings()
     {
@@ -1914,12 +1913,13 @@ void DebuggerPluginPrivate::onCurrentProjectChanged(Project *project)
     for (int i = 0, n = m_snapshotHandler->size(); i != n; ++i) {
         // Run controls might be deleted during exit.
         if (DebuggerEngine *engine = m_snapshotHandler->at(i)) {
-            DebuggerRunControl *runControl = engine->runControl();
-            RunConfiguration *rc = runControl->runConfiguration();
-            if (rc == activeRc) {
-                m_snapshotHandler->setCurrentIndex(i);
-                updateState(engine);
-                return;
+            if (DebuggerRunControl *runControl = engine->runControl()) {
+                RunConfiguration *rc = runControl->runConfiguration();
+                if (rc == activeRc) {
+                    m_snapshotHandler->setCurrentIndex(i);
+                    updateState(engine);
+                    return;
+                }
             }
         }
     }
@@ -2068,9 +2068,9 @@ void DebuggerPluginPrivate::attachToUnstartedApplicationDialog()
 
     connect(dlg, &QDialog::finished, dlg, &QObject::deleteLater);
     connect(dlg, &UnstartedAppWatcherDialog::processFound, this, [this, dlg] {
-        DebuggerRunControl *rc = attachToRunningProcess(dlg->currentKit(),
-                                                        dlg->currentProcess(),
-                                                        dlg->continueOnAttach());
+        RunControl *rc = attachToRunningProcess(dlg->currentKit(),
+                                                dlg->currentProcess(),
+                                                dlg->continueOnAttach());
         if (!rc)
             return;
 
@@ -2081,7 +2081,7 @@ void DebuggerPluginPrivate::attachToUnstartedApplicationDialog()
     dlg->show();
 }
 
-DebuggerRunControl *DebuggerPluginPrivate::attachToRunningProcess(Kit *kit,
+RunControl *DebuggerPluginPrivate::attachToRunningProcess(Kit *kit,
     DeviceProcessItem process, bool contAfterAttach)
 {
     QTC_ASSERT(kit, return 0);
@@ -2125,13 +2125,13 @@ void DebuggerPlugin::attachExternalApplication(RunControl *rc)
     rp.startMode = AttachExternal;
     rp.closeMode = DetachAtClose;
     rp.toolChainAbi = rc->abi();
-    Kit *kit = 0;
-    if (const RunConfiguration *runConfiguration = rc->runConfiguration())
-        if (const Target *target = runConfiguration->target())
-            kit = target->kit();
-    if (!kit)
-        kit = guessKitFromParameters(rp);
-    createAndScheduleRun(rp, kit);
+    if (RunConfiguration *runConfig = rc->runConfiguration()) {
+        auto runControl = new DebuggerRunControl(runConfig, ProjectExplorer::Constants::DEBUG_RUN_MODE);
+        (void) new DebuggerRunTool(runControl, rp);
+        ProjectExplorerPlugin::startRunControl(runControl);
+    } else {
+        createAndScheduleRun(rp, guessKitFromParameters(rp));
+    }
 }
 
 void DebuggerPlugin::getEnginesState(QByteArray *json) const
@@ -2224,8 +2224,8 @@ void DebuggerPluginPrivate::enableReverseDebuggingTriggered(const QVariant &valu
 
 void DebuggerPluginPrivate::runScheduled()
 {
-    for (int i = 0, n = m_scheduledStarts.size(); i != n; ++i)
-        createAndScheduleRun(m_scheduledStarts.at(i).first, m_scheduledStarts.at(i).second);
+    for (const QPair<DebuggerRunParameters, Kit *> pair : m_scheduledStarts)
+        createAndScheduleRun(pair.first, pair.second);
 }
 
 void DebuggerPluginPrivate::editorOpened(IEditor *editor)
@@ -3417,14 +3417,6 @@ void saveModeToRestore()
 
 } // namespace Internal
 
-bool ActionDescription::isRunnable(QString *reason) const
-{
-    if (m_customToolStarter) // Something special. Pretend we can always run it.
-        return true;
-
-    return ProjectExplorerPlugin::canRunStartupProject(m_runMode, reason);
-}
-
 static bool buildTypeAccepted(QFlags<ToolMode> toolMode, BuildConfiguration::BuildType buildType)
 {
     if (buildType == BuildConfiguration::Unknown)
@@ -3634,7 +3626,7 @@ void showPermanentStatusMessage(const QString &message)
     dd->m_mainWindow->showStatusMessage(message, -1);
 }
 
-AnalyzerRunControl *createAnalyzerRunControl(RunConfiguration *runConfiguration, Id runMode)
+RunControl *createAnalyzerRunControl(RunConfiguration *runConfiguration, Id runMode)
 {
     foreach (const ActionDescription &action, dd->m_descriptions) {
         if (action.runMode() == runMode)
@@ -3714,13 +3706,14 @@ void DebuggerUnitTests::testStateMachine()
     DebuggerRunParameters rp;
     Target *t = SessionManager::startupProject()->activeTarget();
     QVERIFY(t);
-    Kit *kit = t->kit();
-    QVERIFY(kit);
     RunConfiguration *rc = t->activeRunConfiguration();
     QVERIFY(rc);
     rp.inferior = rc->runnable().as<StandardRunnable>();
     rp.testCase = TestNoBoundsOfCurrentFunction;
-    DebuggerRunControl *runControl = createAndScheduleRun(rp, kit);
+
+    auto runControl = new DebuggerRunControl(rc, ProjectExplorer::Constants::DEBUG_RUN_MODE);
+    (void) new DebuggerRunTool(runControl, rp);
+    ProjectExplorerPlugin::startRunControl(runControl);
 
     connect(runControl, &RunControl::finished, this, [this] {
         QTestEventLoop::instance().exitLoop();

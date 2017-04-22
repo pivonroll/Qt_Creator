@@ -58,6 +58,7 @@
 #endif
 
 using namespace Utils;
+using namespace ProjectExplorer::Internal;
 
 namespace ProjectExplorer {
 
@@ -503,13 +504,27 @@ IRunConfigurationAspect *IRunControlFactory::createRunConfigurationAspect(RunCon
 
 namespace Internal {
 
-class RunControlPrivate
+ToolRunner *trivialToolRunner()
+{
+    static ToolRunner runner(nullptr);
+    return &runner;
+}
+
+TargetRunner *trivialTargetRunner()
+{
+    static TargetRunner runner(nullptr);
+    return &runner;
+}
+
+class RunControlPrivate : public QObject
 {
 public:
-    RunControlPrivate(RunConfiguration *runConfiguration, Core::Id mode)
-        : runMode(mode), runConfiguration(runConfiguration)
+    RunControlPrivate(RunControl *parent, RunConfiguration *runConfiguration, Core::Id mode)
+        : q(parent), runMode(mode), runConfiguration(runConfiguration)
     {
+        icon = Icons::RUN_SMALL_TOOLBAR;
         if (runConfiguration) {
+            runnable = runConfiguration->runnable();
             displayName  = runConfiguration->displayName();
             outputFormatter = runConfiguration->createOutputFormatter();
             device = DeviceKitInformation::device(runConfiguration->target()->kit());
@@ -519,10 +534,47 @@ public:
 
     ~RunControlPrivate()
     {
-        delete toolRunner;
+        QTC_CHECK(state == State::Stopped);
+        if (targetRunner != trivialTargetRunner())
+            delete targetRunner;
+        if (toolRunner != trivialToolRunner())
+            delete toolRunner;
         delete outputFormatter;
     }
 
+    enum class State {
+        Initialized,      // Default value after creation.
+        TargetPreparing,  // initiateStart() was called, target boots up, connects, etc
+        ToolPreparing,    // Target is acessible, tool boots
+        TargetStarting,   // Late corrections on the target side after tool is available.
+        ToolStarting,     // Actual process/tool starts.
+        Running,          // All good and running.
+        ToolStopping,     // initiateStop() was called, stop application/tool
+        TargetStopping,   // Potential clean up on target, set idle state, etc.
+        Stopped,          // all good, but stopped. Can possibly be re-started
+    };
+    Q_ENUM(State)
+
+    void checkState(State expectedState);
+    void setState(State state);
+
+    void initiateStart();
+    void onTargetPrepared();
+    void onToolPrepared();
+    void onTargetStarted();
+    void onToolStarted();
+
+    void initiateStop();
+    void onToolStopped();
+    void onTargetStopped();
+
+    void onToolFailed(const QString &msg);
+    void onTargetFailed(const QString &msg);
+    void handleFailure();
+
+    static bool isAllowedTransition(State from, State to);
+
+    RunControl *q;
     QString displayName;
     Runnable runnable;
     IDevice::ConstPtr device;
@@ -531,13 +583,16 @@ public:
     Utils::Icon icon;
     const QPointer<RunConfiguration> runConfiguration; // Not owned.
     QPointer<Project> project; // Not owned.
+    QPointer<TargetRunner> targetRunner; // Owned. QPointer as "extra safety" for now.
     QPointer<ToolRunner> toolRunner; // Owned. QPointer as "extra safety" for now.
     Utils::OutputFormatter *outputFormatter = nullptr;
+    std::function<bool(bool*)> promptToStop;
 
     // A handle to the actual application process.
     Utils::ProcessHandle applicationProcessHandle;
 
-    RunControl::State state = RunControl::State::Initialized;
+    State state = State::Initialized;
+    bool supportsReRunning = true;
 
 #ifdef Q_OS_OSX
     // This is used to bring apps in the foreground on Mac
@@ -547,8 +602,10 @@ public:
 
 } // Internal
 
+using namespace Internal;
+
 RunControl::RunControl(RunConfiguration *runConfiguration, Core::Id mode) :
-    d(new Internal::RunControlPrivate(runConfiguration, mode))
+    d(new RunControlPrivate(this, runConfiguration, mode))
 {
 #ifdef WITH_JOURNALD
     JournaldWatcher::instance()->subscribe(this, [this](const JournaldWatcher::LogEntry &entry) {
@@ -579,14 +636,116 @@ RunControl::~RunControl()
 
 void RunControl::initiateStart()
 {
-    setState(State::Starting);
-    QTimer::singleShot(0, this, &RunControl::start);
+    if (!d->targetRunner)
+        setTargetRunner(trivialTargetRunner());
+    if (!d->toolRunner)
+        setToolRunner(trivialToolRunner());
+    emit aboutToStart();
+    start();
+}
+
+void RunControl::start()
+{
+    d->initiateStart();
 }
 
 void RunControl::initiateStop()
 {
-    setState(State::Stopping);
-    QTimer::singleShot(0, this, &RunControl::stop);
+    stop();
+}
+
+void RunControl::stop()
+{
+    d->initiateStop();
+}
+
+void RunControlPrivate::initiateStart()
+{
+    checkState(State::Initialized);
+    setState(State::TargetPreparing);
+    targetRunner->prepare();
+}
+
+void RunControlPrivate::onTargetPrepared()
+{
+    checkState(State::TargetPreparing);
+    setState(State::ToolPreparing);
+    toolRunner->prepare();
+}
+
+void RunControlPrivate::onToolPrepared()
+{
+    checkState(State::ToolPreparing);
+    setState(State::TargetStarting);
+    targetRunner->start();
+}
+
+void RunControlPrivate::onTargetStarted()
+{
+    checkState(State::TargetStarting);
+    setState(State::ToolStarting);
+    toolRunner->start();
+}
+
+void RunControlPrivate::onToolStarted()
+{
+    checkState(State::ToolStarting);
+    setState(State::Running);
+}
+
+void RunControlPrivate::initiateStop()
+{
+    checkState(State::Running);
+    setState(State::ToolStopping);
+    toolRunner->stop();
+}
+
+void RunControlPrivate::onToolStopped()
+{
+    checkState(State::ToolStopping);
+    setState(State::TargetStopping);
+    targetRunner->stop();
+}
+
+void RunControlPrivate::onTargetStopped()
+{
+    checkState(State::TargetStopping);
+    setState(State::Stopped);
+    QTC_CHECK(applicationProcessHandle.isValid());
+    q->setApplicationProcessHandle(Utils::ProcessHandle());
+}
+
+void RunControlPrivate::onTargetFailed(const QString &msg)
+{
+    if (!msg.isEmpty())
+        q->appendMessage(msg, ErrorMessageFormat);
+
+    handleFailure();
+}
+
+void RunControlPrivate::onToolFailed(const QString &msg)
+{
+    if (!msg.isEmpty())
+        q->appendMessage(msg, ErrorMessageFormat);
+
+    handleFailure();
+}
+
+void RunControlPrivate::handleFailure()
+{
+    switch (state) {
+    case State::Initialized:
+    case State::TargetPreparing:
+    case State::ToolPreparing:
+    case State::TargetStarting:
+    case State::ToolStarting:
+    case State::Running:
+    case State::ToolStopping:
+    case State::TargetStopping:
+    case State::Stopped:
+        setState(State::Stopped);
+        break;
+    }
 }
 
 Utils::OutputFormatter *RunControl::outputFormatter() const
@@ -627,6 +786,24 @@ ToolRunner *RunControl::toolRunner() const
 void RunControl::setToolRunner(ToolRunner *tool)
 {
     d->toolRunner = tool;
+    connect(d->toolRunner, &ToolRunner::prepared, d, &RunControlPrivate::onToolPrepared);
+    connect(d->toolRunner, &ToolRunner::started, d, &RunControlPrivate::onToolStarted);
+    connect(d->toolRunner, &ToolRunner::stopped, d, &RunControlPrivate::onToolStopped);
+    connect(d->toolRunner, &ToolRunner::failed, d, &RunControlPrivate::onToolFailed);
+}
+
+TargetRunner *RunControl::targetRunner() const
+{
+    return d->targetRunner;
+}
+
+void RunControl::setTargetRunner(TargetRunner *runner)
+{
+    d->targetRunner = runner;
+    connect(d->targetRunner, &TargetRunner::prepared, d, &RunControlPrivate::onTargetPrepared);
+    connect(d->targetRunner, &TargetRunner::started, d, &RunControlPrivate::onTargetStarted);
+    connect(d->targetRunner, &TargetRunner::stopped, d, &RunControlPrivate::onTargetStopped);
+    connect(d->targetRunner, &TargetRunner::failed, d, &RunControlPrivate::onTargetFailed);
 }
 
 QString RunControl::displayName() const
@@ -707,9 +884,12 @@ void RunControl::setApplicationProcessHandle(const ProcessHandle &handle)
 bool RunControl::promptToStop(bool *optionalPrompt) const
 {
     QTC_ASSERT(isRunning(), return true);
-
     if (optionalPrompt && !*optionalPrompt)
         return true;
+
+    // Overridden.
+    if (d->promptToStop)
+        return d->promptToStop(optionalPrompt);
 
     const QString msg = tr("<html><head/><body><center><i>%1</i> is still running.<center/>"
                            "<center>Force it to quit?</center></body></html>").arg(displayName());
@@ -718,9 +898,24 @@ bool RunControl::promptToStop(bool *optionalPrompt) const
                                   optionalPrompt);
 }
 
+void RunControl::setPromptToStop(const std::function<bool (bool *)> &promptToStop)
+{
+    d->promptToStop = promptToStop;
+}
+
+bool RunControl::supportsReRunning() const
+{
+    return d->supportsReRunning;
+}
+
+void RunControl::setSupportsReRunning(bool reRunningSupported)
+{
+    d->supportsReRunning = reRunningSupported;
+}
+
 bool RunControl::isRunning() const
 {
-    return d->state == State::Running;
+    return d->state == RunControlPrivate::State::Running;
 }
 
 /*!
@@ -759,31 +954,58 @@ bool RunControl::showPromptToStopDialog(const QString &title,
     return close;
 }
 
-static bool isAllowedTransition(RunControl::State from, RunControl::State to)
+bool RunControlPrivate::isAllowedTransition(State from, State to)
 {
     switch (from) {
-    case RunControl::State::Initialized:
-        return to == RunControl::State::Starting;
-    case RunControl::State::Starting:
-        return to == RunControl::State::Running;
-    case RunControl::State::Running:
-        return to == RunControl::State::Stopping
-            || to == RunControl::State::Stopped;
-    case RunControl::State::Stopping:
-        return to == RunControl::State::Stopped;
-    case RunControl::State::Stopped:
+    case State::Initialized:
+        return to == State::TargetPreparing;
+    case State::TargetPreparing:
+        return to == State::ToolPreparing;
+    case State::ToolPreparing:
+        return to == State::TargetStarting;
+    case State::TargetStarting:
+        return to == State::ToolStarting;
+    case State::ToolStarting:
+        return to == State::Running;
+    case State::Running:
+        return to == State::ToolStopping
+            || to == State::Stopped;
+    case State::ToolStopping:
+        return to == State::TargetStopping;
+    case State::TargetStopping:
+        return to == State::Stopped;
+    case State::Stopped:
         return false;
     }
     qDebug() << "UNKNOWN DEBUGGER STATE:" << from;
     return false;
 }
 
-void RunControl::setState(RunControl::State state)
+void RunControlPrivate::checkState(State expectedState)
 {
-    if (!isAllowedTransition(d->state, state)) {
-        qDebug() << "Invalid run state transition from " << d->state << " to " << state;
+    if (state != expectedState)
+        qDebug() << "Unexpected state " << expectedState << " have: " << state;
+}
+
+void RunControlPrivate::setState(State newState)
+{
+    if (!isAllowedTransition(state, newState))
+        qDebug() << "Invalid run state transition from " << state << " to " << newState;
+
+    state = newState;
+
+    // Extra reporting.
+    switch (state) {
+    case State::Running:
+        emit q->started();
+        break;
+    case State::Stopped:
+        emit q->finished();
+        state = State::Initialized; // Reset for potential re-running.
+        break;
+    default:
+        break;
     }
-    d->state = state;
 }
 
 /*!
@@ -803,21 +1025,21 @@ void RunControl::bringApplicationToForeground()
 
 void RunControl::reportApplicationStart()
 {
-    setState(State::Running);
-    emit started(QPrivateSignal());
+    // QTC_CHECK(false); FIXME: Legacy, ToolRunner should emit started() instead.
+    d->onToolStarted();
+    emit started();
 }
 
 void RunControl::reportApplicationStop()
 {
-    if (d->state == State::Stopped) {
+    // QTC_CHECK(false); FIXME: Legacy, ToolRunner should emit stopped() instead.
+    if (d->state == RunControlPrivate::State::Stopped) {
         // FIXME: Currently various tool implementations call reportApplicationStop()
         // multiple times. Fix it there and then add a soft assert here.
         return;
     }
-    setState(State::Stopped);
-    QTC_CHECK(d->applicationProcessHandle.isValid());
-    setApplicationProcessHandle(Utils::ProcessHandle());
-    emit finished(QPrivateSignal());
+    d->onToolStopped();
+    emit finished();
 }
 
 void RunControl::bringApplicationToForegroundInternal()
@@ -846,18 +1068,6 @@ bool Runnable::canReUseOutputPane(const Runnable &other) const
 }
 
 
-// SimpleRunControlPrivate
-
-namespace Internal {
-
-class SimpleRunControlPrivate
-{
-public:
-    ApplicationLauncher m_launcher;
-};
-
-} // Internal
-
 // FIXME: Remove once ApplicationLauncher signalling does not depend on device.
 static bool isSynchronousLauncher(RunControl *runControl)
 {
@@ -868,125 +1078,140 @@ static bool isSynchronousLauncher(RunControl *runControl)
     return !deviceId.isValid() || deviceId == ProjectExplorer::Constants::DESKTOP_DEVICE_TYPE;
 }
 
-SimpleRunControl::SimpleRunControl(RunConfiguration *runConfiguration, Core::Id mode)
-    : RunControl(runConfiguration, mode), d(new Internal::SimpleRunControlPrivate)
+
+// SimpleTargetRunner
+
+SimpleTargetRunner::SimpleTargetRunner(RunControl *runControl)
+    : TargetRunner(runControl)
 {
-    setRunnable(runConfiguration->runnable());
-    setIcon(Utils::Icons::RUN_SMALL_TOOLBAR);
 }
 
-SimpleRunControl::~SimpleRunControl()
+void SimpleTargetRunner::start()
 {
-    delete d;
-}
+    m_launcher.disconnect(this);
 
-ApplicationLauncher &SimpleRunControl::applicationLauncher()
-{
-    return d->m_launcher;
-}
+    Runnable r = runControl()->runnable();
 
-void SimpleRunControl::start()
-{
-    reportApplicationStart();
-    d->m_launcher.disconnect(this);
+    if (isSynchronousLauncher(runControl())) {
 
-    Runnable r = runnable();
-
-    if (isSynchronousLauncher(this)) {
-
-        connect(&d->m_launcher, &ApplicationLauncher::appendMessage,
-                this, static_cast<void(RunControl::*)(const QString &, OutputFormat)>(&RunControl::appendMessage));
-        connect(&d->m_launcher, &ApplicationLauncher::processStarted,
-                this, &SimpleRunControl::onProcessStarted);
-        connect(&d->m_launcher, &ApplicationLauncher::processExited,
-                this, &SimpleRunControl::onProcessFinished);
+        connect(&m_launcher, &ApplicationLauncher::appendMessage,
+                this, &TargetRunner::appendMessage);
+        connect(&m_launcher, &ApplicationLauncher::processStarted,
+                this, &SimpleTargetRunner::onProcessStarted);
+        connect(&m_launcher, &ApplicationLauncher::processExited,
+                this, &SimpleTargetRunner::onProcessFinished);
 
         QTC_ASSERT(r.is<StandardRunnable>(), return);
         const QString executable = r.as<StandardRunnable>().executable;
         if (executable.isEmpty()) {
-            appendMessage(RunControl::tr("No executable specified.") + '\n',
-                          Utils::ErrorMessageFormat);
-            reportApplicationStop();
+            emit failed(RunControl::tr("No executable specified.") + '\n');
         }  else if (!QFileInfo::exists(executable)) {
-            appendMessage(RunControl::tr("Executable %1 does not exist.")
-                          .arg(QDir::toNativeSeparators(executable)) + '\n',
-                          Utils::ErrorMessageFormat);
-            reportApplicationStop();
+            emit failed(RunControl::tr("Executable %1 does not exist.")
+                        .arg(QDir::toNativeSeparators(executable)) + '\n');
         } else {
             QString msg = RunControl::tr("Starting %1...").arg(QDir::toNativeSeparators(executable)) + '\n';
             appendMessage(msg, Utils::NormalMessageFormat);
-            d->m_launcher.start(r);
-            setApplicationProcessHandle(d->m_launcher.applicationPID());
+            m_launcher.start(r);
         }
 
     } else {
 
-        connect(&d->m_launcher, &ApplicationLauncher::reportError,
-                this, [this](const QString &error) {
-                    appendMessage(error, Utils::ErrorMessageFormat);
-                });
+        connect(&m_launcher, &ApplicationLauncher::reportError,
+                this, &TargetRunner::failed);
 
-        connect(&d->m_launcher, &ApplicationLauncher::remoteStderr,
+        connect(&m_launcher, &ApplicationLauncher::remoteStderr,
                 this, [this](const QByteArray &output) {
                     appendMessage(QString::fromUtf8(output), Utils::StdErrFormatSameLine);
                 });
 
-        connect(&d->m_launcher, &ApplicationLauncher::remoteStdout,
+        connect(&m_launcher, &ApplicationLauncher::remoteStdout,
                 this, [this](const QByteArray &output) {
                     appendMessage(QString::fromUtf8(output), Utils::StdOutFormatSameLine);
                 });
 
-        connect(&d->m_launcher, &ApplicationLauncher::finished,
+        connect(&m_launcher, &ApplicationLauncher::finished,
                 this, [this] {
-                    d->m_launcher.disconnect(this);
-                    reportApplicationStop();
+                    m_launcher.disconnect(this);
+                    emit stopped();
                 });
 
-        connect(&d->m_launcher, &ApplicationLauncher::reportProgress,
+        connect(&m_launcher, &ApplicationLauncher::reportProgress,
                 this, [this](const QString &progressString) {
                     appendMessage(progressString + '\n', Utils::NormalMessageFormat);
                 });
 
-        d->m_launcher.start(r, device());
-
+        m_launcher.start(r, runControl()->device());
     }
 }
 
-void SimpleRunControl::stop()
+void SimpleTargetRunner::stop()
 {
-    d->m_launcher.stop();
+    m_launcher.stop();
 }
 
-void SimpleRunControl::onProcessStarted()
+void SimpleTargetRunner::onProcessStarted()
 {
     // Console processes only know their pid after being started
-    setApplicationProcessHandle(d->m_launcher.applicationPID());
-    bringApplicationToForeground();
+    emit started();
+    runControl()->setApplicationProcessHandle(m_launcher.applicationPID());
+    runControl()->bringApplicationToForeground();
 }
 
-void SimpleRunControl::onProcessFinished(int exitCode, QProcess::ExitStatus status)
+void SimpleTargetRunner::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     QString msg;
-    QString exe = runnable().as<StandardRunnable>().executable;
+    QString exe = runControl()->runnable().as<StandardRunnable>().executable;
     if (status == QProcess::CrashExit)
         msg = tr("%1 crashed.").arg(QDir::toNativeSeparators(exe));
     else
         msg = tr("%1 exited with code %2").arg(QDir::toNativeSeparators(exe)).arg(exitCode);
-    appendMessage(msg + QLatin1Char('\n'), Utils::NormalMessageFormat);
-    reportApplicationStop();
+    appendMessage(msg + '\n', Utils::NormalMessageFormat);
+    emit stopped();
 }
+
+
+// TargetRunner
+
+TargetRunner::TargetRunner(RunControl *runControl)
+    : m_runControl(runControl)
+{
+    if (runControl)
+        runControl->setTargetRunner(this);
+}
+
+RunControl *TargetRunner::runControl() const
+{
+    return m_runControl;
+}
+
+void TargetRunner::appendMessage(const QString &msg, OutputFormat format)
+{
+    m_runControl->appendMessage(msg, format);
+}
+
 
 // ToolRunner
 
 ToolRunner::ToolRunner(RunControl *runControl)
     : m_runControl(runControl)
 {
-    runControl->setToolRunner(this);
+    if (runControl)
+        runControl->setToolRunner(this);
 }
 
 RunControl *ToolRunner::runControl() const
 {
     return m_runControl;
+}
+
+void ToolRunner::appendMessage(const QString &msg, OutputFormat format)
+{
+    m_runControl->appendMessage(msg, format);
+}
+
+IDevice::ConstPtr ToolRunner::device() const
+{
+    return m_runControl->device();
 }
 
 } // namespace ProjectExplorer

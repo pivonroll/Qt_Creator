@@ -22,40 +22,45 @@
 ** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
+#pragma once
 
-#include "qbsprojectfile.h"
+#include "androidconfigurations.h"
 
-#include "qbsproject.h"
-#include "qbsprojectmanagerconstants.h"
+#include <memory>
 
-namespace QbsProjectManager {
+namespace Android {
 namespace Internal {
 
-QbsProjectFile::QbsProjectFile(QbsProject *parent, const Utils::FileName &fileName) : Core::IDocument(parent),
-    m_project(parent)
-{
-    setId("Qbs.ProjectFile");
-    setMimeType(Constants::MIME_TYPE);
-    setFilePath(fileName);
-}
+class AndroidToolManager;
+class AvdManagerOutputParser;
 
-Core::IDocument::ReloadBehavior QbsProjectFile::reloadBehavior(ChangeTrigger state, ChangeType type) const
+class AndroidAvdManager
 {
-    Q_UNUSED(state);
-    Q_UNUSED(type);
-    return BehaviorSilent;
-}
+public:
+    AndroidAvdManager(const AndroidConfig& config = AndroidConfigurations::currentConfig());
+    ~AndroidAvdManager();
 
-bool QbsProjectFile::reload(QString *errorString, ReloadFlag flag, ChangeType type)
-{
-    Q_UNUSED(errorString)
-    Q_UNUSED(flag)
-    if (type == TypePermissions)
-        return true;
-    m_project->delayParsing();
-    return true;
-}
+    bool avdManagerUiToolAvailable() const;
+    void launchAvdManagerUiTool() const;
+    QFuture<AndroidConfig::CreateAvdInfo> createAvd(AndroidConfig::CreateAvdInfo info) const;
+    bool removeAvd(const QString &name) const;
+    QFuture<AndroidDeviceInfoList> avdList() const;
+
+    QString startAvd(const QString &name) const;
+    bool startAvdAsync(const QString &avdName) const;
+    QString findAvd(const QString &avdName) const;
+    QString waitForAvd(const QString &avdName,
+                       const QFutureInterface<bool> &fi = QFutureInterface<bool>()) const;
+    bool isAvdBooted(const QString &device) const;
+
+private:
+    bool waitForBooted(const QString &serialNumber, const QFutureInterface<bool> &fi) const;
+
+private:
+    const AndroidConfig &m_config;
+    std::unique_ptr<AndroidToolManager> m_androidTool;
+    std::unique_ptr<AvdManagerOutputParser> m_parser;
+};
 
 } // namespace Internal
-} // namespace QbsProjectManager
-
+} // namespace Android

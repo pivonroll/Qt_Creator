@@ -74,14 +74,7 @@ using namespace Utils;
 namespace QmakeProjectManager {
 namespace Internal {
 
-class QmakeProjectFile : public Core::IDocument
-{
-public:
-    explicit QmakeProjectFile(const FileName &fileName);
-
-    ReloadBehavior reloadBehavior(ChangeTrigger state, ChangeType type) const override;
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type) override;
-};
+const int UPDATE_INTERVAL = 3000;
 
 /// Watches folders for QmakePriFile nodes
 /// use one file system watcher to watch all folders
@@ -156,30 +149,6 @@ QDebug operator<<(QDebug d, const  QmakeProjectFiles &f)
     return d;
 }
 
-// ----------- QmakeProjectFile
-
-QmakeProjectFile::QmakeProjectFile(const FileName &fileName)
-{
-    setId("Qmake.ProFile");
-    setMimeType(QmakeProjectManager::Constants::PROFILE_MIMETYPE);
-    setFilePath(fileName);
-}
-
-Core::IDocument::ReloadBehavior QmakeProjectFile::reloadBehavior(ChangeTrigger state, ChangeType type) const
-{
-    Q_UNUSED(state)
-    Q_UNUSED(type)
-    return BehaviorSilent;
-}
-
-bool QmakeProjectFile::reload(QString *errorString, ReloadFlag flag, ChangeType type)
-{
-    Q_UNUSED(errorString)
-    Q_UNUSED(flag)
-    Q_UNUSED(type)
-    return true;
-}
-
 static QList<QmakeProject *> s_projects;
 
 } // namespace Internal
@@ -191,22 +160,22 @@ static QList<QmakeProject *> s_projects;
   */
 
 QmakeProject::QmakeProject(const FileName &fileName) :
-    m_projectFiles(new QmakeProjectFiles),
+    Project(QmakeProjectManager::Constants::PROFILE_MIMETYPE, fileName),
     m_qmakeVfs(new QMakeVfs),
     m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
 {
     s_projects.append(this);
     setId(Constants::QMAKEPROJECT_ID);
-    setDocument(new QmakeProjectFile(fileName));
     setProjectContext(Core::Context(QmakeProjectManager::Constants::PROJECT_ID));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
     setRequiredKitPredicate(QtSupport::QtKitInformation::qtVersionPredicate());
+    setDisplayName(fileName.toFileInfo().completeBaseName());
 
     const QTextCodec *codec = Core::EditorManager::defaultTextCodec();
     m_qmakeVfs->setTextCodec(codec);
 
     m_asyncUpdateTimer.setSingleShot(true);
-    m_asyncUpdateTimer.setInterval(3000);
+    m_asyncUpdateTimer.setInterval(UPDATE_INTERVAL);
     connect(&m_asyncUpdateTimer, &QTimer::timeout, this, &QmakeProject::asyncUpdate);
 
     m_rootProFile = std::make_unique<QmakeProFile>(this, projectFilePath());
@@ -230,7 +199,6 @@ QmakeProject::~QmakeProject()
     setRootProjectNode(nullptr);
     m_rootProFile.reset();
 
-    delete m_projectFiles;
     m_cancelEvaluate = true;
     Q_ASSERT(m_qmakeGlobalsRefCnt == 0);
     delete m_qmakeVfs;
@@ -239,32 +207,6 @@ QmakeProject::~QmakeProject()
 QmakeProFile *QmakeProject::rootProFile() const
 {
     return m_rootProFile.get();
-}
-
-void QmakeProject::updateFileList()
-{
-    QmakeProjectFiles files;
-    rootProjectNode()->forEachNode([&](FileNode *fileNode) {
-        const int type = static_cast<int>(fileNode->fileType());
-        QStringList &targetList = fileNode->isGenerated() ? files.generatedFiles[type] : files.files[type];
-        targetList.push_back(fileNode->filePath().toString());
-    }, [&](FolderNode *folderNode) {
-        if (ProjectNode *projectNode = folderNode->asProjectNode())
-            files.proFiles.append(projectNode->filePath().toString());
-        if (dynamic_cast<ResourceEditor::ResourceTopLevelNode *>(folderNode))
-            files.files[static_cast<int>(FileType::Resource)].push_back(folderNode->filePath().toString());
-    });
-
-    for (QStringList &f : files.files)
-        f.removeDuplicates();
-    for (QStringList &f : files.generatedFiles)
-        f.removeDuplicates();
-    files.proFiles.removeDuplicates();
-
-    if (files != *m_projectFiles) {
-        *m_projectFiles = files;
-        emit fileListChanged();
-    }
 }
 
 Project::RestoreResult QmakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
@@ -541,7 +483,8 @@ void QmakeProject::scheduleAsyncUpdate(QmakeProFile::AsyncUpdateDelay delay)
 void QmakeProject::startAsyncTimer(QmakeProFile::AsyncUpdateDelay delay)
 {
     m_asyncUpdateTimer.stop();
-    m_asyncUpdateTimer.setInterval(qMin(m_asyncUpdateTimer.interval(), delay == QmakeProFile::ParseLater ? 3000 : 0));
+    m_asyncUpdateTimer.setInterval(qMin(m_asyncUpdateTimer.interval(),
+                                        delay == QmakeProFile::ParseLater ? UPDATE_INTERVAL : 0));
     m_asyncUpdateTimer.start();
 }
 
@@ -576,7 +519,6 @@ void QmakeProject::decrementPendingEvaluateFutures()
             setAllBuildConfigurationsEnabled(true);
 
             m_asyncUpdateState = Base;
-            updateFileList();
             updateCodeModels();
             updateBuildSystemData();
             if (activeTarget())
@@ -595,7 +537,7 @@ bool QmakeProject::wasEvaluateCanceled()
 
 void QmakeProject::asyncUpdate()
 {
-    m_asyncUpdateTimer.setInterval(3000);
+    m_asyncUpdateTimer.setInterval(UPDATE_INTERVAL);
 
     m_qmakeVfs->invalidateCache();
 
@@ -632,26 +574,6 @@ bool QmakeProject::supportsKit(Kit *k, QString *errorMessage) const
     if (!version && errorMessage)
         *errorMessage = tr("No Qt version set in kit.");
     return version;
-}
-
-QString QmakeProject::displayName() const
-{
-    return projectFilePath().toFileInfo().completeBaseName();
-}
-
-QStringList QmakeProject::files(FilesMode fileMode) const
-{
-    QStringList files;
-    for (int i = 0; i < static_cast<int>(FileType::FileTypeSize); ++i) {
-        if (fileMode & SourceFiles)
-            files += m_projectFiles->files[i];
-        if (fileMode & GeneratedFiles)
-            files += m_projectFiles->generatedFiles[i];
-    }
-
-    files.removeDuplicates();
-
-    return files;
 }
 
 // Find the folder that contains a file with a certain name (recurse down)
@@ -1086,10 +1008,8 @@ void CentralizedFolderWatcher::delayedFolderChanged(const QString &folder)
         m_recursiveWatchedFolders += tmp;
     }
 
-    if (newOrRemovedFiles) {
-        m_project->updateFileList();
+    if (newOrRemovedFiles)
         m_project->updateCodeModels();
-    }
 }
 
 bool QmakeProject::needsConfiguration() const
@@ -1294,14 +1214,15 @@ void QmakeProject::collectLibraryData(const QmakeProFile *file, DeploymentData &
                 QString version = file->singleVariableValue(Variable::Version);
                 if (version.isEmpty())
                     version = QLatin1String("1.0.0");
+                QStringList versionComponents = version.split('.');
+                while (versionComponents.size() < 3)
+                    versionComponents << QLatin1String("0");
                 targetFileName += QLatin1Char('.');
-                while (true) {
+                while (!versionComponents.isEmpty()) {
+                    const QString versionString = versionComponents.join(QLatin1Char('.'));
                     deploymentData.addFile(destDirFor(ti).toString() + '/'
-                            + targetFileName + version, targetPath);
-                    const QString tmpVersion = version.left(version.lastIndexOf(QLatin1Char('.')));
-                    if (tmpVersion == version)
-                        break;
-                    version = tmpVersion;
+                            + targetFileName + versionString, targetPath);
+                    versionComponents.removeLast();
                 }
             }
         }
@@ -1346,7 +1267,16 @@ void QmakeProject::testToolChain(ToolChain *tc, const Utils::FileName &path) con
         return;
 
     const Utils::FileName expected = tc->compilerCommand();
-    if (expected != path) {
+
+    Environment env = Environment::systemEnvironment();
+    if (Target *t = activeTarget()) {
+        if (BuildConfiguration *bc = t->activeBuildConfiguration())
+            env = bc->environment();
+        else
+            t->kit()->addToEnvironment(env);
+    }
+
+    if (!env.isSameExecutable(path.toString(), expected.toString())) {
         const QPair<Utils::FileName, Utils::FileName> pair = qMakePair(expected, path);
         if (!m_toolChainWarnings.contains(pair)) {
             TaskHub::addTask(Task(Task::Warning,
@@ -1382,9 +1312,9 @@ QString QmakeProject::executableFor(const QmakeProFile *file)
     TargetInformation ti = file->targetInformation();
     QString target;
 
-    if (tc->targetAbi().os() == Abi::DarwinOS) {
-        if (file->variableValue(Variable::Config).contains(QLatin1String("app_bundle")))
-            target = ti.target + QLatin1String(".app/Contents/MacOS/") + ti.target;
+    if (tc->targetAbi().os() == Abi::DarwinOS
+            && file->variableValue(Variable::Config).contains("app_bundle")) {
+        target = ti.target + ".app/Contents/MacOS/" + ti.target;
     } else {
         QString extension = file->singleVariableValue(Variable::TargetExt);
         target = ti.target + extension;

@@ -23,41 +23,18 @@
 **
 ****************************************************************************/
 
-#include "qmlprojectfile.h"
-#include "qmlproject.h"
-#include "qmlprojectconstants.h"
-#include <utils/qtcassert.h>
+import QtQuick 2.8
 
-namespace QmlProjectManager {
-namespace Internal {
+Rectangle {
+    VisualItemModel {
+        id: itemModel
+        Rectangle { height: 30; width: 80; color: "red" }
+        Rectangle { height: 30; width: 80; color: "green" }
+        Rectangle { height: 30; width: 80; color: "blue" }
+    }
 
-QmlProjectFile::QmlProjectFile(QmlProject *parent, const Utils::FileName &fileName) :
-    m_project(parent)
-{
-    QTC_CHECK(m_project);
-    QTC_CHECK(!fileName.isEmpty());
-    setId("Qml.ProjectFile");
-    setMimeType(QLatin1String(Constants::QMLPROJECT_MIMETYPE));
-    setFilePath(fileName);
+    ListView {
+        anchors.fill: parent
+        model: itemModel
+    }
 }
-
-Core::IDocument::ReloadBehavior QmlProjectFile::reloadBehavior(ChangeTrigger state, ChangeType type) const
-{
-    Q_UNUSED(state)
-    Q_UNUSED(type)
-    return BehaviorSilent;
-}
-
-bool QmlProjectFile::reload(QString *errorString, ReloadFlag flag, ChangeType type)
-{
-    Q_UNUSED(errorString)
-    Q_UNUSED(flag)
-
-    if (type == TypeContents)
-        m_project->refreshProjectFile();
-
-    return true;
-}
-
-} // namespace Internal
-} // namespace QmlProjectManager

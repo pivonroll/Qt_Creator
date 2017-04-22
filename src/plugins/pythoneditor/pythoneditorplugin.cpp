@@ -94,11 +94,6 @@ class PythonProject : public Project
 public:
     explicit PythonProject(const Utils::FileName &filename);
 
-    QString displayName() const override;
-
-    QStringList files(FilesMode) const override { return m_files; }
-    QStringList files() const { return m_files; }
-
     bool addFiles(const QStringList &filePaths);
     bool removeFiles(const QStringList &filePaths);
     bool setFiles(const QStringList &filePaths);
@@ -119,48 +114,13 @@ private:
     QHash<QString, QString> m_rawListEntries;
 };
 
-class PythonProjectFile : public Core::IDocument
-{
-public:
-    PythonProjectFile(PythonProject *parent, const FileName &fileName) : m_project(parent)
-    {
-        setId("Generic.ProjectFile");
-        setMimeType(PythonMimeType);
-        setFilePath(fileName);
-    }
-
-    ReloadBehavior reloadBehavior(ChangeTrigger state, ChangeType type) const override
-    {
-        Q_UNUSED(state)
-        Q_UNUSED(type)
-        return BehaviorSilent;
-    }
-
-    bool reload(QString *errorString, ReloadFlag flag, ChangeType type) override
-    {
-        Q_UNUSED(errorString)
-        Q_UNUSED(flag)
-        if (type == TypePermissions)
-            return true;
-        m_project->refresh();
-        return true;
-    }
-
-private:
-    PythonProject *m_project;
-};
-
 class PythonProjectNode : public ProjectNode
 {
 public:
     PythonProjectNode(PythonProject *project);
 
     bool showInSimpleTree() const override;
-
-    QList<ProjectAction> supportedActions(Node *node) const override;
-
     QString addFileFilter() const override;
-
     bool renameFile(const QString &filePath, const QString &newFilePath) override;
 
 private:
@@ -356,7 +316,7 @@ public:
 
         PythonProject *project = static_cast<PythonProject *>(parent->project());
         QList<Core::Id> allIds;
-        foreach (const QString &file, project->files())
+        foreach (const QString &file, project->files(ProjectExplorer::Project::AllFiles))
             allIds.append(idFromScript(file));
         return allIds;
     }
@@ -371,7 +331,7 @@ public:
         if (!canHandle(parent))
             return false;
         PythonProject *project = static_cast<PythonProject *>(parent->project());
-        return project->files().contains(scriptFromId(id));
+        return project->files(ProjectExplorer::Project::AllFiles).contains(scriptFromId(id));
     }
 
     bool canRestore(Target *parent, const QVariantMap &map) const override
@@ -409,19 +369,13 @@ private:
     }
 };
 
-PythonProject::PythonProject(const FileName &fileName)
+PythonProject::PythonProject(const FileName &fileName) :
+    Project(Constants::C_PY_MIMETYPE, fileName, [this]() { refresh(); })
 {
     setId(PythonProjectId);
-    setDocument(new PythonProjectFile(this, fileName));
-    DocumentManager::addDocument(document());
-
     setProjectContext(Context(PythonProjectContext));
     setProjectLanguages(Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
-}
-
-QString PythonProject::displayName() const
-{
-    return projectFilePath().toFileInfo().completeBaseName();
+    setDisplayName(fileName.toFileInfo().completeBaseName());
 }
 
 static QStringList readLines(const QString &absoluteFileName)
@@ -533,7 +487,6 @@ void PythonProject::parseProject()
     m_rawFileList = readLines(projectFilePath().toString());
     m_rawFileList << projectFilePath().fileName();
     m_files = processEntries(m_rawFileList, &m_rawListEntries);
-    emit fileListChanged();
 }
 
 /**
@@ -692,13 +645,6 @@ bool PythonProjectNode::showInSimpleTree() const
     return true;
 }
 
-QList<ProjectAction> PythonProjectNode::supportedActions(Node *node) const
-{
-    Q_UNUSED(node);
-    //return { AddNewFile, AddExistingFile, AddExistingDirectory, RemoveFile, Rename };
-    return {};
-}
-
 QString PythonProjectNode::addFileFilter() const
 {
     return QLatin1String("*.py");
@@ -728,7 +674,9 @@ RunControl *PythonRunControlFactory::create(RunConfiguration *runConfiguration, 
 {
     Q_UNUSED(errorMessage)
     QTC_ASSERT(canRun(runConfiguration, mode), return 0);
-    return new SimpleRunControl(runConfiguration, mode);
+    auto runControl = new RunControl(runConfiguration, mode);
+    (void) new SimpleTargetRunner(runControl);
+    return runControl;
 }
 
 // PythonRunConfigurationWidget

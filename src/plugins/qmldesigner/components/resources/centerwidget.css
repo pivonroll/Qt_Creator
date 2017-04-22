@@ -28,17 +28,9 @@ QTabBar#centralTabBar::tab:selected {
     color: creatorTheme.QmlDesignerTabDark;
 }
 
-QToolButton {
+QToolButton#centralTabBar {
     background-color: creatorTheme.QmlDesignerBackgroundColorDarkAlternate;
     width: 08px;
     height: 16px;
     border: none;
-}
-
-QSplitter::handle:horizontal {
-    width: 0px;
-}
-
-QSplitter::handle:vertical {
-    height: 0px;
 }

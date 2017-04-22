@@ -27,10 +27,9 @@
 
 #include "debugger_global.h"
 #include "debuggerconstants.h"
+#include "debuggerengine.h"
 
 #include <projectexplorer/runconfiguration.h>
-
-#include <functional>
 
 namespace Debugger {
 
@@ -38,24 +37,34 @@ class RemoteSetupResult;
 class DebuggerStartParameters;
 class DebuggerRunControl;
 
-namespace Internal { class DebuggerEngine; }
-
 DEBUGGER_EXPORT DebuggerRunControl *createDebuggerRunControl(const DebuggerStartParameters &sp,
                                                              ProjectExplorer::RunConfiguration *runConfig,
                                                              QString *errorMessage,
                                                              Core::Id runMode = ProjectExplorer::Constants::DEBUG_RUN_MODE);
 
-
-struct OutputProcessor
+class DEBUGGER_EXPORT DebuggerRunTool : public ProjectExplorer::ToolRunner
 {
-    enum OutputChannel
-    {
-        StandardOut,
-        StandardError
-    };
+    Q_OBJECT
 
-    std::function<void(const QString &msg, OutputChannel channel)> process;
-    bool logToAppOutputPane = true;
+public:
+    DebuggerRunTool(ProjectExplorer::RunControl *runControl,
+                    const DebuggerStartParameters &sp,
+                    QString *errorMessage = nullptr); // Use.
+    DebuggerRunTool(ProjectExplorer::RunControl *runControl,
+                    const Internal::DebuggerRunParameters &rp,
+                    QString *errorMessage = nullptr); // FIXME: Don't use.
+    ~DebuggerRunTool();
+
+    Internal::DebuggerEngine *engine() const { return m_engine; }
+    DebuggerRunControl *runControl() const;
+
+    void showMessage(const QString &msg, int channel, int timeout = -1);
+
+    void handleFinished();
+
+private:
+    Internal::DebuggerEngine *m_engine = nullptr; // Master engine
+    QStringList m_errors;
 };
 
 class DEBUGGER_EXPORT DebuggerRunControl : public ProjectExplorer::RunControl
@@ -63,15 +72,12 @@ class DEBUGGER_EXPORT DebuggerRunControl : public ProjectExplorer::RunControl
     Q_OBJECT
 
 public:
+    DebuggerRunControl(ProjectExplorer::RunConfiguration *runConfig, Core::Id runMode);
     ~DebuggerRunControl() override;
 
     // ProjectExplorer::RunControl
     void start() override;
-    bool promptToStop(bool *prompt = 0) const override;
     void stop() override; // Called from SnapshotWindow.
-    QString displayName() const override;
-    bool supportsReRunning() const override;
-    void handleApplicationOutput(const QString &msg, int channel);
 
     void startFailed();
     void notifyEngineRemoteServerRunning(const QByteArray &msg, int pid);
@@ -84,26 +90,15 @@ public:
 
     void showMessage(const QString &msg, int channel = LogDebug);
 
-    DebuggerStartParameters &startParameters();
-
-    void setOutputProcessor(OutputProcessor *processor);
+    DebuggerStartParameters &startParameters(); // Used in Boot2Qt.
 
 signals:
     void requestRemoteSetup();
     void aboutToNotifyInferiorSetupOk();
     void stateChanged(Debugger::DebuggerState state);
 
-private:
-    void handleFinished();
-
-    friend DebuggerRunControl *createHelper(ProjectExplorer::RunConfiguration *runConfig,
-                                            Internal::DebuggerEngine *engine);
-
-    DebuggerRunControl(ProjectExplorer::RunConfiguration *runConfig,
-                       Internal::DebuggerEngine *engine);
-
-    Internal::DebuggerEngine *m_engine;
-    OutputProcessor *m_outputProcessor = 0;
+public:
+    Internal::DebuggerEngine *m_engine = nullptr; // FIXME: Remove.
 };
 
 } // namespace Debugger

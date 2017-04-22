@@ -39,7 +39,6 @@
 #include <debugger/debuggerkitinformation.h>
 #include <debugger/analyzer/analyzermanager.h>
 #include <debugger/analyzer/analyzerstartparameters.h>
-#include <debugger/analyzer/analyzerruncontrol.h>
 #include <projectexplorer/environmentaspect.h>
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/project.h>
@@ -125,15 +124,17 @@ RunControl *QnxRunControlFactory::create(RunConfiguration *runConfig, Core::Id m
     auto rc = qobject_cast<QnxRunConfiguration *>(runConfig);
     QTC_ASSERT(rc, return 0);
 
-    if (mode == ProjectExplorer::Constants::NORMAL_RUN_MODE)
-        return new QnxRunControl(rc);
+    if (mode == ProjectExplorer::Constants::NORMAL_RUN_MODE) {
+        auto runControl = new QnxRunControl(rc);
+        (void) new SimpleTargetRunner(runControl);
+        return runControl;
+    }
 
     if (mode == ProjectExplorer::Constants::DEBUG_RUN_MODE) {
         const DebuggerStartParameters params = createDebuggerStartParameters(rc);
         DebuggerRunControl *runControl = createDebuggerRunControl(params, runConfig, errorMessage);
         QTC_ASSERT(runControl, return 0);
-        auto debugSupport = new QnxDebugSupport(rc, runControl);
-        connect(runControl, &RunControl::finished, debugSupport, &QnxDebugSupport::handleDebuggingFinished);
+        (void) new QnxDebugSupport(runControl);
         return runControl;
     }
 
@@ -142,16 +143,14 @@ RunControl *QnxRunControlFactory::create(RunConfiguration *runConfig, Core::Id m
         const IDevice::ConstPtr device = DeviceKitInformation::device(kit);
         if (device.isNull())
             return 0;
-        AnalyzerRunControl *runControl = Debugger::createAnalyzerRunControl(runConfig, mode);
+        RunControl *runControl = Debugger::createAnalyzerRunControl(runConfig, mode);
         QTC_ASSERT(runControl, return 0);
-        runControl->setRunnable(runConfig->runnable());
         AnalyzerConnection connection;
         connection.connParams = device->sshParameters();
         connection.analyzerHost = connection.connParams.host;
         connection.analyzerPort = Utils::Port(connection.connParams.port);
         runControl->setConnection(connection);
-        auto analyzeSupport = new QnxAnalyzeSupport(rc, runControl);
-        connect(runControl, &RunControl::finished, analyzeSupport, &QnxAnalyzeSupport::handleProfilingFinished);
+        (void) new QnxAnalyzeSupport(runControl);
         return runControl;
     }
 

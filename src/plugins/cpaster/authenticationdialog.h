@@ -1,7 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
-** Author: Andreas Hartmetz, KDAB (andreas.hartmetz@kdab.com)
+** Copyright (C) 2017 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
@@ -24,14 +23,29 @@
 **
 ****************************************************************************/
 
-#include "analyzerruncontrol.h"
+#pragma once
 
-using namespace ProjectExplorer;
+#include <QDialog>
 
-namespace Debugger {
+QT_BEGIN_NAMESPACE
+class QLineEdit;
+QT_END_NAMESPACE
 
-AnalyzerRunControl::AnalyzerRunControl(RunConfiguration *runConfiguration, Core::Id runMode)
-    : RunControl(runConfiguration, runMode)
-{}
+namespace CodePaster {
 
-} // namespace Debugger
+class AuthenticationDialog : public QDialog
+{
+public:
+    AuthenticationDialog(const QString &details, QWidget *parent = nullptr);
+
+    bool authenticated() const { return m_authenticated; }
+    QString userName() const;
+    QString password() const;
+
+private:
+    bool m_authenticated = false;
+    QLineEdit *m_user = nullptr;
+    QLineEdit *m_pass = nullptr;
+};
+
+} // namespace CodePaster

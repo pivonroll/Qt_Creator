@@ -242,7 +242,7 @@ class MemcheckTool : public QObject
 public:
     MemcheckTool(QObject *parent);
 
-    AnalyzerRunControl *createRunControl(RunConfiguration *runConfiguration, Core::Id runMode);
+    RunControl *createRunControl(RunConfiguration *runConfiguration, Core::Id runMode);
 
 private:
     void updateRunActions();
@@ -421,7 +421,7 @@ MemcheckTool::MemcheckTool(QObject *parent)
         StartRemoteDialog dlg;
         if (dlg.exec() != QDialog::Accepted)
             return;
-        AnalyzerRunControl *rc = createRunControl(runConfig, MEMCHECK_RUN_MODE);
+        RunControl *rc = createRunControl(runConfig, MEMCHECK_RUN_MODE);
         QTC_ASSERT(rc, return);
         const auto runnable = dlg.runnable();
         rc->setRunnable(runnable);
@@ -429,7 +429,7 @@ MemcheckTool::MemcheckTool(QObject *parent)
         connection.connParams = dlg.sshParams();
         rc->setConnection(connection);
         rc->setDisplayName(runnable.executable);
-        ProjectExplorerPlugin::startRunControl(rc, MEMCHECK_RUN_MODE);
+        ProjectExplorerPlugin::startRunControl(rc);
     });
     desc.setMenuGroup(Debugger::Constants::G_ANALYZER_REMOTE_TOOLS);
     Debugger::registerAction("Memcheck.Remote", desc);
@@ -531,7 +531,7 @@ void MemcheckTool::maybeActiveRunConfigurationChanged()
     updateFromSettings();
 }
 
-AnalyzerRunControl *MemcheckTool::createRunControl(RunConfiguration *runConfiguration, Core::Id runMode)
+RunControl *MemcheckTool::createRunControl(RunConfiguration *runConfiguration, Core::Id runMode)
 {
     m_errorModel.setRelevantFrameFinder(makeFrameFinder(runConfiguration
         ? runConfiguration->target()->project()->files(Project::AllFiles) : QStringList()));

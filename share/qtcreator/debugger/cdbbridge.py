@@ -124,7 +124,7 @@ class Dumper(DumperBase):
                     # read raw memory in case the integerString can not be interpreted
                     pass
         val.isBaseClass = val.name == val.type.name
-        val.lIsInScope = True
+        val.nativeValue = nativeValue
         val.laddress = nativeValue.address()
         return val
 
@@ -153,18 +153,20 @@ class Dumper(DumperBase):
 
         code = nativeType.code()
         if code == TypeCodePointer:
-            if nativeType.name().startswith('<function>'):
-                code = TypeCodeFunction
-            else:
+            if not nativeType.name().startswith('<function>'):
                 targetType = self.lookupType(nativeType.targetName(), nativeType.moduleId())
-                return self.createPointerType(targetType)
+                if targetType is not None:
+                    return self.createPointerType(targetType)
+            code = TypeCodeFunction
 
         if code == TypeCodeArray:
-            if nativeType.name().startswith('__fptr()'):
-                code = TypeCodeStruct
-            else:
+            # cdb reports virtual function tables as arrays those ar handled separetly by
+            # the DumperBase. Declare those types as structs prevents a lookup to a none existing type
+            if not nativeType.name().startswith('__fptr()') and not nativeType.name().startswith('<gentype '):
                 targetType = self.lookupType(nativeType.targetName(), nativeType.moduleId())
-                return self.createArrayType(targetType, nativeType.arrayElements())
+                if targetType is not None:
+                    return self.createArrayType(targetType, nativeType.arrayElements())
+            code = TypeCodeStruct
 
         tdata = self.TypeData(self)
         tdata.name = nativeType.name()
@@ -402,12 +404,12 @@ class Dumper(DumperBase):
         return cdbext.lookupType(name, module)
 
     def reportResult(self, result, args):
-        self.report('result={%s}' % (result))
+        cdbext.reportResult('result={%s}' % result)
 
     def readRawMemory(self, address, size):
         mem = cdbext.readRawMemory(address, size)
         if len(mem) != size:
-            raise Exception("Invalid memory request")
+            raise Exception("Invalid memory request: %d bytes from 0x%x" % (size, address))
         return mem
 
     def findStaticMetaObject(self, type):
@@ -437,7 +439,9 @@ class Dumper(DumperBase):
 
         variables = []
         for val in cdbext.listOfLocals(self.partialVariable):
-            variables.append(self.fromNativeValue(val))
+            dumperVal = self.fromNativeValue(val)
+            dumperVal.lIsInScope = not dumperVal.name in self.uninitialized
+            variables.append(dumperVal)
 
         self.handleLocals(variables)
         self.handleWatches(args)
@@ -457,7 +461,37 @@ class Dumper(DumperBase):
         return cdbext.parseAndEvaluate(exp)
 
     def nativeDynamicTypeName(self, address, baseType):
-        return None # FIXME: Seems sufficient, no idea why.
+        return None # Does not work with cdb
+
+    def nativeValueDereferenceReference(self, value):
+        return self.nativeValueDereferencePointer(value)
+
+    def nativeValueDereferencePointer(self, value):
+        def nativeVtCastValue(nativeValue):
+            # If we have a pointer to a derived instance of the pointer type cdb adds a
+            # synthetic '__vtcast_<derived type name>' member as the first child
+            if nativeValue.hasChildren():
+                vtcastCandidate = nativeValue.childFromIndex(0)
+                vtcastCandidateName = vtcastCandidate.name()
+                if vtcastCandidateName.startswith('__vtcast_'):
+                    # found a __vtcast member
+                    # make sure that it is not an actual field
+                    for field in nativeValue.type().fields():
+                        if field.name() == vtcastCandidateName:
+                            return None
+                    return vtcastCandidate
+            return None
+
+        nativeValue = value.nativeValue
+        castVal = nativeVtCastValue(nativeValue)
+        if castVal is not None:
+            val = self.fromNativeValue(castVal)
+        else:
+            val = self.Value(self)
+            val.laddress = value.pointer()
+            val.type = value.type.dereference()
+
+        return val
 
     def callHelper(self, rettype, value, function, args):
         raise Exception("cdb does not support calling functions")
