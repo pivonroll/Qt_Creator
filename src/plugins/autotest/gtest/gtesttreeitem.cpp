@@ -26,9 +26,10 @@
 #include "gtesttreeitem.h"
 #include "gtestconfiguration.h"
 #include "gtestparser.h"
-#include "../autotest_utils.h"
 
+#include <cpptools/cppmodelmanager.h>
 #include <projectexplorer/session.h>
+#include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 
 namespace Autotest {
@@ -57,6 +58,7 @@ QVariant GTestTreeItem::data(int column, int role) const
     }
     case Qt::CheckStateRole:
         switch (type()) {
+        case Root:
         case TestCase:
         case TestFunctionOrSet:
             return checked();
@@ -105,6 +107,8 @@ TestConfiguration *GTestTreeItem::testConfiguration() const
     default:
         return nullptr;
     }
+    if (config)
+        config->setInternalTargets(internalTargets());
     return config;
 }
 
@@ -112,36 +116,8 @@ TestConfiguration *GTestTreeItem::debugConfiguration() const
 {
     GTestConfiguration *config = static_cast<GTestConfiguration *>(testConfiguration());
     if (config)
-        config->setRunMode(DebuggableTestConfiguration::Debug);
+        config->setRunMode(TestRunMode::Debug);
     return config;
-}
-
-// used as key inside getAllTestCases()/getSelectedTestCases() for Google Tests
-class ProFileWithDisplayName
-{
-public:
-    ProFileWithDisplayName(const QString &file, const QString &name)
-        : proFile(file), displayName(name) {}
-    QString proFile;
-    QString displayName;
-
-    bool operator==(const ProFileWithDisplayName &rhs) const
-    {
-        return proFile == rhs.proFile && displayName == rhs.displayName;
-    }
-};
-
-// needed as ProFileWithDisplayName is used as key inside a QHash
-bool operator<(const ProFileWithDisplayName &lhs, const ProFileWithDisplayName &rhs)
-{
-    return lhs.proFile == rhs.proFile ? lhs.displayName < rhs.displayName
-                                      : lhs.proFile < rhs.proFile;
-}
-
-// needed as ProFileWithDisplayName is used as a key inside a QHash
-uint qHash(const ProFileWithDisplayName &lhs)
-{
-    return ::qHash(lhs.proFile) ^ ::qHash(lhs.displayName);
 }
 
 QList<TestConfiguration *> GTestTreeItem::getAllTestConfigurations() const
@@ -152,30 +128,32 @@ QList<TestConfiguration *> GTestTreeItem::getAllTestConfigurations() const
     if (!project || type() != Root)
         return result;
 
-    QHash<ProFileWithDisplayName, int> proFilesWithTestSets;
+    QHash<QString, int> proFilesWithTestSets;
+    QHash<QString, QSet<QString> > proFilesWithInternalTargets;
     for (int row = 0, count = childCount(); row < count; ++row) {
         const GTestTreeItem *child = static_cast<const GTestTreeItem *>(childItem(row));
 
         const int grandChildCount = child->childCount();
         for (int grandChildRow = 0; grandChildRow < grandChildCount; ++grandChildRow) {
             const TestTreeItem *grandChild = child->childItem(grandChildRow);
-            ProFileWithDisplayName key(grandChild->proFile(),
-                                       TestUtils::getCMakeDisplayNameIfNecessary(grandChild->filePath(),
-                                                                                 grandChild->proFile()));
-
+            const QString &key = grandChild->proFile();
             proFilesWithTestSets.insert(key, proFilesWithTestSets[key] + 1);
+            proFilesWithInternalTargets[key].unite(grandChild->internalTargets());
         }
     }
 
-    QHash<ProFileWithDisplayName, int>::ConstIterator it = proFilesWithTestSets.begin();
-    QHash<ProFileWithDisplayName, int>::ConstIterator end = proFilesWithTestSets.end();
+    QHash<QString, int>::ConstIterator it = proFilesWithTestSets.begin();
+    QHash<QString, int>::ConstIterator end = proFilesWithTestSets.end();
     for ( ; it != end; ++it) {
-        const ProFileWithDisplayName &key = it.key();
-        GTestConfiguration *tc = new GTestConfiguration;
-        tc->setTestCaseCount(it.value());
-        tc->setProjectFile(key.proFile);
-        tc->setProject(project);
-        result << tc;
+        const QSet<QString> &internalTargets = proFilesWithInternalTargets[it.key()];
+        for (const QString &target : internalTargets) {
+            GTestConfiguration *tc = new GTestConfiguration;
+            tc->setTestCaseCount(it.value());
+            tc->setProjectFile(it.key());
+            tc->setProject(project);
+            tc->setInternalTarget(target);
+            result << tc;
+        }
     }
 
     return result;
@@ -187,13 +165,6 @@ struct TestCases
     int additionalTestCaseCount = 0;
 };
 
-static const ProFileWithDisplayName createProfile(const TestTreeItem *item)
-{
-    return ProFileWithDisplayName(
-                item->proFile(),
-                TestUtils::getCMakeDisplayNameIfNecessary(item->filePath(), item->proFile()));
-}
-
 QList<TestConfiguration *> GTestTreeItem::getSelectedTestConfigurations() const
 {
     QList<TestConfiguration *> result;
@@ -201,7 +172,8 @@ QList<TestConfiguration *> GTestTreeItem::getSelectedTestConfigurations() const
     if (!project || type() != Root)
         return result;
 
-    QHash<ProFileWithDisplayName, TestCases> proFilesWithCheckedTestSets;
+    QHash<QString, TestCases> proFilesWithCheckedTestSets;
+    QHash<QString, QSet<QString> > proFilesWithInternalTargets;
     for (int row = 0, count = childCount(); row < count; ++row) {
         const GTestTreeItem *child = static_cast<const GTestTreeItem *>(childItem(row));
 
@@ -212,17 +184,21 @@ QList<TestConfiguration *> GTestTreeItem::getSelectedTestConfigurations() const
         case Qt::Unchecked:
             continue;
         case Qt::Checked: {
-            auto &testCases = proFilesWithCheckedTestSets[createProfile(child->childItem(0))];
+            auto &testCases = proFilesWithCheckedTestSets[child->childItem(0)->proFile()];
             testCases.filters.append(gtestFilter(child->state()).arg(child->name()).arg('*'));
             testCases.additionalTestCaseCount += grandChildCount - 1;
+            proFilesWithInternalTargets[child->childItem(0)->proFile()].unite(
+                        child->internalTargets());
             break;
         }
         case Qt::PartiallyChecked: {
             for (int grandChildRow = 0; grandChildRow < grandChildCount; ++grandChildRow) {
                 const TestTreeItem *grandChild = child->childItem(grandChildRow);
                 if (grandChild->checked() == Qt::Checked) {
-                    proFilesWithCheckedTestSets[createProfile(grandChild)].filters.append(
+                    proFilesWithCheckedTestSets[grandChild->proFile()].filters.append(
                                 gtestFilter(child->state()).arg(child->name()).arg(grandChild->name()));
+                    proFilesWithInternalTargets[grandChild->proFile()].unite(
+                                grandChild->internalTargets());
                 }
             }
             break;
@@ -230,16 +206,19 @@ QList<TestConfiguration *> GTestTreeItem::getSelectedTestConfigurations() const
         }
     }
 
-    QHash<ProFileWithDisplayName, TestCases>::ConstIterator it = proFilesWithCheckedTestSets.begin();
-    QHash<ProFileWithDisplayName, TestCases>::ConstIterator end = proFilesWithCheckedTestSets.end();
+    QHash<QString, TestCases>::ConstIterator it = proFilesWithCheckedTestSets.begin();
+    QHash<QString, TestCases>::ConstIterator end = proFilesWithCheckedTestSets.end();
     for ( ; it != end; ++it) {
-        const ProFileWithDisplayName &proFileWithDisplayName = it.key();
-        GTestConfiguration *tc = new GTestConfiguration;
-        tc->setTestCases(it.value().filters);
-        tc->setTestCaseCount(tc->testCaseCount() + it.value().additionalTestCaseCount);
-        tc->setProjectFile(proFileWithDisplayName.proFile);
-        tc->setProject(project);
-        result << tc;
+        const QSet<QString> &internalTargets = proFilesWithInternalTargets[it.key()];
+        for (const QString &target : internalTargets) {
+            GTestConfiguration *tc = new GTestConfiguration;
+            tc->setTestCases(it.value().filters);
+            tc->setTestCaseCount(tc->testCaseCount() + it.value().additionalTestCaseCount);
+            tc->setProjectFile(it.key());
+            tc->setProject(project);
+            tc->setInternalTarget(target);
+            result << tc;
+        }
     }
 
     return result;
@@ -280,7 +259,7 @@ bool GTestTreeItem::modify(const TestParseResult *result)
 
 bool GTestTreeItem::modifyTestSetContent(const GTestParseResult *result)
 {
-    bool hasBeenModified = modifyLineAndColumn(result->line, result->column);
+    bool hasBeenModified = modifyLineAndColumn(result);
     GTestTreeItem::TestStates states = result->disabled ? GTestTreeItem::Disabled
                                                         : GTestTreeItem::Enabled;
     if (m_state != states) {
@@ -314,6 +293,28 @@ QString GTestTreeItem::nameSuffix() const
     if (!suffix.isEmpty())
         suffix += ']';
     return suffix;
+}
+
+QSet<QString> GTestTreeItem::internalTargets() const
+{
+    QSet<QString> result;
+    const auto cppMM = CppTools::CppModelManager::instance();
+    const auto projectInfo = cppMM->projectInfo(ProjectExplorer::SessionManager::startupProject());
+    const QString file = filePath();
+    const QVector<CppTools::ProjectPart::Ptr> projectParts = projectInfo.projectParts();
+    if (projectParts.isEmpty())
+        return TestTreeItem::dependingInternalTargets(cppMM, file);
+    for (const CppTools::ProjectPart::Ptr projectPart : projectParts) {
+        if (projectPart->projectFile == proFile()
+                && Utils::anyOf(projectPart->files, [&file] (const CppTools::ProjectFile &pf) {
+                                return pf.path == file;
+        })) {
+            result.insert(projectPart->buildSystemTarget + '|' + projectPart->projectFile);
+            if (projectPart->buildTargetType != CppTools::ProjectPart::Executable)
+                result.unite(TestTreeItem::dependingInternalTargets(cppMM, file));
+        }
+    }
+    return result;
 }
 
 } // namespace Internal

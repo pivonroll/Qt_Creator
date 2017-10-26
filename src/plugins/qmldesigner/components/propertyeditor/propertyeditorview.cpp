@@ -135,7 +135,7 @@ void PropertyEditorView::changeValue(const QString &name)
     if (propertyName.isNull())
         return;
 
-    if (m_locked)
+    if (locked())
         return;
 
     if (propertyName == "className")
@@ -194,7 +194,8 @@ void PropertyEditorView::changeValue(const QString &name)
         if (qmlObjectNode.modelNode().metaInfo().propertyTypeName(propertyName) == "QUrl"
                 || qmlObjectNode.modelNode().metaInfo().propertyTypeName(propertyName) == "url") { //turn absolute local file paths into relative paths
                 QString filePath = castedValue.toUrl().toString();
-            if (QFileInfo(filePath).exists() && QFileInfo(filePath).isAbsolute()) {
+            QFileInfo fi(filePath);
+            if (fi.exists() && fi.isAbsolute()) {
                 QDir fileDir(QFileInfo(model()->fileUrl().toLocalFile()).absolutePath());
                 castedValue = QUrl(fileDir.relativeFilePath(filePath));
             }
@@ -231,7 +232,7 @@ void PropertyEditorView::changeExpression(const QString &propertyName)
     if (name.isNull())
         return;
 
-    if (m_locked)
+    if (locked())
         return;
 
     if (!m_selectedNode.isValid())
@@ -306,7 +307,7 @@ void PropertyEditorView::exportPopertyAsAlias(const QString &name)
     if (name.isNull())
         return;
 
-    if (m_locked)
+    if (locked())
         return;
 
     if (!m_selectedNode.isValid())
@@ -340,7 +341,7 @@ void PropertyEditorView::removeAliasExport(const QString &name)
     if (name.isNull())
         return;
 
-    if (m_locked)
+    if (locked())
         return;
 
     if (!m_selectedNode.isValid())
@@ -360,6 +361,11 @@ void PropertyEditorView::removeAliasExport(const QString &name)
     } catch (const RewritingException &e) {
         e.showException();
     }
+}
+
+bool PropertyEditorView::locked() const
+{
+    return m_locked;
 }
 
 void PropertyEditorView::updateSize()
@@ -434,11 +440,7 @@ void PropertyEditorView::setupQmlBackend()
     TypeName diffClassName;
     if (m_selectedNode.isValid()) {
         diffClassName = m_selectedNode.metaInfo().typeName();
-        QList<NodeMetaInfo> hierarchy;
-        hierarchy << m_selectedNode.metaInfo();
-        hierarchy << m_selectedNode.metaInfo().superClasses();
-
-        foreach (const NodeMetaInfo &metaInfo, hierarchy) {
+        foreach (const NodeMetaInfo &metaInfo, m_selectedNode.metaInfo().classHierarchy()) {
             if (PropertyEditorQmlBackend::checkIfUrlExists(qmlSpecificsFile))
                 break;
             qmlSpecificsFile = PropertyEditorQmlBackend::getQmlFileUrl(metaInfo.typeName() + "Specifics", metaInfo);
@@ -527,7 +529,6 @@ void PropertyEditorView::modelAttached(Model *model)
 
     m_locked = true;
 
-    resetView();
     if (!m_setupCompleted) {
         m_singleShotTimer->setSingleShot(true);
         m_singleShotTimer->setInterval(100);
@@ -536,6 +537,8 @@ void PropertyEditorView::modelAttached(Model *model)
     }
 
     m_locked = false;
+
+    resetView();
 }
 
 void PropertyEditorView::modelAboutToBeDetached(Model *model)

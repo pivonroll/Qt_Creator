@@ -33,7 +33,6 @@
 QT_BEGIN_NAMESPACE
 class QSettings;
 class QAbstractItemModel;
-class QStandardItemModel;
 QT_END_NAMESPACE
 
 namespace Core {
@@ -58,10 +57,11 @@ public:
     virtual ~NavigationWidgetPlaceHolder();
     static NavigationWidgetPlaceHolder *current(Side side);
     static void setCurrent(Side side, NavigationWidgetPlaceHolder *navWidget);
-    void applyStoredSize(int width);
+    void applyStoredSize();
 
 private:
     void currentModeAboutToChange(Id mode);
+    int storedWidth() const;
 
     Id m_mode;
     Side m_side;

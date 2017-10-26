@@ -27,230 +27,94 @@
 #include "androidglobal.h"
 #include "androidtoolchain.h"
 #include "androidmanager.h"
+#include "androidrunconfigurationwidget.h"
 
 #include <projectexplorer/kitinformation.h>
-#include <projectexplorer/projectexplorer.h>
-#include <projectexplorer/projectexplorersettings.h>
 #include <projectexplorer/target.h>
 #include <qtsupport/qtoutputformatter.h>
 #include <qtsupport/qtkitinformation.h>
-#include <QPlainTextEdit>
-#include <QRegularExpression>
-#include <QToolButton>
 
 #include <utils/qtcassert.h>
-#include <utils/utilsicons.h>
 
 using namespace ProjectExplorer;
 
 namespace Android {
+using namespace Internal;
 
-static QRegularExpression logCatRegExp("([0-9\\-]*\\s+[0-9\\-:.]*)"     // 1. time
-                                        "\\s*"
-                                        "([DEIVWF])"                    // 2. log level
-                                        "\\/"
-                                        "(.*)"                          // 3. TAG
-                                        "\\(\\s*"
-                                        "(\\d+)"                        // 4. PID
-                                        "\\)\\:\\s"
-                                        "(.*)");                        // 5. Message
+const char amStartArgsKey[] = "Android.AmStartArgsKey";
+const char preStartShellCmdsKey[] = "Android.PreStartShellCmdListKey";
+const char postFinishShellCmdsKey[] = "Android.PostFinishShellCmdListKey";
 
-AndroidOutputFormatter::AndroidOutputFormatter(Project *project)
- : QtSupport::QtOutputFormatter(project)
- , m_filtersButton(new QToolButton)
-{
-    auto filtersMenu = new QMenu(m_filtersButton.data());
-
-    m_filtersButton->setToolTip(tr("Filters"));
-    m_filtersButton->setIcon(Utils::Icons::FILTER.icon());
-    m_filtersButton->setProperty("noArrow", true);
-    m_filtersButton->setAutoRaise(true);
-    m_filtersButton->setPopupMode(QToolButton::InstantPopup);
-    m_filtersButton->setMenu(filtersMenu);
-
-    auto logsMenu = filtersMenu->addMenu(tr("Log Level"));
-    addLogAction(All, logsMenu, tr("All"));
-    addLogAction(Verbose, logsMenu, tr("Verbose"));
-    addLogAction(Info, logsMenu, tr("Info"));
-    addLogAction(Debug, logsMenu, tr("Debug"));
-    addLogAction(Warning, logsMenu, tr("Warning"));
-    addLogAction(Error, logsMenu, tr("Error"));
-    addLogAction(Fatal, logsMenu, tr("Fatal"));
-    updateLogMenu();
-    m_appsMenu = filtersMenu->addMenu(tr("Applications"));
-    appendPid(-1, tr("All"));
-}
-
-AndroidOutputFormatter::~AndroidOutputFormatter()
-{}
-
-QList<QWidget *> AndroidOutputFormatter::toolbarWidgets() const
-{
-    return QList<QWidget *>{m_filtersButton.data()};
-}
-
-void AndroidOutputFormatter::appendMessage(const QString &text, Utils::OutputFormat format)
-{
-    if (text.isEmpty())
-        return;
-
-    CachedLine line;
-    line.content = text;
-
-    if (format < Utils::StdOutFormat) {
-        line.level = SkipFiltering;
-        line.pid = -1;
-    } else {
-        QRegularExpressionMatch match = logCatRegExp.match(text);
-        if (!match.hasMatch())
-            return;
-        line.level = None;
-
-        switch (match.captured(2).toLatin1()[0]) {
-        case 'D': line.level = Debug; break;
-        case 'I': line.level = Info; break;
-        case 'V': line.level = Verbose; break;
-        case 'W': line.level = Warning; break;
-        case 'E': line.level = Error; break;
-        case 'F': line.level = Fatal; break;
-        default: return;
-        }
-        line.pid = match.captured(4).toLongLong();
-    }
-
-    m_cachedLines.append(line);
-    if (m_cachedLines.size() > ProjectExplorerPlugin::projectExplorerSettings().maxAppOutputLines)
-        m_cachedLines.pop_front();
-
-    filterMessage(line);
-}
-
-void AndroidOutputFormatter::clear()
-{
-    m_cachedLines.clear();
-}
-
-void AndroidOutputFormatter::appendPid(qint64 pid, const QString &name)
-{
-    if (m_pids.contains(pid))
-        return;
-
-    auto action = m_appsMenu->addAction(name);
-    m_pids[pid] = action;
-    action->setCheckable(true);
-    action->setChecked(pid != -1);
-    connect(action, &QAction::triggered, this, &AndroidOutputFormatter::applyFilter);
-    applyFilter();
-}
-
-void AndroidOutputFormatter::removePid(qint64 pid)
-{
-    if (pid == -1) {
-        for (auto action : m_pids)
-            m_appsMenu->removeAction(action);
-        m_pids.clear();
-    } else {
-        m_appsMenu->removeAction(m_pids[pid]);
-        m_pids.remove(pid);
-    }
-}
-
-void AndroidOutputFormatter::updateLogMenu(LogLevel set, LogLevel reset)
-{
-    m_logLevelFlags |= set;
-    m_logLevelFlags &= ~reset;
-    for (const auto & pair : m_logLevels)
-        pair.second->setChecked((m_logLevelFlags & pair.first) == pair.first);
-
-    applyFilter();
-}
-
-void AndroidOutputFormatter::filterMessage(const CachedLine &line)
-{
-    if (line.level == SkipFiltering || m_pids[-1]->isChecked()) {
-        QtOutputFormatter::appendMessage(line.content, Utils::NormalMessageFormat);
-    } else {
-        // Filter Log Level
-        if (!(m_logLevelFlags & line.level))
-            return;
-
-        // Filter PIDs
-        if (!m_pids[-1]->isChecked()) {
-            auto it = m_pids.find(line.pid);
-            if (it == m_pids.end() || !(*it)->isChecked())
-                return;
-        }
-
-        Utils::OutputFormat format = Utils::NormalMessageFormat;
-        switch (line.level) {
-        case Debug:
-            format = Utils::DebugFormat;
-            break;
-        case Info:
-        case Verbose:
-            format = Utils::StdOutFormat;
-            break;
-
-        case Warning:
-        case Error:
-        case Fatal:
-            format = Utils::StdErrFormat;
-            break;
-        default:
-            return;
-        }
-
-        Utils::OutputFormatter::appendMessage(line.content, format);
-    }
-}
-
-void AndroidOutputFormatter::applyFilter()
-{
-    if (!plainTextEdit())
-        return;
-
-    plainTextEdit()->clear();
-    if (!m_pids[-1]->isChecked()) {
-        bool allOn = true;
-        for (auto action : m_pids) {
-            if (!action->isChecked()) {
-                allOn = false;
-                break;
-            }
-        }
-        m_pids[-1]->setChecked(allOn);
-    } else {
-        for (auto action : m_pids)
-            action->setChecked(true);
-    }
-
-    for (const auto &line : m_cachedLines)
-        filterMessage(line);
-}
-
-AndroidRunConfiguration::AndroidRunConfiguration(Target *parent, Core::Id id)
-    : RunConfiguration(parent, id)
+AndroidRunConfiguration::AndroidRunConfiguration(Target *target)
+    : RunConfiguration(target)
 {
 }
 
-AndroidRunConfiguration::AndroidRunConfiguration(Target *parent, AndroidRunConfiguration *source)
-    : RunConfiguration(parent, source)
+void AndroidRunConfiguration::setPreStartShellCommands(const QStringList &cmdList)
 {
+    m_preStartShellCommands = cmdList;
+}
+
+void AndroidRunConfiguration::setPostFinishShellCommands(const QStringList &cmdList)
+{
+    m_postFinishShellCommands = cmdList;
+}
+
+void AndroidRunConfiguration::setAmStartExtraArgs(const QStringList &args)
+{
+    m_amStartExtraArgs = args;
 }
 
 QWidget *AndroidRunConfiguration::createConfigurationWidget()
 {
-    return 0;// no special running configurations
+    auto configWidget = new AndroidRunConfigurationWidget();
+    configWidget->setAmStartArgs(m_amStartExtraArgs);
+    configWidget->setPreStartShellCommands(m_preStartShellCommands);
+    configWidget->setPostFinishShellCommands(m_postFinishShellCommands);
+    connect(configWidget, &AndroidRunConfigurationWidget::amStartArgsChanged,
+            this, &AndroidRunConfiguration::setAmStartExtraArgs);
+    connect(configWidget, &AndroidRunConfigurationWidget::preStartCmdsChanged,
+            this, &AndroidRunConfiguration::setPreStartShellCommands);
+    connect(configWidget, &AndroidRunConfigurationWidget::postFinishCmdsChanged,
+            this, &AndroidRunConfiguration::setPostFinishShellCommands);
+    return configWidget;
 }
 
 Utils::OutputFormatter *AndroidRunConfiguration::createOutputFormatter() const
 {
-    return new AndroidOutputFormatter(target()->project());
+    return new QtSupport::QtOutputFormatter(target()->project());
 }
 
-const QString AndroidRunConfiguration::remoteChannel() const
+bool AndroidRunConfiguration::fromMap(const QVariantMap &map)
 {
-    return QLatin1String(":5039");
+    m_preStartShellCommands = map.value(preStartShellCmdsKey).toStringList();
+    m_postFinishShellCommands = map.value(postFinishShellCmdsKey).toStringList();
+    m_amStartExtraArgs = map.value(amStartArgsKey).toStringList();
+    return RunConfiguration::fromMap(map);
+}
+
+QVariantMap AndroidRunConfiguration::toMap() const
+{
+    QVariantMap res = RunConfiguration::toMap();
+    res[preStartShellCmdsKey] = m_preStartShellCommands;
+    res[postFinishShellCmdsKey] = m_postFinishShellCommands;
+    res[amStartArgsKey] = m_amStartExtraArgs;
+    return res;
+}
+
+const QStringList &AndroidRunConfiguration::amStartExtraArgs() const
+{
+    return m_amStartExtraArgs;
+}
+
+const QStringList &AndroidRunConfiguration::preStartShellCommands() const
+{
+    return m_preStartShellCommands;
+}
+
+const QStringList &AndroidRunConfiguration::postFinishShellCommands() const
+{
+    return m_postFinishShellCommands;
 }
 
 } // namespace Android

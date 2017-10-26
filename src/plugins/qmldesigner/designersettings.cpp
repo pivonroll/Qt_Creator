@@ -54,6 +54,8 @@ void DesignerSettings::fromSettings(QSettings *settings)
     restoreValue(settings, DesignerSettingsKey::CONTAINERPADDING, 8);
     restoreValue(settings, DesignerSettingsKey::CANVASWIDTH, 10000);
     restoreValue(settings, DesignerSettingsKey::CANVASHEIGHT, 10000);
+    restoreValue(settings, DesignerSettingsKey::ROOT_ELEMENT_INIT_WIDTH, 640);
+    restoreValue(settings, DesignerSettingsKey::ROOT_ELEMENT_INIT_HEIGHT, 480);
     restoreValue(settings, DesignerSettingsKey::WARNING_FOR_FEATURES_IN_DESIGNER, true);
     restoreValue(settings, DesignerSettingsKey::WARNING_FOR_QML_FILES_INSTEAD_OF_UIQML_FILES, true);
     restoreValue(settings, DesignerSettingsKey::WARNING_FOR_DESIGNER_FEATURES_IN_EDITOR, false);
@@ -72,6 +74,8 @@ void DesignerSettings::fromSettings(QSettings *settings)
     restoreValue(settings, DesignerSettingsKey::FORWARD_PUPPET_OUTPUT, QString());
     restoreValue(settings, DesignerSettingsKey::REFORMAT_UI_QML_FILES, true);
     restoreValue(settings, DesignerSettingsKey::IGNORE_DEVICE_PIXEL_RATIO, false);
+    restoreValue(settings, DesignerSettingsKey::STATESEDITOR_EXPANDED, false);
+    restoreValue(settings, DesignerSettingsKey::NAVIGATOR_SHOW_ONLY_VISIBLE_ITEMS, true);
 
     settings->endGroup();
     settings->endGroup();

@@ -32,7 +32,6 @@
 #include "qmljsoutline.h"
 #include "qmljspreviewrunner.h"
 #include "qmljsquickfixassist.h"
-#include "qmljssnippetprovider.h"
 #include "qmltaskmanager.h"
 #include "quicktoolbar.h"
 
@@ -53,7 +52,9 @@
 #include <projectexplorer/project.h>
 #include <projectexplorer/projecttree.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <texteditor/snippets/snippetprovider.h>
 #include <texteditor/texteditorconstants.h>
+#include <texteditor/tabsettings.h>
 #include <utils/qtcassert.h>
 #include <utils/json.h>
 
@@ -101,7 +102,9 @@ QmlJSEditorPlugin::~QmlJSEditorPlugin()
 bool QmlJSEditorPlugin::initialize(const QStringList & /*arguments*/, QString *errorMessage)
 {
     m_modelManager = QmlJS::ModelManagerInterface::instance();
-    addAutoReleasedObject(new QmlJSSnippetProvider);
+    TextEditor::SnippetProvider::registerGroup(Constants::QML_SNIPPETS_GROUP_ID,
+                                               tr("QML", "SnippetProvider"),
+                                               &QmlJSEditorFactory::decorateEditor);
 
     // QML task updating manager
     m_qmlTaskManager = new QmlTaskManager;
@@ -257,11 +260,28 @@ void QmlJSEditorPlugin::reformatFile()
         if (!document->isParsedCorrectly())
             return;
 
-        const QString &newText = QmlJS::reformat(document);
-        QTextCursor tc(m_currentDocument->document());
-        tc.movePosition(QTextCursor::Start);
-        tc.movePosition(QTextCursor::End, QTextCursor::KeepAnchor);
-        tc.insertText(newText);
+        TextEditor::TabSettings tabSettings = m_currentDocument->tabSettings();
+        const QString &newText = QmlJS::reformat(document,
+                                                 tabSettings.m_indentSize,
+                                                 tabSettings.m_tabSize);
+
+        //  QTextDocument::setPlainText cannot be used, as it would reset undo/redo history
+        const auto setNewText = [this, &newText]() {
+            QTextCursor tc(m_currentDocument->document());
+            tc.movePosition(QTextCursor::Start);
+            tc.movePosition(QTextCursor::End, QTextCursor::KeepAnchor);
+            tc.insertText(newText);
+        };
+
+        IEditor *ed = EditorManager::currentEditor();
+        if (ed) {
+            int line = ed->currentLine();
+            int column = ed->currentColumn();
+            setNewText();
+            ed->gotoLine(line, column);
+        } else {
+            setNewText();
+        }
     }
 }
 

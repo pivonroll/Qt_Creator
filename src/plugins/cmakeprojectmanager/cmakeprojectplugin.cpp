@@ -33,7 +33,6 @@
 #include "cmakeprojectnodes.h"
 #include "cmakebuildconfiguration.h"
 #include "cmakerunconfiguration.h"
-#include "cmakesnippetprovider.h"
 #include "cmakeprojectconstants.h"
 #include "cmakelocatorfilter.h"
 #include "cmakesettingspage.h"
@@ -47,6 +46,8 @@
 #include <projectexplorer/kitmanager.h>
 #include <projectexplorer/projectmanager.h>
 #include <projectexplorer/projecttree.h>
+
+#include <texteditor/snippets/snippetprovider.h>
 
 #include <utils/parameteraction.h>
 
@@ -62,7 +63,8 @@ bool CMakeProjectPlugin::initialize(const QStringList & /*arguments*/, QString *
     Core::FileIconProvider::registerIconOverlayForSuffix(Constants::FILEOVERLAY_CMAKE, "cmake");
     Core::FileIconProvider::registerIconOverlayForFilename(Constants::FILEOVERLAY_CMAKE, "CMakeLists.txt");
 
-    addAutoReleasedObject(new Internal::CMakeSnippetProvider);
+    TextEditor::SnippetProvider::registerGroup(Constants::CMAKE_SNIPPETS_GROUP_ID,
+                                               tr("CMake", "SnippetProvider"));
     addAutoReleasedObject(new CMakeSettingsPage);
     addAutoReleasedObject(new CMakeManager);
 
@@ -112,8 +114,8 @@ void CMakeProjectPlugin::extensionsInitialized()
 void CMakeProjectPlugin::updateContextActions()
 {
     Project *project = ProjectTree::currentProject();
-    Node *node = ProjectTree::currentNode();
-    CMakeTargetNode *targetNode = dynamic_cast<CMakeTargetNode *>(node);
+    const Node *node = ProjectTree::findCurrentNode();
+    const CMakeTargetNode *targetNode = dynamic_cast<const CMakeTargetNode *>(node);
     // as targetNode can be deleted while the menu is open, we keep only the
     const QString targetDisplayName = targetNode ? targetNode->displayName() : QString();
     CMakeProject *cmProject = dynamic_cast<CMakeProject *>(project);

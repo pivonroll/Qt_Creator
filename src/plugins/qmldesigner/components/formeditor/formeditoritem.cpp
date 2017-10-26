@@ -30,6 +30,8 @@
 #include <nodehints.h>
 #include <nodemetainfo.h>
 
+#include <utils/theme/theme.h>
+
 #include <QDebug>
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
@@ -45,7 +47,7 @@ FormEditorScene *FormEditorItem::scene() const {
 }
 
 FormEditorItem::FormEditorItem(const QmlItemNode &qmlItemNode, FormEditorScene* scene)
-    : QGraphicsObject(scene->formLayerItem()),
+    : QGraphicsItem(scene->formLayerItem()),
     m_snappingLineCreator(this),
     m_qmlItemNode(qmlItemNode),
     m_borderWidth(1.0),
@@ -220,6 +222,7 @@ void FormEditorItem::paintBoundingRect(QPainter *painter) const
     pen.setJoinStyle(Qt::MiterJoin);
 
     QColor frameColor("#AAAAAA");
+    static const QColor selectionColor = Utils::creatorTheme()->color(Utils::Theme::QmlDesigner_FormEditorSelectionColor);
 
     if (scene()->showBoundingRects()) {
         pen.setColor(frameColor.darker(150));
@@ -230,7 +233,7 @@ void FormEditorItem::paintBoundingRect(QPainter *painter) const
     }
 
     if (m_highlightBoundingRect) {
-        pen.setColor(frameColor);
+        pen.setColor(selectionColor);
         pen.setStyle(Qt::SolidLine);
         painter->setPen(pen);
         painter->drawRect(m_selectionBoundingRect.adjusted(0., 0., -1., -1.));

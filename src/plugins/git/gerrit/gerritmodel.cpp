@@ -230,6 +230,7 @@ public:
 
     ~QueryContext();
     void start();
+    void terminate();
 
 signals:
     void resultRetrieved(const QByteArray &);
@@ -242,7 +243,6 @@ private:
     void timeout();
 
     void errorTermination(const QString &msg);
-    void terminate();
 
     QProcess m_process;
     QTimer m_timer;
@@ -275,7 +275,7 @@ QueryContext::QueryContext(const QString &query,
         const QString url = server.url(GerritServer::RestUrl) + "/changes/?q="
                 + QString::fromUtf8(QUrl::toPercentEncoding(query))
                 + "&o=CURRENT_REVISION&o=DETAILED_LABELS&o=DETAILED_ACCOUNTS";
-        m_arguments = GerritServer::curlArguments() << url;
+        m_arguments = server.curlArguments() << url;
     }
     connect(&m_process, &QProcess::readyReadStandardError, this, [this] {
         const QString text = QString::fromLocal8Bit(m_process.readAllStandardError());
@@ -498,10 +498,8 @@ QStandardItem *GerritModel::itemForNumber(int number) const
 
 void GerritModel::refresh(const QSharedPointer<GerritServer> &server, const QString &query)
 {
-    if (m_query) {
-        qWarning("%s: Another query is still running", Q_FUNC_INFO);
-        return;
-    }
+    if (m_query)
+        m_query->terminate();
     clearData();
     m_server = server;
 
@@ -548,7 +546,9 @@ static GerritUser parseGerritUser(const QJsonObject &object)
 
 static int numberValue(const QJsonObject &object)
 {
-    return object.value("number").toString().toInt();
+    const QJsonValue number = object.value("number");
+    // Since Gerrit 2.14 (commits fa92467dc and b0cfe1401) the change and patch set numbers are int
+    return number.isString() ? number.toString().toInt() : number.toInt();
 }
 
 /* Parse gerrit query Json output.
@@ -655,7 +655,7 @@ static GerritChangePtr parseSshOutput(const QJsonObject &object)
           {
             "value": 0,
             "_account_id": 1000528,
-            "name": "André Hartmann",
+            "name": "Andre Hartmann",
             "email": "aha_1980@gmx.de"
           },
           {
@@ -684,7 +684,7 @@ static GerritChangePtr parseSshOutput(const QJsonObject &object)
           {
             "value": 0,
             "_account_id": 1000528,
-            "name": "André Hartmann",
+            "name": "Andre Hartmann",
             "email": "aha_1980@gmx.de"
           },
           {
@@ -799,7 +799,8 @@ static bool parseOutput(const QSharedPointer<GerritParameters> &parameters,
     } else {
         adaptedOutput = output;
         // Strip first line, which is )]}'
-        adaptedOutput.remove(0, adaptedOutput.indexOf("\n"));
+        if (adaptedOutput.startsWith(')'))
+            adaptedOutput.remove(0, adaptedOutput.indexOf("\n"));
     }
     bool res = true;
 

@@ -41,6 +41,7 @@
 #include <metainfo.h>
 #include "rewritingexception.h"
 
+#include <QDrag>
 #include <QFileInfo>
 #include <QFileSystemModel>
 #include <QStackedWidget>
@@ -54,6 +55,7 @@
 #include <QApplication>
 #include <QTimer>
 #include <QShortcut>
+#include <QQmlContext>
 #include <QQuickItem>
 
 namespace QmlDesigner {
@@ -293,14 +295,14 @@ void ItemLibraryWidget::removeImport(const QString &name)
         if (import.isLibraryImport() && import.url().compare(name, Qt::CaseInsensitive) == 0)
             toBeRemovedImportList.append(import);
 
-    m_model->changeImports(QList<Import>(), toBeRemovedImportList);
+    m_model->changeImports({}, toBeRemovedImportList);
 }
 
 void ItemLibraryWidget::addImport(const QString &name, const QString &version)
 {
     if (!m_model)
         return;
-    m_model->changeImports(QList<Import>() << Import::createLibraryImport(name, version), QList<Import>());
+    m_model->changeImports({Import::createLibraryImport(name, version)}, {});
 }
 
 }

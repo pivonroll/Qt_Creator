@@ -39,11 +39,9 @@ QT_END_NAMESPACE
 
 namespace Core {
 namespace Internal {
-    class SearchResultTreeView;
     class SearchResultWindowPrivate;
     class SearchResultWidget;
 }
-class Find;
 class SearchResultWindow;
 
 class CORE_EXPORT SearchResult : public QObject
@@ -61,6 +59,7 @@ public:
     QString textToReplace() const;
     int count() const;
     void setSearchAgainSupported(bool supported);
+    QWidget *additionalReplaceWidget() const;
 
 public slots:
     void addResult(const QString &fileName,

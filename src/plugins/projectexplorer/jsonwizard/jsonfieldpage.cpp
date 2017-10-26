@@ -33,7 +33,6 @@
 #include <utils/fancylineedit.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
-#include <utils/textfieldcheckbox.h>
 #include <utils/textfieldcombobox.h>
 #include <utils/theme/theme.h>
 
@@ -61,6 +60,31 @@ const char TYPE_KEY[] = "type";
 const char DATA_KEY[] = "data";
 const char IS_COMPLETE_KEY[] = "isComplete";
 const char IS_COMPLETE_MESSAGE_KEY[] = "trIncompleteMessage";
+
+namespace {
+QVariant consumeValue(QVariantMap &map, const QString &key, const QVariant &defaultValue = QVariant())
+{
+    QVariantMap::iterator i = map.find(key);
+    if (i != map.end()) {
+        QVariant value = i.value();
+        map.erase(i);
+        return value;
+    }
+    return defaultValue;
+}
+
+void warnAboutUnsupportedKeys(const QVariantMap &map, const QString &name, const QString &type = QString())
+{
+    if (!map.isEmpty()) {
+
+        QString typeAndName = name;
+        if (!type.isEmpty() && !name.isEmpty())
+            typeAndName = QString("%1(\"%2\")").arg(type, name);
+
+        qWarning().noquote() << QString("Field %1 has unsupported keys: %2").arg(typeAndName, map.keys().join(", "));
+    }
+}
+} // namespace
 
 namespace ProjectExplorer {
 
@@ -121,6 +145,11 @@ JsonFieldPage::Field::~Field()
     delete d;
 }
 
+QString JsonFieldPage::Field::type()
+{
+    return d->m_type;
+}
+
 JsonFieldPage::Field *JsonFieldPage::Field::parse(const QVariant &input, QString *errorMessage)
 {
     if (input.type() != QVariant::Map) {
@@ -130,13 +159,13 @@ JsonFieldPage::Field *JsonFieldPage::Field::parse(const QVariant &input, QString
     }
 
     QVariantMap tmp = input.toMap();
-    const QString name = tmp.value(QLatin1String(NAME_KEY)).toString();
+    const QString name = consumeValue(tmp, NAME_KEY).toString();
     if (name.isEmpty()) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
                                                     "Field has no name.");
         return 0;
     }
-    const QString type = tmp.value(QLatin1String(TYPE_KEY)).toString();
+    const QString type = consumeValue(tmp, TYPE_KEY).toString();
     if (type.isEmpty()) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
                                                     "Field \"%1\" has no type.").arg(name);
@@ -151,17 +180,17 @@ JsonFieldPage::Field *JsonFieldPage::Field::parse(const QVariant &input, QString
         return 0;
     }
     data->setTexts(name,
-                   JsonWizardFactory::localizedString(tmp.value(QLatin1String(DISPLAY_NAME_KEY)).toString()),
-                   tmp.value(QLatin1String(TOOLTIP_KEY)).toString());
+                   JsonWizardFactory::localizedString(consumeValue(tmp, DISPLAY_NAME_KEY).toString()),
+                   consumeValue(tmp, TOOLTIP_KEY).toString());
 
-    data->setVisibleExpression(tmp.value(QLatin1String(VISIBLE_KEY), true));
-    data->setEnabledExpression(tmp.value(QLatin1String(ENABLED_KEY), true));
-    data->setIsMandatory(tmp.value(QLatin1String(MANDATORY_KEY), true).toBool());
-    data->setHasSpan(tmp.value(QLatin1String(SPAN_KEY), false).toBool());
-    data->setIsCompleteExpando(tmp.value(QLatin1String(IS_COMPLETE_KEY), true),
-                               tmp.value(QLatin1String(IS_COMPLETE_MESSAGE_KEY)).toString());
+    data->setVisibleExpression(consumeValue(tmp, VISIBLE_KEY, true));
+    data->setEnabledExpression(consumeValue(tmp, ENABLED_KEY, true));
+    data->setIsMandatory(consumeValue(tmp, MANDATORY_KEY, true).toBool());
+    data->setHasSpan(consumeValue(tmp, SPAN_KEY, false).toBool());
+    data->setIsCompleteExpando(consumeValue(tmp, IS_COMPLETE_KEY, true),
+                               consumeValue(tmp, IS_COMPLETE_MESSAGE_KEY).toString());
 
-    QVariant dataVal = tmp.value(QLatin1String(DATA_KEY));
+    QVariant dataVal = consumeValue(tmp, DATA_KEY);
     if (!data->parseData(dataVal, errorMessage)) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
                                                     "When parsing Field \"%1\": %2")
@@ -170,6 +199,7 @@ JsonFieldPage::Field *JsonFieldPage::Field::parse(const QVariant &input, QString
         return 0;
     }
 
+    warnAboutUnsupportedKeys(tmp, name);
     return data;
 }
 
@@ -182,6 +212,11 @@ void JsonFieldPage::Field::createWidget(JsonFieldPage *page)
     if (suppressName()) {
         layout->addWidget(w);
     } else if (hasSpan()) {
+        if (!suppressName()) {
+            d->m_label = new QLabel(displayName());
+            layout->addRow(d->m_label);
+        }
+
         layout->addRow(w);
     } else {
         d->m_label = new QLabel(displayName());
@@ -211,6 +246,11 @@ void JsonFieldPage::Field::setVisible(bool v)
     if (d->m_label)
         d->m_label->setVisible(v);
     d->m_widget->setVisible(v);
+}
+
+void JsonFieldPage::Field::setType(const QString &type)
+{
+    d->m_type = type;
 }
 
 bool JsonFieldPage::Field::validate(MacroExpander *expander, QString *message)
@@ -262,6 +302,16 @@ bool JsonFieldPage::Field::hasSpan()
     return d->m_hasSpan;
 }
 
+QVariant JsonFieldPage::value(const QString &key)
+{
+    QVariant v = property(key.toUtf8());
+    if (v.isValid())
+        return v;
+    auto w = qobject_cast<JsonWizard *>(wizard());
+    QTC_ASSERT(w, return QVariant());
+    return w->value(key);
+}
+
 QWidget *JsonFieldPage::Field::widget() const
 {
     return d->m_widget;
@@ -308,21 +358,23 @@ bool LabelField::parseData(const QVariant &data, QString *errorMessage)
 {
     if (data.type() != QVariant::Map) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "Label data is not an object.");
+                                                    "Label(\"%1\") data is not an object.")
+                .arg(name());
         return false;
     }
 
     QVariantMap tmp = data.toMap();
 
-    m_wordWrap = tmp.value(QLatin1String("wordWrap"), false).toBool();
-    m_text = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trText")));
+    m_wordWrap = consumeValue(tmp, "wordWrap", false).toBool();
+    m_text = JsonWizardFactory::localizedString(consumeValue(tmp, "trText"));
 
     if (m_text.isEmpty()) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "No text given for Label.");
+                                                    "Label(\"%1\") has no trText.")
+                .arg(name());
         return false;
     }
-
+    warnAboutUnsupportedKeys(tmp, name(), type());
     return true;
 }
 
@@ -347,20 +399,23 @@ bool SpacerField::parseData(const QVariant &data, QString *errorMessage)
 
     if (data.type() != QVariant::Map) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "Spacer data is not an object.");
+                                                    "Spacer(\"%1\") data is not an object.")
+                .arg(name());
         return false;
     }
 
     QVariantMap tmp = data.toMap();
 
     bool ok;
-    m_factor = tmp.value(QLatin1String("factor"), 1).toInt(&ok);
+    m_factor = consumeValue(tmp, "factor", 1).toInt(&ok);
 
     if (!ok) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "\"factor\" is no integer value.");
+                                                    "Spacer(\"%1\") property \"factor\" is no integer value.")
+                .arg(name());
         return false;
     }
+    warnAboutUnsupportedKeys(tmp, name(), type());
 
     return true;
 }
@@ -369,7 +424,7 @@ QWidget *SpacerField::createWidget(const QString &displayName, JsonFieldPage *pa
 {
     Q_UNUSED(displayName);
     Q_UNUSED(page);
-    int size = qApp->style()->pixelMetric(QStyle::PM_DefaultLayoutSpacing) * m_factor;
+    int size = QApplication::style()->pixelMetric(QStyle::PM_DefaultLayoutSpacing) * m_factor;
 
     auto w = new QWidget();
     w->setMinimumSize(size, size);
@@ -389,30 +444,33 @@ bool LineEditField::parseData(const QVariant &data, QString *errorMessage)
 
     if (data.type() != QVariant::Map) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "LineEdit data is not an object.");
+                                                    "LineEdit(\"%1\") data is not an object.")
+                .arg(name());
         return false;
     }
 
     QVariantMap tmp = data.toMap();
 
-    m_isPassword = tmp.value("isPassword", false).toBool();
-    m_defaultText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trText")).toString());
-    m_disabledText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trDisabledText")).toString());
-    m_placeholderText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trPlaceholder")).toString());
-    m_historyId = tmp.value(QLatin1String("historyId")).toString();
-    m_restoreLastHistoryItem = tmp.value(QLatin1String("restoreLastHistoyItem"), false).toBool();
-    QString pattern = tmp.value(QLatin1String("validator")).toString();
+    m_isPassword = consumeValue(tmp, "isPassword", false).toBool();
+    m_defaultText = JsonWizardFactory::localizedString(consumeValue(tmp, "trText").toString());
+    m_disabledText = JsonWizardFactory::localizedString(consumeValue(tmp, "trDisabledText").toString());
+    m_placeholderText = JsonWizardFactory::localizedString(consumeValue(tmp, "trPlaceholder").toString());
+    m_historyId = consumeValue(tmp, "historyId").toString();
+    m_restoreLastHistoryItem = consumeValue(tmp, "restoreLastHistoyItem", false).toBool();
+    QString pattern = consumeValue(tmp, "validator").toString();
     if (!pattern.isEmpty()) {
         m_validatorRegExp = QRegularExpression(pattern);
         if (!m_validatorRegExp.isValid()) {
             *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                        "Invalid regular expression \"%1\" in \"validator\".")
-                    .arg(pattern);
+                                                        "LineEdit(\"%1\") has an invalid regular expression \"%1\" in \"validator\".")
+                    .arg(name(), pattern);
             m_validatorRegExp = QRegularExpression();
             return false;
         }
     }
-    m_fixupExpando = tmp.value(QLatin1String("fixup")).toString();
+    m_fixupExpando = consumeValue(tmp, "fixup").toString();
+
+    warnAboutUnsupportedKeys(tmp, name(), type());
 
     return true;
 }
@@ -438,7 +496,8 @@ QWidget *LineEditField::createWidget(const QString &displayName, JsonFieldPage *
 
 void LineEditField::setup(JsonFieldPage *page, const QString &name)
 {
-    auto w = static_cast<FancyLineEdit *>(widget());
+    auto w = qobject_cast<FancyLineEdit *>(widget());
+    QTC_ASSERT(w, return);
     page->registerFieldWithName(name, w);
     QObject::connect(w, &FancyLineEdit::textChanged,
                      page, [this, page]() -> void { m_isModified = true; emit page->completeChanged(); });
@@ -454,7 +513,8 @@ bool LineEditField::validate(MacroExpander *expander, QString *message)
 
     m_isValidating = true;
 
-    auto w = static_cast<FancyLineEdit *>(widget());
+    auto w = qobject_cast<FancyLineEdit *>(widget());
+    QTC_ASSERT(w, return false);
 
     if (w->isEnabled()) {
         if (m_isModified) {
@@ -478,9 +538,8 @@ bool LineEditField::validate(MacroExpander *expander, QString *message)
 
 void LineEditField::initializeData(MacroExpander *expander)
 {
-    QTC_ASSERT(widget(), return);
-
-    auto w = static_cast<FancyLineEdit *>(widget());
+    auto w = qobject_cast<FancyLineEdit *>(widget());
+    QTC_ASSERT(w, return);
     m_isValidating = true;
     w->setText(expander->expand(m_defaultText));
     w->setPlaceholderText(m_placeholderText);
@@ -500,16 +559,18 @@ bool TextEditField::parseData(const QVariant &data, QString *errorMessage)
 
     if (data.type() != QVariant::Map) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "TextEdit data is not an object.");
+                                                    "TextEdit(\"%1\") data is not an object.")
+                .arg(name());
         return false;
     }
 
     QVariantMap tmp = data.toMap();
 
-    m_defaultText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trText")).toString());
-    m_disabledText = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trDisabledText")).toString());
-    m_acceptRichText = tmp.value(QLatin1String("richText"), true).toBool();
+    m_defaultText = JsonWizardFactory::localizedString(consumeValue(tmp, "trText").toString());
+    m_disabledText = JsonWizardFactory::localizedString(consumeValue(tmp, "trDisabledText").toString());
+    m_acceptRichText = consumeValue(tmp, "richText", true).toBool();
 
+    warnAboutUnsupportedKeys(tmp, name(), type());
     return true;
 }
 
@@ -525,7 +586,8 @@ QWidget *TextEditField::createWidget(const QString &displayName, JsonFieldPage *
 
 void TextEditField::setup(JsonFieldPage *page, const QString &name)
 {
-    auto w = static_cast<QTextEdit *>(widget());
+    auto w = qobject_cast<QTextEdit *>(widget());
+    QTC_ASSERT(w, return);
     page->registerFieldWithName(name, w, "plainText", SIGNAL(textChanged()));
     QObject::connect(w, &QTextEdit::textChanged, page, &QWizardPage::completeChanged);
 }
@@ -535,7 +597,8 @@ bool TextEditField::validate(MacroExpander *expander, QString *message)
     if (!JsonFieldPage::Field::validate(expander, message))
         return false;
 
-    auto w = static_cast<QTextEdit *>(widget());
+    auto w = qobject_cast<QTextEdit *>(widget());
+    QTC_ASSERT(w, return false);
 
     if (!w->isEnabled() && !m_disabledText.isNull() && m_currentText.isNull()) {
         m_currentText = w->toHtml();
@@ -550,7 +613,8 @@ bool TextEditField::validate(MacroExpander *expander, QString *message)
 
 void TextEditField::initializeData(MacroExpander *expander)
 {
-    auto w = static_cast<QTextEdit *>(widget());
+    auto w = qobject_cast<QTextEdit *>(widget());
+    QTC_ASSERT(w, return);
     w->setPlainText(expander->expand(m_defaultText));
 }
 
@@ -571,24 +635,24 @@ bool PathChooserField::parseData(const QVariant &data, QString *errorMessage)
 
     QVariantMap tmp = data.toMap();
 
-    m_path = tmp.value(QLatin1String("path")).toString();
-    m_basePath = tmp.value(QLatin1String("basePath")).toString();
-    m_historyId = tmp.value(QLatin1String("historyId")).toString();
+    m_path = consumeValue(tmp, "path").toString();
+    m_basePath = consumeValue(tmp, "basePath").toString();
+    m_historyId = consumeValue(tmp, "historyId").toString();
 
-    QString kindStr = tmp.value(QLatin1String("kind"), QLatin1String("existingDirectory")).toString();
-    if (kindStr == QLatin1String("existingDirectory")) {
+    QString kindStr = consumeValue(tmp, "kind", "existingDirectory").toString();
+    if (kindStr == "existingDirectory") {
         m_kind = PathChooser::ExistingDirectory;
-    } else if (kindStr == QLatin1String("directory")) {
+    } else if (kindStr == "directory") {
         m_kind = PathChooser::Directory;
-    } else if (kindStr == QLatin1String("file")) {
+    } else if (kindStr == "file") {
         m_kind = PathChooser::File;
-    } else if (kindStr == QLatin1String("saveFile")) {
+    } else if (kindStr == "saveFile") {
         m_kind = PathChooser::SaveFile;
-    } else if (kindStr == QLatin1String("existingCommand")) {
+    } else if (kindStr == "existingCommand") {
         m_kind = PathChooser::ExistingCommand;
-    } else if (kindStr == QLatin1String("command")) {
+    } else if (kindStr == "command") {
         m_kind = PathChooser::Command;
-    } else if (kindStr == QLatin1String("any")) {
+    } else if (kindStr == "any") {
         m_kind = PathChooser::Any;
     } else {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
@@ -599,6 +663,7 @@ bool PathChooserField::parseData(const QVariant &data, QString *errorMessage)
         return false;
     }
 
+    warnAboutUnsupportedKeys(tmp, name(), type());
     return true;
 }
 
@@ -614,14 +679,15 @@ QWidget *PathChooserField::createWidget(const QString &displayName, JsonFieldPag
 
 void PathChooserField::setEnabled(bool e)
 {
-    QTC_ASSERT(widget(), return);
-    auto w = static_cast<PathChooser *>(widget());
+    auto w = qobject_cast<PathChooser *>(widget());
+    QTC_ASSERT(w, return);
     w->setReadOnly(!e);
 }
 
 void PathChooserField::setup(JsonFieldPage *page, const QString &name)
 {
-    auto w = static_cast<PathChooser *>(widget());
+    auto w = qobject_cast<PathChooser *>(widget());
+    QTC_ASSERT(w, return);
     page->registerFieldWithName(name, w, "path", SIGNAL(rawPathChanged(QString)));
     QObject::connect(w, &PathChooser::rawPathChanged,
                      page, [page](QString) { page->completeChanged(); });
@@ -632,14 +698,15 @@ bool PathChooserField::validate(MacroExpander *expander, QString *message)
     if (!JsonFieldPage::Field::validate(expander, message))
         return false;
 
-    auto w = static_cast<PathChooser *>(widget());
+    auto w = qobject_cast<PathChooser *>(widget());
+    QTC_ASSERT(w, return false);
     return w->isValid();
 }
 
 void PathChooserField::initializeData(MacroExpander *expander)
 {
-    QTC_ASSERT(widget(), return);
-    auto w = static_cast<PathChooser *>(widget());
+    auto w = qobject_cast<PathChooser *>(widget());
+    QTC_ASSERT(w, return);
     w->setBaseDirectory(expander->expand(m_basePath));
     w->setExpectedKind(m_kind);
 
@@ -660,36 +727,47 @@ bool CheckBoxField::parseData(const QVariant &data, QString *errorMessage)
 
     if (data.type() != QVariant::Map) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "CheckBox data is not an object.");
+                                                    "CheckBox(\"%1\") data is not an object.")
+                .arg(name());
         return false;
     }
 
     QVariantMap tmp = data.toMap();
 
-    m_checkedValue = tmp.value(QLatin1String("checkedValue"), true).toString();
-    m_uncheckedValue = tmp.value(QLatin1String("uncheckedValue"), false).toString();
+    m_checkedValue = consumeValue(tmp, "checkedValue", true).toString();
+    m_uncheckedValue = consumeValue(tmp, "uncheckedValue", false).toString();
     if (m_checkedValue == m_uncheckedValue) {
         *errorMessage= QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                   "CheckBox values for checked and unchecked state are identical.");
+                                                   "CheckBox(\"%1\") values for checked and unchecked state are identical.")
+                .arg(name());
        return false;
     }
-    m_checkedExpression = tmp.value(QLatin1String("checked"), false);
+    m_checkedExpression = consumeValue(tmp, "checked", false);
 
+    warnAboutUnsupportedKeys(tmp, name(), type());
     return true;
 }
 
 QWidget *CheckBoxField::createWidget(const QString &displayName, JsonFieldPage *page)
 {
     Q_UNUSED(page);
-    return new TextFieldCheckBox(displayName);
+    return new QCheckBox(displayName);
 }
 
 void CheckBoxField::setup(JsonFieldPage *page, const QString &name)
 {
-    auto w = static_cast<TextFieldCheckBox *>(widget());
-    QObject::connect(w, &TextFieldCheckBox::clicked,
-                     page, [this, page]() { m_isModified = true; page->completeChanged();});
-    page->registerFieldWithName(name, w, "text", SIGNAL(textChanged(QString)));
+    auto w = qobject_cast<QCheckBox *>(widget());
+    QTC_ASSERT(w, return);
+    page->registerObjectAsFieldWithName<QCheckBox>(name, w, &QCheckBox::stateChanged, [this, page, w] () -> QString {
+        if (w->checkState() == Qt::Checked)
+            return page->expander()->expand(m_checkedValue);
+        return page->expander()->expand(m_uncheckedValue);
+    });
+
+    QObject::connect(w, &QCheckBox::stateChanged, page, [this, page]() {
+        m_isModified = true;
+        emit page->completeChanged();
+    });
 }
 
 bool CheckBoxField::validate(MacroExpander *expander, QString *message)
@@ -698,7 +776,8 @@ bool CheckBoxField::validate(MacroExpander *expander, QString *message)
         return false;
 
     if (!m_isModified) {
-        auto w = static_cast<TextFieldCheckBox *>(widget());
+        auto w = qobject_cast<QCheckBox *>(widget());
+        QTC_ASSERT(w, return false);
         w->setChecked(JsonWizard::boolFromVariant(m_checkedExpression, expander));
     }
     return true;
@@ -706,11 +785,8 @@ bool CheckBoxField::validate(MacroExpander *expander, QString *message)
 
 void CheckBoxField::initializeData(MacroExpander *expander)
 {
+    auto w = qobject_cast<QCheckBox *>(widget());
     QTC_ASSERT(widget(), return);
-
-    auto w = static_cast<TextFieldCheckBox *>(widget());
-    w->setTrueText(expander->expand(m_checkedValue));
-    w->setFalseText(expander->expand(m_uncheckedValue));
 
     w->setChecked(JsonWizard::boolFromVariant(m_checkedExpression, expander));
 }
@@ -737,9 +813,9 @@ ComboBoxItem parseComboBoxItem(const QVariant &item, QString *errorMessage)
         return ComboBoxItem();
     } else if (item.type() == QVariant::Map) {
         QVariantMap tmp = item.toMap();
-        QString key = JsonWizardFactory::localizedString(tmp.value(QLatin1String("trKey"), QString()).toString());
-        QString value = tmp.value(QLatin1String("value"), QString()).toString();
-        QVariant condition = tmp.value(QLatin1String("condition"), true);
+        QString key = JsonWizardFactory::localizedString(consumeValue(tmp, QLatin1String("trKey"), QString()).toString());
+        QString value = consumeValue(tmp, QLatin1String("value"), QString()).toString();
+        QVariant condition = consumeValue(tmp, QLatin1String("condition"), true);
         if (key.isNull() || key.isEmpty()) {
             *errorMessage  = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
                                                          "No \"key\" found in ComboBox items.");
@@ -765,28 +841,32 @@ bool ComboBoxField::parseData(const QVariant &data, QString *errorMessage)
     QVariantMap tmp = data.toMap();
 
     bool ok;
-    m_index = tmp.value(QLatin1String("index"), 0).toInt(&ok);
+    m_index = consumeValue(tmp, "index", 0).toInt(&ok);
     if (!ok) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "ComboBox \"index\" is not an integer value.");
+                                                    "ComboBox(\"%1\") \"index\" is not an integer value.")
+                .arg(name());
         return false;
     }
-    m_disabledIndex = tmp.value(QLatin1String("disabledIndex"), -1).toInt(&ok);
+    m_disabledIndex = consumeValue(tmp, "disabledIndex", -1).toInt(&ok);
     if (!ok) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "ComboBox \"disabledIndex\" is not an integer value.");
+                                                    "ComboBox(\"%1\") \"disabledIndex\" is not an integer value.")
+                .arg(name());
         return false;
     }
 
-    QVariant value = tmp.value(QLatin1String("items"));
+    QVariant value = consumeValue(tmp, "items");
     if (value.isNull()) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "ComboBox \"items\" missing.");
+                                                    "ComboBox(\"%1\") \"items\" missing.")
+                .arg(name());
         return false;
     }
     if (value.type() != QVariant::List) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "ComboBox \"items\" is not a list.");
+                                                    "ComboBox(\"%1\") \"items\" is not a list.")
+                .arg(name());
         return false;
     }
 
@@ -805,10 +885,11 @@ bool ComboBoxField::parseData(const QVariant &data, QString *errorMessage)
         m_itemDataList.clear();
         m_itemList.clear();
         *errorMessage = QCoreApplication::translate("ProjectExplorer::JsonFieldPage",
-                                                    "Internal Error: ComboBox items lists got mixed up.");
+                                                    "Internal Error: ComboBox(\"%1\") items lists got mixed up.")
+                .arg(name());
         return false;
     }
-
+    warnAboutUnsupportedKeys(tmp, name(), type());
     return true;
 }
 
@@ -821,8 +902,9 @@ QWidget *ComboBoxField::createWidget(const QString &displayName, JsonFieldPage *
 
 void ComboBoxField::setup(JsonFieldPage *page, const QString &name)
 {
-    auto w = static_cast<TextFieldComboBox *>(widget());
-    page->registerFieldWithName(name, w, "text", SIGNAL(text4Changed(QString)));
+    auto w = qobject_cast<TextFieldComboBox *>(widget());
+    QTC_ASSERT(w, return);
+    page->registerFieldWithName(name, w, "indexText", SIGNAL(text4Changed(QString)));
     QObject::connect(w, &TextFieldComboBox::text4Changed,
                      page, [page](QString) { page->completeChanged(); });
 }
@@ -832,7 +914,8 @@ bool ComboBoxField::validate(MacroExpander *expander, QString *message)
     if (!JsonFieldPage::Field::validate(expander, message))
         return false;
 
-    auto w = static_cast<TextFieldComboBox *>(widget());
+    auto w = qobject_cast<TextFieldComboBox *>(widget());
+    QTC_ASSERT(w, return false);
     if (!w->isEnabled() && m_disabledIndex >= 0 && m_savedIndex < 0) {
         m_savedIndex = w->currentIndex();
         w->setCurrentIndex(m_disabledIndex);
@@ -846,7 +929,8 @@ bool ComboBoxField::validate(MacroExpander *expander, QString *message)
 
 void ComboBoxField::initializeData(MacroExpander *expander)
 {
-    auto w = static_cast<TextFieldComboBox *>(widget());
+    auto w = qobject_cast<TextFieldComboBox *>(widget());
+    QTC_ASSERT(widget(), return);
     QStringList tmpItems
             = Utils::transform(m_itemList,
                                [expander](const QString &i) { return expander->expand(i); });
@@ -981,9 +1065,12 @@ MacroExpander *JsonFieldPage::expander()
 
 JsonFieldPage::Field *JsonFieldPage::createFieldData(const QString &type)
 {
-    if (!m_factories.contains(type))
-        return 0;
-    return m_factories.value(type)();
+    if (auto factory = m_factories.value(type)) {
+        JsonFieldPage::Field *field = factory();
+        field->setType(type);
+        return field;
+    }
+    return nullptr;
 }
 
 } // namespace ProjectExplorer

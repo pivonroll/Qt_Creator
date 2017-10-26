@@ -38,6 +38,10 @@ namespace Core {
 class Id;
 }
 
+QT_BEGIN_NAMESPACE
+class QThreadPool;
+QT_END_NAMESPACE
+
 namespace Autotest {
 namespace Internal {
 
@@ -84,7 +88,8 @@ private:
     bool postponed(const QStringList &fileList);
     void scanForTests(const QStringList &fileList = QStringList(), ITestParser *parser = nullptr);
 
-    void onDocumentUpdated(const QString &fileName);
+    // qml files must be handled slightly different
+    void onDocumentUpdated(const QString &fileName, bool isQmlFile = false);
     void onTaskStarted(Core::Id type);
     void onAllTasksFinished(Core::Id type);
     void onFinished();
@@ -106,6 +111,7 @@ private:
     QVector<ITestParser *> m_testCodeParsers; // ptrs are still owned by TestFrameworkManager
     QTimer m_reparseTimer;
     ITestParser *m_updateParser = nullptr;
+    QThreadPool *m_threadPool = nullptr;
 };
 
 } // namespace Internal

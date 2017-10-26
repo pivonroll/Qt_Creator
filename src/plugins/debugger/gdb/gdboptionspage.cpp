@@ -86,11 +86,11 @@ GdbOptionsPageWidget::GdbOptionsPageWidget()
     auto labelGdbWatchdogTimeout = new QLabel(groupBoxGeneral);
     labelGdbWatchdogTimeout->setText(GdbOptionsPage::tr("GDB timeout:"));
     labelGdbWatchdogTimeout->setToolTip(GdbOptionsPage::tr(
-        "The number of seconds Qt Creator will wait before it terminates\n"
-        "a non-responsive GDB process. The default value of 20 seconds should\n"
-        "be sufficient for most applications, but there are situations when\n"
-        "loading big libraries or listing source files takes much longer than\n"
-        "that on slow machines. In this case, the value should be increased."));
+        "The number of seconds before a non-responsive GDB process is terminated.\n"
+        "The default value of 20 seconds should be sufficient for most\n"
+        "applications, but there are situations when loading big libraries or\n"
+        "listing source files takes much longer than that on slow machines.\n"
+        "In this case, the value should be increased."));
 
     auto spinBoxGdbWatchdogTimeout = new QSpinBox(groupBoxGeneral);
     spinBoxGdbWatchdogTimeout->setToolTip(labelGdbWatchdogTimeout->toolTip());
@@ -193,26 +193,6 @@ GdbOptionsPageWidget::GdbOptionsPageWidget()
     textEditPostAttachCommands->setAcceptRichText(false);
     textEditPostAttachCommands->setToolTip(groupBoxPostAttachCommands->toolTip());
 
-    auto groupBoxCustomDumperCommands = new QGroupBox(this);
-    groupBoxCustomDumperCommands->setTitle(GdbOptionsPage::tr("Debugging Helper Customization"));
-    groupBoxCustomDumperCommands->setToolTip(GdbOptionsPage::tr(
-        "<html><head/><body><p>GDB commands entered here will be executed after "
-        "Qt Creator's debugging helpers have been loaded and fully initialized. "
-        "You can load additional debugging helpers or modify existing ones here.</p>"
-        "%1</body></html>").arg(howToUsePython));
-
-    auto textEditCustomDumperCommands = new QTextEdit(groupBoxCustomDumperCommands);
-    textEditCustomDumperCommands->setAcceptRichText(false);
-    textEditCustomDumperCommands->setToolTip(groupBoxCustomDumperCommands->toolTip());
-
-    auto groupBoxExtraDumperFile = new QGroupBox(this);
-    groupBoxExtraDumperFile->setTitle(GdbOptionsPage::tr("Extra Debugging Helpers"));
-    groupBoxExtraDumperFile->setToolTip(GdbOptionsPage::tr(
-        "Path to a Python file containing additional data dumpers."));
-
-    auto pathChooserExtraDumperFile = new Utils::PathChooser(groupBoxExtraDumperFile);
-    pathChooserExtraDumperFile->setExpectedKind(Utils::PathChooser::File);
-
     /*
     groupBoxPluginDebugging = new QGroupBox(q);
     groupBoxPluginDebugging->setTitle(GdbOptionsPage::tr(
@@ -240,10 +220,8 @@ GdbOptionsPageWidget::GdbOptionsPageWidget()
     */
 
     auto chooser = new VariableChooser(this);
-    chooser->addSupportedWidget(textEditCustomDumperCommands);
     chooser->addSupportedWidget(textEditPostAttachCommands);
     chooser->addSupportedWidget(textEditStartupCommands);
-    chooser->addSupportedWidget(pathChooserExtraDumperFile->lineEdit());
 
     auto formLayout = new QFormLayout(groupBoxGeneral);
     formLayout->addRow(labelGdbWatchdogTimeout, spinBoxGdbWatchdogTimeout);
@@ -262,23 +240,13 @@ GdbOptionsPageWidget::GdbOptionsPageWidget()
     auto postAttachLayout = new QGridLayout(groupBoxPostAttachCommands);
     postAttachLayout->addWidget(textEditPostAttachCommands, 0, 0, 1, 1);
 
-    auto customDumperLayout = new QGridLayout(groupBoxCustomDumperCommands);
-    customDumperLayout->addWidget(textEditCustomDumperCommands, 0, 0, 1, 1);
-
-    auto extraDumperLayout = new QGridLayout(groupBoxExtraDumperFile);
-    extraDumperLayout->addWidget(pathChooserExtraDumperFile, 0, 0, 1, 1);
-
     auto gridLayout = new QGridLayout(this);
     gridLayout->addWidget(groupBoxGeneral, 0, 0, 5, 1);
-    gridLayout->addWidget(groupBoxExtraDumperFile, 5, 0, 1, 1);
 
     gridLayout->addWidget(groupBoxStartupCommands, 0, 1, 2, 1);
     gridLayout->addWidget(groupBoxPostAttachCommands, 2, 1, 2, 1);
-    gridLayout->addWidget(groupBoxCustomDumperCommands, 4, 1, 2, 1);
 
     group.insert(action(GdbStartupCommands), textEditStartupCommands);
-    group.insert(action(ExtraDumperFile), pathChooserExtraDumperFile);
-    group.insert(action(ExtraDumperCommands), textEditCustomDumperCommands);
     group.insert(action(GdbPostAttachCommands), textEditPostAttachCommands);
     group.insert(action(LoadGdbInit), checkBoxLoadGdbInit);
     group.insert(action(LoadGdbDumpers), checkBoxLoadGdbDumpers);
@@ -393,7 +361,7 @@ GdbOptionsPageWidget2::GdbOptionsPageWidget2()
     }
 
     auto checkBoxMultiInferior = new QCheckBox(groupBoxDangerous);
-    checkBoxMultiInferior->setText(GdbOptionsPage::tr("Debug all children"));
+    checkBoxMultiInferior->setText(GdbOptionsPage::tr("Debug all child processes"));
     checkBoxMultiInferior->setToolTip(GdbOptionsPage::tr(
         "<html><head/><body>Keeps debugging all children after a fork."
         "</body></html>"));

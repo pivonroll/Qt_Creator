@@ -29,6 +29,7 @@
 #include <debugger/debuggeractions.h>
 #include <debugger/debuggercore.h>
 #include <debugger/debuggerengine.h>
+#include <debugger/debuggerruncontrol.h>
 #include <debugger/watchhandler.h>
 
 #include <coreplugin/actionmanager/actionmanager.h>
@@ -93,8 +94,6 @@ QmlInspectorAgent::QmlInspectorAgent(QmlEngine *engine, QmlDebugConnection *conn
 
     if (!m_masterEngine->isMasterEngine())
         m_masterEngine = m_masterEngine->masterEngine();
-    connect(m_masterEngine, &DebuggerEngine::stateChanged,
-            this, &QmlInspectorAgent::onEngineStateChanged);
 
     auto engineClient1 = new DeclarativeEngineDebugClient(connection);
     connect(engineClient1, &BaseEngineDebugClient::newState,
@@ -177,10 +176,6 @@ void QmlInspectorAgent::assignValue(const WatchItem *data,
 
     if (data->id != WatchItem::InvalidId) {
         QString val(valueV.toString());
-        if (valueV.type() == QVariant::String) {
-            val = val.replace(QLatin1Char('\"'), QLatin1String("\\\""));
-            val = QLatin1Char('\"') + val + QLatin1Char('\"');
-        }
         QString expression = QString("%1 = %2;").arg(expr).arg(val);
         queryExpressionResult(data->id, expression);
     }
@@ -759,7 +754,7 @@ void QmlInspectorAgent::toolsClientStateChanged(QmlDebugClient::State state)
         Core::ICore::addAdditionalContext(m_inspectorToolsContext);
 
         m_toolsClientConnected = true;
-        onEngineStateChanged(m_masterEngine->state());
+        enableTools(m_masterEngine->state() == InferiorRunOk);
         if (m_showAppOnTopAction->isChecked())
             m_toolsClient->showAppOnTop(true);
 
@@ -910,11 +905,6 @@ void QmlInspectorAgent::enableTools(const bool enable)
 void QmlInspectorAgent::onReloaded()
 {
     reloadEngines();
-}
-
-void QmlInspectorAgent::onEngineStateChanged(const DebuggerState state)
-{
-    enableTools(state == InferiorRunOk);
 }
 
 } // namespace Internal

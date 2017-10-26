@@ -35,7 +35,7 @@
 #include <QFileInfo>
 #include <QUrl>
 
-#include <QApplication>
+#include <QGuiApplication>
 #include <QDesktopServices>
 #include <QMouseEvent>
 
@@ -83,6 +83,11 @@ struct ExtensionMap {
 HelpViewer::HelpViewer(QWidget *parent)
     : QWidget(parent)
 {
+}
+
+HelpViewer::~HelpViewer()
+{
+    restoreOverrideCursor();
 }
 
 void HelpViewer::setActionVisible(Action action, bool visible)
@@ -156,14 +161,23 @@ void HelpViewer::home()
 
 void HelpViewer::slotLoadStarted()
 {
-    qApp->setOverrideCursor(QCursor(Qt::WaitCursor));
+    ++m_loadOverrideStack;
+    QGuiApplication::setOverrideCursor(QCursor(Qt::WaitCursor));
 }
 
 void HelpViewer::slotLoadFinished()
 {
-    qApp->restoreOverrideCursor();
+    restoreOverrideCursor();
     emit sourceChanged(source());
     emit loadFinished();
+}
+
+void HelpViewer::restoreOverrideCursor()
+{
+    while (m_loadOverrideStack > 0) {
+        --m_loadOverrideStack;
+        QGuiApplication::restoreOverrideCursor();
+    }
 }
 
 bool HelpViewer::handleForwardBackwardMouseButtons(QMouseEvent *event)

@@ -34,14 +34,15 @@ namespace Internal { class ResourceFileWatcher; }
 class RESOURCE_EXPORT ResourceTopLevelNode : public ProjectExplorer::FolderNode
 {
 public:
-    ResourceTopLevelNode(const Utils::FileName &filePath, const QString &contents, FolderNode *parent);
+    ResourceTopLevelNode(const Utils::FileName &filePath, bool generated,
+                         const QString &contents, FolderNode *parent);
     ~ResourceTopLevelNode() override;
 
     void addInternalNodes();
 
     QString addFileFilter() const override;
 
-    bool supportsAction(ProjectExplorer::ProjectAction action, Node *node) const override;
+    bool supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const override;
     bool addFiles(const QStringList &filePaths, QStringList *notAdded) override;
     bool removeFiles(const QStringList &filePaths, QStringList *notRemoved) override;
 
@@ -50,24 +51,23 @@ public:
 
     AddNewInformation addNewInformation(const QStringList &files, Node *context) const override;
     bool showInSimpleTree() const override;
+    bool showWhenEmpty() const override;
     bool removeNonExistingFiles();
 
     QString contents() const { return m_contents; }
 
 private:
-    Internal::ResourceFileWatcher *m_document;
+    Internal::ResourceFileWatcher *m_document = nullptr;
     QString m_contents;
 };
 
-namespace Internal {
-
-class ResourceFolderNode : public ProjectExplorer::FolderNode
+class RESOURCE_EXPORT ResourceFolderNode : public ProjectExplorer::FolderNode
 {
 public:
     ResourceFolderNode(const QString &prefix, const QString &lang, ResourceTopLevelNode *parent);
     ~ResourceFolderNode() override;
 
-    bool supportsAction(ProjectExplorer::ProjectAction action, Node *node) const override;
+    bool supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const override;
 
     QString displayName() const override;
 
@@ -90,19 +90,18 @@ private:
     QString m_lang;
 };
 
-class ResourceFileNode : public ProjectExplorer::FileNode
+class RESOURCE_EXPORT ResourceFileNode : public ProjectExplorer::FileNode
 {
 public:
     ResourceFileNode(const Utils::FileName &filePath, const QString &qrcPath, const QString &displayName);
 
     QString displayName() const override;
     QString qrcPath() const;
-    bool supportsAction(ProjectExplorer::ProjectAction action, Node *node) const override;
+    bool supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const override;
 
 private:
     QString m_qrcPath;
     QString m_displayName;
 };
 
-} // namespace Internal
 } // namespace ResourceEditor

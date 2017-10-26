@@ -28,6 +28,7 @@
 #include <enumeration.h>
 #include <qmlprivategate.h>
 
+#include <QDebug>
 #include <QEvent>
 #include <QQmlContext>
 #include <QQmlError>
@@ -253,7 +254,7 @@ bool ObjectNodeInstance::isAnchoredByChildren() const
 
 QPair<PropertyName, ServerNodeInstance> ObjectNodeInstance::anchor(const PropertyName &/*name*/) const
 {
-    return qMakePair(PropertyName(), ServerNodeInstance());
+    return {PropertyName(), ServerNodeInstance()};
 }
 
 
@@ -613,7 +614,14 @@ QObject *ObjectNodeInstance::createPrimitive(const QString &typeName, int majorN
             || typeName == "QtQuick.Controls/ToolTip")
         polishTypeName = "QtQuick/Item";
 
-    QObject *object = QmlPrivateGate::createPrimitive(polishTypeName, majorNumber, minorNumber, context);
+    const QHash<QString, QString> mockHash = {{"QtQuick.Controls/SwipeView","qrc:/qtquickplugin/mockfiles/SwipeView.qml"}};
+
+    QObject *object = nullptr;
+
+    if (mockHash.contains(typeName))
+        object = QmlPrivateGate::createComponent(mockHash.value(typeName), context);
+    else
+        object = QmlPrivateGate::createPrimitive(polishTypeName, majorNumber, minorNumber, context);
 
     /* Let's try to create the primitive from source, since with incomplete meta info this might be a pure
      * QML type. This is the case for example if a C++ type is mocked up with a QML file.
@@ -685,7 +693,7 @@ static inline QString fixComponentPathForIncompatibleQt(const QString &component
         //plugin directories might contain the version number
             fixedPath.chop(4);
             fixedPath += QLatin1Char('/') + QFileInfo(componentPath).fileName();
-            if (QFileInfo(fixedPath).exists())
+            if (QFileInfo::exists(fixedPath))
                 return fixedPath;
         }
     }

@@ -25,46 +25,16 @@
 
 #pragma once
 
-#include "abstractremotelinuxrunsupport.h"
-
-namespace Debugger { class DebuggerRunControl; }
+#include <debugger/debuggerruncontrol.h>
 
 namespace RemoteLinux {
+namespace Internal {
 
-namespace Internal { class LinuxDeviceDebugSupportPrivate; }
-
-class REMOTELINUX_EXPORT LinuxDeviceDebugSupport : public AbstractRemoteLinuxRunSupport
+class LinuxDeviceDebugSupport : public Debugger::DebuggerRunTool
 {
-    Q_OBJECT
-
 public:
     LinuxDeviceDebugSupport(ProjectExplorer::RunControl *runControl);
-    ~LinuxDeviceDebugSupport() override;
-
-protected:
-    virtual ProjectExplorer::Runnable realRunnable() const;
-    bool isCppDebugging() const;
-    bool isQmlDebugging() const;
-
-    void startExecution() override;
-    void handleAdapterSetupFailed(const QString &error) override;
-    void handleAdapterSetupDone() override;
-
-private:
-    void handleRemoteSetupRequested() override;
-    void handleAppRunnerError(const QString &error) override;
-    void handleRemoteOutput(const QByteArray &output) override;
-    void handleRemoteErrorOutput(const QByteArray &output) override;
-    void handleAppRunnerFinished(bool success) override;
-    void handleProgressReport(const QString &progressOutput) override;
-
-    void handleRemoteProcessStarted();
-    void handleDebuggingFinished();
-
-    void showMessage(const QString &msg, int channel);
-    Debugger::DebuggerRunControl *runControl() const;
-
-    Internal::LinuxDeviceDebugSupportPrivate * const d;
 };
 
+} // namespace Internal
 } // namespace RemoteLinux

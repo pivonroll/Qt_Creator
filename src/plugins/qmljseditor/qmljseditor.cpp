@@ -42,6 +42,7 @@
 #include <qmljs/qmljsmodelmanagerinterface.h>
 #include <qmljs/qmljsutils.h>
 
+#include <qmljstools/qmljsindenter.h>
 #include <qmljstools/qmljstoolsconstants.h>
 #include <projectexplorer/projectexplorerconstants.h>
 
@@ -220,7 +221,7 @@ void QmlJSEditorWidget::modificationChanged(bool changed)
 
 bool QmlJSEditorWidget::isOutlineCursorChangesBlocked()
 {
-    return hasFocus() || m_blockOutLineCursorChanges;
+    return hasFocus();
 }
 
 void QmlJSEditorWidget::jumpToOutlineElement(int /*index*/)
@@ -256,14 +257,12 @@ void QmlJSEditorWidget::updateOutlineIndexNow()
     emit outlineModelIndexChanged(m_outlineModelIndex);
 
     if (comboIndex.isValid()) {
-        bool blocked = m_outlineCombo->blockSignals(true);
+        QSignalBlocker blocker(m_outlineCombo);
 
         // There is no direct way to select a non-root item
         m_outlineCombo->setRootModelIndex(comboIndex.parent());
         m_outlineCombo->setCurrentIndex(comboIndex.row());
         m_outlineCombo->setRootModelIndex(QModelIndex());
-
-        m_outlineCombo->blockSignals(blocked);
     }
 }
 } // namespace Internal
@@ -813,7 +812,6 @@ void QmlJSEditorWidget::showContextPane()
 
 void QmlJSEditorWidget::contextMenuEvent(QContextMenuEvent *e)
 {
-    m_blockOutLineCursorChanges = true;
     QPointer<QMenu> menu(new QMenu(this));
 
     QMenu *refactoringMenu = new QMenu(tr("Refactoring"), menu);
@@ -858,7 +856,6 @@ void QmlJSEditorWidget::contextMenuEvent(QContextMenuEvent *e)
 
     menu->exec(e->globalPos());
     delete menu;
-    m_blockOutLineCursorChanges = false;
 }
 
 bool QmlJSEditorWidget::event(QEvent *e)
@@ -1030,9 +1027,10 @@ bool QmlJSEditor::isDesignModePreferred() const
 QmlJSEditorFactory::QmlJSEditorFactory()
 {
     setId(Constants::C_QMLJSEDITOR_ID);
-    setDisplayName(qApp->translate("OpenWith::Editors", Constants::C_QMLJSEDITOR_DISPLAY_NAME));
+    setDisplayName(QCoreApplication::translate("OpenWith::Editors", Constants::C_QMLJSEDITOR_DISPLAY_NAME));
 
     addMimeType(QmlJSTools::Constants::QML_MIMETYPE);
+    addMimeType(QmlJSTools::Constants::QMLUI_MIMETYPE);
     addMimeType(QmlJSTools::Constants::QMLPROJECT_MIMETYPE);
     addMimeType(QmlJSTools::Constants::QBS_MIMETYPE);
     addMimeType(QmlJSTools::Constants::QMLTYPES_MIMETYPE);
@@ -1043,7 +1041,7 @@ QmlJSEditorFactory::QmlJSEditorFactory()
     setEditorWidgetCreator([]() { return new QmlJSEditorWidget; });
     setEditorCreator([]() { return new QmlJSEditor; });
     setAutoCompleterCreator([]() { return new AutoCompleter; });
-    setCommentStyle(Utils::CommentDefinition::CppStyle);
+    setCommentDefinition(Utils::CommentDefinition::CppStyle);
     setParenthesesMatchingEnabled(true);
     setMarksVisible(true);
     setCodeFoldingSupported(true);
@@ -1054,7 +1052,14 @@ QmlJSEditorFactory::QmlJSEditorFactory()
     setEditorActionHandlers(TextEditorActionHandler::Format
         | TextEditorActionHandler::UnCommentSelection
         | TextEditorActionHandler::UnCollapseAll
-        | TextEditorActionHandler::FollowSymbolUnderCursor);
+                            | TextEditorActionHandler::FollowSymbolUnderCursor);
+}
+
+void QmlJSEditorFactory::decorateEditor(TextEditorWidget *editor)
+{
+    editor->textDocument()->setSyntaxHighlighter(new QmlJSHighlighter);
+    editor->textDocument()->setIndenter(new Indenter);
+    editor->setAutoCompleter(new AutoCompleter);
 }
 
 } // namespace Internal

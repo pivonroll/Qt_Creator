@@ -32,9 +32,11 @@
 #include <coreplugin/icore.h>
 #include <coreplugin/shellcommand.h>
 #include <utils/hostosinfo.h>
+#include <utils/synchronousprocess.h>
 
 #include <QFile>
 #include <QJsonDocument>
+#include <QMessageBox>
 #include <QRegularExpression>
 #include <QSettings>
 
@@ -46,11 +48,23 @@ namespace Internal {
 
 static const char defaultHostC[] = "codereview.qt-project.org";
 static const char accountUrlC[] = "/accounts/self";
+static const char versionUrlC[] = "/config/server/version";
 static const char isGerritKey[] = "IsGerrit";
 static const char rootPathKey[] = "RootPath";
 static const char userNameKey[] = "UserName";
 static const char fullNameKey[] = "FullName";
 static const char isAuthenticatedKey[] = "IsAuthenticated";
+static const char validateCertKey[] = "ValidateCert";
+static const char versionKey[] = "Version";
+
+enum ErrorCodes
+{
+    CertificateError = 60,
+    Success = 200,
+    UnknownError = 400,
+    AuthenticationFailure = 401,
+    PageNotFound = 404
+};
 
 bool GerritUser::isSameAs(const GerritUser &other) const
 {
@@ -140,8 +154,10 @@ bool GerritServer::fillFromRemote(const QString &remote,
     host = r.host;
     port = r.port;
     user.userName = r.userName.isEmpty() ? parameters.server.user.userName : r.userName;
-    if (type == GerritServer::Ssh)
+    if (type == GerritServer::Ssh) {
+        resolveVersion(parameters, forceReload);
         return true;
+    }
     curlBinary = parameters.curl;
     if (curlBinary.isEmpty() || !QFile::exists(curlBinary))
         return false;
@@ -153,10 +169,16 @@ bool GerritServer::fillFromRemote(const QString &remote,
         // The rest of the path needs to be inspected to find the root path
         // (can be http://example.net/review)
         ascendPath();
-        return resolveRoot();
+        if (resolveRoot()) {
+            resolveVersion(parameters, forceReload);
+            saveSettings(Valid);
+            return true;
+        }
+        return false;
     case NotGerrit:
         return false;
     case Valid:
+        resolveVersion(parameters, false);
         return true;
     }
     return true;
@@ -174,6 +196,7 @@ GerritServer::StoredHostValidity GerritServer::loadSettings()
         user.userName = settings->value(userNameKey).toString();
         user.fullName = settings->value(fullNameKey).toString();
         authenticated = settings->value(isAuthenticatedKey).toBool();
+        validateCert = settings->value(validateCertKey, true).toBool();
         validity = Valid;
     }
     settings->endGroup();
@@ -193,6 +216,7 @@ void GerritServer::saveSettings(StoredHostValidity validity) const
         settings->setValue(userNameKey, user.userName);
         settings->setValue(fullNameKey, user.fullName);
         settings->setValue(isAuthenticatedKey, authenticated);
+        settings->setValue(validateCertKey, validateCert);
         break;
     case Invalid:
         settings->clear();
@@ -202,14 +226,16 @@ void GerritServer::saveSettings(StoredHostValidity validity) const
     settings->endGroup();
 }
 
-QStringList GerritServer::curlArguments()
+QStringList GerritServer::curlArguments() const
 {
-    // -k - insecure - do not validate certificate
     // -f - fail silently on server error
     // -n - use credentials from ~/.netrc (or ~/_netrc on Windows)
     // -sS - silent, except server error (no progress)
     // --basic, --digest - try both authentication types
-    return {"-kfnsS", "--basic", "--digest"};
+    QStringList res = {"-fnsS", "--basic", "--digest"};
+    if (!validateCert)
+        res << "-k"; // -k - insecure - do not validate certificate
+    return res;
 }
 
 int GerritServer::testConnection()
@@ -221,6 +247,10 @@ int GerritServer::testConnection()
                 Core::ShellCommand::NoOutput);
     if (resp.result == SynchronousProcessResponse::Finished) {
         QString output = resp.stdOut();
+        // Gerrit returns an empty response for /p/qt-creator/a/accounts/self
+        // so consider this as 404.
+        if (output.isEmpty())
+            return PageNotFound;
         output.remove(0, output.indexOf('\n')); // Strip first line
         QJsonDocument doc = QJsonDocument::fromJson(output.toUtf8());
         if (!doc.isNull()) {
@@ -230,13 +260,15 @@ int GerritServer::testConnection()
             if (!userName.isEmpty())
                 user.userName = userName;
         }
-        return 200;
+        return Success;
     }
+    if (resp.exitCode == CertificateError)
+        return CertificateError;
     const QRegularExpression errorRegexp("returned error: (\\d+)");
     QRegularExpressionMatch match = errorRegexp.match(resp.stdErr());
     if (match.hasMatch())
         return match.captured(1).toInt();
-    return 400;
+    return UnknownError;
 }
 
 bool GerritServer::setupAuthentication()
@@ -262,12 +294,29 @@ bool GerritServer::resolveRoot()
 {
     for (;;) {
         switch (testConnection()) {
-        case 200:
+        case Success:
             saveSettings(Valid);
             return true;
-        case 401:
+        case AuthenticationFailure:
             return setupAuthentication();
-        case 404:
+        case CertificateError:
+            if (QMessageBox::question(
+                        Core::ICore::mainWindow(),
+                        QCoreApplication::translate(
+                            "Gerrit::Internal::GerritDialog", "Certificate Error"),
+                        QCoreApplication::translate(
+                            "Gerrit::Internal::GerritDialog",
+                            "Server certificate for %1 cannot be authenticated.\n"
+                            "Do you want to disable SSL verification for this server?\n"
+                            "Note: This can expose you to man-in-the-middle attack.")
+                        .arg(host))
+                    == QMessageBox::Yes) {
+                validateCert = false;
+            } else {
+                return false;
+            }
+            break;
+        case PageNotFound:
             if (!ascendPath()) {
                 saveSettings(NotGerrit);
                 return false;
@@ -278,6 +327,46 @@ bool GerritServer::resolveRoot()
         }
     }
     return false;
+}
+
+void GerritServer::resolveVersion(const GerritParameters &p, bool forceReload)
+{
+    static GitClient *const client = GitPlugin::client();
+    QSettings *settings = Core::ICore::settings();
+    const QString fullVersionKey = "Gerrit/" + host + '/' + versionKey;
+    version = settings->value(fullVersionKey).toString();
+    if (!version.isEmpty() && !forceReload)
+        return;
+    if (type == Ssh) {
+        SynchronousProcess process;
+        QStringList arguments;
+        if (port)
+            arguments << p.portFlag << QString::number(port);
+        arguments << hostArgument() << "gerrit" << "version";
+        const SynchronousProcessResponse resp = client->vcsFullySynchronousExec(
+                    QString(), FileName::fromString(p.ssh), arguments,
+                    Core::ShellCommand::NoOutput);
+        QString stdOut = resp.stdOut().trimmed();
+        stdOut.remove("gerrit version ");
+        version = stdOut;
+    } else {
+        const QStringList arguments = curlArguments() << (url(RestUrl) + versionUrlC);
+        const SynchronousProcessResponse resp = client->vcsFullySynchronousExec(
+                    QString(), FileName::fromString(curlBinary), arguments,
+                    Core::ShellCommand::NoOutput);
+        // REST endpoint for version is only available from 2.8 and up. Do not consider invalid
+        // if it fails.
+        if (resp.result == SynchronousProcessResponse::Finished) {
+            QString output = resp.stdOut();
+            if (output.isEmpty())
+                return;
+            output.remove(0, output.indexOf('\n')); // Strip first line
+            output.remove('\n');
+            output.remove('"');
+            version = output;
+        }
+    }
+    settings->setValue(fullVersionKey, version);
 }
 
 } // namespace Internal

@@ -43,6 +43,9 @@
 #include "nodelistproperty.h"
 #include "nodeproperty.h"
 #include "qmlchangeset.h"
+#include "qmlstate.h"
+#include "qmltimelinemutator.h"
+#include "qmltimelinekeyframes.h"
 
 #include "createscenecommand.h"
 #include "createinstancescommand.h"
@@ -202,6 +205,7 @@ void NodeInstanceView::restartProcess()
     if (rootNodeInstance().isValid())
         rootNodeInstance().setError({});
     emitInstanceErrorChange({});
+    emitDocumentMessage({}, {});
 
     if (m_restartProcessTimerId)
         killTimer(m_restartProcessTimerId);
@@ -244,9 +248,9 @@ void NodeInstanceView::nodeCreated(const ModelNode &createdNode)
     propertyList.append(createdNode.variantProperty("y"));
     updatePosition(propertyList);
 
-    nodeInstanceServer()->createInstances(createCreateInstancesCommand(QList<NodeInstance>() << instance));
+    nodeInstanceServer()->createInstances(createCreateInstancesCommand({instance}));
     nodeInstanceServer()->changePropertyValues(createChangeValueCommand(createdNode.variantProperties()));
-    nodeInstanceServer()->completeComponent(createComponentCompleteCommand(QList<NodeInstance>() << instance));
+    nodeInstanceServer()->completeComponent(createComponentCompleteCommand({instance}));
 }
 
 /*! Notifies the view that \a removedNode will be removed.
@@ -420,7 +424,7 @@ void NodeInstanceView::nodeIdChanged(const ModelNode& node, const QString& /*new
 {
     if (hasInstanceForModelNode(node)) {
         NodeInstance instance = instanceForModelNode(node);
-        nodeInstanceServer()->changeIds(createChangeIdsCommand(QList<NodeInstance>() << instance));
+        nodeInstanceServer()->changeIds(createChangeIdsCommand({instance}));
     }
 }
 
@@ -459,16 +463,16 @@ void NodeInstanceView::auxiliaryDataChanged(const ModelNode &node, const Propert
             QVariant value = data;
             if (value.isValid()) {
                 PropertyValueContainer container(instance.instanceId(), name, value, TypeName());
-                ChangeAuxiliaryCommand changeAuxiliaryCommand(QVector<PropertyValueContainer>() << container);
+                ChangeAuxiliaryCommand changeAuxiliaryCommand({container});
                 nodeInstanceServer()->changeAuxiliaryValues(changeAuxiliaryCommand);
             } else {
                 if (node.hasVariantProperty(name)) {
                     PropertyValueContainer container(instance.instanceId(), name, node.variantProperty(name).value(), TypeName());
-                    ChangeValuesCommand changeValueCommand(QVector<PropertyValueContainer>() << container);
+                    ChangeValuesCommand changeValueCommand({container});
                     nodeInstanceServer()->changePropertyValues(changeValueCommand);
                 } else if (node.hasBindingProperty(name)) {
                     PropertyBindingContainer container(instance.instanceId(), name, node.bindingProperty(name).expression(), TypeName());
-                    ChangeBindingsCommand changeValueCommand(QVector<PropertyBindingContainer>() << container);
+                    ChangeBindingsCommand changeValueCommand({container});
                     nodeInstanceServer()->changePropertyBindings(changeValueCommand);
                 }
             }
@@ -651,13 +655,13 @@ void NodeInstanceView::updateChildren(const NodeAbstractProperty &newPropertyPar
 void setXValue(NodeInstance &instance, const VariantProperty &variantProperty, QMultiHash<ModelNode, InformationName> &informationChangeHash)
 {
     instance.setX(variantProperty.value().toDouble());
-    informationChangeHash.insert(variantProperty.parentModelNode(), Transform);
+    informationChangeHash.insert(instance.modelNode(), Transform);
 }
 
 void setYValue(NodeInstance &instance, const VariantProperty &variantProperty, QMultiHash<ModelNode, InformationName> &informationChangeHash)
 {
     instance.setY(variantProperty.value().toDouble());
-    informationChangeHash.insert(variantProperty.parentModelNode(), Transform);
+    informationChangeHash.insert(instance.modelNode(), Transform);
 }
 
 
@@ -668,7 +672,7 @@ void NodeInstanceView::updatePosition(const QList<VariantProperty> &propertyList
     foreach (const VariantProperty &variantProperty, propertyList) {
         if (variantProperty.name() == "x") {
             const ModelNode modelNode = variantProperty.parentModelNode();
-            if (QmlPropertyChanges::isValidQmlPropertyChanges(modelNode)) {
+            if (!currentState().isBaseState() && QmlPropertyChanges::isValidQmlPropertyChanges(modelNode)) {
                 ModelNode targetModelNode = QmlPropertyChanges(modelNode).target();
                 if (targetModelNode.isValid()) {
                     NodeInstance instance = instanceForModelNode(targetModelNode);
@@ -680,7 +684,7 @@ void NodeInstanceView::updatePosition(const QList<VariantProperty> &propertyList
             }
         } else if (variantProperty.name() == "y") {
             const ModelNode modelNode = variantProperty.parentModelNode();
-            if (QmlPropertyChanges::isValidQmlPropertyChanges(modelNode)) {
+            if (!currentState().isBaseState() && QmlPropertyChanges::isValidQmlPropertyChanges(modelNode)) {
                 ModelNode targetModelNode = QmlPropertyChanges(modelNode).target();
                 if (targetModelNode.isValid()) {
                     NodeInstance instance = instanceForModelNode(targetModelNode);
@@ -690,6 +694,21 @@ void NodeInstanceView::updatePosition(const QList<VariantProperty> &propertyList
                 NodeInstance instance = instanceForModelNode(modelNode);
                 setYValue(instance, variantProperty, informationChangeHash);
             }
+        } else if (currentTimeline().isValid()
+                   && variantProperty.name() == "value"
+                   &&  QmlTimelineFrames::isValidKeyframe(variantProperty.parentModelNode())) {
+
+            QmlTimelineFrames frames = QmlTimelineFrames::keyframesForKeyframe(variantProperty.parentModelNode());
+
+            if (frames.isValid() && frames.propertyName() == "x" && frames.target().isValid()) {
+
+                NodeInstance instance = instanceForModelNode(frames.target());
+                setXValue(instance, variantProperty, informationChangeHash);
+            } else if (frames.isValid() && frames.propertyName() == "y" && frames.target().isValid()) {
+                NodeInstance instance = instanceForModelNode(frames.target());
+                setYValue(instance, variantProperty, informationChangeHash);
+            }
+
         }
     }
 
@@ -1082,7 +1101,7 @@ RemovePropertiesCommand NodeInstanceView::createRemovePropertiesCommand(const QL
 
 RemoveSharedMemoryCommand NodeInstanceView::createRemoveSharedMemoryCommand(const QString &sharedMemoryTypeName, quint32 keyNumber)
 {
-    return RemoveSharedMemoryCommand(sharedMemoryTypeName, QVector<qint32>() << keyNumber);
+    return RemoveSharedMemoryCommand(sharedMemoryTypeName, {static_cast<qint32>(keyNumber)});
 }
 
 RemoveSharedMemoryCommand NodeInstanceView::createRemoveSharedMemoryCommand(const QString &sharedMemoryTypeName, const QList<ModelNode> &nodeList)
@@ -1107,7 +1126,7 @@ void NodeInstanceView::valuesChanged(const ValuesChangedCommand &command)
             NodeInstance instance = instanceForId(container.instanceId());
             if (instance.isValid()) {
                 instance.setProperty(container.name(), container.value());
-                valuePropertyChangeList.append(qMakePair(instance.modelNode(), container.name()));
+                valuePropertyChangeList.append({instance.modelNode(), container.name()});
             }
         }
     }

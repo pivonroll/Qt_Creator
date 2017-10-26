@@ -29,6 +29,7 @@
 #include "projectexplorerconstants.h"
 
 #include <utils/algorithm.h>
+#include <utils/qtcfallthrough.h>
 #include <utils/synchronousprocess.h>
 #include <utils/winutils.h>
 #include <utils/qtcassert.h>
@@ -102,7 +103,7 @@ static bool hostSupportsPlatform(MsvcToolChain::Platform platform)
         if (platform == MsvcToolChain::amd64 || platform == MsvcToolChain::amd64_arm
             || platform == MsvcToolChain::amd64_x86)
             return true;
-        // fall through (all x86 toolchains are also working on an amd64 host)
+        Q_FALLTHROUGH(); // all x86 toolchains are also working on an amd64 host
     case Utils::HostOsInfo::HostArchitectureX86:
         return platform == MsvcToolChain::x86 || platform == MsvcToolChain::x86_amd64
                 || platform == MsvcToolChain::x86_ia64 || platform == MsvcToolChain::x86_arm;
@@ -258,6 +259,12 @@ static QString generateDisplayName(const QString &name,
     return vcName;
 }
 
+static QByteArray msvcCompilationDefine(const char *def)
+{
+    const QByteArray macro(def);
+    return "#if defined(" + macro + ")\n__PPOUT__(" + macro + ")\n#endif\n";
+}
+
 static QByteArray msvcCompilationFile()
 {
     static const char* macros[] = {
@@ -340,11 +347,8 @@ static QByteArray msvcCompilationFile()
         0
     };
     QByteArray file = "#define __PPOUT__(x) V##x=x\n\n";
-    for (int i = 0; macros[i] != 0; ++i) {
-        const QByteArray macro(macros[i]);
-        file += "#if defined(" + macro + ")\n__PPOUT__("
-                + macro + ")\n#endif\n";
-    }
+    for (int i = 0; macros[i] != 0; ++i)
+        file += msvcCompilationDefine(macros[i]);
     file += "\nvoid main(){}\n\n";
     return file;
 }
@@ -406,31 +410,18 @@ static QByteArray msvcCompilationFile()
 //
 // [1] https://msdn.microsoft.com/en-us/library/b0084kay.aspx
 // [2] http://stackoverflow.com/questions/3665537/how-to-find-out-cl-exes-built-in-macros
-QByteArray MsvcToolChain::msvcPredefinedMacros(const QStringList cxxflags,
-                                               const Utils::Environment &env) const
+Macros MsvcToolChain::msvcPredefinedMacros(const QStringList cxxflags,
+                                           const Utils::Environment &env) const
 {
-    QByteArray predefinedMacros;
+    Macros predefinedMacros;
 
     QStringList toProcess;
-    foreach (const QString &arg, cxxflags) {
+    for (const QString &arg : cxxflags) {
         if (arg.startsWith(QLatin1String("/D"))) {
-            QString define = arg.mid(2);
-            int pos = define.indexOf(QLatin1Char('='));
-            if (pos < 0) {
-                predefinedMacros += "#define ";
-                predefinedMacros += define.toLocal8Bit();
-                predefinedMacros += '\n';
-            } else {
-                predefinedMacros += "#define ";
-                predefinedMacros += define.left(pos).toLocal8Bit();
-                predefinedMacros += ' ';
-                predefinedMacros += define.mid(pos + 1).toLocal8Bit();
-                predefinedMacros += '\n';
-            }
+            const QString define = arg.mid(2);
+            predefinedMacros.append(Macro::fromKeyValue(define));
         } else if (arg.startsWith(QLatin1String("/U"))) {
-            predefinedMacros += "#undef ";
-            predefinedMacros += arg.mid(2).toLocal8Bit();
-            predefinedMacros += '\n';
+            predefinedMacros.append({arg.mid(2).toLocal8Bit(), ProjectExplorer::MacroType::Undefine});
         } else if (arg.startsWith(QLatin1String("-I"))) {
             // Include paths should not have any effect on defines
         } else {
@@ -454,6 +445,8 @@ QByteArray MsvcToolChain::msvcPredefinedMacros(const QStringList cxxflags,
         return predefinedMacros;
     }
 
+    if (language() == ProjectExplorer::Constants::C_LANGUAGE_ID)
+        arguments << QLatin1String("/TC");
     arguments << toProcess << QLatin1String("/EP") << QDir::toNativeSeparators(saver.fileName());
     Utils::SynchronousProcessResponse response = cpp.runBlocking(binary.toString(), arguments);
     if (response.result != Utils::SynchronousProcessResponse::Finished ||
@@ -462,18 +455,8 @@ QByteArray MsvcToolChain::msvcPredefinedMacros(const QStringList cxxflags,
 
     const QStringList output = Utils::filtered(response.stdOut().split('\n'),
                                                [](const QString &s) { return s.startsWith('V'); });
-    foreach (const QString& line, output) {
-        QStringList split = line.split('=');
-        const QString key = split.at(0).mid(1);
-        QString value = split.at(1);
-        predefinedMacros += "#define ";
-        predefinedMacros += key.toUtf8();
-        predefinedMacros += ' ';
-        predefinedMacros += value.toUtf8();
-        predefinedMacros += '\n';
-    }
-    if (debug)
-        qDebug() << "msvcPredefinedMacros" << predefinedMacros;
+    for (const QString &line : output)
+        predefinedMacros.append(Macro::fromKeyValue(line.mid(1)));
     return predefinedMacros;
 }
 
@@ -499,30 +482,47 @@ static QString winExpandDelayedEnvReferences(QString in, const Utils::Environmen
     return in;
 }
 
-Utils::Environment MsvcToolChain::readEnvironmentSetting(const Utils::Environment& env) const
+QList<Utils::EnvironmentItem> MsvcToolChain::environmentModifications() const
 {
-    Utils::Environment result;
+    const Utils::Environment inEnv = Utils::Environment::systemEnvironment();
+    Utils::Environment outEnv;
     QMap<QString, QString> envPairs;
-    if (!generateEnvironmentSettings(env, m_vcvarsBat, m_varsBatArg, envPairs))
-        return env;
+    if (!generateEnvironmentSettings(inEnv, m_vcvarsBat, m_varsBatArg, envPairs))
+        return QList<Utils::EnvironmentItem>();
 
     // Now loop through and process them
-    QMap<QString,QString>::const_iterator envIter;
-    for (envIter = envPairs.constBegin(); envIter!=envPairs.constEnd(); ++envIter) {
-        const QString expandedValue = winExpandDelayedEnvReferences(envIter.value(), env);
+    for (auto envIter = envPairs.cbegin(), eend = envPairs.cend(); envIter != eend; ++envIter) {
+        const QString expandedValue = winExpandDelayedEnvReferences(envIter.value(), inEnv);
         if (!expandedValue.isEmpty())
-            result.set(envIter.key(), expandedValue);
+            outEnv.set(envIter.key(), expandedValue);
     }
 
     if (debug) {
-        const QStringList newVars = result.toStringList();
-        const QStringList oldVars = env.toStringList();
+        const QStringList newVars = outEnv.toStringList();
+        const QStringList oldVars = inEnv.toStringList();
         QDebug nsp = qDebug().nospace();
         foreach (const QString &n, newVars) {
             if (!oldVars.contains(n))
                 nsp << n << '\n';
         }
     }
+
+    QList<Utils::EnvironmentItem> diff = inEnv.diff(outEnv, true);
+    for (int i = diff.size() - 1; i >= 0; --i) {
+        if (diff.at(i).name.startsWith(QLatin1Char('='))) { // Exclude "=C:", "=EXITCODE"
+            diff.removeAt(i);
+        }
+    }
+
+    return diff;
+}
+
+Utils::Environment MsvcToolChain::readEnvironmentSetting(const Utils::Environment& env) const
+{
+    if (m_environmentModifications.isEmpty())
+        m_environmentModifications = environmentModifications();
+    Utils::Environment result = env;
+    result.modify(m_environmentModifications);
     return result;
 }
 
@@ -594,7 +594,10 @@ Utils::FileNameList MsvcToolChain::suggestedMkspecList() const
             << Utils::FileName::fromLatin1("winrt-x64-msvc2015");
         break;
     case Abi::WindowsMsvc2017Flavor:
-        result << Utils::FileName::fromLatin1("win32-msvc2017");
+        result << Utils::FileName::fromLatin1("win32-msvc2017")
+               << Utils::FileName::fromLatin1("winrt-arm-msvc2017")
+               << Utils::FileName::fromLatin1("winrt-x86-msvc2017")
+               << Utils::FileName::fromLatin1("winrt-x64-msvc2017");
         break;
     default:
         result.clear();

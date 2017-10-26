@@ -37,13 +37,12 @@
 namespace Valgrind {
 namespace Internal {
 
-class ValgrindRunControl : public ProjectExplorer::RunControl
+class ValgrindToolRunner : public ProjectExplorer::RunWorker
 {
     Q_OBJECT
 
 public:
-    ValgrindRunControl(ProjectExplorer::RunConfiguration *runConfiguration,
-                       Core::Id runMode);
+    explicit ValgrindToolRunner(ProjectExplorer::RunControl *runControl);
 
     void start() override;
     void stop() override;
@@ -53,10 +52,10 @@ public:
 protected:
     virtual QString progressTitle() const = 0;
     virtual QStringList toolArguments() const = 0;
-    virtual Valgrind::ValgrindRunner *runner() = 0;
 
     ValgrindBaseSettings *m_settings = 0;
     QFutureInterface<void> m_progress;
+    ValgrindRunner m_runner;
 
 private:
     void handleProgressCanceled();

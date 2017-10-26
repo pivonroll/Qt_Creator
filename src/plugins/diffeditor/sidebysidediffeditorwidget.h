@@ -30,7 +30,12 @@
 #include <QWidget>
 #include <QTextCharFormat>
 
-namespace TextEditor { class FontSettings; }
+namespace Core { class IContext; }
+
+namespace TextEditor {
+class FontSettings;
+class TextEditorWidget;
+}
 
 QT_BEGIN_NAMESPACE
 class QMenu;
@@ -39,7 +44,6 @@ QT_END_NAMESPACE
 
 namespace DiffEditor {
 
-class DiffEditorController;
 class FileData;
 
 namespace Internal {
@@ -52,6 +56,10 @@ class SideBySideDiffEditorWidget : public QWidget
     Q_OBJECT
 public:
     explicit SideBySideDiffEditorWidget(QWidget *parent = 0);
+    ~SideBySideDiffEditorWidget();
+
+    TextEditor::TextEditorWidget *leftEditorWidget() const;
+    TextEditor::TextEditorWidget *rightEditorWidget() const;
 
     void setDocument(DiffEditorDocument *document);
     DiffEditorDocument *diffDocument() const;
@@ -98,6 +106,8 @@ private:
     bool m_horizontalSync = false;
 
     QTextCharFormat m_spanLineFormat;
+    Core::IContext *m_leftContext;
+    Core::IContext *m_rightContext;
 };
 
 } // namespace Internal

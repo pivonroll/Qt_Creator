@@ -43,6 +43,8 @@
 #include <QTime>
 
 #include <utils/algorithm.h>
+#include <utils/qtcassert.h>
+#include <utils/qtcfallthrough.h>
 
 namespace QmlDesigner {
 
@@ -85,7 +87,7 @@ void FormEditorScene::resetScene()
 
 FormEditorItem* FormEditorScene::itemForQmlItemNode(const QmlItemNode &qmlItemNode) const
 {
-    Q_ASSERT(qmlItemNode.isValid());
+    QTC_ASSERT(qmlItemNode.isValid(), return 0);
     return m_qmlItemNodeItemHash.value(qmlItemNode);
 }
 
@@ -357,6 +359,7 @@ bool FormEditorScene::event(QEvent * event)
                 currentTool()->keyPressEvent(static_cast<QKeyEvent*>(event));
                 return true;
             }
+            Q_FALLTHROUGH();
         default: return QGraphicsScene::event(event);
     }
 

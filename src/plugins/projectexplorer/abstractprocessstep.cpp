@@ -158,7 +158,7 @@ void AbstractProcessStep::setIgnoreReturnValue(bool b)
 bool AbstractProcessStep::init(QList<const BuildStep *> &earlierSteps)
 {
     Q_UNUSED(earlierSteps);
-    return true;
+    return !m_process;
 }
 
 /*!
@@ -205,6 +205,7 @@ void AbstractProcessStep::run(QFutureInterface<bool> &fi)
     if (!m_process->waitForStarted()) {
         processStartupFailed();
         m_process.reset();
+        m_outputParserChain.reset();
         reportRunResult(fi, false);
         return;
     }
@@ -369,7 +370,7 @@ void AbstractProcessStep::taskAdded(const Task &task, int linkedOutputLines, int
 
     Task editable(task);
     QString filePath = task.file.toString();
-    if (!filePath.isEmpty() && !QDir::isAbsolutePath(filePath)) {
+    if (!filePath.isEmpty() && !filePath.startsWith('<') && !QDir::isAbsolutePath(filePath)) {
         // We have no save way to decide which file in which subfolder
         // is meant. Therefore we apply following heuristics:
         // 1. Check if file is unique in whole project
@@ -389,7 +390,7 @@ void AbstractProcessStep::taskAdded(const Task &task, int linkedOutputLines, int
         } else {
             // More then one filename, so do a better compare
             // Chop of any "../"
-            while (filePath.startsWith(QLatin1String("../")))
+            while (filePath.startsWith("../"))
                 filePath.remove(0, 3);
             int count = 0;
             QString possibleFilePath;

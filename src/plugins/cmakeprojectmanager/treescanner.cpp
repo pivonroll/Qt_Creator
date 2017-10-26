@@ -25,6 +25,8 @@
 
 #include "treescanner.h"
 
+#include <coreplugin/iversioncontrol.h>
+#include <coreplugin/vcsmanager.h>
 #include <projectexplorer/projectexplorerconstants.h>
 
 #include <cpptools/cpptoolsconstants.h>
@@ -67,7 +69,10 @@ bool TreeScanner::asyncScanForFiles(const Utils::FileName &directory)
     m_scanFuture = fi->future();
     m_futureWatcher.setFuture(m_scanFuture);
 
-    Utils::runAsync([this, fi, directory]() { TreeScanner::scanForFiles(fi, directory, m_filter, m_factory); });
+    if (m_versionControls.isEmpty())
+        m_versionControls = Core::VcsManager::versionControls();
+
+    Utils::runAsync([this, fi, directory]() { TreeScanner::scanForFiles(fi, directory, m_filter, m_factory, m_versionControls); });
 
     return true;
 }
@@ -144,19 +149,20 @@ FileType TreeScanner::genericFileType(const Utils::MimeType &mimeType, const Uti
     return Node::fileTypeForMimeType(mimeType);
 }
 
-void TreeScanner::scanForFiles(FutureInterface *fi, const Utils::FileName& directory, const FileFilter &filter, const FileTypeFactory &factory)
+void TreeScanner::scanForFiles(FutureInterface *fi, const Utils::FileName& directory,
+                               const FileFilter &filter, const FileTypeFactory &factory,
+                               QList<Core::IVersionControl *> &versionControls)
 {
     std::unique_ptr<FutureInterface> fip(fi);
     fip->reportStarted();
 
-    Result nodes = FileNode::scanForFiles(directory,
-                                          [&filter, &factory](const Utils::FileName &fn) -> FileNode * {
-        QTC_ASSERT(!fn.isEmpty(), return nullptr);
-
+    Result nodes
+            = FileNode::scanForFilesWithVersionControls(
+                directory,
+                [&filter, &factory](const Utils::FileName &fn) -> FileNode * {
         const Utils::MimeType mimeType = Utils::mimeTypeForFile(fn.toString());
 
         // Skip some files during scan.
-        // Filter out nullptr records after.
         if (filter && filter(mimeType, fn))
             return nullptr;
 
@@ -166,19 +172,12 @@ void TreeScanner::scanForFiles(FutureInterface *fi, const Utils::FileName& direc
             type = factory(mimeType, fn);
 
         return new FileNode(fn, type, false);
-    },
-    fip.get());
+    }, versionControls, fip.get());
 
-    // Clean up nodes and keep it sorted
-    Result tmp = Utils::filtered(nodes, [](const FileNode *fn) -> bool {
-        // Simple skip null entries
-        // TODO: fix Node::scanForFiles() to skip null factory results
-        return fn;
-    });
-    Utils::sort(tmp, ProjectExplorer::Node::sortByPath);
+    Utils::sort(nodes, ProjectExplorer::Node::sortByPath);
 
     fip->setProgressValue(fip->progressMaximum());
-    fip->reportResult(tmp);
+    fip->reportResult(nodes);
     fip->reportFinished();
 }
 

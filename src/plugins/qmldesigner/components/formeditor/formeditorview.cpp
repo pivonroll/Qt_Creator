@@ -34,6 +34,7 @@
 #include "formeditorscene.h"
 #include "abstractcustomtool.h"
 
+#include <designersettings.h>
 #include <designmodecontext.h>
 #include <modelnode.h>
 #include <model.h>
@@ -99,7 +100,7 @@ void FormEditorView::setupFormEditorItemTree(const QmlItemNode &qmlItemNode)
 
     foreach (const QmlObjectNode &nextNode, qmlItemNode.allDirectSubNodes()) //TODO instance children
         //If the node has source for components/custom parsers we ignore it.
-        if (QmlItemNode(nextNode).isValid() && nextNode.modelNode().nodeSourceType() == ModelNode::NodeWithoutSource)
+        if (QmlItemNode::isValidQmlItemNode(nextNode) && nextNode.modelNode().nodeSourceType() == ModelNode::NodeWithoutSource)
             setupFormEditorItemTree(nextNode.toQmlItemNode());
 }
 
@@ -215,8 +216,7 @@ void FormEditorView::nodeAboutToBeRemoved(const ModelNode &removedNode)
 void FormEditorView::rootNodeTypeChanged(const QString &/*type*/, int /*majorVersion*/, int /*minorVersion*/)
 {
     foreach (FormEditorItem *item, m_scene->allFormEditorItems()) {
-        item->setParentItem(0);
-        item->setParent(0);
+        item->setParentItem(nullptr);
     }
 
     foreach (FormEditorItem *item, m_scene->allFormEditorItems()) {
@@ -411,6 +411,7 @@ void FormEditorView::changeCurrentToolTo(AbstractFormEditorTool *newTool)
     m_currentTool->clear();
     m_currentTool->setItems(scene()->itemsForQmlItemNodes(toQmlItemNodeList(
         selectedModelNodes())));
+    m_currentTool->start();
 }
 
 void FormEditorView::registerTool(AbstractCustomTool *tool)
@@ -452,6 +453,8 @@ void FormEditorView::instancesCompleted(const QVector<ModelNode> &completedNodeL
 void FormEditorView::instanceInformationsChanged(const QMultiHash<ModelNode, InformationName> &informationChangedHash)
 {
     QList<FormEditorItem*> changedItems;
+    const int rootElementInitWidth = DesignerSettings::getValue(DesignerSettingsKey::ROOT_ELEMENT_INIT_WIDTH).toInt();
+    const int rootElementInitHeight = DesignerSettings::getValue(DesignerSettingsKey::ROOT_ELEMENT_INIT_HEIGHT).toInt();
 
     QList<ModelNode> informationChangedNodes = Utils::filtered(informationChangedHash.keys(), [](const ModelNode &node) {
         return QmlItemNode::isValidQmlItemNode(node);
@@ -466,9 +469,9 @@ void FormEditorView::instanceInformationsChanged(const QMultiHash<ModelNode, Inf
                         !(qmlItemNode.propertyAffectedByCurrentState("width")
                           && qmlItemNode.propertyAffectedByCurrentState("height"))) {
                     if (!(rootModelNode().hasAuxiliaryData("width")))
-                        rootModelNode().setAuxiliaryData("width", 640);
+                        rootModelNode().setAuxiliaryData("width", rootElementInitWidth);
                     if (!(rootModelNode().hasAuxiliaryData("height")))
-                        rootModelNode().setAuxiliaryData("height", 480);
+                        rootModelNode().setAuxiliaryData("height", rootElementInitHeight);
                     rootModelNode().setAuxiliaryData("autoSize", true);
                     formEditorWidget()->updateActions();
                 } else {

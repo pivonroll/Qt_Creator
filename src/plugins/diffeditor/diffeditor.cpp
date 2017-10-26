@@ -34,7 +34,10 @@
 #include <coreplugin/minisplitter.h>
 
 #include <texteditor/displaysettings.h>
+#include <texteditor/fontsettings.h>
 #include <texteditor/marginsettings.h>
+#include <texteditor/syntaxhighlighter.h>
+#include <texteditor/textdocument.h>
 #include <texteditor/texteditor.h>
 #include <texteditor/texteditorsettings.h>
 
@@ -74,6 +77,8 @@ class DescriptionEditorWidget : public TextEditorWidget
     Q_OBJECT
 public:
     DescriptionEditorWidget(QWidget *parent = 0);
+    ~DescriptionEditorWidget();
+
     virtual QSize sizeHint() const override;
 
 signals:
@@ -92,6 +97,7 @@ protected:
 
 private:
     QTextCursor m_currentCursor;
+    Core::IContext *m_context;
 };
 
 DescriptionEditorWidget::DescriptionEditorWidget(QWidget *parent)
@@ -112,6 +118,18 @@ DescriptionEditorWidget::DescriptionEditorWidget(QWidget *parent)
     setFrameStyle(QFrame::NoFrame);
 
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    m_context = new Core::IContext(this);
+    m_context->setWidget(this);
+    m_context->setContext(Core::Context(Constants::C_DIFF_EDITOR_DESCRIPTION));
+    Core::ICore::addContextObject(m_context);
+
+    textDocument()->setSyntaxHighlighter(new SyntaxHighlighter);
+}
+
+DescriptionEditorWidget::~DescriptionEditorWidget()
+{
+    Core::ICore::removeContextObject(m_context);
 }
 
 QSize DescriptionEditorWidget::sizeHint() const
@@ -181,7 +199,9 @@ void DescriptionEditorWidget::highlightCurrentContents()
     QTextEdit::ExtraSelection sel;
     sel.cursor = m_currentCursor;
     sel.cursor.select(QTextCursor::LineUnderCursor);
-    sel.format.setFontUnderline(true);
+    sel.format.setUnderlineStyle(QTextCharFormat::SingleUnderline);
+    const QColor textColor = TextEditorSettings::fontSettings().formatFor(C_TEXT).foreground();
+    sel.format.setUnderlineColor(textColor.isValid() ? textColor : palette().color(QPalette::Foreground));
     setExtraSelections(TextEditorWidget::OtherSelection,
                        QList<QTextEdit::ExtraSelection>() << sel);
 }
@@ -226,8 +246,11 @@ DiffEditor::DiffEditor()
     m_stackedWidget = new QStackedWidget(splitter);
     splitter->addWidget(m_stackedWidget);
 
-    addView(new SideBySideView);
-    addView(new UnifiedView);
+    m_unifiedView = new UnifiedView;
+    m_sideBySideView = new SideBySideView;
+
+    addView(m_sideBySideView);
+    addView(m_unifiedView);
 
     setWidget(splitter);
 
@@ -351,19 +374,38 @@ QWidget *DiffEditor::toolBar()
     return m_toolBar;
 }
 
+TextEditorWidget *DiffEditor::descriptionWidget() const
+{
+    return m_descriptionWidget;
+}
+
+TextEditorWidget *DiffEditor::unifiedEditorWidget() const
+{
+    return m_unifiedView->textEditorWidget();
+}
+
+TextEditorWidget *DiffEditor::leftEditorWidget() const
+{
+    return m_sideBySideView->leftEditorWidget();
+}
+
+TextEditorWidget *DiffEditor::rightEditorWidget() const
+{
+    return m_sideBySideView->rightEditorWidget();
+}
+
 void DiffEditor::documentHasChanged()
 {
     Utils::GuardLocker guard(m_ignoreChanges);
-    const QList<FileData> diffFileList = m_document->diffFiles();
+    const QList<FileData> &diffFileList = m_document->diffFiles();
 
     updateDescription();
     currentView()->setDiff(diffFileList, m_document->baseDirectory());
 
     m_entriesComboBox->clear();
-    const int count = diffFileList.count();
-    for (int i = 0; i < count; i++) {
-        const DiffFileInfo leftEntry = diffFileList.at(i).leftFileInfo;
-        const DiffFileInfo rightEntry = diffFileList.at(i).rightFileInfo;
+    for (const FileData &diffFile : diffFileList) {
+        const DiffFileInfo &leftEntry = diffFile.leftFileInfo;
+        const DiffFileInfo &rightEntry = diffFile.rightFileInfo;
         const QString leftShortFileName = Utils::FileName::fromString(leftEntry.fileName).fileName();
         const QString rightShortFileName = Utils::FileName::fromString(rightEntry.fileName).fileName();
         QString itemText;
@@ -492,11 +534,12 @@ void DiffEditor::reloadHasFinished(bool success)
 
     int index = -1;
     const QString startupFile = m_document->startupFile();
-    const QList<FileData> diffFileList = m_document->diffFiles();
+    const QList<FileData> &diffFileList = m_document->diffFiles();
     const int count = diffFileList.count();
     for (int i = 0; i < count; i++) {
-        const DiffFileInfo leftEntry = diffFileList.at(i).leftFileInfo;
-        const DiffFileInfo rightEntry = diffFileList.at(i).rightFileInfo;
+        const FileData &diffFile = diffFileList.at(i);
+        const DiffFileInfo &leftEntry = diffFile.leftFileInfo;
+        const DiffFileInfo &rightEntry = diffFile.rightFileInfo;
         if ((m_currentFileChunk.first.isEmpty()
              && m_currentFileChunk.second.isEmpty()
              && startupFile.endsWith(rightEntry.fileName))

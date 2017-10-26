@@ -25,15 +25,16 @@
 
 #pragma once
 
-#include "stringcache.h"
+#include <filepathcachinginterface.h>
+#include <filepathid.h>
+
+#include <utils/smallstringvector.h>
 
 #include <clang/Basic/SourceManager.h>
 #include <clang/Lex/MacroInfo.h>
 #include <clang/Lex/HeaderSearch.h>
 #include <clang/Lex/PPCallbacks.h>
 #include <clang/Lex/Preprocessor.h>
-
-#include <utils/smallstringvector.h>
 
 #include <QFile>
 #include <QDir>
@@ -47,10 +48,10 @@ class CollectIncludesPreprocessorCallbacks final : public clang::PPCallbacks
 {
 public:
     CollectIncludesPreprocessorCallbacks(clang::HeaderSearch &headerSearch,
-                                         std::vector<uint> &includeIds,
-                                         StringCache<Utils::PathString> &filePathCache,
+                                         FilePathIds &includeIds,
+                                         FilePathCachingInterface &filePathCache,
                                          const std::vector<uint> &excludedIncludeUID,
-                                         std::vector<uint>  &alreadyIncludedFileUIDs)
+                                         std::vector<uint> &alreadyIncludedFileUIDs)
         : m_headerSearch(headerSearch),
           m_includeIds(includeIds),
           m_filePathCache(filePathCache),
@@ -78,7 +79,7 @@ public:
                     m_alreadyIncludedFileUIDs.insert(notAlreadyIncluded.second, fileUID);
                     Utils::PathString filePath = filePathFromFile(file);
                     if (!filePath.isEmpty()) {
-                        uint includeId = m_filePathCache.stringId(filePath);
+                        FilePathId includeId = m_filePathCache.filePathId(filePath);
                         m_includeIds.emplace_back(includeId);
                     }
                 }
@@ -174,8 +175,8 @@ public:
 
 private:
     clang::HeaderSearch &m_headerSearch;
-    std::vector<uint> &m_includeIds;
-    StringCache<Utils::PathString> &m_filePathCache;
+    FilePathIds &m_includeIds;
+    FilePathCachingInterface &m_filePathCache;
     const std::vector<uint> &m_excludedIncludeUID;
     std::vector<uint> &m_alreadyIncludedFileUIDs;
     bool m_skipInclude = false;

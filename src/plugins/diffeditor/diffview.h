@@ -33,9 +33,10 @@
 
 QT_FORWARD_DECLARE_CLASS(QWidget)
 
+namespace TextEditor { class TextEditorWidget; }
+
 namespace DiffEditor {
 
-class DiffEditorController;
 class FileData;
 
 namespace Internal {
@@ -43,9 +44,6 @@ namespace Internal {
 class DiffEditorDocument;
 class SideBySideDiffEditorWidget;
 class UnifiedDiffEditorWidget;
-
-const char SIDE_BY_SIDE_VIEW_ID[] = "SideBySide";
-const char UNIFIED_VIEW_ID[] = "Unified";
 
 class IDiffView : public QObject
 {
@@ -96,6 +94,8 @@ public:
     UnifiedView();
 
     QWidget *widget();
+    TextEditor::TextEditorWidget *textEditorWidget();
+
     void setDocument(DiffEditorDocument *document);
 
     void beginOperation();
@@ -106,7 +106,7 @@ public:
     void setSync(bool sync);
 
 private:
-    UnifiedDiffEditorWidget *m_widget;
+    UnifiedDiffEditorWidget *m_widget = nullptr;
 };
 
 class SideBySideView : public IDiffView
@@ -117,6 +117,9 @@ public:
     SideBySideView();
 
     QWidget *widget();
+    TextEditor::TextEditorWidget *leftEditorWidget();
+    TextEditor::TextEditorWidget *rightEditorWidget();
+
     void setDocument(DiffEditorDocument *document);
 
     void beginOperation();

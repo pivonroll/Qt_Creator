@@ -29,12 +29,18 @@
 #include "qnxrunconfiguration.h"
 #include "slog2inforunner.h"
 
+#include <projectexplorer/devicesupport/deviceusedportsgatherer.h>
 #include <projectexplorer/kitinformation.h>
+#include <projectexplorer/runnables.h>
 #include <projectexplorer/target.h>
 
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
+
 #include <qmldebug/qmldebugcommandlinearguments.h>
+#include <qmldebug/qmloutputparser.h>
+
+#include <ssh/sshconnection.h>
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -42,122 +48,42 @@ using namespace Utils;
 namespace Qnx {
 namespace Internal {
 
-QnxAnalyzeSupport::QnxAnalyzeSupport(RunControl *runControl)
-    : QnxAbstractRunSupport(runControl)
-    , m_runnable(runControl->runnable().as<StandardRunnable>())
-    , m_qmlPort(-1)
+QnxQmlProfilerSupport::QnxQmlProfilerSupport(RunControl *runControl)
+    : SimpleTargetRunner(runControl)
 {
-    const ApplicationLauncher *runner = appRunner();
-    connect(runner, &ApplicationLauncher::reportError,
-            this, &QnxAnalyzeSupport::handleError);
-    connect(runner, &ApplicationLauncher::remoteProcessStarted,
-            this, &QnxAbstractRunSupport::handleRemoteProcessStarted);
-    connect(runner, &ApplicationLauncher::finished,
-            this, &QnxAnalyzeSupport::handleRemoteProcessFinished);
-    connect(runner, &ApplicationLauncher::reportProgress,
-            this, &QnxAnalyzeSupport::handleProgressReport);
-    connect(runner, &ApplicationLauncher::remoteStdout,
-            this, &QnxAnalyzeSupport::handleRemoteOutput);
-    connect(runner, &ApplicationLauncher::remoteStderr,
-            this, &QnxAnalyzeSupport::handleRemoteOutput);
+    setDisplayName("QnxQmlProfilerSupport");
+    appendMessage(tr("Preparing remote side..."), Utils::LogMessageFormat);
 
-    connect(runControl, &RunControl::starting,
-            this, &QnxAnalyzeSupport::handleAdapterSetupRequested);
-    connect(runControl, &RunControl::finished,
-            this, &QnxAnalyzeSupport::setFinished);
+    m_portsGatherer = new PortsGatherer(runControl);
+    addStartDependency(m_portsGatherer);
 
-    connect(&m_outputParser, &QmlDebug::QmlOutputParser::waitingForConnectionOnPort,
-            this, &QnxAnalyzeSupport::remoteIsRunning);
+    auto slog2InfoRunner = new Slog2InfoRunner(runControl);
+    addStartDependency(slog2InfoRunner);
 
-    IDevice::ConstPtr dev = DeviceKitInformation::device(runControl->runConfiguration()->target()->kit());
-    QnxDevice::ConstPtr qnxDevice = dev.dynamicCast<const QnxDevice>();
-
-    auto qnxRunConfig = qobject_cast<QnxRunConfiguration *>(runControl->runConfiguration());
-    const QString applicationId = FileName::fromString(qnxRunConfig->remoteExecutableFilePath()).fileName();
-    m_slog2Info = new Slog2InfoRunner(applicationId, qnxDevice, this);
-    connect(m_slog2Info, &Slog2InfoRunner::output,
-            this, &QnxAnalyzeSupport::showMessage);
-    connect(runner, &ApplicationLauncher::remoteProcessStarted,
-            m_slog2Info, &Slog2InfoRunner::start);
-    if (qnxDevice->qnxVersion() > 0x060500)
-        connect(m_slog2Info, &Slog2InfoRunner::commandMissing,
-                this, &QnxAnalyzeSupport::printMissingWarning);
+    m_profiler = runControl->createWorker(runControl->runMode());
+    m_profiler->addStartDependency(this);
+    addStopDependency(m_profiler);
 }
 
-void QnxAnalyzeSupport::handleAdapterSetupRequested()
+void QnxQmlProfilerSupport::start()
 {
-    QTC_ASSERT(state() == Inactive, return);
+    Port qmlPort = m_portsGatherer->findPort();
 
-    showMessage(tr("Preparing remote side...") + QLatin1Char('\n'), NormalMessageFormat);
-    QnxAbstractRunSupport::handleAdapterSetupRequested();
-}
+    QUrl serverUrl;
+    serverUrl.setHost(device()->sshParameters().host);
+    serverUrl.setPort(qmlPort.number());
+    serverUrl.setScheme("tcp");
+    m_profiler->recordData("QmlServerUrl", serverUrl);
 
-void QnxAnalyzeSupport::startExecution()
-{
-    if (state() == Inactive)
-        return;
-
-    if (!setPort(m_qmlPort) && !m_qmlPort.isValid())
-        return;
-
-    setState(StartingRemoteProcess);
-
-    StandardRunnable r = m_runnable;
+    QString args = QmlDebug::qmlDebugTcpArguments(QmlDebug::QmlProfilerServices, qmlPort);
+    auto r = runnable().as<StandardRunnable>();
     if (!r.commandLineArguments.isEmpty())
-        r.commandLineArguments += QLatin1Char(' ');
-    r.commandLineArguments += QmlDebug::qmlDebugTcpArguments(QmlDebug::QmlProfilerServices,
-                                                             m_qmlPort);
-    appRunner()->start(r, device());
-}
+        r.commandLineArguments.append(' ');
+    r.commandLineArguments += args;
 
-void QnxAnalyzeSupport::handleRemoteProcessFinished(bool success)
-{
-    if (!success)
-        showMessage(tr("The %1 process closed unexpectedly.").arg(m_runnable.executable),
-                    NormalMessageFormat);
-    runControl()->notifyRemoteFinished();
+    setRunnable(r);
 
-    m_slog2Info->stop();
-}
-
-void QnxAnalyzeSupport::handleProgressReport(const QString &progressOutput)
-{
-    showMessage(progressOutput + QLatin1Char('\n'), NormalMessageFormat);
-}
-
-void QnxAnalyzeSupport::handleRemoteOutput(const QByteArray &output)
-{
-    QTC_ASSERT(state() == Inactive || state() == Running, return);
-
-    showMessage(QString::fromUtf8(output), StdOutFormat);
-}
-
-void QnxAnalyzeSupport::handleError(const QString &error)
-{
-    if (state() == Running) {
-        showMessage(error, ErrorMessageFormat);
-    } else if (state() != Inactive) {
-        showMessage(tr("Initial setup failed: %1").arg(error), NormalMessageFormat);
-        setFinished();
-    }
-}
-
-void QnxAnalyzeSupport::remoteIsRunning()
-{
-    runControl()->notifyRemoteSetupDone(m_qmlPort);
-}
-
-void QnxAnalyzeSupport::showMessage(const QString &msg, OutputFormat format)
-{
-    if (state() != Inactive)
-        runControl()->appendMessage(msg, format);
-    m_outputParser.processOutput(msg);
-}
-
-void QnxAnalyzeSupport::printMissingWarning()
-{
-    showMessage(tr("Warning: \"slog2info\" is not found on the device, debug output not available."),
-                ErrorMessageFormat);
+    SimpleTargetRunner::start();
 }
 
 } // namespace Internal

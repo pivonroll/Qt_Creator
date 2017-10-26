@@ -264,7 +264,10 @@ class Dumper(DumperBase):
             y = nativeValue.cast(chars.array(0, int(nativeType.sizeof - 1)))
             buf = bytearray(struct.pack('x' * size))
             for i in range(size):
-                buf[i] = int(y[i])
+                try:
+                    buf[i] = int(y[i])
+                except:
+                    pass
             val.ldata = bytes(buf)
 
         val.type = self.fromNativeType(nativeType)
@@ -351,7 +354,9 @@ class Dumper(DumperBase):
             }[code]
             if tdata.code == TypeCodeEnum:
                 tdata.enumDisplay = lambda intval, addr : \
-                    self.nativeTypeEnumDisplay(nativeType, intval)
+                    self.nativeTypeEnumDisplay(nativeType, intval, 0)
+                tdata.enumHexDisplay = lambda intval, addr : \
+                    self.nativeTypeEnumDisplay(nativeType, intval, 1)
             if tdata.code == TypeCodeStruct:
                 tdata.lalignment = lambda : \
                     self.nativeStructAlignment(nativeType)
@@ -379,15 +384,20 @@ class Dumper(DumperBase):
             else:
                 error('UNKNOWN TEMPLATE PARAMETER')
             pos += 1
-        return targs
+        targs2 = self.listTemplateParametersManually(str(nativeType))
+        return targs if len(targs) >= len(targs2) else targs2
 
-    def nativeTypeEnumDisplay(self, nativeType, intval):
+    def nativeTypeEnumDisplay(self, nativeType, intval, useHex):
+        if useHex:
+            format = lambda text, intval: '%s (0x%04x)' % (text, intval)
+        else:
+            format = lambda text, intval: '%s (%d)' % (text, intval)
         try:
             enumerators = []
             for field in nativeType.fields():
                 # If we found an exact match, return it immediately
                 if field.enumval == intval:
-                    return '%s (%d)' % (field.name, intval)
+                    return format(field.name, intval)
                 enumerators.append((field.name, field.enumval))
 
             # No match was found, try to return as flags
@@ -403,13 +413,15 @@ class Dumper(DumperBase):
             if not found or v != 0:
                 # Leftover value
                 flags.append('unknown:%d' % v)
-            return "(%s) (%d)" % (" | ".join(flags), intval)
+            return format(" | ".join(flags), intval)
         except:
             pass
+        if useHex:
+            return '0x%04x' % intval;
         return '%d' % intval
 
     def nativeTypeId(self, nativeType):
-        if nativeType.code == gdb.TYPE_CODE_TYPEDEF:
+        if nativeType and (nativeType.code == gdb.TYPE_CODE_TYPEDEF):
             return '%s{%s}' % (nativeType, nativeType.strip_typedefs())
         name = str(nativeType)
         if len(name) == 0:
@@ -448,12 +460,19 @@ class Dumper(DumperBase):
 
     def memberFromNativeFieldAndValue(self, nativeField, nativeValue, fieldName, value):
         nativeMember = self.nativeMemberFromField(nativeValue, nativeField)
+        if nativeMember is None:
+            val = self.Value(self)
+            val.name = fieldName
+            val.type = self.fromNativeType(nativeField.type)
+            val.lIsInScope = False
+            return val
         val = self.fromNativeValue(nativeMember)
         nativeFieldType = nativeField.type.unqualified()
         if nativeField.bitsize:
-            val.lvalue = str(int(nativeMember))
+            val.lvalue = int(nativeMember)
             val.laddress = None
-            val.type = self.createBitfieldType(str(nativeFieldType), nativeField.bitsize)
+            fieldType = self.fromNativeType(nativeFieldType)
+            val.type = self.createBitfieldType(fieldType, nativeField.bitsize)
         val.isBaseClass = nativeField.is_base_class
         val.name = fieldName
         return val
@@ -478,10 +497,6 @@ class Dumper(DumperBase):
 
         #warn('LISTING FIELDS FOR %s' % nativeType)
         for nativeField in nativeType.fields():
-            #if nativeField.bitpos is None:
-            #    # This could be a static data member. Ignore it
-            #    #warn('   STATIC MEMBER: %s' % nativeMember)
-            #    continue
             fieldName = nativeField.name
             # Something without a name.
             # Anonymous union? We need a dummy name to distinguish
@@ -495,7 +510,12 @@ class Dumper(DumperBase):
                 anonNumber += 1
                 fieldName = '#%s' % anonNumber
             #warn('FIELD: %s' % fieldName)
-            yield self.fromNativeField(nativeField, nativeValue, fieldName)
+            # hasattr(nativeField, 'bitpos') == False indicates a static field,
+            # but if we have access to a nativeValue .fromNativeField will
+            # also succeed. We essentially skip only static members from
+            # artificial values, like array members constructed from address.
+            if hasattr(nativeField, 'bitpos') or nativeValue is not None:
+                yield self.fromNativeField(nativeField, nativeValue, fieldName)
 
     def fromNativeField(self, nativeField, nativeValue, fieldName):
         nativeFieldType = nativeField.type.unqualified()
@@ -505,17 +525,18 @@ class Dumper(DumperBase):
         if hasattr(nativeField, 'bitpos'):
             bitpos = nativeField.bitpos
         else:
-            bitpos = None
+            bitpos = 0
 
         if hasattr(nativeField, 'bitsize') and nativeField.bitsize != 0:
             bitsize = nativeField.bitsize
         else:
             bitsize = 8 * nativeFieldType.sizeof
 
+        fieldType = self.fromNativeType(nativeFieldType)
         if bitsize != nativeFieldType.sizeof * 8:
-            fieldType = self.createBitfieldType(str(nativeFieldType), bitsize)
+            fieldType = self.createBitfieldType(fieldType, bitsize)
         else:
-            fieldType = self.fromNativeType(nativeFieldType)
+            fieldType = fieldType
 
         if nativeValue is None:
             extractor = None
@@ -681,7 +702,7 @@ class Dumper(DumperBase):
         self.typesToReport = {}
 
         if self.forceQtNamespace:
-            self.qtNamepaceToReport = self.qtNamespace()
+            self.qtNamespaceToReport = self.qtNamespace()
 
         if self.qtNamespaceToReport:
             self.output += ',qtnamespace="%s"' % self.qtNamespaceToReport
@@ -720,7 +741,7 @@ class Dumper(DumperBase):
             typeName = "'" + typeName + "'"
         # 'class' is needed, see http://sourceware.org/bugzilla/show_bug.cgi?id=11912
         #exp = '((class %s*)%s)->%s(%s)' % (typeName, value.laddress, function, arg)
-        addr = value.laddress
+        addr = value.address()
         if addr is None:
            addr = self.pokeValue(value)
         #warn('PTR: %s -> %s(%s)' % (value, function, addr))
@@ -729,7 +750,7 @@ class Dumper(DumperBase):
         result = gdb.parse_and_eval(exp)
         #warn('  -> %s' % result)
         res = self.fromNativeValue(result)
-        if value.laddress is None:
+        if value.address() is None:
             self.releaseValue(addr)
         return res
 
@@ -975,8 +996,13 @@ class Dumper(DumperBase):
         name = objfile.filename
         if self.isWindowsTarget():
             isQtCoreObjFile = name.find('Qt5Cored.dll') >= 0 or name.find('Qt5Core.dll') >= 0
+            if not isQtCoreObjFile:
+                isQtCoreObjFile = name.find('QtCored.dll') >= 0 or name.find('QtCore.dll') >= 0
         else:
             isQtCoreObjFile = name.find('/libQt5Core') >= 0
+            if not isQtCoreObjFile:
+                isQtCoreObjFile = name.find('/libQtCore') >= 0
+
         if isQtCoreObjFile:
             self.handleQtCoreLoaded(objfile)
 
@@ -995,6 +1021,13 @@ class Dumper(DumperBase):
                     # [11] b 0x7ffff683c000 _ZN4MynsL17msgHandlerGrabbedE
                     # section .tbss Myns::msgHandlerGrabbed  qlogging.cpp
                     ns = re.split('_ZN?(\d*)(\w*)L17msgHandlerGrabbedE? ', line)[2]
+                    if len(ns):
+                        ns += '::'
+                    break
+                if line.find('currentThreadData ') >= 0:
+                    # [ 0] b 0x7ffff67d3000 _ZN2UUL17currentThreadDataE
+                    # section .tbss  UU::currentThreadData qthread_unix.cpp\\n
+                    ns = re.split('_ZN?(\d*)(\w*)L17currentThreadDataE? ', line)[2]
                     if len(ns):
                         ns += '::'
                     break
@@ -1035,11 +1068,16 @@ class Dumper(DumperBase):
             typeName = typeName[0:pos]
         if typeName in self.qqEditable and not simpleType:
             #self.qqEditable[typeName](self, expr, value)
-            expr = gdb.parse_and_eval(expr)
+            expr = self.parseAndEvaluate(expr)
             self.qqEditable[typeName](self, expr, value)
         else:
             cmd = 'set variable (%s)=%s' % (expr, value)
             gdb.execute(cmd)
+
+    def appendSolibSearchPath(self, args):
+        new = list(map(self.hexdecode, args['path']))
+        old = [gdb.parameter('solib-search-path')]
+        gdb.execute('set solib-search-path %s' % args['separator'].join(old + new))
 
     def watchPoint(self, args):
         self.reportToken(args)

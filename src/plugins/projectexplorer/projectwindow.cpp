@@ -439,6 +439,8 @@ public:
     void updatePanel()
     {
         ProjectItem *projectItem = m_projectsModel.rootItem()->childAt(0);
+        if (!projectItem)
+            return;
         setPanel(projectItem->data(0, PanelWidgetRole).value<QWidget *>());
 
         QModelIndex activeIndex = projectItem->activeIndex();
@@ -548,6 +550,8 @@ public:
                                                               dir);
         FileName path = FileName::fromString(importDir);
 
+        Target *lastTarget = nullptr;
+        BuildConfiguration *lastBc = nullptr;
         const QList<BuildInfo *> toImport = projectImporter->import(path, false);
         for (BuildInfo *info : toImport) {
             Target *target = project->target(info->kitId);
@@ -561,8 +565,16 @@ public:
                 BuildConfiguration *bc = info->factory()->create(target, info);
                 QTC_ASSERT(bc, continue);
                 target->addBuildConfiguration(bc);
+
+                lastTarget = target;
+                lastBc = bc;
             }
         }
+        if (lastTarget && lastBc) {
+            SessionManager::setActiveBuildConfiguration(lastTarget, lastBc, SetActive::Cascade);
+            SessionManager::setActiveTarget(project, lastTarget, SetActive::Cascade);
+        }
+
         qDeleteAll(toImport);
     }
 

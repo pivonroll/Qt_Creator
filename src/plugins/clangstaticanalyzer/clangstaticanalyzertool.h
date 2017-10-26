@@ -28,8 +28,6 @@
 #include <projectexplorer/runconfiguration.h>
 #include <cpptools/projectinfo.h>
 
-#include <QHash>
-
 namespace ClangStaticAnalyzer {
 namespace Internal {
 
@@ -37,10 +35,8 @@ class ClangStaticAnalyzerDiagnosticFilterModel;
 class ClangStaticAnalyzerDiagnosticModel;
 class ClangStaticAnalyzerDiagnosticView;
 class Diagnostic;
-class DummyRunConfiguration;
 
 const char ClangStaticAnalyzerPerspectiveId[] = "ClangStaticAnalyzer.Perspective";
-const char ClangStaticAnalyzerActionId[]      = "ClangStaticAnalyzer.Action";
 const char ClangStaticAnalyzerDockId[]        = "ClangStaticAnalyzer.Dock";
 
 class ClangStaticAnalyzerTool : public QObject
@@ -48,43 +44,34 @@ class ClangStaticAnalyzerTool : public QObject
     Q_OBJECT
 
 public:
-    explicit ClangStaticAnalyzerTool(QObject *parent = 0);
-    CppTools::ProjectInfo projectInfoBeforeBuild() const;
-    void resetCursorAndProjectInfoBeforeBuild();
+    ClangStaticAnalyzerTool();
+    ~ClangStaticAnalyzerTool();
+
+    static ClangStaticAnalyzerTool *instance();
 
     // For testing.
-    bool isRunning() const { return m_running; }
     QList<Diagnostic> diagnostics() const;
-
-    ProjectExplorer::RunControl *createRunControl(ProjectExplorer::RunConfiguration *runConfiguration,
-                                                  Core::Id runMode);
     void startTool();
+
+    void onNewDiagnosticsAvailable(const QList<Diagnostic> &diagnostics);
 
 signals:
     void finished(bool success); // For testing.
 
 private:
-    void onEngineIsStarting();
-    void onNewDiagnosticsAvailable(const QList<Diagnostic> &diagnostics);
-    void onEngineFinished();
-
-    void setBusyCursor(bool busy);
+    void setToolBusy(bool busy);
     void handleStateUpdate();
     void updateRunActions();
 
-private:
-    CppTools::ProjectInfo m_projectInfoBeforeBuild;
+    ClangStaticAnalyzerDiagnosticModel *m_diagnosticModel = nullptr;
+    ClangStaticAnalyzerDiagnosticFilterModel *m_diagnosticFilterModel = nullptr;
+    ClangStaticAnalyzerDiagnosticView *m_diagnosticView = nullptr;
 
-    ClangStaticAnalyzerDiagnosticModel *m_diagnosticModel;
-    ClangStaticAnalyzerDiagnosticFilterModel *m_diagnosticFilterModel;
-    ClangStaticAnalyzerDiagnosticView *m_diagnosticView;
-
-    QAction *m_startAction = 0;
-    QAction *m_stopAction = 0;
-    QAction *m_goBack;
-    QAction *m_goNext;
-    QHash<ProjectExplorer::Target *, DummyRunConfiguration *> m_runConfigs;
-    bool m_running;
+    QAction *m_startAction = nullptr;
+    QAction *m_stopAction = nullptr;
+    QAction *m_goBack = nullptr;
+    QAction *m_goNext = nullptr;
+    bool m_running = false;
     bool m_toolBusy = false;
 };
 

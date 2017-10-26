@@ -35,7 +35,6 @@ QT_BEGIN_NAMESPACE
 class QComboBox;
 class QSpinBox;
 class QToolBar;
-class QToolButton;
 class QStackedWidget;
 QT_END_NAMESPACE
 
@@ -47,6 +46,8 @@ namespace Internal {
 class DescriptionEditorWidget;
 class DiffEditorDocument;
 class IDiffView;
+class UnifiedView;
+class SideBySideView;
 
 class DiffEditor : public Core::IEditor
 {
@@ -59,6 +60,10 @@ public:
     Core::IEditor *duplicate() override;
     Core::IDocument *document() override;
     QWidget *toolBar() override;
+    TextEditor::TextEditorWidget *descriptionWidget() const;
+    TextEditor::TextEditorWidget *unifiedEditorWidget() const;
+    TextEditor::TextEditorWidget *leftEditorWidget() const;
+    TextEditor::TextEditorWidget *rightEditorWidget() const;
 
 private:
     DiffEditor();
@@ -89,6 +94,8 @@ private:
 
     QSharedPointer<DiffEditorDocument> m_document;
     DescriptionEditorWidget *m_descriptionWidget;
+    UnifiedView *m_unifiedView;
+    SideBySideView *m_sideBySideView;
     QStackedWidget *m_stackedWidget;
     QVector<IDiffView *> m_views;
     QToolBar *m_toolBar;

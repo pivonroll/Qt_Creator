@@ -26,8 +26,10 @@
 #include "qbsbuildconfiguration.h"
 
 #include "qbsbuildconfigurationwidget.h"
+#include "qbsbuildinfo.h"
 #include "qbsbuildstep.h"
 #include "qbscleanstep.h"
+#include "qbsinstallstep.h"
 #include "qbsproject.h"
 #include "qbsprojectmanagerconstants.h"
 #include "qbsprojectmanagersettings.h"
@@ -35,8 +37,8 @@
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/icore.h>
 #include <utils/qtcassert.h>
-#include <projectexplorer/buildinfo.h>
 #include <projectexplorer/buildsteplist.h>
+#include <projectexplorer/deployconfiguration.h>
 #include <projectexplorer/kit.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
@@ -54,6 +56,8 @@ using namespace ProjectExplorer;
 namespace QbsProjectManager {
 namespace Internal {
 
+static QString configNameKey() { return QStringLiteral("Qbs.configName"); }
+
 const char QBS_BC_ID[] = "Qbs.QbsBuildConfiguration";
 
 // ---------------------------------------------------------------------------
@@ -65,8 +69,8 @@ QbsBuildConfiguration::QbsBuildConfiguration(Target *target) :
     m_isParsing(true),
     m_parsingError(false)
 {
-    connect(project(), &QbsProject::projectParsingStarted, this, &BuildConfiguration::enabledChanged);
-    connect(project(), &QbsProject::projectParsingDone, this, &BuildConfiguration::enabledChanged);
+    connect(project(), &Project::parsingStarted, this, &BuildConfiguration::enabledChanged);
+    connect(project(), &Project::parsingFinished, this, &BuildConfiguration::enabledChanged);
 
     BuildStepList *bsl = stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
     connect(bsl, &BuildStepList::stepInserted, this, &QbsBuildConfiguration::buildStepInserted);
@@ -79,6 +83,7 @@ QbsBuildConfiguration::QbsBuildConfiguration(Target *target, Core::Id id) :
 QbsBuildConfiguration::QbsBuildConfiguration(Target *target, QbsBuildConfiguration *source) :
     BuildConfiguration(target, source)
 {
+    m_configurationName = source->configurationName();
     cloneSteps(source);
 }
 
@@ -87,6 +92,13 @@ bool QbsBuildConfiguration::fromMap(const QVariantMap &map)
     if (!BuildConfiguration::fromMap(map))
         return false;
 
+    m_configurationName = map.value(configNameKey()).toString();
+    if (m_configurationName.isEmpty()) { // pre-4.4 backwards compatibility
+        const QString profileName = QbsManager::instance()->profileForKit(target()->kit());
+        const QString buildVariant = qbsConfiguration()
+                .value(QLatin1String(Constants::QBS_CONFIG_VARIANT_KEY)).toString();
+        m_configurationName = profileName + QLatin1Char('-') + buildVariant;
+    }
     BuildStepList *bsl = stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
     // Fix up the existing build steps:
     for (int i = 0; i < bsl->count(); ++i) {
@@ -96,6 +108,13 @@ bool QbsBuildConfiguration::fromMap(const QVariantMap &map)
     }
 
     return true;
+}
+
+QVariantMap QbsBuildConfiguration::toMap() const
+{
+    QVariantMap map = BuildConfiguration::toMap();
+    map.insert(configNameKey(), m_configurationName);
+    return map;
 }
 
 void QbsBuildConfiguration::buildStepInserted(int pos)
@@ -128,7 +147,7 @@ QVariantMap QbsBuildConfiguration::qbsConfiguration() const
 
 Internal::QbsProject *QbsBuildConfiguration::project() const
 {
-    return qobject_cast<Internal::QbsProject *>(target()->project());
+    return qobject_cast<Internal::QbsProject *>(BuildConfiguration::project());
 }
 
 IOutputParser *QbsBuildConfiguration::createOutputParser() const
@@ -199,12 +218,17 @@ void QbsBuildConfiguration::emitBuildTypeChanged()
     emit buildTypeChanged();
 }
 
+void QbsBuildConfiguration::setConfigurationName(const QString &configName)
+{
+    if (m_configurationName == configName)
+        return;
+    m_configurationName = configName;
+    emit buildDirectoryChanged();
+}
+
 QString QbsBuildConfiguration::configurationName() const
 {
-    const QString profileName = QbsManager::instance()->profileForKit(target()->kit());
-    const QString buildVariant = qbsConfiguration()
-            .value(QLatin1String(Constants::QBS_CONFIG_VARIANT_KEY)).toString();
-    return profileName + QLatin1Char('-') + buildVariant;
+    return m_configurationName;
 }
 
 class StepProxy
@@ -213,26 +237,35 @@ public:
     StepProxy(const BuildStep *buildStep)
         : m_qbsBuildStep(qobject_cast<const QbsBuildStep *>(buildStep))
         , m_qbsCleanStep(qobject_cast<const QbsCleanStep *>(buildStep))
+        , m_qbsInstallStep(qobject_cast<const QbsInstallStep *>(buildStep))
     {
     }
 
     QString command() const {
         if (m_qbsBuildStep)
             return QLatin1String("build");
+        if (m_qbsInstallStep)
+            return QLatin1String("install");
         return QLatin1String("clean");
     }
 
     bool dryRun() const {
         if (m_qbsBuildStep)
             return false;
+        if (m_qbsInstallStep)
+            return m_qbsInstallStep->dryRun();
         return m_qbsCleanStep->dryRun();
     }
 
     bool keepGoing() const {
         if (m_qbsBuildStep)
             return m_qbsBuildStep->keepGoing();
+        if (m_qbsInstallStep)
+            return m_qbsInstallStep->keepGoing();
         return m_qbsCleanStep->keepGoing();
     }
+
+    bool forceProbeExecution() const { return m_qbsBuildStep && m_qbsBuildStep->forceProbes(); }
 
     bool showCommandLines() const {
         return m_qbsBuildStep ? m_qbsBuildStep->showCommandLines() : false;
@@ -242,9 +275,13 @@ public:
         return m_qbsBuildStep ? !m_qbsBuildStep->install() : false;
     }
 
+    bool noBuild() const { return m_qbsInstallStep; }
+
     bool cleanInstallRoot() const {
         if (m_qbsBuildStep)
             return m_qbsBuildStep->cleanInstallRoot();
+        if (m_qbsInstallStep)
+            return m_qbsInstallStep->removeFirst();
         return false;
     }
 
@@ -253,14 +290,22 @@ public:
     }
 
     Utils::FileName installRoot() const {
-        if (m_qbsBuildStep && m_qbsBuildStep->hasCustomInstallRoot())
-            return m_qbsBuildStep->installRoot();
+        const QbsBuildStep *bs = nullptr;
+        if (m_qbsBuildStep) {
+            bs = m_qbsBuildStep;
+        } else if (m_qbsInstallStep) {
+            bs = static_cast<QbsBuildConfiguration *>(m_qbsInstallStep->deployConfiguration()
+                    ->target()->activeBuildConfiguration())->qbsStep();
+        }
+        if (bs && bs->hasCustomInstallRoot())
+            return bs->installRoot();
         return Utils::FileName();
     }
 
 private:
     const QbsBuildStep * const m_qbsBuildStep;
     const QbsCleanStep * const m_qbsCleanStep;
+    const QbsInstallStep * const m_qbsInstallStep;
 };
 
 QString QbsBuildConfiguration::equivalentCommandLine(const BuildStep *buildStep) const
@@ -285,11 +330,15 @@ QString QbsBuildConfiguration::equivalentCommandLine(const BuildStep *buildStep)
         Utils::QtcProcess::addArg(&commandLine, QLatin1String("--dry-run"));
     if (stepProxy.keepGoing())
         Utils::QtcProcess::addArg(&commandLine, QLatin1String("--keep-going"));
+    if (stepProxy.forceProbeExecution())
+        Utils::QtcProcess::addArg(&commandLine, QLatin1String("--force-probe-execution"));
     if (stepProxy.showCommandLines())
         Utils::QtcProcess::addArgs(&commandLine, QStringList({"--command-echo-mode",
                                                               "command-line"}));
     if (stepProxy.noInstall())
         Utils::QtcProcess::addArg(&commandLine, QLatin1String("--no-install"));
+    if (stepProxy.noBuild())
+        Utils::QtcProcess::addArg(&commandLine, QLatin1String("--no-build"));
     if (stepProxy.cleanInstallRoot())
         Utils::QtcProcess::addArg(&commandLine, QLatin1String("--clean-install-root"));
     const int jobCount = stepProxy.jobCount();
@@ -307,6 +356,10 @@ QString QbsBuildConfiguration::equivalentCommandLine(const BuildStep *buildStep)
     if (!installRoot.isEmpty()) {
         Utils::QtcProcess::addArg(&commandLine, QLatin1String(Constants::QBS_INSTALL_ROOT_KEY)
                                   + QLatin1Char(':') + installRoot.toUserOutput());
+        if (qobject_cast<const QbsInstallStep *>(buildStep)) {
+            Utils::QtcProcess::addArgs(&commandLine, QStringList({ QLatin1String("--installRoot"),
+                                                                   installRoot.toUserOutput() } ));
+        }
     }
     Utils::QtcProcess::addArg(&commandLine, QLatin1String("profile:") + profileName);
 
@@ -324,10 +377,17 @@ QbsBuildConfiguration *QbsBuildConfiguration::setup(Target *t,
     bc->setDefaultDisplayName(defaultDisplayName);
     bc->setDisplayName(displayName);
     bc->setBuildDirectory(directory);
+    QVariantMap bd = buildData;
+    QString configName = bd.take("configName").toString();
+    if (configName.isEmpty()) {
+        configName = "qtc_" + t->kit()->fileSystemFriendlyName() + QLatin1Char('_')
+                + Utils::FileUtils::fileSystemFriendlyName(displayName);
+    }
+    bc->setConfigurationName(configName);
 
     BuildStepList *buildSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
     QbsBuildStep *bs = new QbsBuildStep(buildSteps);
-    bs->setQbsConfiguration(buildData);
+    bs->setQbsConfiguration(bd);
     buildSteps->insertStep(0, bs);
 
     BuildStepList *cleanSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_CLEAN);
@@ -353,7 +413,7 @@ bool QbsBuildConfigurationFactory::canHandle(const Target *t) const
 BuildInfo *QbsBuildConfigurationFactory::createBuildInfo(const Kit *k,
                                                          BuildConfiguration::BuildType type) const
 {
-    auto info = new ProjectExplorer::BuildInfo(this);
+    auto info = new QbsBuildInfo(this);
     info->typeName = tr("Build");
     info->kitId = k->id();
     info->buildType = type;
@@ -424,7 +484,8 @@ BuildConfiguration *QbsBuildConfigurationFactory::create(Target *parent, const B
     QTC_ASSERT(info->kitId == parent->kit()->id(), return 0);
     QTC_ASSERT(!info->displayName.isEmpty(), return 0);
 
-    QVariantMap configData;
+    const QbsBuildInfo * const bi = static_cast<const QbsBuildInfo *>(info);
+    QVariantMap configData = bi->config;
     configData.insert(QLatin1String(Constants::QBS_CONFIG_VARIANT_KEY),
                       (info->buildType == BuildConfiguration::Debug)
                           ? QLatin1String(Constants::QBS_VARIANT_DEBUG)

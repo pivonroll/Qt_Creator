@@ -25,47 +25,22 @@
 
 #pragma once
 
-#include <projectexplorer/runconfiguration.h>
-
-namespace Debugger { class DebuggerRunControl; }
-
-namespace ProjectExplorer { class ApplicationLauncher; }
+#include <debugger/debuggerruncontrol.h>
 
 namespace BareMetal {
 namespace Internal {
 
-class BareMetalDebugSupport : public ProjectExplorer::ToolRunner
+class BareMetalDebugSupport : public Debugger::DebuggerRunTool
 {
     Q_OBJECT
 
 public:
-    explicit BareMetalDebugSupport(ProjectExplorer::RunControl *runControl);
-    ~BareMetalDebugSupport();
+    BareMetalDebugSupport(ProjectExplorer::RunControl *runControl);
 
 private:
-    enum State { Inactive, StartingRunner, Running };
+    void start() override;
 
-    void remoteSetupRequested();
-    void debuggingFinished();
-    void remoteOutputMessage(const QByteArray &output);
-    void remoteErrorOutputMessage(const QByteArray &output);
-    void remoteProcessStarted();
-    void appRunnerFinished(bool success);
-    void progressReport(const QString &progressOutput);
-    void appRunnerError(const QString &error);
-
-    void adapterSetupDone();
-    void adapterSetupFailed(const QString &error);
-
-    void startExecution();
-    void setFinished();
-    void reset();
-    void showMessage(const QString &msg, int channel);
-
-    Debugger::DebuggerRunControl *runControl();
-
-    ProjectExplorer::ApplicationLauncher *m_appLauncher;
-    State m_state = Inactive;
+    ProjectExplorer::SimpleTargetRunner *m_gdbServer = nullptr;
 };
 
 } // namespace Internal

@@ -46,6 +46,11 @@ def qform__QByteArray():
     return [Latin1StringFormat, SeparateLatin1StringFormat,
             Utf8StringFormat, SeparateUtf8StringFormat ]
 
+def qedit__QByteArray(d, value, data):
+    d.call('void', value, 'resize', str(len(data)))
+    (base, size, alloc) = d.stringData(value)
+    d.setValues(base, 'char', [ord(c) for c in data])
+
 def qdump__QByteArray(d, value):
     data, size, alloc = d.byteArrayData(value)
     d.check(alloc == 0 or (0 <= size and size <= alloc and alloc <= 100000000))
@@ -70,10 +75,7 @@ def qdump__QArrayData(d, value):
     d.check(alloc == 0 or (0 <= size and size <= alloc and alloc <= 100000000))
     d.putValue(d.readMemory(data, size), 'latin1')
     d.putNumChild(1)
-    if d.isExpanded():
-        with Children(d):
-            d.putIntItem('size', size)
-            d.putIntItem('alloc', alloc)
+    d.putPlainChildren(value)
 
 def qdump__QByteArrayData(d, value):
     qdump__QArrayData(d, value)
@@ -643,7 +645,7 @@ def qdump__QFlags(d, value):
     i = value.split('{int}')[0]
     enumType = value.type[0]
     if d.isGdb:
-        d.putValue(i.cast('enum ' + enumType.name).display())
+        d.putValue(i.cast('enum ' + enumType.name).display(useHex = 1))
     else:
         d.putValue(i.cast(enumType.name).display())
     d.putNumChild(0)
@@ -1106,6 +1108,10 @@ def qdump__QObjectPrivate__ConnectionList(d, value):
         d.putSpecialValue('minimumitemcount', 0)
 
 
+def qdump__QProcEnvKey(d, value):
+    d.putByteArrayValue(value)
+    d.putPlainChildren(value)
+
 def qdump__QPixmap(d, value):
     if d.qtVersion() < 0x050000:
         (vtbl, painters, dataPtr) = value.split('ppp');
@@ -1360,8 +1366,9 @@ def qdump__QStringData(d, value):
     (ref, size, alloc, pad, offset) = value.split('III@p')
     elided, shown = d.computeLimit(size, d.displayStringLimit)
     data = d.readMemory(value.address() + offset, shown * 2)
-    d.putNumChild(0)
     d.putValue(data, 'utf16', elided=elided)
+    d.putNumChild(1)
+    d.putPlainChildren(value)
 
 def qdump__QHashedString(d, value):
     qdump__QString(d, value)
@@ -1772,17 +1779,9 @@ def qdump__QVariant(d, value):
 
 def qedit__QVector(d, value, data):
     values = data.split(',')
-    size = len(values)
-    d.call('void', value, 'resize', str(size))
-    innerType = value.type[0]
-    try:
-        # Qt 5. Will fail on Qt 4 due to the missing 'offset' member.
-        offset = value['d']['offset']
-        base = value['d'].address() + offset
-    except:
-        # Qt 4.
-        base = value['p']['array'].pointer()
-    d.setValues(base, innerType, values)
+    d.call('void', value, 'resize', str(len(values)))
+    base, vsize, valloc = d.vectorDataHelper(d.extractPointer(value))
+    d.setValues(base, value.type[0].name, values)
 
 
 def qform__QVector():
@@ -2758,6 +2757,16 @@ def qdump__QSqlField(d, value):
     qdump__QVariant(d, val)
     d.putBetterType(d.currentType.value.replace('QVariant', 'QSqlField'))
     d.putPlainChildren(value)
+
+
+def qdump__QLazilyAllocated(d, value):
+    p = value.extractPointer()
+    if p == 0:
+        d.putValue("(null)")
+        d.putNumChild(0)
+    else:
+        d.putItem(d.createValue(p, value.type[0]))
+        d.putBetterType(value.type)
 
 
 def qdump__qfloat16(d, value):

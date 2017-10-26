@@ -63,8 +63,7 @@ SOURCES += texteditorplugin.cpp \
     snippets/snippeteditor.cpp \
     snippets/snippetscollection.cpp \
     snippets/snippetssettings.cpp \
-    snippets/isnippetprovider.cpp \
-    snippets/plaintextsnippetprovider.cpp \
+    snippets/snippetprovider.cpp \
     behaviorsettingswidget.cpp \
     extraencodingsettings.cpp \
     codeassist/functionhintproposalwidget.cpp \
@@ -78,7 +77,6 @@ SOURCES += texteditorplugin.cpp \
     snippets/snippetassistcollector.cpp \
     codeassist/assistinterface.cpp \
     codeassist/assistproposalitem.cpp \
-    convenience.cpp \
     codeassist/runner.cpp \
     codeassist/completionassistprovider.cpp \
     codeassist/genericproposalmodel.cpp \
@@ -174,8 +172,7 @@ HEADERS += texteditorplugin.h \
     snippets/snippetscollection.h \
     snippets/reuse.h \
     snippets/snippetssettings.h \
-    snippets/isnippetprovider.h \
-    snippets/plaintextsnippetprovider.h \
+    snippets/snippetprovider.h \
     behaviorsettingswidget.h \
     extraencodingsettings.h \
     codeassist/functionhintproposalwidget.h \
@@ -189,7 +186,6 @@ HEADERS += texteditorplugin.h \
     snippets/snippetassistcollector.h \
     codeassist/assistinterface.h \
     codeassist/assistproposalitem.h \
-    convenience.h \
     codeassist/assistenums.h \
     codeassist/runner.h \
     codeassist/assistproposaliteminterface.h \
@@ -216,7 +212,6 @@ HEADERS += texteditorplugin.h \
     circularclipboardassist.h \
     textmark.h \
     codeassist/keywordscompletionassist.h \
-    textmarkregistry.h \
     marginsettings.h \
     blockrange.h \
     completionsettingspage.h \

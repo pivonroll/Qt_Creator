@@ -52,11 +52,9 @@ QT_END_NAMESPACE
 namespace TextEditor {
 class TextDocument;
 class BaseHoverHandler;
-class TabSettings;
 class RefactorOverlay;
 struct RefactorMarker;
 class SyntaxHighlighter;
-class IAssistMonitorInterface;
 class AssistInterface;
 class IAssistProvider;
 class ICodeStylePreferences;
@@ -183,7 +181,7 @@ public:
     // IEditor
     QByteArray saveState() const;
     bool restoreState(const QByteArray &state);
-    void gotoLine(int line, int column = 0, bool centerLine = true);
+    void gotoLine(int line, int column = 0, bool centerLine = true, bool animate = false);
     int position(TextPositionOperation posOp = CurrentPosition,
          int at = -1) const;
     void convertPosition(int pos, int *line, int *column) const;
@@ -297,6 +295,7 @@ public:
     const BehaviorSettings &behaviorSettings() const;
 
     void ensureCursorVisible();
+    void ensureBlockIsUnfolded(QTextBlock block);
 
     static Core::Id FakeVimSelection;
     static Core::Id SnippetPlaceholderSelection;
@@ -359,8 +358,10 @@ public:
     void duplicateSelection();
     void duplicateSelectionAndComment();
     void deleteLine();
+    void deleteEndOfLine();
     void deleteEndOfWord();
     void deleteEndOfWordCamelCase();
+    void deleteStartOfLine();
     void deleteStartOfWord();
     void deleteStartOfWordCamelCase();
     void unfoldAll();
@@ -399,6 +400,8 @@ public:
     virtual bool selectBlockDown();
     void selectWordUnderCursor();
 
+    void showContextMenu();
+
     void moveLineUp();
     void moveLineDown();
 
@@ -417,6 +420,8 @@ public:
 
     void uppercaseSelection();
     void lowercaseSelection();
+
+    void sortSelectedLines();
 
     void cleanWhitespace();
 
@@ -506,6 +511,8 @@ protected:
     virtual void finalizeInitialization() {}
     virtual void finalizeInitializationAfterDuplication(TextEditorWidget *) {}
     static QTextCursor flippedCursor(const QTextCursor &cursor);
+
+    void addHoverHandler(BaseHoverHandler *handler);
 
 public:
     struct Link
@@ -651,7 +658,7 @@ public:
     void addHoverHandler(BaseHoverHandler *handler);
     void setCompletionAssistProvider(CompletionAssistProvider *provider);
 
-    void setCommentStyle(Utils::CommentDefinition::Style style);
+    void setCommentDefinition(Utils::CommentDefinition definition);
     void setDuplicatedSupported(bool on);
     void setMarksVisible(bool on);
     void setParenthesesMatchingEnabled(bool on);
@@ -666,5 +673,11 @@ private:
 };
 
 } // namespace TextEditor
+
+QT_BEGIN_NAMESPACE
+
+uint qHash(const QColor &color);
+
+QT_END_NAMESPACE
 
 Q_DECLARE_METATYPE(TextEditor::TextEditorWidget::Link)

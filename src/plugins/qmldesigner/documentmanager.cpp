@@ -148,9 +148,9 @@ static void openSourcePropertyOfLoader(const ModelNode &modelNode)
     QmlDesignerPlugin::instance()->viewManager().nextFileIsCalledInternally();
 
     QString componentFileName = modelNode.variantProperty("source").value().toString();
-    QString componentFilePath = modelNode.model()->fileUrl().resolved(QUrl::fromLocalFile(componentFileName)).toLocalFile();
 
-    Core::EditorManager::openEditor(componentFilePath, Core::Id(), Core::EditorManager::DoNotMakeVisible);
+    QFileInfo fileInfo(modelNode.model()->fileUrl().toLocalFile());
+    Core::EditorManager::openEditor(fileInfo.absolutePath() + "/" + componentFileName, Core::Id(), Core::EditorManager::DoNotMakeVisible);
 }
 
 
@@ -455,7 +455,7 @@ bool DocumentManager::addResourceFileToIsoProject(const QString &resourceFilePro
     if (!projectNode)
         return false;
 
-    if (!projectNode->addFiles(QStringList() << resourceFilePath)) {
+    if (!projectNode->addFiles({resourceFilePath})) {
         qCWarning(documentManagerLog) << "Failed to add resource file to" << projectNode->displayName();
         return false;
     }

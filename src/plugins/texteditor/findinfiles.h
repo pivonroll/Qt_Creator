@@ -33,7 +33,7 @@
 #include <QStringListModel>
 
 QT_BEGIN_NAMESPACE
-class QLabel;
+class QComboBox;
 class QStackedWidget;
 QT_END_NAMESPACE
 
@@ -57,6 +57,7 @@ public:
     bool isValid() const override;
 
     void setDirectory(const Utils::FileName &directory);
+    void setBaseDirectory(const Utils::FileName &directory);
     Utils::FileName directory() const;
     static void findOnFileSystem(const QString &path);
     static FindInFiles *instance();

@@ -75,23 +75,26 @@ public:
     QString hostArgument() const;
     QString url(UrlType urlType = DefaultUrl) const;
     bool fillFromRemote(const QString &remote, const GerritParameters &parameters, bool forceReload);
-    StoredHostValidity loadSettings();
-    void saveSettings(StoredHostValidity validity) const;
     int testConnection();
-    static QStringList curlArguments();
+    QStringList curlArguments() const;
 
     QString host;
     GerritUser user;
     QString rootPath; // for http
+    QString version;
     unsigned short port = 0;
     HostType type = Ssh;
     bool authenticated = true;
+    bool validateCert = true;
 
 private:
     QString curlBinary;
+    StoredHostValidity loadSettings();
+    void saveSettings(StoredHostValidity validity) const;
     bool setupAuthentication();
     bool ascendPath();
     bool resolveRoot();
+    void resolveVersion(const GerritParameters &p, bool forceReload);
 };
 
 } // namespace Internal

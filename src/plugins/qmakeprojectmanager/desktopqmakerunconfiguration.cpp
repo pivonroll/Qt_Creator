@@ -76,73 +76,33 @@ static Utils::FileName pathFromId(Core::Id id)
 // QmakeRunConfiguration
 //
 
-DesktopQmakeRunConfiguration::DesktopQmakeRunConfiguration(Target *parent, Core::Id id) :
-    RunConfiguration(parent, id),
-    m_proFilePath(pathFromId(id))
+DesktopQmakeRunConfiguration::DesktopQmakeRunConfiguration(Target *target)
+    : RunConfiguration(target)
 {
     addExtraAspect(new LocalEnvironmentAspect(this, [](RunConfiguration *rc, Environment &env) {
                        static_cast<DesktopQmakeRunConfiguration *>(rc)->addToBaseEnvironment(env);
                    }));
-    addExtraAspect(new ArgumentsAspect(this, QStringLiteral("Qt4ProjectManager.Qt4RunConfiguration.CommandLineArguments")));
-    addExtraAspect(new TerminalAspect(this, QStringLiteral("Qt4ProjectManager.Qt4RunConfiguration.UseTerminal")));
-    addExtraAspect(new WorkingDirectoryAspect(this,
-                       QStringLiteral("Qt4ProjectManager.Qt4RunConfiguration.UserWorkingDirectory")));
-    QmakeProject *project = qmakeProject();
-    m_parseSuccess = project->validParse(m_proFilePath);
-    m_parseInProgress = project->parseInProgress(m_proFilePath);
+    addExtraAspect(new ArgumentsAspect(this, "Qt4ProjectManager.Qt4RunConfiguration.CommandLineArguments"));
+    addExtraAspect(new TerminalAspect(this, "Qt4ProjectManager.Qt4RunConfiguration.UseTerminal"));
+    addExtraAspect(new WorkingDirectoryAspect(this, "Qt4ProjectManager.Qt4RunConfiguration.UserWorkingDirectory"));
+}
+
+void DesktopQmakeRunConfiguration::initialize(Core::Id id)
+{
+    RunConfiguration::initialize(id);
+    m_proFilePath = pathFromId(id);
 
     ctor();
 }
 
-DesktopQmakeRunConfiguration::DesktopQmakeRunConfiguration(Target *parent, DesktopQmakeRunConfiguration *source) :
-    RunConfiguration(parent, source),
-    m_proFilePath(source->m_proFilePath),
-    m_isUsingDyldImageSuffix(source->m_isUsingDyldImageSuffix),
-    m_isUsingLibrarySearchPath(source->m_isUsingLibrarySearchPath),
-    m_parseSuccess(source->m_parseSuccess),
-    m_parseInProgress(source->m_parseInProgress)
+void DesktopQmakeRunConfiguration::copyFrom(const DesktopQmakeRunConfiguration *source)
 {
+    RunConfiguration::copyFrom(source);
+    m_proFilePath = source->m_proFilePath;
+    m_isUsingDyldImageSuffix = source->m_isUsingDyldImageSuffix;
+    m_isUsingLibrarySearchPath = source->m_isUsingLibrarySearchPath;
+
     ctor();
-}
-
-bool DesktopQmakeRunConfiguration::isEnabled() const
-{
-    return m_parseSuccess && !m_parseInProgress;
-}
-
-QString DesktopQmakeRunConfiguration::disabledReason() const
-{
-    if (m_parseInProgress)
-        return tr("The .pro file \"%1\" is currently being parsed.")
-                .arg(m_proFilePath.fileName());
-
-    if (!m_parseSuccess)
-        return qmakeProject()->disabledReasonForRunConfiguration(m_proFilePath);
-    return QString();
-}
-
-void DesktopQmakeRunConfiguration::proFileUpdated(QmakeProFile *pro, bool success, bool parseInProgress)
-{
-    if (m_proFilePath != pro->filePath())
-        return;
-    const bool enabled = isEnabled();
-    const QString reason = disabledReason();
-    m_parseSuccess = success;
-    m_parseInProgress = parseInProgress;
-    if (enabled != isEnabled() || reason != disabledReason())
-        emit enabledChanged();
-
-    if (!parseInProgress) {
-        emit effectiveTargetInformationChanged();
-        setDefaultDisplayName(defaultDisplayName());
-        extraAspect<LocalEnvironmentAspect>()->buildEnvironmentHasChanged();
-
-        extraAspect<WorkingDirectoryAspect>()
-                ->setDefaultWorkingDirectory(FileName::fromString(baseWorkingDirectory()));
-        auto terminalAspect = extraAspect<TerminalAspect>();
-        if (!terminalAspect->isUserSet())
-            terminalAspect->setUseTerminal(isConsoleApplication());
-    }
 }
 
 void DesktopQmakeRunConfiguration::proFileEvaluated()
@@ -152,15 +112,34 @@ void DesktopQmakeRunConfiguration::proFileEvaluated()
     return extraAspect<LocalEnvironmentAspect>()->buildEnvironmentHasChanged();
 }
 
+void DesktopQmakeRunConfiguration::updateTargetInformation()
+{
+    setDefaultDisplayName(defaultDisplayName());
+    extraAspect<LocalEnvironmentAspect>()->buildEnvironmentHasChanged();
+
+    auto wda = extraAspect<WorkingDirectoryAspect>();
+
+    wda->setDefaultWorkingDirectory(FileName::fromString(baseWorkingDirectory()));
+    if (wda->pathChooser())
+        wda->pathChooser()->setBaseFileName(target()->project()->projectDirectory());
+    auto terminalAspect = extraAspect<TerminalAspect>();
+    if (!terminalAspect->isUserSet())
+        terminalAspect->setUseTerminal(isConsoleApplication());
+
+    emit effectiveTargetInformationChanged();
+}
+
 void DesktopQmakeRunConfiguration::ctor()
 {
     setDefaultDisplayName(defaultDisplayName());
 
     QmakeProject *project = qmakeProject();
-    connect(project, &QmakeProject::proFileUpdated,
-            this, &DesktopQmakeRunConfiguration::proFileUpdated);
+    connect(project, &Project::parsingFinished,
+            this, &DesktopQmakeRunConfiguration::updateTargetInformation);
     connect(project, &QmakeProject::proFilesEvaluated,
             this, &DesktopQmakeRunConfiguration::proFileEvaluated);
+
+    updateTargetInformation();
 }
 
 //////
@@ -172,17 +151,6 @@ DesktopQmakeRunConfigurationWidget::DesktopQmakeRunConfigurationWidget(DesktopQm
 {
     auto vboxTopLayout = new QVBoxLayout(this);
     vboxTopLayout->setMargin(0);
-
-    auto hl = new QHBoxLayout();
-    hl->addStretch();
-    m_disabledIcon = new QLabel(this);
-    m_disabledIcon->setPixmap(Utils::Icons::WARNING.pixmap());
-    hl->addWidget(m_disabledIcon);
-    m_disabledReason = new QLabel(this);
-    m_disabledReason->setVisible(false);
-    hl->addWidget(m_disabledReason);
-    hl->addStretch();
-    vboxTopLayout->addLayout(hl);
 
     auto detailsContainer = new DetailsWidget(this);
     detailsContainer->setState(DetailsWidget::NoSummary);
@@ -239,9 +207,6 @@ DesktopQmakeRunConfigurationWidget::DesktopQmakeRunConfigurationWidget(DesktopQm
                 this, &DesktopQmakeRunConfigurationWidget::usingLibrarySearchPathToggled);
     }
 
-    runConfigurationEnabledChange();
-    effectiveTargetInformationChanged();
-
     connect(qmakeRunConfiguration, &DesktopQmakeRunConfiguration::usingDyldImageSuffixChanged,
             this, &DesktopQmakeRunConfigurationWidget::usingDyldImageSuffixChanged);
     connect(qmakeRunConfiguration, &DesktopQmakeRunConfiguration::usingLibrarySearchPathChanged,
@@ -249,18 +214,8 @@ DesktopQmakeRunConfigurationWidget::DesktopQmakeRunConfigurationWidget(DesktopQm
     connect(qmakeRunConfiguration, &DesktopQmakeRunConfiguration::effectiveTargetInformationChanged,
             this, &DesktopQmakeRunConfigurationWidget::effectiveTargetInformationChanged, Qt::QueuedConnection);
 
-    connect(qmakeRunConfiguration, &RunConfiguration::enabledChanged,
-            this, &DesktopQmakeRunConfigurationWidget::runConfigurationEnabledChange);
-
     Core::VariableChooser::addSupportForChildWidgets(this, m_qmakeRunConfiguration->macroExpander());
-}
-
-void DesktopQmakeRunConfigurationWidget::runConfigurationEnabledChange()
-{
-    bool enabled = m_qmakeRunConfiguration->isEnabled();
-    m_disabledIcon->setVisible(!enabled);
-    m_disabledReason->setVisible(!enabled);
-    m_disabledReason->setText(m_qmakeRunConfiguration->disabledReason());
+    effectiveTargetInformationChanged();
 }
 
 void DesktopQmakeRunConfigurationWidget::usingDyldImageSuffixToggled(bool state)
@@ -292,15 +247,6 @@ void DesktopQmakeRunConfigurationWidget::usingLibrarySearchPathChanged(bool stat
 void DesktopQmakeRunConfigurationWidget::effectiveTargetInformationChanged()
 {
     m_executableLineLabel->setText(QDir::toNativeSeparators(m_qmakeRunConfiguration->executable()));
-
-    m_ignoreChange = true;
-    auto aspect = m_qmakeRunConfiguration->extraAspect<WorkingDirectoryAspect>();
-    aspect->setDefaultWorkingDirectory(FileName::fromString(m_qmakeRunConfiguration->baseWorkingDirectory()));
-    aspect->pathChooser()->setBaseFileName(m_qmakeRunConfiguration->target()->project()->projectDirectory());
-    auto terminalAspect = m_qmakeRunConfiguration->extraAspect<TerminalAspect>();
-    if (!terminalAspect->isUserSet())
-        terminalAspect->setUseTerminal(m_qmakeRunConfiguration->isConsoleApplication());
-    m_ignoreChange = false;
 }
 
 QWidget *DesktopQmakeRunConfiguration::createConfigurationWidget()
@@ -335,9 +281,6 @@ bool DesktopQmakeRunConfiguration::fromMap(const QVariantMap &map)
     m_proFilePath = Utils::FileName::fromUserInput(projectDir.filePath(map.value(QLatin1String(PRO_FILE_KEY)).toString()));
     m_isUsingDyldImageSuffix = map.value(QLatin1String(USE_DYLD_IMAGE_SUFFIX_KEY), false).toBool();
     m_isUsingLibrarySearchPath = map.value(QLatin1String(USE_LIBRARY_SEARCH_PATH), true).toBool();
-
-    m_parseSuccess = qmakeProject()->validParse(m_proFilePath);
-    m_parseInProgress = qmakeProject()->parseInProgress(m_proFilePath);
 
     return RunConfiguration::fromMap(map);
 }
@@ -526,7 +469,7 @@ bool DesktopQmakeRunConfigurationFactory::canCreate(Target *parent, Core::Id id)
 
 RunConfiguration *DesktopQmakeRunConfigurationFactory::doCreate(Target *parent, Core::Id id)
 {
-    return new DesktopQmakeRunConfiguration(parent, id);
+    return createHelper<DesktopQmakeRunConfiguration>(parent, id);
 }
 
 bool DesktopQmakeRunConfigurationFactory::canRestore(Target *parent, const QVariantMap &map) const
@@ -538,7 +481,7 @@ bool DesktopQmakeRunConfigurationFactory::canRestore(Target *parent, const QVari
 
 RunConfiguration *DesktopQmakeRunConfigurationFactory::doRestore(Target *parent, const QVariantMap &map)
 {
-    return new DesktopQmakeRunConfiguration(parent, idFromMap(map));
+    return createHelper<DesktopQmakeRunConfiguration>(parent, idFromMap(map));
 }
 
 bool DesktopQmakeRunConfigurationFactory::canClone(Target *parent, RunConfiguration *source) const
@@ -550,8 +493,7 @@ RunConfiguration *DesktopQmakeRunConfigurationFactory::clone(Target *parent, Run
 {
     if (!canClone(parent, source))
         return 0;
-    DesktopQmakeRunConfiguration *old = static_cast<DesktopQmakeRunConfiguration *>(source);
-    return new DesktopQmakeRunConfiguration(parent, old);
+    return cloneHelper<DesktopQmakeRunConfiguration>(parent, source);
 }
 
 QList<Core::Id> DesktopQmakeRunConfigurationFactory::availableCreationIds(Target *parent, CreationMode mode) const

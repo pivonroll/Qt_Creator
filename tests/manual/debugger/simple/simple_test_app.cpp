@@ -2355,7 +2355,7 @@ namespace final {
         BREAK_HERE;
         // Continue.
 
-        return; // Uncomment.
+        return; // Comment out.
         *(int *)0 = a + b;
     }
 
@@ -2364,7 +2364,7 @@ namespace final {
         BREAK_HERE;
         // Continue.
 
-        return; // Uncomment.
+        return; // Comment out.
         testEndlessRecursion(i + 1);
     }
 
@@ -2429,7 +2429,7 @@ namespace final {
         // Check pp 21 int &.
         // Check qq <null reference> int &.
         // Continue.
-        return; // Uncomment.
+        return; // Comment out.
         testNullReferenceHelper(pp, qq);
         dummyStatement(p, q, &i);
     }
@@ -6106,14 +6106,16 @@ namespace qjson {
         };
          QJsonArray arr;
          for (unsigned int i = 0; i < 32; ++i) {
-             arr.append(QJsonValue(qint64(1u << i) - 1));
-             arr.append(QJsonValue(qint64(1u << i)));
-             arr.append(QJsonValue(qint64(1u << i) + 1));
+             const qint64 bit = 1ll << i;
+             arr.append(QJsonValue(bit - 1));
+             arr.append(QJsonValue(bit));
+             arr.append(QJsonValue(bit + 1));
          }
          for (unsigned int i = 0; i < 32; ++i) {
-             arr.append(QJsonValue(-qint64(1u << i) + 1));
-             arr.append(QJsonValue(-qint64(1u << i)));
-             arr.append(QJsonValue(-qint64(1u << i) - 1));
+             const qint64 bit = -(1ll << i);
+             arr.append(QJsonValue(bit + 1));
+             arr.append(QJsonValue(bit));
+             arr.append(QJsonValue(bit - 1));
          }
         BREAK_HERE;
         // Check v -1 QJsonValue.

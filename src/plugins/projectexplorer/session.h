@@ -78,7 +78,7 @@ public:
 
     static void addProject(Project *project);
     static void removeProject(Project *project);
-    static void removeProjects(QList<Project *> remove);
+    static void removeProjects(const QList<Project *> &remove);
 
     static void setStartupProject(Project *startupProject);
 
@@ -115,6 +115,7 @@ public:
     static Project *projectForNode(Node *node);
     static Node *nodeForFile(const Utils::FileName &fileName);
     static Project *projectForFile(const Utils::FileName &fileName);
+    static bool projectContainsFile(Project *p, const Utils::FileName &fileName);
 
     static QStringList projectsForSessionName(const QString &session);
 

@@ -34,6 +34,8 @@
 #include "documentmodel_p.h"
 #include "ieditor.h"
 
+#include <app/app_version.h>
+
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
@@ -46,6 +48,7 @@
 #include <coreplugin/editortoolbar.h>
 #include <coreplugin/fileutils.h>
 #include <coreplugin/findplaceholder.h>
+#include <coreplugin/find/searchresultitem.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/imode.h>
 #include <coreplugin/infobar.h>
@@ -248,6 +251,11 @@ void EditorManagerPrivate::init()
     DocumentModel::init();
     connect(ICore::instance(), &ICore::contextAboutToChange,
             this, &EditorManagerPrivate::handleContextChange);
+    connect(qApp, &QApplication::applicationStateChanged,
+            this, [](Qt::ApplicationState state) {
+                if (state == Qt::ApplicationActive)
+                    EditorManager::updateWindowTitles();
+            });
 
     const Context editManagerContext(Constants::C_EDITORMANAGER);
     // combined context for edit & design modes
@@ -380,7 +388,7 @@ void EditorManagerPrivate::init()
     cmd = ActionManager::registerAction(m_splitAction, Constants::SPLIT, editManagerContext);
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,2") : tr("Ctrl+E,2")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
-    connect(m_splitAction, &QAction::triggered, this, [this]() { split(Qt::Vertical); });
+    connect(m_splitAction, &QAction::triggered, this, []() { split(Qt::Vertical); });
 
     m_splitSideBySideAction = new QAction(Utils::Icons::SPLIT_VERTICAL.icon(),
                                           tr("Split Side by Side"), this);
@@ -394,7 +402,7 @@ void EditorManagerPrivate::init()
     cmd->setDefaultKeySequence(QKeySequence(UseMacShortcuts ? tr("Meta+E,4") : tr("Ctrl+E,4")));
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
     connect(m_splitNewWindowAction, &QAction::triggered,
-            this, [this]() { splitNewWindow(currentEditorView()); });
+            this, []() { splitNewWindow(currentEditorView()); });
 
     m_removeCurrentSplitAction = new QAction(tr("Remove Current Split"), this);
     cmd = ActionManager::registerAction(m_removeCurrentSplitAction, Constants::REMOVE_CURRENT_SPLIT, editManagerContext);
@@ -822,10 +830,10 @@ void EditorManagerPrivate::doEscapeKeyFocusMoveMagic()
     //        otherwise (i.e. mode is edit mode)
     //          hide extra views (find, help, output)
 
-    QWidget *activeWindow = qApp->activeWindow();
+    QWidget *activeWindow = QApplication::activeWindow();
     if (!activeWindow)
         return;
-    QWidget *focus = qApp->focusWidget();
+    QWidget *focus = QApplication::focusWidget();
     EditorView *editorView = currentEditorView();
     bool editorViewActive = (focus && focus == editorView->focusWidget());
     bool editorViewVisible = editorView->isVisible();
@@ -886,7 +894,7 @@ void EditorManagerPrivate::showPopupOrSelectDocument()
     if (QApplication::keyboardModifiers() == Qt::NoModifier) {
         windowPopup()->selectAndHide();
     } else {
-        QWidget *activeWindow = qApp->activeWindow();
+        QWidget *activeWindow = QApplication::activeWindow();
         // decide where to show the popup
         // if the active window has editors, we want that editor area as a reference
         // TODO: this does not work correctly with multiple editor areas in the same window
@@ -1388,7 +1396,7 @@ bool EditorManagerPrivate::closeEditors(const QList<IEditor*> &editors, CloseFla
 
         removeEditor(editor, flag != CloseFlag::Suspend);
         if (EditorView *view = viewForEditor(editor)) {
-            if (qApp->focusWidget() && qApp->focusWidget() == editor->widget()->focusWidget())
+            if (QApplication::focusWidget() && QApplication::focusWidget() == editor->widget()->focusWidget())
                 focusView = view;
             if (editor == view->currentEditor())
                 closedViews += view;
@@ -1789,7 +1797,7 @@ void EditorManagerPrivate::updateWindowTitleForDocument(IDocument *document, QWi
 
     if (!windowTitle.isEmpty())
         windowTitle.append(dashSep);
-    windowTitle.append(tr("Qt Creator"));
+    windowTitle.append(Core::Constants::IDE_DISPLAY_NAME);
     window->window()->setWindowTitle(windowTitle);
     window->window()->setWindowFilePath(filePath);
 
@@ -1930,7 +1938,7 @@ void EditorManagerPrivate::handleDocumentStateChange()
 
 void EditorManagerPrivate::editorAreaDestroyed(QObject *area)
 {
-    QWidget *activeWin = qApp->activeWindow();
+    QWidget *activeWin = QApplication::activeWindow();
     EditorArea *newActiveArea = 0;
     for (int i = 0; i < d->m_editorAreas.size(); ++i) {
         EditorArea *r = d->m_editorAreas.at(i);
@@ -2637,6 +2645,17 @@ IEditor *EditorManager::openEditorAt(const QString &fileName, int line, int colu
 
     return EditorManagerPrivate::openEditorAt(EditorManagerPrivate::currentEditorView(),
                                               fileName, line, column, editorId, flags, newEditor);
+}
+
+void EditorManager::openEditorAtSearchResult(const SearchResultItem &item, OpenEditorFlags flags)
+{
+    if (item.path.empty()) {
+        openEditor(QDir::fromNativeSeparators(item.text), Id(), flags);
+        return;
+    }
+
+    openEditorAt(QDir::fromNativeSeparators(item.path.first()), item.mainRange.begin.line,
+                 item.mainRange.begin.column, Id(), flags);
 }
 
 EditorManager::FilePathInfo EditorManager::splitLineAndColumnNumber(const QString &fullFilePath)

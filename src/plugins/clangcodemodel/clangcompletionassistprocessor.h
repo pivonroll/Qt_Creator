@@ -29,7 +29,7 @@
 
 #include <cpptools/cppcompletionassistprocessor.h>
 
-#include <clangbackendipc/codecompletion.h>
+#include <clangsupport/codecompletion.h>
 
 #include <QCoreApplication>
 #include <QTextCursor>
@@ -50,8 +50,8 @@ public:
 
     TextEditor::IAssistProposal *perform(const TextEditor::AssistInterface *interface) override;
 
-    bool handleAvailableAsyncCompletions(const CodeCompletions &completions,
-                                         CompletionCorrection neededCorrection);
+    void handleAvailableCompletions(const CodeCompletions &completions,
+                                    CompletionCorrection neededCorrection);
 
     const TextEditor::TextEditorWidget *textEditorWidget() const;
 
@@ -63,6 +63,8 @@ private:
 
     TextEditor::IAssistProposal *createProposal(
             CompletionCorrection neededCorrection = CompletionCorrection::NoCorrection) const;
+    TextEditor::IAssistProposal *createFunctionHintProposal(
+            const CodeCompletions &completions) const;
 
     bool completeInclude(const QTextCursor &cursor);
     bool completeInclude(int position);
@@ -80,17 +82,17 @@ private:
     UnsavedFileContentInfo unsavedFileContent(const QByteArray &customFileContent) const;
 
     void sendFileContent(const QByteArray &customFileContent);
-    bool sendCompletionRequest(int position, const QByteArray &customFileContent);
-
-    void handleAvailableCompletions(const CodeCompletions &completions,
-                                    CompletionCorrection neededCorrection);
-    bool handleAvailableFunctionHintCompletions(const CodeCompletions &completions);
+    bool sendCompletionRequest(int position,
+                               const QByteArray &customFileContent,
+                               int functionNameStartPosition = -1);
 
 private:
+    struct Position { int line; int column; };
+    Position extractLineColumn(int position);
+
     QScopedPointer<const ClangCompletionAssistInterface> m_interface;
     unsigned m_completionOperator;
     enum CompletionRequestType { NormalCompletion, FunctionHintCompletion } m_sentRequestType;
-    QString m_functionName;     // For type == Type::FunctionHintCompletion
     bool m_addSnippets = false; // For type == Type::NormalCompletion
 };
 

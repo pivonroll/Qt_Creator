@@ -85,6 +85,7 @@ ModelPrivate::ModelPrivate(Model *model) :
 {
     m_rootInternalNode = createNode("QtQuick.Item", 1, 0, PropertyListType(), PropertyListType(), QString(), ModelNode::NodeWithoutSource,true);
     m_currentStateNode = m_rootInternalNode;
+    m_currentTimelineMutatorNode = m_rootInternalNode;
 }
 
 ModelPrivate::~ModelPrivate()
@@ -636,6 +637,33 @@ void ModelPrivate::notifyCurrentStateChanged(const ModelNode &node)
 
     if (nodeInstanceView())
         nodeInstanceView()->currentStateChanged(ModelNode(node.internalNode(), model(), nodeInstanceView()));
+
+    if (resetModel)
+        resetModelByRewriter(description);
+}
+
+void ModelPrivate::notifyCurrentTimelineChanged(const ModelNode &node)
+{
+    bool resetModel = false;
+    QString description;
+
+    m_currentTimelineMutatorNode = node.internalNode();
+
+    try {
+        if (rewriterView())
+            rewriterView()->currentTimelineChanged(ModelNode(node.internalNode(), model(), rewriterView()));
+    } catch (const RewritingException &e) {
+        description = e.description();
+        resetModel = true;
+    }
+
+    for (const QPointer<AbstractView> &view : m_viewList) {
+        Q_ASSERT(view != 0);
+        view->currentTimelineChanged(ModelNode(node.internalNode(), model(), view.data()));
+    }
+
+    if (nodeInstanceView())
+        nodeInstanceView()->currentTimelineChanged(ModelNode(node.internalNode(), model(), nodeInstanceView()));
 
     if (resetModel)
         resetModelByRewriter(description);
@@ -1491,7 +1519,7 @@ static QList<PropertyPair> toPropertyPairList(const QList<InternalProperty::Poin
     QList<PropertyPair> propertyPairList;
 
     foreach (const InternalProperty::Pointer &property, propertyList)
-        propertyPairList.append(qMakePair(property->propertyOwner(), property->name()));
+        propertyPairList.append({property->propertyOwner(), property->name()});
 
     return propertyPairList;
 
@@ -1499,9 +1527,9 @@ static QList<PropertyPair> toPropertyPairList(const QList<InternalProperty::Poin
 
 void ModelPrivate::removeProperty(const InternalProperty::Pointer &property)
 {
-    notifyPropertiesAboutToBeRemoved(QList<InternalProperty::Pointer>() << property);
+    notifyPropertiesAboutToBeRemoved({property});
 
-    QList<PropertyPair> propertyPairList = toPropertyPairList(QList<InternalProperty::Pointer>() << property);
+    const QList<PropertyPair> propertyPairList = toPropertyPairList({property});
 
     removePropertyWithoutNotification(property);
 
@@ -1518,7 +1546,7 @@ void ModelPrivate::setBindingProperty(const InternalNode::Pointer &internalNodeP
 
     InternalBindingProperty::Pointer bindingProperty = internalNodePointer->bindingProperty(name);
     bindingProperty->setExpression(expression);
-    notifyBindingPropertiesChanged(QList<InternalBindingPropertyPointer>() << bindingProperty, propertyChange);
+    notifyBindingPropertiesChanged({bindingProperty}, propertyChange);
 }
 
 void ModelPrivate::setSignalHandlerProperty(const InternalNodePointer &internalNodePointer, const PropertyName &name, const QString &source)
@@ -1531,7 +1559,7 @@ void ModelPrivate::setSignalHandlerProperty(const InternalNodePointer &internalN
 
     InternalSignalHandlerProperty::Pointer signalHandlerProperty = internalNodePointer->signalHandlerProperty(name);
     signalHandlerProperty->setSource(source);
-    notifySignalHandlerPropertiesChanged(QVector<InternalSignalHandlerPropertyPointer>() << signalHandlerProperty, propertyChange);
+    notifySignalHandlerPropertiesChanged({signalHandlerProperty}, propertyChange);
 }
 
 void ModelPrivate::setVariantProperty(const InternalNode::Pointer &internalNodePointer, const PropertyName &name, const QVariant &value)
@@ -1575,7 +1603,7 @@ void ModelPrivate::setDynamicBindingProperty(const InternalNodePointer &internal
 
     InternalBindingProperty::Pointer bindingProperty = internalNodePointer->bindingProperty(name);
     bindingProperty->setDynamicExpression(dynamicPropertyType, expression);
-    notifyBindingPropertiesChanged(QList<InternalBindingPropertyPointer>() << bindingProperty, propertyChange);
+    notifyBindingPropertiesChanged({bindingProperty}, propertyChange);
 }
 
 void ModelPrivate::reparentNode(const InternalNode::Pointer &newParentNode,
@@ -1705,6 +1733,11 @@ void ModelPrivate::setNodeInstanceView(NodeInstanceView *nodeInstanceView)
 NodeInstanceView *ModelPrivate::nodeInstanceView() const
 {
     return m_nodeInstanceView.data();
+}
+
+InternalNodePointer ModelPrivate::currentTimelineNode() const
+{
+    return m_currentTimelineMutatorNode;
 }
 
 InternalNodePointer ModelPrivate::nodeForId(const QString &id) const

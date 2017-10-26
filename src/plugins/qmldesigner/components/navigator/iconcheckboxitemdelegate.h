@@ -35,9 +35,8 @@ class IconCheckboxItemDelegate : public QStyledItemDelegate
 {
 public:
     explicit IconCheckboxItemDelegate(QObject *parent,
-                                      const QPixmap &checkedPixmap,
-                                      const QPixmap &uncheckedPixmap,
-                                      NavigatorTreeModel *treeModel);
+                                      const QIcon &checkedIcon,
+                                      const QIcon &uncheckedIcon);
 
     QSize sizeHint(const QStyleOptionViewItem &option,
                    const QModelIndex &index) const;
@@ -47,8 +46,7 @@ public:
                const QModelIndex &index) const;
 
 private:
-    const QPixmap m_checkedPixmap;
-    const QPixmap m_uncheckedPixmap;
-    NavigatorTreeModel *m_navigatorTreeModel;
+    const QIcon m_checkedIcon;
+    const QIcon m_uncheckedIcon;
 };
 } // namespace QmlDesigner

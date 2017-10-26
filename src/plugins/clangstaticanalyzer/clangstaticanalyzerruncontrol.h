@@ -36,6 +36,7 @@ namespace ClangStaticAnalyzer {
 namespace Internal {
 
 class ClangStaticAnalyzerRunner;
+class ProjectBuilder;
 class Diagnostic;
 
 struct AnalyzeUnit {
@@ -47,25 +48,20 @@ struct AnalyzeUnit {
 };
 typedef QList<AnalyzeUnit> AnalyzeUnits;
 
-class ClangStaticAnalyzerRunControl : public ProjectExplorer::RunControl
+class ClangStaticAnalyzerToolRunner : public ProjectExplorer::RunWorker
 {
     Q_OBJECT
 
 public:
-    ClangStaticAnalyzerRunControl(ProjectExplorer::RunConfiguration *runConfiguration,
-                                  Core::Id runMode,
-                                  const CppTools::ProjectInfo &projectInfo);
-
-    void start() override;
-    void stop() override;
+    ClangStaticAnalyzerToolRunner(ProjectExplorer::RunControl *runControl,
+                                  ProjectExplorer::Target *target);
 
     bool success() const { return m_success; } // For testing.
 
-signals:
-    void newDiagnosticsAvailable(const QList<Diagnostic> &diagnostics);
-    void starting();
-
 private:
+    void start() final;
+    void stop() final;
+
     AnalyzeUnits sortedUnitsToAnalyze();
     void analyzeNextFile();
     ClangStaticAnalyzerRunner *createRunner();
@@ -80,8 +76,13 @@ private:
     void finalize();
 
 private:
-    const CppTools::ProjectInfo m_projectInfo;
+    QPointer<ProjectExplorer::Target> m_target;
+    ProjectBuilder *m_projectBuilder;
+
+    CppTools::ProjectInfo m_projectInfoBeforeBuild;
+    CppTools::ProjectInfo m_projectInfo;
     QString m_targetTriple;
+    Core::Id m_toolChainType;
 
     Utils::Environment m_environment;
     QString m_clangExecutable;
@@ -89,10 +90,10 @@ private:
     QFutureInterface<void> m_progress;
     AnalyzeUnits m_unitsToProcess;
     QSet<ClangStaticAnalyzerRunner *> m_runners;
-    int m_initialFilesToProcessSize;
-    int m_filesAnalyzed;
-    int m_filesNotAnalyzed;
-    bool m_success;
+    int m_initialFilesToProcessSize = 0;
+    int m_filesAnalyzed = 0;
+    int m_filesNotAnalyzed = 0;
+    bool m_success = false;
 };
 
 } // namespace Internal

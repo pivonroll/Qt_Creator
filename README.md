@@ -8,13 +8,13 @@ The standalone binary packages support the following platforms:
 
 * Windows 7 or later
 * (K)Ubuntu Linux 16.04 (64-bit) or later
-* macOS 10.8 or later
+* macOS 10.10 or later
 
 ## Compiling Qt Creator
 
 Prerequisites:
 
-* Qt 5.6.0 or later
+* Qt 5.6.2 or later
 * Qt WebEngine module for QtWebEngine based help viewer
 * On Windows:
     * ActiveState Active Perl
@@ -242,14 +242,14 @@ http://llvm.org/docs/GettingStarted.html#git-mirror:
 
    1. Clone LLVM and switch to a suitable branch
 
-          git clone http://llvm.org/git/llvm.git
+          git clone https://git.llvm.org/git/llvm.git/
           cd llvm
           git checkout release_39
 
    2. Clone Clang into llvm/tools/clang and switch to a suitable branch
 
           cd tools
-          git clone http://llvm.org/git/clang.git
+          git clone https://git.llvm.org/git/clang.git/
           cd clang
           git checkout release_39
 
@@ -273,6 +273,21 @@ http://llvm.org/docs/GettingStarted.html#git-mirror:
 
 Qt Creator includes the following third-party components,
 we thank the authors who made this possible:
+
+### Reference implementation for std::experimental::optional
+
+  https://github.com/akrzemi1/Optional
+
+  QtCreator/src/libs/3rdparty/optional
+
+  Copyright (C) 2011-2012 Andrzej Krzemienski
+
+  Distributed under the Boost Software License, Version 1.0
+  (see accompanying file LICENSE_1_0.txt or a copy at
+  http://www.boost.org/LICENSE_1_0.txt)
+
+  The idea and interface is based on Boost.Optional library
+  authored by Fernando Luis Cacciola Carballal
 
 ### Open Source front-end for C++ (license MIT), enhanced for use in Qt Creator
 

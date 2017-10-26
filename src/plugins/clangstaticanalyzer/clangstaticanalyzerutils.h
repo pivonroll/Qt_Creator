@@ -41,10 +41,11 @@ namespace Internal {
 
 bool isClangExecutableUsable(const QString &filePath, QString *errorMessage = 0);
 
-QString clangExecutableFromSettings(Core::Id toolchainType, bool *isValid);
+QString clangExecutableFromSettings(bool *isValid);
 
 QString createFullLocationString(const Debugger::DiagnosticLocation &location);
 
+// CLANG-UPGRADE-CHECK: Adapt minimum version numbers.
 class ClangExecutableVersion : public QVersionNumber {
 public:
     ClangExecutableVersion() : QVersionNumber(-1, -1, -1) {}

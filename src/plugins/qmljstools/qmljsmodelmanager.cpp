@@ -77,6 +77,7 @@ ModelManagerInterface::ProjectInfo ModelManager::defaultProjectInfoForProject(
         Project *project) const
 {
     ModelManagerInterface::ProjectInfo projectInfo(project);
+    projectInfo.qmlDumpEnvironment = Utils::Environment::systemEnvironment();
     Target *activeTarget = nullptr;
     if (project) {
         const QSet<QString> qmlTypeNames = { Constants::QML_MIMETYPE ,Constants::QBS_MIMETYPE,
@@ -84,10 +85,13 @@ ModelManagerInterface::ProjectInfo ModelManager::defaultProjectInfoForProject(
                                              Constants::QMLTYPES_MIMETYPE,
                                              Constants::QMLUI_MIMETYPE };
         projectInfo.sourceFiles = project->files(Project::SourceFiles,
-                                                 [&qmlTypeNames](const FileNode *fn) {
-            return fn->fileType() == FileType::QML
-                    && qmlTypeNames.contains(Utils::mimeTypeForFile(fn->filePath().toString(),
-                                                                    MimeMatchMode::MatchExtension).name());
+                                                 [&qmlTypeNames](const Node *n) {
+            if (const FileNode *fn = n->asFileNode()) {
+                return fn->fileType() == FileType::QML
+                        && qmlTypeNames.contains(Utils::mimeTypeForFile(fn->filePath().toString(),
+                                                                        MimeMatchMode::MatchExtension).name());
+            }
+            return false;
         });
         activeTarget = project->activeTarget();
     }
@@ -102,13 +106,17 @@ ModelManagerInterface::ProjectInfo ModelManager::defaultProjectInfoForProject(
         if (BuildConfiguration *bc = activeTarget->activeBuildConfiguration()) {
             preferDebugDump = bc->buildType() == BuildConfiguration::Debug;
             setPreferDump = true;
+            // Append QML2_IMPORT_PATH if it is defined in build configuration.
+            // It enables qmlplugindump to correctly dump custom plugins or other dependent
+            // plugins that are not installed in default Qt qml installation directory.
+            projectInfo.qmlDumpEnvironment.appendOrSet("QML2_IMPORT_PATH", bc->environment().value("QML2_IMPORT_PATH"), ":");
         }
     }
     if (!setPreferDump && qtVersion)
         preferDebugDump = (qtVersion->defaultBuildConfig() & QtSupport::BaseQtVersion::DebugBuild);
     if (qtVersion && qtVersion->isValid()) {
         projectInfo.tryQmlDump = project && qtVersion->type() == QLatin1String(QtSupport::Constants::DESKTOPQT);
-        projectInfo.qtQmlPath = QFileInfo(qtVersion->qmakeProperty("QT_INSTALL_QML")).canonicalFilePath();
+        projectInfo.qtQmlPath = qtVersion->qmlPath().toFileInfo().canonicalFilePath();
         projectInfo.qtImportsPath = QFileInfo(qtVersion->qmakeProperty("QT_INSTALL_IMPORTS")).canonicalFilePath();
         projectInfo.qtVersionString = qtVersion->qtVersionString();
     } else {
@@ -155,8 +163,7 @@ void setupProjectInfoQmlBundles(ModelManagerInterface::ProjectInfo &projectInfo)
     if (projectInfo.project) {
         QSet<Kit *> currentKits;
         foreach (const Target *t, projectInfo.project->targets())
-            if (t->kit())
-                currentKits.insert(t->kit());
+            currentKits.insert(t->kit());
         currentKits.remove(activeKit);
         foreach (Kit *kit, currentKits) {
             foreach (IBundleProvider *bp, bundleProviders)

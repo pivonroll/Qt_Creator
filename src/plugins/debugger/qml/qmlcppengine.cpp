@@ -26,9 +26,9 @@
 #include "qmlcppengine.h"
 #include "qmlengine.h"
 
+#include <debugger/debuggercore.h>
 #include <debugger/debuggerruncontrol.h>
 #include <debugger/debuggertooltipmanager.h>
-#include <debugger/debuggerstartparameters.h>
 #include <debugger/breakhandler.h>
 #include <debugger/stackhandler.h>
 #include <debugger/threaddata.h>
@@ -48,13 +48,9 @@ enum { debug = 0 };
 
 #define CHECK_STATE(s) do { checkState(s, __FILE__, __LINE__); } while (0)
 
-DebuggerEngine *createQmlCppEngine(const DebuggerRunParameters &sp, QStringList *errors)
+DebuggerEngine *createQmlCppEngine(DebuggerEngine *cppEngine)
 {
-    QmlCppEngine *newEngine = new QmlCppEngine(sp, errors);
-    if (newEngine->cppEngine())
-        return newEngine;
-    delete newEngine;
-    return 0;
+    return new QmlCppEngine(cppEngine);
 }
 
 
@@ -64,21 +60,14 @@ DebuggerEngine *createQmlCppEngine(const DebuggerRunParameters &sp, QStringList 
 //
 ////////////////////////////////////////////////////////////////////////
 
-QmlCppEngine::QmlCppEngine(const DebuggerRunParameters &rp, QStringList *errors)
-    : DebuggerEngine(rp)
+QmlCppEngine::QmlCppEngine(DebuggerEngine *cppEngine)
 {
-    setObjectName(QLatin1String("QmlCppEngine"));
-    m_qmlEngine = new QmlEngine(rp, this);
-    QStringList innerErrors;
-    m_cppEngine = createEngine(rp.cppEngineType, rp, &innerErrors);
-    if (!m_cppEngine) {
-        errors->append(tr("The slave debugging engine required for combined "
-                          "QML/C++-Debugging could not be created: %1")
-                       .arg(innerErrors.join(QLatin1Char('\n'))));
-        return;
-    }
+    setObjectName("QmlCppEngine");
+    m_qmlEngine = new QmlEngine;
+    m_qmlEngine->setMasterEngine(this);
+    m_cppEngine = cppEngine;
     m_cppEngine->setMasterEngine(this);
-    setActiveEngine(m_cppEngine);
+    m_activeEngine = m_cppEngine;
 }
 
 QmlCppEngine::~QmlCppEngine()
@@ -281,11 +270,6 @@ void QmlCppEngine::assignValueInDebugger(WatchItem *item,
 
 void QmlCppEngine::notifyInferiorIll()
 {
-    //This will eventually shutdown the engine
-    //Set final state to avoid quitDebugger() being called
-    //after this call
-    setTargetState(DebuggerFinished);
-
     //Call notifyInferiorIll of cpp engine
     //as qml engine will follow state transitions
     //of cpp engine
@@ -353,13 +337,7 @@ void QmlCppEngine::continueInferior()
 void QmlCppEngine::interruptInferior()
 {
     EDEBUG("\nMASTER INTERRUPT INFERIOR");
-    m_cppEngine->requestInterruptInferior();
-}
-
-void QmlCppEngine::requestInterruptInferior()
-{
-    EDEBUG("\nMASTER REQUEST INTERRUPT INFERIOR");
-    DebuggerEngine::requestInterruptInferior();
+    m_activeEngine->interruptInferior();
 }
 
 void QmlCppEngine::executeRunToLine(const ContextData &data)
@@ -388,54 +366,16 @@ void QmlCppEngine::executeDebuggerCommand(const QString &command, DebuggerLangua
 void QmlCppEngine::setupEngine()
 {
     EDEBUG("\nMASTER SETUP ENGINE");
-    setActiveEngine(m_cppEngine);
+    m_activeEngine = m_cppEngine;
     m_qmlEngine->setupSlaveEngine();
     m_cppEngine->setupSlaveEngine();
-
-    if (runParameters().remoteSetupNeeded)
-        notifyEngineRequestRemoteSetup();
-}
-
-void QmlCppEngine::notifyEngineRunAndInferiorRunOk()
-{
-    EDEBUG("\nMASTER NOTIFY ENGINE RUN AND INFERIOR RUN OK");
-    DebuggerEngine::notifyEngineRunAndInferiorRunOk();
-}
-
-void QmlCppEngine::notifyInferiorRunOk()
-{
-    EDEBUG("\nMASTER NOTIFY INFERIOR RUN OK");
-    DebuggerEngine::notifyInferiorRunOk();
-}
-
-void QmlCppEngine::notifyInferiorSpontaneousStop()
-{
-    EDEBUG("\nMASTER SPONTANEOUS STOP OK");
-    DebuggerEngine::notifyInferiorSpontaneousStop();
-}
-
-void QmlCppEngine::notifyInferiorShutdownOk()
-{
-    EDEBUG("\nMASTER INFERIOR SHUTDOWN OK");
-    DebuggerEngine::notifyInferiorShutdownOk();
-}
-
-void QmlCppEngine::notifyInferiorSetupOk()
-{
-    EDEBUG("\nMASTER INFERIOR SETUP OK");
-    DebuggerEngine::notifyInferiorSetupOk();
-}
-
-void QmlCppEngine::notifyEngineRemoteServerRunning(const QString &serverChannel, int pid)
-{
-    m_cppEngine->notifyEngineRemoteServerRunning(serverChannel, pid);
 }
 
 void QmlCppEngine::setupInferior()
 {
     EDEBUG("\nMASTER SETUP INFERIOR");
-    m_qmlEngine->setupSlaveInferior();
-    m_cppEngine->setupSlaveInferior();
+    m_qmlEngine->setupInferior();
+    m_cppEngine->setupInferior();
 }
 
 void QmlCppEngine::runEngine()
@@ -464,10 +404,10 @@ void QmlCppEngine::quitDebugger()
     m_cppEngine->quitDebugger();
 }
 
-void QmlCppEngine::abortDebugger()
+void QmlCppEngine::abortDebuggerProcess()
 {
     EDEBUG("\nMASTER ABORT DEBUGGER");
-    m_cppEngine->abortDebugger();
+    m_cppEngine->abortDebuggerProcess();
 }
 
 void QmlCppEngine::setState(DebuggerState newState, bool forced)
@@ -482,8 +422,9 @@ void QmlCppEngine::slaveEngineStateChanged
     (DebuggerEngine *slaveEngine, const DebuggerState newState)
 {
     DebuggerEngine *otherEngine = (slaveEngine == m_cppEngine)
-         ? m_qmlEngine : m_cppEngine;
+         ? m_qmlEngine.data() : m_cppEngine.data();
 
+    QTC_ASSERT(otherEngine, return);
     QTC_CHECK(otherEngine != slaveEngine);
 
     if (debug) {
@@ -594,9 +535,11 @@ void QmlCppEngine::slaveEngineStateChanged
                 if (state() == InferiorRunOk) {
                     setState(InferiorStopRequested);
                 } else if (state() == InferiorStopOk) {
-                    notifyInferiorRunRequested();
-                    notifyInferiorRunOk();
-                    setState(InferiorStopRequested);
+                    if (!isDying()) {
+                        notifyInferiorRunRequested();
+                        notifyInferiorRunOk();
+                        setState(InferiorStopRequested);
+                    }
                 } else if (state() == InferiorRunRequested) {
                     notifyInferiorRunOk();
                     setState(InferiorStopRequested);
@@ -616,7 +559,7 @@ void QmlCppEngine::slaveEngineStateChanged
                            || state() == InferiorStopOk, qDebug() << state());
 
                 // Just to make sure, we're shutting down anyway ...
-                setActiveEngine(m_cppEngine);
+                m_activeEngine = m_cppEngine;
 
                 if (state() == InferiorStopRequested)
                     setState(InferiorStopOk);
@@ -642,6 +585,7 @@ void QmlCppEngine::slaveEngineStateChanged
                 case InferiorRunRequested:
                     // can happen if qml engine was active
                     notifyInferiorRunFailed();
+                    break;
                 default:
                     CHECK_STATE(InferiorStopOk);
                     break;
@@ -734,15 +678,6 @@ void QmlCppEngine::slaveEngineStateChanged
     }
 }
 
-void QmlCppEngine::notifyEngineRemoteSetupFinished(const RemoteSetupResult &result)
-{
-    EDEBUG("MASTER REMOTE SETUP FINISHED");
-    DebuggerEngine::notifyEngineRemoteSetupFinished(result);
-
-    cppEngine()->notifyEngineRemoteSetupFinished(result);
-    qmlEngine()->notifyEngineRemoteSetupFinished(result);
-}
-
 void QmlCppEngine::resetLocation()
 {
     if (m_qmlEngine)
@@ -768,6 +703,13 @@ void QmlCppEngine::debugLastCommand()
 DebuggerEngine *QmlCppEngine::qmlEngine() const
 {
     return m_qmlEngine;
+}
+
+void QmlCppEngine::setRunTool(DebuggerRunTool *runTool)
+{
+    DebuggerEngine::setRunTool(runTool);
+    m_qmlEngine->setRunTool(runTool);
+    m_cppEngine->setRunTool(runTool);
 }
 
 void QmlCppEngine::setActiveEngine(DebuggerEngine *engine)

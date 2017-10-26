@@ -259,7 +259,7 @@ static inline void splitCommand(PCSTR args, Inserter it)
 template<class StringContainer>
 static inline StringContainer commandTokens(PCSTR args, int *token = 0)
 {
-    typedef StringContainer::iterator ContainerIterator;
+    typedef typename StringContainer::iterator ContainerIterator;
 
     if (token)
         *token = -1; // Handled as 'display' in engine, so that user can type commands
@@ -283,7 +283,7 @@ extern "C" HRESULT CALLBACK pid(CIDebugClient *client, PCSTR args)
 
     int token;
     commandTokens<StringList>(args, &token);
-    dprintf("Qt Creator CDB extension version 4.2 %d bit.\n",
+    dprintf("Qt Creator CDB extension version 4.3 %d bit.\n",
             sizeof(void *) * 8);
     if (const ULONG pid = currentProcessId(client))
         ExtensionContext::instance().report('R', token, 0, "pid", "%u", pid);

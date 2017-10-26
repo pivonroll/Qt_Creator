@@ -243,16 +243,17 @@ QList<void *> CMakeProjectImporter::examineDirectory(const Utils::FileName &impo
     }
 
     QString errorMessage;
-    const CMakeConfig config = BuildDirManager::parseConfiguration(cacheFile, &errorMessage);
+    const CMakeConfig config = BuildDirManager::parseCMakeConfiguration(cacheFile, &errorMessage);
     if (config.isEmpty() || !errorMessage.isEmpty()) {
         qCDebug(cmInputLog()) << "Failed to read configuration from" << cacheFile << errorMessage;
         return { };
     }
     const auto homeDir
             = Utils::FileName::fromUserInput(QString::fromUtf8(CMakeConfigItem::valueOf("CMAKE_HOME_DIRECTORY", config)));
-    if (homeDir != projectDirectory()) {
+    const Utils::FileName canonicalProjectDirectory = Utils::FileUtils::canonicalPath(projectDirectory());
+    if (homeDir != canonicalProjectDirectory) {
         qCDebug(cmInputLog()) << "Wrong source directory:" << homeDir.toUserOutput()
-                              << "expected:" << projectDirectory().toUserOutput();
+                              << "expected:" << canonicalProjectDirectory.toUserOutput();
         return { };
     }
 

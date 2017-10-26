@@ -85,35 +85,33 @@ NavigationWidgetPlaceHolder::~NavigationWidgetPlaceHolder()
     }
 }
 
-void NavigationWidgetPlaceHolder::applyStoredSize(int width)
+void NavigationWidgetPlaceHolder::applyStoredSize()
 {
-    if (width) {
-        QSplitter *splitter = qobject_cast<QSplitter *>(parentWidget());
-        if (splitter) {
-            // A splitter we need to resize the splitter sizes
-            QList<int> sizes = splitter->sizes();
-            int index = splitter->indexOf(this);
-            int diff = width - sizes.at(index);
-
-            int count = sizes.count();
-            for (int i = 0; i < sizes.count(); ++i) {
-                if (qobject_cast<NavigationWidgetPlaceHolder *>(splitter->widget(i)))
-                    --count;
+    QSplitter *splitter = qobject_cast<QSplitter *>(parentWidget());
+    if (splitter) {
+        // A splitter we need to resize the splitter sizes
+        QList<int> sizes = splitter->sizes();
+        int diff = 0;
+        int count = sizes.count();
+        for (int i = 0; i < sizes.count(); ++i) {
+            if (auto ph = qobject_cast<NavigationWidgetPlaceHolder *>(splitter->widget(i))) {
+                --count;
+                int width = ph->storedWidth();
+                diff += width - sizes.at(i);
+                sizes[i] = width;
             }
-
-            int adjust = count > 1 ? (diff / (count - 1)) : 0;
-            for (int i = 0; i < sizes.count(); ++i) {
-                if (!qobject_cast<NavigationWidgetPlaceHolder *>(splitter->widget(i)))
-                    sizes[i] += adjust;
-            }
-
-            sizes[index] = width;
-            splitter->setSizes(sizes);
-        } else {
-            QSize s = size();
-            s.setWidth(width);
-            resize(s);
         }
+        int adjust = count > 1 ? (diff / (count - 1)) : 0;
+        for (int i = 0; i < sizes.count(); ++i) {
+            if (!qobject_cast<NavigationWidgetPlaceHolder *>(splitter->widget(i)))
+                sizes[i] += adjust;
+        }
+
+        splitter->setSizes(sizes);
+    } else {
+        QSize s = size();
+        s.setWidth(storedWidth());
+        resize(s);
     }
 }
 
@@ -138,15 +136,18 @@ void NavigationWidgetPlaceHolder::currentModeAboutToChange(Id mode)
     if (m_mode == mode) {
         setCurrent(m_side, this);
 
-        int width = navigationWidget->storedWidth();
-
         layout()->addWidget(navigationWidget);
         navigationWidget->show();
 
-        applyStoredSize(width);
+        applyStoredSize();
         setVisible(navigationWidget->isShown());
         navigationWidget->placeHolderChanged(this);
     }
+}
+
+int NavigationWidgetPlaceHolder::storedWidth() const
+{
+    return NavigationWidget::instance(m_side)->storedWidth();
 }
 
 struct ActivationInfo {
@@ -311,6 +312,15 @@ void NavigationWidget::resizeEvent(QResizeEvent *re)
     MiniSplitter::resizeEvent(re);
 }
 
+static QIcon closeIconForSide(Side side, int itemCount)
+{
+    if (itemCount > 1)
+        return Utils::Icons::CLOSE_SPLIT_TOP.icon();
+    return side == Side::Left
+            ? Utils::Icons::CLOSE_SPLIT_LEFT.icon()
+            : Utils::Icons::CLOSE_SPLIT_RIGHT.icon();
+}
+
 Internal::NavigationSubWidget *NavigationWidget::insertSubItem(int position, int factoryIndex)
 {
     for (int pos = position + 1; pos < d->m_subWidgets.size(); ++pos) {
@@ -330,9 +340,7 @@ Internal::NavigationSubWidget *NavigationWidget::insertSubItem(int position, int
     insertWidget(position, nsw);
 
     d->m_subWidgets.insert(position, nsw);
-    d->m_subWidgets.at(0)->setCloseIcon(d->m_subWidgets.size() == 1
-                                        ? Utils::Icons::CLOSE_SPLIT_LEFT.icon()
-                                        : Utils::Icons::CLOSE_SPLIT_TOP.icon());
+    d->m_subWidgets.at(0)->setCloseIcon(closeIconForSide(d->m_side, d->m_subWidgets.size()));
     NavigationWidgetPrivate::updateActivationsMap(nsw->factory()->id(), {d->m_side, position});
     return nsw;
 }
@@ -385,10 +393,8 @@ void NavigationWidget::closeSubWidget()
         subWidget->hide();
         subWidget->deleteLater();
         // update close button of top item
-        if (d->m_subWidgets.size() == 1)
-            d->m_subWidgets.at(0)->setCloseIcon(d->m_subWidgets.size() == 1
-                                                ? Utils::Icons::CLOSE_SPLIT_LEFT.icon()
-                                                : Utils::Icons::CLOSE_SPLIT_TOP.icon());
+        if (!d->m_subWidgets.isEmpty())
+            d->m_subWidgets.at(0)->setCloseIcon(closeIconForSide(d->m_side, d->m_subWidgets.size()));
     } else {
         setShown(false);
     }
@@ -472,7 +478,7 @@ void NavigationWidget::restoreSettings(QSettings *settings)
 
     // Apply
     if (NavigationWidgetPlaceHolder::current(d->m_side))
-        NavigationWidgetPlaceHolder::current(d->m_side)->applyStoredSize(d->m_width);
+        NavigationWidgetPlaceHolder::current(d->m_side)->applyStoredSize();
 
     // Restore last activation positions
     settings->beginGroup(settingsGroup());

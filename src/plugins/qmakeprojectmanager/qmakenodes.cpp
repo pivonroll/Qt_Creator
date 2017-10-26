@@ -74,19 +74,21 @@ QmakeProFileNode *QmakePriFileNode::proFileNode() const
     return m_qmakeProFileNode;
 }
 
-bool QmakePriFileNode::supportsAction(ProjectAction action, Node *node) const
+bool QmakePriFileNode::supportsAction(ProjectAction action, const Node *node) const
 {
     if (action == Rename || action == DuplicateFile) {
-        FileNode *fileNode = node->asFileNode();
+        const FileNode *fileNode = node->asFileNode();
         return (fileNode && fileNode->fileType() != FileType::Project)
-                || dynamic_cast<ResourceEditor::ResourceTopLevelNode *>(node);
+                || dynamic_cast<const ResourceEditor::ResourceTopLevelNode *>(node);
     }
 
     const FolderNode *folderNode = this;
     const QmakeProFileNode *proFileNode;
-    while (!(proFileNode = dynamic_cast<const QmakeProFileNode*>(folderNode)))
+    while (!(proFileNode = dynamic_cast<const QmakeProFileNode*>(folderNode))) {
         folderNode = folderNode->parentFolderNode();
-    Q_ASSERT(proFileNode);
+        QTC_ASSERT(folderNode, return false);
+    }
+    QTC_ASSERT(proFileNode, return false);
     const QmakeProFile *pro = proFileNode->proFile();
 
     switch (pro ? pro->projectType() : ProjectType::Invalid) {
@@ -107,7 +109,7 @@ bool QmakePriFileNode::supportsAction(ProjectAction action, Node *node) const
         bool addExistingFiles = true;
         if (node->nodeType() == NodeType::VirtualFolder) {
             // A virtual folder, we do what the projectexplorer does
-            FolderNode *folder = node->asFolderNode();
+            const FolderNode *folder = node->asFolderNode();
             if (folder) {
                 QStringList list;
                 foreach (FolderNode *f, folder->folderNodes())

@@ -45,6 +45,7 @@
 #include <qtsupport/qtsupportconstants.h>
 #include <qtsupport/qtversionmanager.h>
 #include <coreplugin/idocument.h>
+#include <coreplugin/editormanager/editormanager.h>
 
 #include <qmljs/qmljsmodelmanagerinterface.h>
 
@@ -139,7 +140,7 @@ static ComponentTextModifier *createComponentTextModifier(TextModifier *original
 
 bool DesignDocument::loadInFileComponent(const ModelNode &componentNode)
 {
-    QString componentText = rewriterView()->extractText(QList<ModelNode>() << componentNode).value(componentNode);
+    QString componentText = rewriterView()->extractText({componentNode}).value(componentNode);
 
     if (componentText.isEmpty())
         return false;
@@ -383,7 +384,7 @@ void DesignDocument::copySelected()
 {
     QScopedPointer<Model> copyModel(Model::create("QtQuick.Rectangle", 1, 0, currentModel()));
     copyModel->setFileUrl(currentModel()->fileUrl());
-    copyModel->changeImports(currentModel()->imports(), QList<Import>());
+    copyModel->changeImports(currentModel()->imports(), {});
 
     Q_ASSERT(copyModel);
 
@@ -480,7 +481,7 @@ void DesignDocument::paste()
 {
     QScopedPointer<Model> pasteModel(Model::create("empty", 1, 0, currentModel()));
     pasteModel->setFileUrl(currentModel()->fileUrl());
-    pasteModel->changeImports(currentModel()->imports(), QList<Import>());
+    pasteModel->changeImports(currentModel()->imports(), {});
 
     Q_ASSERT(pasteModel);
 
@@ -575,7 +576,7 @@ void DesignDocument::paste()
             transaction.commit();
             NodeMetaInfo::clearCache();
 
-            view.setSelectedModelNodes(QList<ModelNode>() << pastedNode);
+            view.setSelectedModelNodes({pastedNode});
             transaction.commit();
         } catch (const RewritingException &e) {
             qWarning() << e.description(); //silent error
@@ -605,6 +606,13 @@ RewriterView *DesignDocument::rewriterView() const
 void DesignDocument::setEditor(Core::IEditor *editor)
 {
     m_textEditor = editor;
+    // if the user closed the file explicit we do not want to do anything with it anymore
+    connect(Core::EditorManager::instance(), &Core::EditorManager::editorAboutToClose,
+            this, [this](Core::IEditor *editor) {
+        if (m_textEditor.data() == editor)
+            m_textEditor.clear();
+    });
+
     connect(editor->document(), &Core::IDocument::filePathChanged,
             this, &DesignDocument::updateFileName);
 

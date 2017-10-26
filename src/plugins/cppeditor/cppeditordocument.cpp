@@ -201,12 +201,17 @@ void CppEditorDocument::onAboutToReload()
 {
     QTC_CHECK(!m_fileIsBeingReloaded);
     m_fileIsBeingReloaded = true;
+
+    processor()->invalidateDiagnostics();
 }
 
 void CppEditorDocument::onReloadFinished()
 {
     QTC_CHECK(m_fileIsBeingReloaded);
     m_fileIsBeingReloaded = false;
+
+    m_processorRevision = document()->revision();
+    processDocument();
 }
 
 void CppEditorDocument::reparseWithPreferredParseContext(const QString &parseContextId)
@@ -250,6 +255,9 @@ void CppEditorDocument::onFilePathChanged(const Utils::FileName &oldPath,
 
 void CppEditorDocument::scheduleProcessDocument()
 {
+    if (m_fileIsBeingReloaded)
+        return;
+
     m_processorRevision = document()->revision();
     m_processorTimer.start();
     processor()->editorDocumentTimerRestarted();
@@ -257,6 +265,8 @@ void CppEditorDocument::scheduleProcessDocument()
 
 void CppEditorDocument::processDocument()
 {
+    processor()->invalidateDiagnostics();
+
     if (processor()->isParserRunning() || m_processorRevision != contentsRevision()) {
         m_processorTimer.start();
         processor()->editorDocumentTimerRestarted();
@@ -370,6 +380,12 @@ ParseContextModel &CppEditorDocument::parseContextModel()
     return m_parseContextModel;
 }
 
+QFuture<CppTools::CursorInfo>
+CppEditorDocument::cursorInfo(const CppTools::CursorInfoParams &params)
+{
+    return processor()->cursorInfo(params);
+}
+
 const MinimizableInfoBars &CppEditorDocument::minimizableInfoBars() const
 {
     return m_minimizableInfoBars;
@@ -401,7 +417,15 @@ CppTools::BaseEditorDocumentProcessor *CppEditorDocument::processor()
         connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::ifdefedOutBlocksUpdated,
                 this, &CppEditorDocument::ifdefedOutBlocksUpdated);
         connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::cppDocumentUpdated,
-                this, &CppEditorDocument::cppDocumentUpdated);
+                [this](const CPlusPlus::Document::Ptr document) {
+                    // Update syntax highlighter
+                    auto *highlighter = qobject_cast<CppHighlighter *>(syntaxHighlighter());
+                    highlighter->setLanguageFeatures(document->languageFeatures());
+
+                    // Forward signal
+                    emit cppDocumentUpdated(document);
+
+        });
         connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::semanticInfoUpdated,
                 this, &CppEditorDocument::semanticInfoUpdated);
     }

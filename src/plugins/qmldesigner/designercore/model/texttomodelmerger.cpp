@@ -71,7 +71,7 @@ static inline bool isSupportedAttachedProperties(const QString &propertyName)
 static inline QStringList supportedVersionsList()
 {
     static const QStringList list = {
-        "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8"
+        "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "2.10"
     };
     return list;
 }
@@ -792,7 +792,6 @@ static bool isBlacklistImport(const ImportKey &importKey)
             || importKey.libraryQualifiedPath() == QStringLiteral("Qt.WebSockets")
             || importKey.libraryQualifiedPath() == QStringLiteral("QtWebkit")
             || importKey.libraryQualifiedPath() == QStringLiteral("QtLocation")
-            || importKey.libraryQualifiedPath() == QStringLiteral("QtWebEngine")
             || importKey.libraryQualifiedPath() == QStringLiteral("QtWebChannel")
             || importKey.libraryQualifiedPath() == QStringLiteral("QtWinExtras")
             || importKey.libraryQualifiedPath() == QStringLiteral("QtPurchasing")
@@ -868,7 +867,7 @@ void TextToModelMerger::setupPossibleImports(const QmlJS::Snapshot &snapshot, co
 
 void TextToModelMerger::setupUsedImports()
 {
-     QList<QmlJS::Import> allImports = m_scopeChain->context()->imports(m_document.data())->all();
+     const QList<QmlJS::Import> allImports = m_scopeChain->context()->imports(m_document.data())->all();
 
      QList<Import> usedImports;
 
@@ -922,10 +921,11 @@ bool TextToModelMerger::load(const QString &data, DifferenceHandler &differenceH
     // maybe the project environment (kit, ...) changed, so we need to clean old caches
     NodeMetaInfo::clearCache();
 
-    m_qrcMapping.clear();
-    m_rewriterView->clearErrorAndWarnings();
-
     const QUrl url = m_rewriterView->model()->fileUrl();
+
+    m_qrcMapping.clear();
+    addIsoIconQrcMapping(url);
+    m_rewriterView->clearErrorAndWarnings();
 
     setActive(true);
     m_rewriterView->setIncompleteTypeInformation(false);
@@ -1110,7 +1110,7 @@ void TextToModelMerger::syncNode(ModelNode &modelNode,
                         || isConnectionsType(typeName)) {
                     AbstractProperty modelProperty = modelNode.property(astPropertyName.toUtf8());
                     if (context->isArrayProperty(propertyType, containingObject, name))
-                        syncArrayProperty(modelProperty, QList<AST::UiObjectMember*>() << member, context, differenceHandler);
+                        syncArrayProperty(modelProperty, {member}, context, differenceHandler);
                     else
                         syncNodeProperty(modelProperty, binding, context, TypeName(), differenceHandler);
                     modelPropertyNames.remove(astPropertyName.toUtf8());
@@ -1380,7 +1380,7 @@ void TextToModelMerger::syncExpressionProperty(AbstractProperty &modelProperty,
     if (modelProperty.isBindingProperty()) {
         BindingProperty bindingProperty = modelProperty.toBindingProperty();
         if (bindingProperty.expression() != javascript
-                || !astType.isEmpty() != bindingProperty.isDynamic()
+                || astType.isEmpty() == bindingProperty.isDynamic()
                 || astType != bindingProperty.dynamicTypeName()) {
             differenceHandler.bindingExpressionsDiffer(bindingProperty, javascript, astType);
         }
@@ -1449,7 +1449,7 @@ void TextToModelMerger::syncVariantProperty(AbstractProperty &modelProperty,
         VariantProperty modelVariantProperty = modelProperty.toVariantProperty();
 
         if (!equals(modelVariantProperty.value(), astValue)
-                || !astType.isEmpty() != modelVariantProperty.isDynamic()
+                || astType.isEmpty() == modelVariantProperty.isDynamic()
                 || astType != modelVariantProperty.dynamicTypeName()) {
             differenceHandler.variantValuesDiffer(modelVariantProperty,
                                                   astValue,
@@ -1710,12 +1710,12 @@ void ModelValidator::idsDiffer(ModelNode &modelNode, const QString &qmlId)
 
 void ModelAmender::modelMissesImport(const QmlDesigner::Import &import)
 {
-    m_merger->view()->model()->changeImports(QList<QmlDesigner::Import>() << import, QList<QmlDesigner::Import>());
+    m_merger->view()->model()->changeImports({import}, {});
 }
 
 void ModelAmender::importAbsentInQMl(const QmlDesigner::Import &import)
 {
-    m_merger->view()->model()->changeImports(QList<Import>(), QList<Import>() << import);
+    m_merger->view()->model()->changeImports({}, {import});
 }
 
 void ModelAmender::bindingExpressionsDiffer(BindingProperty &modelProperty,
@@ -1937,7 +1937,7 @@ void TextToModelMerger::setupComponent(const ModelNode &node)
     if (!node.isValid())
         return;
 
-    QString componentText = m_rewriterView->extractText(QList<ModelNode>() << node).value(node);
+    QString componentText = m_rewriterView->extractText({node}).value(node);
 
     if (componentText.isEmpty())
         return;
@@ -2029,14 +2029,25 @@ void TextToModelMerger::populateQrcMapping(const QString &filePath)
     const QString fileName = fileForFullQrcPath(filePath);
     path.remove(QLatin1String("qrc:"));
     QMap<QString,QStringList> map = ModelManagerInterface::instance()->filesInQrcPath(path);
-    const QStringList qrcFilePathes = map.value(fileName, QStringList());
-    if (!qrcFilePathes.isEmpty()) {
-        QString fileSystemPath =  qrcFilePathes.first();
+    const QStringList qrcFilePaths = map.value(fileName, {});
+    if (!qrcFilePaths.isEmpty()) {
+        QString fileSystemPath =  qrcFilePaths.first();
         fileSystemPath.remove(fileName);
         if (path.isEmpty())
             path.prepend(QLatin1String("/"));
-        m_qrcMapping.insert(qMakePair(path, fileSystemPath));
+        m_qrcMapping.insert({path, fileSystemPath});
     }
+}
+
+void TextToModelMerger::addIsoIconQrcMapping(const QUrl &fileUrl)
+{
+    QDir dir(fileUrl.toLocalFile());
+    do {
+        if (!dir.entryList({"*.pro"}, QDir::Files).isEmpty()) {
+            m_qrcMapping.insert({"/iso-icons", dir.absolutePath() + "/iso-icons"});
+            return;
+        }
+    } while (dir.cdUp());
 }
 
 void TextToModelMerger::setupComponentDelayed(const ModelNode &node, bool synchron)
@@ -2054,7 +2065,7 @@ void TextToModelMerger::setupCustomParserNode(const ModelNode &node)
     if (!node.isValid())
         return;
 
-    QString modelText = m_rewriterView->extractText(QList<ModelNode>() << node).value(node);
+    QString modelText = m_rewriterView->extractText({node}).value(node);
 
     if (modelText.isEmpty())
         return;

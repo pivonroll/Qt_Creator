@@ -44,9 +44,16 @@ GenericProposal::GenericProposal(int cursorPos, const QList<AssistProposalItemIn
 GenericProposal::~GenericProposal()
 {}
 
-bool GenericProposal::isFragile() const
+bool GenericProposal::hasItemsToPropose(const QString &prefix, AssistReason reason) const
 {
-    return false;
+    if (!prefix.isEmpty()) {
+        if (m_model->containsDuplicates())
+            m_model->removeDuplicates();
+        m_model->filter(prefix);
+        m_model->setPrefilterPrefix(prefix);
+    }
+
+    return m_model->hasItemsToPropose(prefix, reason);
 }
 
 IAssistProposalModel *GenericProposal::model() const

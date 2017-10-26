@@ -29,16 +29,17 @@
 
 #include <coreplugin/fileiconprovider.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/target.h>
+#include <qtsupport/baseqtversion.h>
+#include <qtsupport/qtkitinformation.h>
 #include <resourceeditor/resourcenode.h>
 
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 
-#include <QApplication>
-#include <QStyle>
-
 using namespace Core;
 using namespace ProjectExplorer;
+using namespace QtSupport;
 using namespace Utils;
 
 namespace {
@@ -102,23 +103,15 @@ QmakeStaticData::QmakeStaticData()
     const unsigned count = sizeof(fileTypeDataStorage)/sizeof(FileTypeDataStorage);
     fileTypeData.reserve(count);
 
-    // Overlay the SP_DirIcon with the custom icons
-    const QSize desiredSize = QSize(16, 16);
-
-    const QPixmap dirPixmap = qApp->style()->standardIcon(QStyle::SP_DirIcon).pixmap(desiredSize);
     for (unsigned i = 0 ; i < count; ++i) {
-        const QIcon overlayIcon(QLatin1String(fileTypeDataStorage[i].icon));
-        QIcon folderIcon;
-        folderIcon.addPixmap(FileIconProvider::overlayIcon(dirPixmap, overlayIcon));
         const QString desc = QCoreApplication::translate("QmakeProjectManager::QmakePriFile", fileTypeDataStorage[i].typeName);
         const QString filter = QString::fromUtf8(fileTypeDataStorage[i].addFileFilter);
         fileTypeData.push_back(QmakeStaticData::FileTypeData(fileTypeDataStorage[i].type,
-                                                                 desc, filter, folderIcon));
+                                                             desc, filter,
+                                                             Core::FileIconProvider::directoryIcon(QLatin1String(fileTypeDataStorage[i].icon))));
     }
     // Project icon
-    const QIcon projectBaseIcon(ProjectExplorer::Constants::FILEOVERLAY_QT);
-    const QPixmap projectPixmap = FileIconProvider::overlayIcon(dirPixmap, projectBaseIcon);
-    projectIcon.addPixmap(projectPixmap);
+    projectIcon = Core::FileIconProvider::directoryIcon(ProjectExplorer::Constants::FILEOVERLAY_QT);
 
     qAddPostRoutine(clearQmakeStaticData);
 }
@@ -135,7 +128,7 @@ void clearQmakeStaticData()
 
 namespace QmakeProjectManager {
 
-static void createTree(const QmakePriFile *pri, QmakePriFileNode *node)
+static void createTree(const QmakePriFile *pri, QmakePriFileNode *node, const FileNameList &toExclude)
 {
     QTC_ASSERT(pri, return);
     QTC_ASSERT(node, return);
@@ -150,7 +143,9 @@ static void createTree(const QmakePriFile *pri, QmakePriFileNode *node)
     const QVector<QmakeStaticData::FileTypeData> &fileTypes = qmakeStaticData()->fileTypeData;
     for (int i = 0; i < fileTypes.size(); ++i) {
         FileType type = fileTypes.at(i).type;
-        const QSet<FileName> &newFilePaths = pri->files(type);
+        const QSet<FileName> &newFilePaths = Utils::filtered(pri->files(type), [&toExclude](const Utils::FileName &fn) {
+            return !Utils::contains(toExclude, [&fn](const Utils::FileName &ex) { return fn.isChildOf(ex); });
+        });
 
         if (!newFilePaths.isEmpty()) {
             auto vfolder = new VirtualFolderNode(pri->filePath().parentDir(), Node::DefaultVirtualFolderPriority - i);
@@ -162,18 +157,24 @@ static void createTree(const QmakePriFile *pri, QmakePriFileNode *node)
                 for (const FileName &file : newFilePaths) {
                     auto vfs = pri->project()->qmakeVfs();
                     QString contents;
+                    QString errorMessage;
                     // Prefer the cumulative file if it's non-empty, based on the assumption
                     // that it contains more "stuff".
-                    vfs->readVirtualFile(file.toString(), QMakeVfs::VfsCumulative, &contents);
+                    vfs->readFile(file.toString(), QMakeVfs::VfsCumulative, &contents, &errorMessage);
                     // If the cumulative evaluation botched the file too much, try the exact one.
                     if (contents.isEmpty())
-                        vfs->readVirtualFile(file.toString(), QMakeVfs::VfsExact, &contents);
-                    auto resourceNode = new ResourceEditor::ResourceTopLevelNode(file, contents, vfolder);
+                        vfs->readFile(file.toString(), QMakeVfs::VfsExact, &contents, &errorMessage);
+                    auto resourceNode = new ResourceEditor::ResourceTopLevelNode(file, false, contents, vfolder);
                     vfolder->addNode(resourceNode);
                 }
             } else {
-                for (const FileName &fn : newFilePaths)
+                for (const FileName &fn : newFilePaths) {
+                    // Qmake will flag everything in SOURCES as source, even when the
+                    // qt quick compiler moves qrc files into it:-/ Get better data based on
+                    // the filename.
+                    type = FileNode::fileTypeForFileName(fn);
                     vfolder->addNestedNode(new FileNode(fn, type, false));
+                }
                 for (FolderNode *fn : vfolder->folderNodes())
                     fn->compress();
             }
@@ -188,15 +189,22 @@ static void createTree(const QmakePriFile *pri, QmakePriFileNode *node)
             newNode = new QmakeProFileNode(c->project(), c->filePath());
         else
             newNode = new QmakePriFileNode(c->project(), node->proFileNode(), c->filePath());
-        createTree(c, newNode);
+        createTree(c, newNode, toExclude);
         node->addNode(newNode);
     }
 }
 
 QmakeProFileNode *QmakeNodeTreeBuilder::buildTree(QmakeProject *project)
 {
+    // Remove qmake implementation details that litter up the project data:
+    Target *t = project->activeTarget();
+    Kit *k = t ? t->kit() : KitManager::defaultKit();
+    BaseQtVersion *qt = k ? QtKitInformation::qtVersion(k) : nullptr;
+
+    const FileNameList toExclude = qt ? qt->directoriesToIgnoreInProjectTree() : FileNameList();
+
     auto root = new QmakeProFileNode(project, project->projectFilePath());
-    createTree(project->rootProFile(), root);
+    createTree(project->rootProFile(), root, toExclude);
 
     return root;
 }

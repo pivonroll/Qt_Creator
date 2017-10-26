@@ -59,9 +59,23 @@ void setupArtifacts(ProjectExplorer::FolderNode *root, const QList<qbs::Artifact
         const Utils::FileName path = Utils::FileName::fromString(ad.filePath());
         const ProjectExplorer::FileType type = fileType(ad);
         const bool isGenerated = ad.isGenerated();
-        root->addNestedNode(new ProjectExplorer::FileNode(path, type, isGenerated));
-    };
 
+        // A list of human-readable file types that we can reasonably expect
+        // to get generated during a build. Extend as needed.
+        static const QSet<QString> sourceTags = {
+            QLatin1String("c"), QLatin1String("cpp"), QLatin1String("hpp"),
+            QLatin1String("objc"), QLatin1String("objcpp"),
+            QLatin1String("c_pch_src"), QLatin1String("cpp_pch_src"),
+            QLatin1String("objc_pch_src"), QLatin1String("objcpp_pch_src"),
+            QLatin1String("asm"), QLatin1String("asm_cpp"),
+            QLatin1String("linkerscript"),
+            QLatin1String("qrc"), QLatin1String("java.java")
+        };
+        ProjectExplorer::FileNode * const node
+                = new ProjectExplorer::FileNode(path, type, isGenerated);
+        node->setListInProject(!isGenerated || ad.fileTags().toSet().intersects(sourceTags));
+        root->addNestedNode(node);
+    }
     root->compress();
 }
 
@@ -192,6 +206,9 @@ namespace Internal {
 
 QbsRootProjectNode *QbsNodeTreeBuilder::buildTree(QbsProject *project)
 {
+    if (!project->qbsProjectData().isValid())
+        return nullptr;
+
     auto root = new QbsRootProjectNode(project);
     setupProjectNode(root, project->qbsProjectData(), project->qbsProject());
     auto buildSystemFiles
@@ -200,7 +217,8 @@ QbsRootProjectNode *QbsNodeTreeBuilder::buildTree(QbsProject *project)
                                               QCoreApplication::translate("QbsRootProjectNode", "Qbs files"));
 
     Utils::FileName base = project->projectDirectory();
-    for (const QString &f : unreferencedBuildSystemFiles(project->qbsProject())) {
+    const QStringList &files = unreferencedBuildSystemFiles(project->qbsProject());
+    for (const QString &f : files) {
         const Utils::FileName filePath = Utils::FileName::fromString(f);
         if (filePath.isChildOf(base))
             buildSystemFiles->addNestedNode(new ProjectExplorer::FileNode(filePath, ProjectExplorer::FileType::Project, false));
