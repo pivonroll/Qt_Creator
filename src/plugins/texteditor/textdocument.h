@@ -29,12 +29,16 @@
 
 #include <coreplugin/id.h>
 #include <coreplugin/textdocument.h>
+#include <utils/link.h>
 
 #include <QList>
 #include <QMap>
 #include <QSharedPointer>
 
+#include <functional>
+
 QT_BEGIN_NAMESPACE
+class QAction;
 class QTextCursor;
 class QTextDocument;
 QT_END_NAMESPACE
@@ -45,7 +49,7 @@ class CompletionAssistProvider;
 class ExtraEncodingSettings;
 class FontSettings;
 class Indenter;
-class QuickFixAssistProvider;
+class IAssistProvider;
 class StorageSettings;
 class SyntaxHighlighter;
 class TabSettings;
@@ -77,18 +81,19 @@ public:
 
     const TypingSettings &typingSettings() const;
     const StorageSettings &storageSettings() const;
-    const TabSettings &tabSettings() const;
+    virtual TabSettings tabSettings() const;
     const ExtraEncodingSettings &extraEncodingSettings() const;
     const FontSettings &fontSettings() const;
 
     void setIndenter(Indenter *indenter);
     Indenter *indenter() const;
-    void autoIndent(const QTextCursor &cursor, QChar typedChar = QChar::Null);
+    void autoIndent(const QTextCursor &cursor, QChar typedChar = QChar::Null,
+                    bool autoTriggered = true);
     void autoReindent(const QTextCursor &cursor);
     QTextCursor indent(const QTextCursor &cursor, bool blockSelection = false, int column = 0,
-                       int *offset = 0);
+                       int *offset = nullptr);
     QTextCursor unindent(const QTextCursor &cursor, bool blockSelection = false, int column = 0,
-                         int *offset = 0);
+                         int *offset = nullptr);
 
     TextMarks marks() const;
     bool addMark(TextMark *mark);
@@ -133,10 +138,13 @@ public:
 
     void setCompletionAssistProvider(CompletionAssistProvider *provider);
     virtual CompletionAssistProvider *completionAssistProvider() const;
-    virtual QuickFixAssistProvider *quickFixAssistProvider() const;
+    virtual IAssistProvider *quickFixAssistProvider() const;
 
     void setTabSettings(const TextEditor::TabSettings &tabSettings);
     void setFontSettings(const TextEditor::FontSettings &fontSettings);
+
+    static QAction *createDiffAgainstCurrentFileAction(QObject *parent,
+        const std::function<Utils::FileName()> &filePath);
 
 signals:
     void aboutToOpen(const QString &fileName, const QString &realFileName);

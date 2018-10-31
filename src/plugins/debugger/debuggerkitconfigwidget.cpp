@@ -64,8 +64,7 @@ namespace Internal {
 // -----------------------------------------------------------------------
 
 DebuggerKitConfigWidget::DebuggerKitConfigWidget(Kit *workingCopy, const KitInformation *ki)
-    : KitConfigWidget(workingCopy, ki),
-      m_ignoreChanges(false)
+    : KitConfigWidget(workingCopy, ki)
 {
     m_comboBox = new QComboBox;
     m_comboBox->setEnabled(true);
@@ -108,7 +107,7 @@ void DebuggerKitConfigWidget::refresh()
     m_comboBox->clear();
     m_comboBox->setToolTip(toolTip());
     m_comboBox->addItem(tr("None"), QString());
-    foreach (const DebuggerItem &item, DebuggerItemManager::debuggers())
+    for (const DebuggerItem &item : DebuggerItemManager::debuggers())
         m_comboBox->addItem(item.displayName(), item.id());
 
     const DebuggerItem *item = DebuggerKitInformation::debugger(m_kit);

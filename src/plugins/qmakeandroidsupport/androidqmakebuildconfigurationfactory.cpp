@@ -24,123 +24,61 @@
 ****************************************************************************/
 
 #include "androidqmakebuildconfigurationfactory.h"
-#include "qmakeandroidbuildapkstep.h"
-#include "androidpackageinstallationstep.h"
 
-#include <android/androidmanager.h>
+#include <android/androidbuildapkstep.h>
 #include <android/androidconfigurations.h>
+#include <android/androidconstants.h>
+#include <android/androidmanager.h>
+#include <android/androidpackageinstallationstep.h>
 
-#include <projectexplorer/buildmanager.h>
 #include <projectexplorer/buildsteplist.h>
-#include <projectexplorer/projectexplorer.h>
+#include <projectexplorer/project.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>
 
-#include <qmakeprojectmanager/qmakebuildinfo.h>
-#include <qmakeprojectmanager/qmakeproject.h>
+#include <qmakeprojectmanager/qmakeprojectmanagerconstants.h>
 
 using namespace Android;
 using namespace ProjectExplorer;
-using namespace QmakeProjectManager;
 
 namespace QmakeAndroidSupport {
 namespace Internal {
 
-int AndroidQmakeBuildConfigurationFactory::priority(const Kit *k, const QString &projectPath) const
+// AndroidQmakeBuildConfigurationFactory
+
+AndroidQmakeBuildConfigurationFactory::AndroidQmakeBuildConfigurationFactory()
 {
-    if (QmakeBuildConfigurationFactory::priority(k, projectPath) >= 0
-            && Android::AndroidManager::supportsAndroid(k))
-        return 1;
-    return -1;
+    registerBuildConfiguration<AndroidQmakeBuildConfiguration>(QmakeProjectManager::Constants::QMAKE_BC_ID);
+    setSupportedTargetDeviceTypes({Android::Constants::ANDROID_DEVICE_TYPE});
+    setBasePriority(1);
 }
 
-int AndroidQmakeBuildConfigurationFactory::priority(const Target *parent) const
-{
-    if (QmakeBuildConfigurationFactory::priority(parent) >= 0
-            && Android::AndroidManager::supportsAndroid(parent))
-        return 1;
-    return -1;
-}
-
-BuildConfiguration *AndroidQmakeBuildConfigurationFactory::create(Target *parent,
-                                                                  const BuildInfo *info) const
-{
-    auto qmakeInfo = static_cast<const QmakeBuildInfo *>(info);
-    auto bc = new AndroidQmakeBuildConfiguration(parent);
-    configureBuildConfiguration(parent, bc, qmakeInfo);
-
-    BuildStepList *buildSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
-    buildSteps->insertStep(2, new AndroidPackageInstallationStep(buildSteps));
-    buildSteps->insertStep(3, new QmakeAndroidBuildApkStep(buildSteps));
-    return bc;
-}
-
-BuildConfiguration *AndroidQmakeBuildConfigurationFactory::clone(Target *parent, BuildConfiguration *source)
-{
-    if (!canClone(parent, source))
-        return 0;
-    auto *oldbc = static_cast<AndroidQmakeBuildConfiguration *>(source);
-    return new AndroidQmakeBuildConfiguration(parent, oldbc);
-}
-
-BuildConfiguration *AndroidQmakeBuildConfigurationFactory::restore(Target *parent, const QVariantMap &map)
-{
-    if (!canRestore(parent, map))
-        return 0;
-    auto bc = new AndroidQmakeBuildConfiguration(parent);
-    if (bc->fromMap(map))
-        return bc;
-    delete bc;
-    return 0;
-}
-
-
-AndroidQmakeBuildConfiguration::AndroidQmakeBuildConfiguration(Target *target)
-    : QmakeBuildConfiguration(target)
-{
-    auto updateGrade = [this] { AndroidManager::updateGradleProperties(BuildConfiguration::target()); };
-
-    auto project = qobject_cast<QmakeProject *>(target->project());
-    if (project)
-        connect(project, &QmakeProject::proFilesEvaluated, this, updateGrade);
-    else
-        connect(this, &AndroidQmakeBuildConfiguration::enabledChanged, this, updateGrade);
-}
-
-AndroidQmakeBuildConfiguration::AndroidQmakeBuildConfiguration(Target *target, AndroidQmakeBuildConfiguration *source)
-    : QmakeBuildConfiguration(target, source)
-{
-}
+// AndroidQmakeBuildConfiguration
 
 AndroidQmakeBuildConfiguration::AndroidQmakeBuildConfiguration(Target *target, Core::Id id)
     : QmakeBuildConfiguration(target, id)
 {
+    updateCacheAndEmitEnvironmentChanged();
+    connect(target->project(), &Project::parsingFinished, this, [this] {
+        AndroidManager::updateGradleProperties(BuildConfiguration::target());
+    });
+}
+
+void AndroidQmakeBuildConfiguration::initialize(const BuildInfo *info)
+{
+    QmakeBuildConfiguration::initialize(info);
+
+    BuildStepList *buildSteps = stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
+    buildSteps->appendStep(new AndroidPackageInstallationStep(buildSteps));
+    buildSteps->appendStep(new Android::AndroidBuildApkStep(buildSteps));
+
+    updateCacheAndEmitEnvironmentChanged();
 }
 
 void AndroidQmakeBuildConfiguration::addToEnvironment(Utils::Environment &env) const
 {
-    m_androidNdkPlatform = AndroidConfigurations::currentConfig().bestNdkPlatformMatch(AndroidManager::minimumSDK(target()));
-    env.set(QLatin1String("ANDROID_NDK_PLATFORM"), m_androidNdkPlatform);
-}
-
-void AndroidQmakeBuildConfiguration::manifestSaved()
-{
     QString androidNdkPlatform = AndroidConfigurations::currentConfig().bestNdkPlatformMatch(AndroidManager::minimumSDK(target()));
-    if (m_androidNdkPlatform == androidNdkPlatform)
-        return;
-
-    updateCacheAndEmitEnvironmentChanged();
-
-    QMakeStep *qs = qmakeStep();
-    if (!qs)
-        return;
-
-    qs->setForced(true);
-
-    BuildManager::buildList(stepList(ProjectExplorer::Constants::BUILDSTEPS_CLEAN),
-                            ProjectExplorerPlugin::displayNameForStepId(ProjectExplorer::Constants::BUILDSTEPS_CLEAN));
-    BuildManager::appendStep(qs, ProjectExplorerPlugin::displayNameForStepId(ProjectExplorer::Constants::BUILDSTEPS_CLEAN));
-    setSubNodeBuild(0);
+    env.set(QLatin1String("ANDROID_NDK_PLATFORM"), androidNdkPlatform);
 }
 
 } // namespace Internal

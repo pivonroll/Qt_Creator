@@ -33,10 +33,6 @@
 #include <iterator>
 #include <ostream>
 
-#ifdef UNIT_TESTS
-#include <gtest/gtest.h>
-#endif
-
 namespace Utils {
 
 template <uint Size>
@@ -86,11 +82,7 @@ std::ostream &operator<<(std::ostream &out, const BasicSmallString<Size> &string
     formatedString.replace("\n", "\\n");
     formatedString.replace("\t", "\\t");
 
-    out << "\"";
-
     out.write(formatedString.data(), std::streamsize(formatedString.size()));
-
-    out << "\"";
 
     return out;
 }
@@ -235,22 +227,6 @@ QDataStream &operator>>(QDataStream &in, vector<Type> &vector)
     return in;
 }
 
-#ifdef UNIT_TESTS
-template <typename T>
-ostream &operator<<(ostream &out, const vector<T> &vector)
-{
-    out << "[";
-
-    ostream_iterator<string> outIterator(out, ", ");
-
-    for (const auto &entry : vector)
-        outIterator = ::testing::PrintToString(entry);
-
-    out << "]";
-
-    return out;
-}
-#else
 template <typename T>
 ostream &operator<<(ostream &out, const vector<T> &vector)
 {
@@ -262,7 +238,6 @@ ostream &operator<<(ostream &out, const vector<T> &vector)
 
     return out;
 }
-#endif
 
 } // namespace std
 

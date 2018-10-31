@@ -27,7 +27,6 @@
 
 #include <QTextDocument>
 #include <QTextBlock>
-#include <QTextCursor>
 
 namespace Utils {
 namespace Text {
@@ -40,10 +39,30 @@ bool convertPosition(const QTextDocument *document, int pos, int *line, int *col
         (*column) = -1;
         return false;
     } else {
+        // line and column are both 1-based
         (*line) = block.blockNumber() + 1;
-        (*column) = pos - block.position();
+        (*column) = pos - block.position() + 1;
         return true;
     }
+}
+
+OptionalLineColumn convertPosition(const QTextDocument *document, int pos)
+{
+    OptionalLineColumn optional;
+
+    QTextBlock block = document->findBlock(pos);
+
+    if (block.isValid())
+        optional.emplace(block.blockNumber() + 1, pos - block.position() + 1);
+
+    return optional;
+}
+
+int positionInText(const QTextDocument *textDocument, int line, int column)
+{
+    // Deduct 1 from line and column since they are 1-based.
+    // Column should already be converted from UTF-8 byte offset to the TextEditor column.
+    return textDocument->findBlockByNumber(line - 1).position() + column - 1;
 }
 
 QString textAt(QTextCursor tc, int pos, int length)
@@ -119,6 +138,21 @@ QTextCursor wordStartCursor(const QTextCursor &textCursor)
         cursor.movePosition(QTextCursor::PreviousWord);
 
     return cursor;
+}
+
+int utf8NthLineOffset(const QTextDocument *textDocument, const QByteArray &buffer, int line)
+{
+    if (textDocument->characterCount() == buffer.size() + 1)
+        return textDocument->findBlockByNumber(line - 1).position();
+
+    int pos = 0;
+    for (int count = 0; count < line - 1; ++count) {
+        pos = buffer.indexOf('\n', pos);
+        if (pos == -1)
+            return -1;
+        ++pos;
+    }
+    return pos;
 }
 
 } // Text

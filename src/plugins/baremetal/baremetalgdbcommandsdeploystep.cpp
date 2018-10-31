@@ -35,7 +35,7 @@ namespace Internal {
 const char GdbCommandsKey[] = "BareMetal.GdbCommandsStep.Commands";
 
 BareMetalGdbCommandsDeployStepWidget::BareMetalGdbCommandsDeployStepWidget(BareMetalGdbCommandsDeployStep &step)
-    : m_step(step)
+    : BuildStepConfigWidget(&step), m_step(step)
 {
     QFormLayout *fl = new QFormLayout(this);
     fl->setMargin(0);
@@ -62,23 +62,11 @@ QString BareMetalGdbCommandsDeployStepWidget::summaryText() const
     return displayName();
 }
 
-BareMetalGdbCommandsDeployStep::BareMetalGdbCommandsDeployStep(BuildStepList *bsl,
-                                                               const Core::Id id)
-    : BuildStep(bsl, id)
-{
-    ctor();
-}
-
-BareMetalGdbCommandsDeployStep::BareMetalGdbCommandsDeployStep(BuildStepList *bsl,
-                                            BareMetalGdbCommandsDeployStep *other)
-    : BuildStep(bsl, other)
-{
-    ctor();
-}
-
-void BareMetalGdbCommandsDeployStep::ctor()
+BareMetalGdbCommandsDeployStep::BareMetalGdbCommandsDeployStep(BuildStepList *bsl)
+    : BuildStep(bsl, stepId())
 {
     setDefaultDisplayName(displayName());
+    setRunInGuiThread(true);
 }
 
 void BareMetalGdbCommandsDeployStep::run(QFutureInterface<bool> &fi)

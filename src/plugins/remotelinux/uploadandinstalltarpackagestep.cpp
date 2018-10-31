@@ -64,20 +64,9 @@ AbstractRemoteLinuxPackageInstaller *UploadAndInstallTarPackageService::packageI
 UploadAndInstallTarPackageStep::UploadAndInstallTarPackageStep(BuildStepList *bsl)
     : AbstractRemoteLinuxDeployStep(bsl, stepId())
 {
-    ctor();
-}
-
-UploadAndInstallTarPackageStep::UploadAndInstallTarPackageStep(BuildStepList *bsl,
-        UploadAndInstallTarPackageStep *other)
-    : AbstractRemoteLinuxDeployStep(bsl, other)
-{
-    ctor();
-}
-
-void UploadAndInstallTarPackageStep::ctor()
-{
     m_deployService = new UploadAndInstallTarPackageService(this);
     setDefaultDisplayName(displayName());
+    setWidgetExpandedByDefault(false);
 }
 
 bool UploadAndInstallTarPackageStep::initInternal(QString *error)
@@ -91,11 +80,6 @@ bool UploadAndInstallTarPackageStep::initInternal(QString *error)
     }
     m_deployService->setPackageFilePath(pStep->packageFilePath());
     return m_deployService->isDeploymentPossible(error);
-}
-
-BuildStepConfigWidget *UploadAndInstallTarPackageStep::createConfigWidget()
-{
-    return new SimpleBuildStepConfigWidget(this);
 }
 
 Core::Id UploadAndInstallTarPackageStep::stepId()

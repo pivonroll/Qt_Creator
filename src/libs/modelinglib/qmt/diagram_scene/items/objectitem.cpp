@@ -447,6 +447,26 @@ void ObjectItem::align(IAlignable::AlignType alignType, const QString &identifie
                                                                  minimumSize(m_diagramSceneModel->selectedItems()),
                                                                  m_diagramSceneModel->diagram());
         break;
+    case IAlignable::AlignHCenterDistance:
+        QMT_CHECK(identifier == "sameHCenterDistance");
+        m_diagramSceneModel->diagramSceneController()->alignHCenterDistance(m_diagramSceneModel->selectedElements(),
+                                                                            m_diagramSceneModel->diagram());
+        break;
+    case IAlignable::AlignVCenterDistance:
+        QMT_CHECK(identifier == "sameVCenterDistance");
+        m_diagramSceneModel->diagramSceneController()->alignVCenterDistance(m_diagramSceneModel->selectedElements(),
+                                                                            m_diagramSceneModel->diagram());
+        break;
+    case IAlignable::AlignHBorderDistance:
+        QMT_CHECK(identifier == "sameHBorderDistance");
+        m_diagramSceneModel->diagramSceneController()->alignHBorderDistance(m_diagramSceneModel->selectedElements(),
+                                                                            m_diagramSceneModel->diagram());
+        break;
+    case IAlignable::AlignVBorderDistance:
+        QMT_CHECK(identifier == "sameVBorderDistance");
+        m_diagramSceneModel->diagramSceneController()->alignVBorderDistance(m_diagramSceneModel->selectedElements(),
+                                                                            m_diagramSceneModel->diagram());
+        break;
     }
 }
 
@@ -455,11 +475,22 @@ bool ObjectItem::isEditable() const
     return true;
 }
 
+bool ObjectItem::isEditing() const
+{
+    return m_nameItem && m_nameItem->hasFocus();
+}
+
 void ObjectItem::edit()
 {
     // TODO if name is initial name ("New Class" etc) select all text
     if (m_nameItem)
         m_nameItem->setFocus();
+}
+
+void ObjectItem::finishEdit()
+{
+    if (m_nameItem)
+        m_nameItem->clearFocus();
 }
 
 void ObjectItem::updateStereotypeIconDisplay()
@@ -470,6 +501,7 @@ void ObjectItem::updateStereotypeIconDisplay()
     m_object->accept(&stereotypeDisplayVisitor);
     m_stereotypeIconId = stereotypeDisplayVisitor.stereotypeIconId();
     m_shapeIconId = stereotypeDisplayVisitor.shapeIconId();
+    m_shapeIcon = stereotypeDisplayVisitor.shapeIcon();
     m_stereotypeIconDisplay = stereotypeDisplayVisitor.stereotypeIconDisplay();
 }
 
@@ -493,16 +525,16 @@ void ObjectItem::updateStereotypes(const QString &stereotypeIconId, StereotypeIc
         delete m_stereotypeIcon;
         m_stereotypeIcon = nullptr;
     }
-    if (stereotypeDisplay != StereotypeIcon::DisplayNone && !stereotypes.isEmpty()) {
-        if (!m_stereotypes)
-            m_stereotypes = new StereotypesItem(this);
-        m_stereotypes->setFont(style->smallFont());
-        m_stereotypes->setBrush(style->textBrush());
-        m_stereotypes->setStereotypes(stereotypes);
-    } else if (m_stereotypes) {
-        m_stereotypes->scene()->removeItem(m_stereotypes);
-        delete m_stereotypes;
-        m_stereotypes = nullptr;
+    if (stereotypeDisplay != StereotypeIcon::DisplayNone && !suppressTextDisplay() && !stereotypes.isEmpty()) {
+        if (!m_stereotypesItem)
+            m_stereotypesItem = new StereotypesItem(this);
+        m_stereotypesItem->setFont(style->smallFont());
+        m_stereotypesItem->setBrush(style->textBrush());
+        m_stereotypesItem->setStereotypes(stereotypes);
+    } else if (m_stereotypesItem) {
+        m_stereotypesItem->scene()->removeItem(m_stereotypesItem);
+        delete m_stereotypesItem;
+        m_stereotypesItem = nullptr;
     }
 }
 
@@ -545,26 +577,45 @@ QSizeF ObjectItem::stereotypeIconMinimumSize(const StereotypeIcon &stereotypeIco
     return QSizeF(width, height);
 }
 
+bool ObjectItem::suppressTextDisplay() const
+{
+    return m_shapeIcon.textAlignment() == StereotypeIcon::TextalignNone;
+}
+
 void ObjectItem::updateNameItem(const Style *style)
 {
-    if (!m_nameItem) {
-        m_nameItem = new EditableTextItem(this);
-        m_nameItem->setShowFocus(true);
-        m_nameItem->setFilterReturnKey(true);
-        m_nameItem->setFilterTabKey(true);
-        QObject::connect(m_nameItem->document(), &QTextDocument::contentsChanged, m_nameItem,
-                         [=]() { this->setFromDisplayName(m_nameItem->toPlainText()); });
-        QObject::connect(m_nameItem, &EditableTextItem::returnKeyPressed, m_nameItem,
-                         [=]() { this->m_nameItem->clearFocus(); });
-    }
-    if (style->headerFont() != m_nameItem->font())
-        m_nameItem->setFont(style->headerFont());
-    if (style->textBrush().color() != m_nameItem->defaultTextColor())
-        m_nameItem->setDefaultTextColor(style->textBrush().color());
-    if (!m_nameItem->hasFocus()) {
-        QString name = buildDisplayName();
-        if (name != m_nameItem->toPlainText())
-            m_nameItem->setPlainText(name);
+    if (!suppressTextDisplay()) {
+        if (!m_nameItem) {
+            m_nameItem = new EditableTextItem(this);
+            m_nameItem->setShowFocus(true);
+            m_nameItem->setFilterReturnKey(true);
+            m_nameItem->setFilterTabKey(true);
+            QTextOption textOption = m_nameItem->document()->defaultTextOption();
+            textOption.setAlignment(Qt::AlignHCenter);
+            m_nameItem->document()->setDefaultTextOption(textOption);
+            QObject::connect(m_nameItem->document(), &QTextDocument::contentsChanged, m_nameItem,
+                             [=]()
+            {
+                this->m_nameItem->setTextWidth(-1);
+                this->m_nameItem->setTextWidth(m_nameItem->boundingRect().width());
+                this->setFromDisplayName(m_nameItem->toPlainText());
+            });
+            QObject::connect(m_nameItem, &EditableTextItem::returnKeyPressed, m_nameItem,
+                             [=]() { this->m_nameItem->clearFocus(); });
+        }
+        if (style->headerFont() != m_nameItem->font())
+            m_nameItem->setFont(style->headerFont());
+        if (style->textBrush().color() != m_nameItem->defaultTextColor())
+            m_nameItem->setDefaultTextColor(style->textBrush().color());
+        if (!m_nameItem->hasFocus()) {
+            QString name = buildDisplayName();
+            if (name != m_nameItem->toPlainText())
+                m_nameItem->setPlainText(name);
+        }
+    } else if (m_nameItem ){
+        m_nameItem->scene()->removeItem(m_nameItem);
+        delete m_nameItem;
+        m_nameItem = nullptr;
     }
 }
 
@@ -664,7 +715,7 @@ void ObjectItem::updateRelationStarter()
 {
     if (isFocusSelected()) {
         if (!m_relationStarter) {
-            m_relationStarter = new RelationStarter(this, diagramSceneModel(), 0);
+            m_relationStarter = new RelationStarter(this, diagramSceneModel(), nullptr);
             scene()->addItem(m_relationStarter);
             m_relationStarter->setZValue(RELATION_STARTER_ZVALUE);
             QString elementType;
@@ -776,13 +827,13 @@ void ObjectItem::updateAlignmentButtons()
 {
     if (isFocusSelected() && m_diagramSceneModel->hasMultiObjectsSelection()) {
         if (!m_horizontalAlignButtons && scene()) {
-            m_horizontalAlignButtons = new AlignButtonsItem(this, 0);
+            m_horizontalAlignButtons = new AlignButtonsItem(this, nullptr);
             m_horizontalAlignButtons->setZValue(ALIGN_BUTTONS_ZVALUE);
             scene()->addItem(m_horizontalAlignButtons);
         }
 
         if (!m_verticalAlignButtons && scene()) {
-            m_verticalAlignButtons = new AlignButtonsItem(this, 0);
+            m_verticalAlignButtons = new AlignButtonsItem(this, nullptr);
             m_verticalAlignButtons->setZValue(ALIGN_BUTTONS_ZVALUE);
             scene()->addItem(m_verticalAlignButtons);
         }
@@ -977,6 +1028,15 @@ void ObjectItem::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
     alignMenu.addAction(new ContextMenuAction(tr("Same Size"), "sameSize", &alignMenu));
     alignMenu.setEnabled(m_diagramSceneModel->hasMultiObjectsSelection());
     menu.addMenu(&alignMenu);
+    QMenu layoutMenu;
+    layoutMenu.setTitle(tr("Layout Objects"));
+    layoutMenu.addAction(new ContextMenuAction(tr("Equal Horizontal Distance"), "sameHCenterDistance", &alignMenu));
+    layoutMenu.addAction(new ContextMenuAction(tr("Equal Vertical Distance"), "sameVCenterDistance", &alignMenu));
+    layoutMenu.addAction(new ContextMenuAction(tr("Equal Horizontal Space"), "sameHBorderDistance", &alignMenu));
+    layoutMenu.addAction(new ContextMenuAction(tr("Equal Vertical Space"), "sameVBorderDistance", &alignMenu));
+    layoutMenu.setEnabled(m_diagramSceneModel->hasMultiObjectsSelection());
+    menu.addMenu(&layoutMenu);
+    menu.addAction(new ContextMenuAction(tr("Add Related Elements"), "addRelatedElements", &menu));
 
     QAction *selectedAction = menu.exec(event->screenPos());
     if (selectedAction) {
@@ -1013,12 +1073,25 @@ void ObjectItem::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
                 align(IAlignable::AlignHcenter, "center");
             } else if (action->id() == "alignBottom") {
                 align(IAlignable::AlignBottom, "bottom");
+            } else if (action->id() == "sameHCenterDistance") {
+                align(IAlignable::AlignHCenterDistance, "sameHCenterDistance");
+            } else if (action->id() == "sameVCenterDistance") {
+                align(IAlignable::AlignVCenterDistance, "sameVCenterDistance");
+            } else if (action->id() == "sameHBorderDistance") {
+                align(IAlignable::AlignHBorderDistance, "sameHBorderDistance");
+            } else if (action->id() == "sameVBorderDistance") {
+                align(IAlignable::AlignVBorderDistance, "sameVBorderDistance");
             } else if (action->id() == "sameWidth") {
                 align(IAlignable::AlignWidth, "width");
             } else if (action->id() == "sameHeight") {
                 align(IAlignable::AlignHeight, "height");
             } else if (action->id() == "sameSize") {
                 align(IAlignable::AlignSize, "size");
+            } else if (action->id() == "addRelatedElements") {
+                DSelection selection = m_diagramSceneModel->selectedElements();
+                if (selection.isEmpty())
+                    selection.append(m_object->uid(), m_diagramSceneModel->diagram()->uid());
+                m_diagramSceneModel->diagramSceneController()->addRelatedElements(selection, m_diagramSceneModel->diagram());
             }
         }
     }

@@ -3,6 +3,10 @@ QT += qml
 include(../../qtcreatorplugin.pri)
 include(customwizard/customwizard.pri)
 include(jsonwizard/jsonwizard.pri)
+
+include(../../shared/clang/clang_installation.pri)
+include(../../shared/clang/clang_defines.pri)
+
 HEADERS += projectexplorer.h \
     abi.h \
     abiwidget.h \
@@ -12,9 +16,10 @@ HEADERS += projectexplorer.h \
     configtaskhandler.h \
     environmentaspect.h \
     environmentaspectwidget.h \
+    extraabi.h \
     gcctoolchain.h \
     importwidget.h \
-    runnables.h \
+    userfileaccessor.h \
     localenvironmentaspect.h \
     osparser.h \
     projectexplorer_export.h \
@@ -84,9 +89,11 @@ HEADERS += projectexplorer.h \
     projectmodels.h \
     currentprojectfind.h \
     toolchain.h \
+    toolchaincache.h \
     toolchainconfigwidget.h \
     toolchainmanager.h \
     toolchainoptionspage.h \
+    toolchainsettingsaccessor.h \
     gccparser.h \
     projectexplorersettingspage.h \
     baseprojectwizarddialog.h \
@@ -102,7 +109,6 @@ HEADERS += projectexplorer.h \
     gcctoolchainfactories.h \
     appoutputpane.h \
     codestylesettingspropertiespage.h \
-    settingsaccessor.h \
     deployablefile.h \
     devicesupport/idevice.h \
     devicesupport/desktopdevice.h \
@@ -148,9 +154,10 @@ HEADERS += projectexplorer.h \
     projectexplorericons.h \
     projectexplorer_global.h \
     extracompiler.h \
-    customexecutableconfigurationwidget.h \
     customexecutablerunconfiguration.h \
-    projectmacro.h
+    projectmacro.h \
+    makestep.h \
+    projectconfigurationaspects.h
 
 SOURCES += projectexplorer.cpp \
     abi.cpp \
@@ -161,10 +168,11 @@ SOURCES += projectexplorer.cpp \
     configtaskhandler.cpp \
     environmentaspect.cpp \
     environmentaspectwidget.cpp \
+    extraabi.cpp \
     gcctoolchain.cpp \
     importwidget.cpp \
     projectconfigurationmodel.cpp \
-    runnables.cpp \
+    userfileaccessor.cpp \
     localenvironmentaspect.cpp \
     osparser.cpp \
     projectimporter.cpp \
@@ -231,6 +239,7 @@ SOURCES += projectexplorer.cpp \
     toolchainconfigwidget.cpp \
     toolchainmanager.cpp \
     toolchainoptionspage.cpp \
+    toolchainsettingsaccessor.cpp \
     gccparser.cpp \
     projectexplorersettingspage.cpp \
     baseprojectwizarddialog.cpp \
@@ -243,7 +252,6 @@ SOURCES += projectexplorer.cpp \
     processparameters.cpp \
     appoutputpane.cpp \
     codestylesettingspropertiespage.cpp \
-    settingsaccessor.cpp \
     devicesupport/idevice.cpp \
     devicesupport/desktopdevice.cpp \
     devicesupport/desktopdevicefactory.cpp \
@@ -284,9 +292,10 @@ SOURCES += projectexplorer.cpp \
     waitforstopdialog.cpp \
     projectexplorericons.cpp \
     extracompiler.cpp \
-    customexecutableconfigurationwidget.cpp \
     customexecutablerunconfiguration.cpp \
-    projectmacro.cpp
+    projectmacro.cpp \
+    makestep.cpp \
+    projectconfigurationaspects.cpp
 
 FORMS += processstep.ui \
     editorsettingspropertiespage.ui \
@@ -299,7 +308,8 @@ FORMS += processstep.ui \
     devicesupport/devicesettingswidget.ui \
     devicesupport/devicetestdialog.ui \
     devicesupport/desktopdeviceconfigurationwidget.ui \
-    customparserconfigdialog.ui
+    customparserconfigdialog.ui \
+    makestep.ui
 
 WINSOURCES += \
     windebuginterface.cpp \
@@ -331,12 +341,5 @@ journald {
 }
 
 RESOURCES += projectexplorer.qrc
-
-# Some way to override the architecture used in Abi:
-!isEmpty($$(QTC_CPU)) {
-    DEFINES += QTC_CPU=$$(QTC_CPU)
-} else {
-    DEFINES += QTC_CPU=X86Architecture
-}
 
 DEFINES += PROJECTEXPLORER_LIBRARY

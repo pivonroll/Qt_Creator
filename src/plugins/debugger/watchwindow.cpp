@@ -41,7 +41,7 @@ namespace Debugger {
 namespace Internal {
 
 WatchTreeView::WatchTreeView(WatchType type)
-  : m_type(type), m_sliderPosition(0)
+  : m_type(type)
 {
     setObjectName("WatchWindow");
     setWindowTitle(tr("Locals and Expressions"));
@@ -78,7 +78,7 @@ void WatchTreeView::setModel(QAbstractItemModel *model)
     setRootIsDecorated(true);
     if (header()) {
         header()->setDefaultAlignment(Qt::AlignLeft);
-        if (m_type != LocalsType && m_type != InspectType)
+        if (m_type == ReturnType || m_type == TooltipType)
             header()->hide();
     }
 

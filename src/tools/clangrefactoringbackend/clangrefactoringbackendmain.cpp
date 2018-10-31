@@ -31,18 +31,26 @@
 
 #include <connectionserver.h>
 #include <filepathcaching.h>
+#include <generatedfiles.h>
 #include <refactoringserver.h>
 #include <refactoringclientproxy.h>
 #include <symbolindexing.h>
 
+#include <sqliteexception.h>
+
+#include <chrono>
+
+using namespace std::chrono_literals;
+
 using ClangBackEnd::FilePathCaching;
+using ClangBackEnd::GeneratedFiles;
 using ClangBackEnd::RefactoringClientProxy;
 using ClangBackEnd::RefactoringServer;
 using ClangBackEnd::RefactoringDatabaseInitializer;
 using ClangBackEnd::ConnectionServer;
 using ClangBackEnd::SymbolIndexing;
 
-QString processArguments(QCoreApplication &application)
+QStringList processArguments(QCoreApplication &application)
 {
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("Qt Creator Clang Refactoring Backend"));
@@ -55,35 +63,64 @@ QString processArguments(QCoreApplication &application)
     if (parser.positionalArguments().isEmpty())
         parser.showHelp(1);
 
-    return parser.positionalArguments().first();
+    return parser.positionalArguments();
 }
 
-int main(int argc, char *argv[])
-try {
-    //QLoggingCategory::setFilterRules(QStringLiteral("*.debug=false"));
+class RefactoringApplication : public QCoreApplication
+{
+public:
+    using QCoreApplication::QCoreApplication;
 
-    QCoreApplication::setOrganizationName(QStringLiteral("QtProject"));
-    QCoreApplication::setOrganizationDomain(QStringLiteral("qt-project.org"));
-    QCoreApplication::setApplicationName(QStringLiteral("ClangRefactoringBackend"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
+    bool notify(QObject *object, QEvent *event) override
+    {
+        try {
+            return QCoreApplication::notify(object, event);
+        } catch (Sqlite::Exception &exception) {
+            exception.printWarning();
+        }
 
-    QCoreApplication application(argc, argv);
+        return false;
+    }
+};
 
-    const QString connection =  processArguments(application);
+struct Data // because we have a cycle dependency
+{
+    Data(const QString &databasePath)
+        : database{Utils::PathString{databasePath}, 100000ms}
+    {}
 
-    Sqlite::Database database{Utils::PathString{QDir::tempPath() + "/symbol.db"}};
+    Sqlite::Database database;
     RefactoringDatabaseInitializer<Sqlite::Database> databaseInitializer{database};
     FilePathCaching filePathCache{database};
-    SymbolIndexing symbolIndexing{database, filePathCache};
-    RefactoringServer clangCodeModelServer{symbolIndexing, filePathCache};
-    ConnectionServer<RefactoringServer, RefactoringClientProxy> connectionServer(connection);
-    connectionServer.start();
-    connectionServer.setServer(&clangCodeModelServer);
+    GeneratedFiles generatedFiles;
+    SymbolIndexing symbolIndexing{database, filePathCache, generatedFiles, [&] (int progress, int total) { clangCodeModelServer.setProgress(progress, total); }};
+    RefactoringServer clangCodeModelServer{symbolIndexing, filePathCache, generatedFiles};
+};
 
+int main(int argc, char *argv[])
+{
+    try {
+        QCoreApplication::setOrganizationName(QStringLiteral("QtProject"));
+        QCoreApplication::setOrganizationDomain(QStringLiteral("qt-project.org"));
+        QCoreApplication::setApplicationName(QStringLiteral("ClangRefactoringBackend"));
+        QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
 
-    return application.exec();
-} catch (const Sqlite::Exception &exception) {
-    exception.printWarning();
+        RefactoringApplication application(argc, argv);
+
+        const QStringList arguments = processArguments(application);
+        const QString connectionName = arguments[0];
+        const QString databasePath = arguments[1];
+
+        Data data{databasePath};
+
+        ConnectionServer<RefactoringServer, RefactoringClientProxy> connectionServer;
+        connectionServer.setServer(&data.clangCodeModelServer);
+        connectionServer.start(connectionName);
+
+        return application.exec();
+    } catch (const Sqlite::Exception &exception) {
+        exception.printWarning();
+    }
 }
 
 

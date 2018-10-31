@@ -33,6 +33,8 @@
 #include <QRegularExpression>
 #include <QVariant>
 
+#include <memory>
+
 QT_BEGIN_NAMESPACE
 class QFormLayout;
 class QLabel;
@@ -42,7 +44,6 @@ QT_END_NAMESPACE
 
 namespace Utils {
 class MacroExpander;
-class TextFieldComboBox;
 } // namespace Utils
 
 namespace ProjectExplorer {
@@ -106,7 +107,7 @@ public:
 
         friend class JsonFieldPage;
 
-        FieldPrivate *const d;
+        const std::unique_ptr<FieldPrivate> d;
     };
 
     JsonFieldPage(Utils::MacroExpander *expander, QWidget *parent = 0);

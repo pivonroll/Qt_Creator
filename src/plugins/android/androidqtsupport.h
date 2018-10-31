@@ -27,23 +27,31 @@
 
 #include "android_global.h"
 
-#include <QObject>
-#include <QList>
+#include <coreplugin/id.h>
 
-namespace ProjectExplorer {
-    class DeployConfiguration;
-    class ProcessParameters;
-    class Project;
-    class Target;
-}
+#include <QObject>
+
+namespace ProjectExplorer { class Target; }
 
 namespace Utils { class FileName; }
 
 namespace Android {
+namespace Constants {
+
+const char AndroidPackageSourceDir[] = "AndroidPackageSourceDir"; // QString
+const char AndroidDeploySettingsFile[] = "AndroidDeploySettingsFile"; // QString
+const char AndroidExtraLibs[] = "AndroidExtraLibs";  // QStringList
+const char AndroidArch[] = "AndroidArch"; // QString
+
+} // namespace Constants
 
 class ANDROID_EXPORT AndroidQtSupport : public QObject
 {
     Q_OBJECT
+
+protected:
+    AndroidQtSupport();
+    ~AndroidQtSupport() override;
 
 public:
     enum BuildType {
@@ -52,16 +60,21 @@ public:
         ReleaseBuildSigned
     };
 
-public:
     virtual bool canHandle(const ProjectExplorer::Target *target) const = 0;
     virtual QStringList soLibSearchPath(const ProjectExplorer::Target *target) const = 0;
-    virtual QStringList androidExtraLibs(const ProjectExplorer::Target *target) const = 0;
     virtual QStringList projectTargetApplications(const ProjectExplorer::Target *target) const = 0;
-    virtual Utils::FileName apkPath(ProjectExplorer::Target *target) const;
-    virtual Utils::FileName androiddeployqtPath(ProjectExplorer::Target *target) const = 0;
-    virtual Utils::FileName androiddeployJsonPath(ProjectExplorer::Target *target) const = 0;
-    virtual void manifestSaved(const ProjectExplorer::Target *target) = 0;
-    virtual Utils::FileName manifestSourcePath(const ProjectExplorer::Target *target) = 0;
+
+    virtual QVariant targetData(Core::Id role, const ProjectExplorer::Target *target) const = 0;
+    virtual bool setTargetData(Core::Id role, const QVariant &value,
+                               const ProjectExplorer::Target *target) const = 0;
+
+    virtual bool parseInProgress(const ProjectExplorer::Target *target) const = 0;
+    virtual bool validParse(const ProjectExplorer::Target *target) const = 0;
+    virtual bool extraLibraryEnabled(const ProjectExplorer::Target *target) const = 0;
+    virtual Utils::FileName projectFilePath(const ProjectExplorer::Target *target) const = 0;
+
+    virtual void addFiles(const ProjectExplorer::Target *target, const QString &buildKey,
+                          const QStringList &addedFiles) const = 0;
 };
 
 } // namespace Android

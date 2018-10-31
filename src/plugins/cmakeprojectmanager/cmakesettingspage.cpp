@@ -28,12 +28,13 @@
 #include "cmaketoolmanager.h"
 
 #include <projectexplorer/projectexplorerconstants.h>
-#include <projectexplorer/project.h>
+#include <projectexplorer/projectexplorericons.h>
 #include <coreplugin/icore.h>
 #include <utils/environment.h>
 #include <utils/detailswidget.h>
 #include <utils/pathchooser.h>
 #include <utils/qtcassert.h>
+#include <utils/stringutils.h>
 #include <utils/treemodel.h>
 
 #include <QCheckBox>
@@ -107,8 +108,7 @@ public:
         m_executable(executable),
         m_isAutoRun(autoRun),
         m_autoCreateBuildDirectory(autoCreate),
-        m_autodetected(autodetected),
-        m_changed(true)
+        m_autodetected(autodetected)
     {}
 
     CMakeToolTreeItem() = default;
@@ -249,6 +249,9 @@ CMakeToolTreeItem *CMakeToolItemModel::cmakeToolItem(const QModelIndex &index) c
 
 void CMakeToolItemModel::removeCMakeTool(const Core::Id &id)
 {
+    if (m_removedItems.contains(id))
+        return; // Item has already been removed in the model!
+
     CMakeToolTreeItem *treeItem = cmakeToolItem(id);
     QTC_ASSERT(treeItem, return);
 
@@ -277,13 +280,11 @@ void CMakeToolItemModel::apply()
     foreach (CMakeToolTreeItem *item, toRegister) {
         CMakeTool::Detection detection = item->m_autodetected ? CMakeTool::AutoDetection
                                                               : CMakeTool::ManualDetection;
-        CMakeTool *cmake = new CMakeTool(detection, item->m_id);
+        auto cmake = std::make_unique<CMakeTool>(detection, item->m_id);
         cmake->setDisplayName(item->m_name);
         cmake->setCMakeExecutable(item->m_executable);
-        if (!CMakeToolManager::registerCMakeTool(cmake)) {
+        if (!CMakeToolManager::registerCMakeTool(std::move(cmake)))
             item->m_changed = true;
-            delete cmake;
-        }
     }
 
     CMakeToolManager::setDefaultCMakeTool(defaultItemId());
@@ -316,7 +317,7 @@ QString CMakeToolItemModel::uniqueDisplayName(const QString &base) const
 {
     QStringList names;
     forItemsAtLevel<2>([&names](CMakeToolTreeItem *item) { names << item->m_name; });
-    return ProjectExplorer::Project::makeUnique(base, names);
+    return Utils::makeUniquelyNumbered(base, names);
 }
 
 // -----------------------------------------------------------------------
@@ -572,10 +573,7 @@ CMakeSettingsPage::CMakeSettingsPage()
 {
     setId(Constants::CMAKE_SETTINGSPAGE_ID);
     setDisplayName(tr("CMake"));
-    setCategory(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY);
-    setDisplayCategory(QCoreApplication::translate("ProjectExplorer",
-       ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_TR_CATEGORY));
-    setCategoryIcon(Utils::Icon(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY_ICON));
+    setCategory(ProjectExplorer::Constants::KITS_SETTINGS_CATEGORY);
 }
 
 QWidget *CMakeSettingsPage::widget()

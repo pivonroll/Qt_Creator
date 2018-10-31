@@ -55,24 +55,17 @@ TEST(SmallString, NullSmallStringIsEqualToEmptySmallString)
 
 TEST(SmallString, ShortSmallStringLiteralIsShortSmallString)
 {
-    constexpr SmallStringLiteral shortText("short string");
+    // constexpr
+    SmallStringLiteral shortText("short string");
 
-#if __cpp_constexpr >= 201304
     ASSERT_TRUE(shortText.isShortString());
-#else
-    ASSERT_TRUE(shortText.isReadOnlyReference());
-#endif
 }
 
 TEST(SmallString, ShortSmallStringIsShortSmallString)
 {
     SmallString shortText("short string");
 
-#if __cpp_constexpr >= 201304
     ASSERT_TRUE(shortText.isShortString());
-#else
-    ASSERT_TRUE(shortText.isReadOnlyReference());
-#endif
 }
 
 TEST(SmallString, CreateFromCStringIterators)
@@ -189,11 +182,7 @@ TEST(SmallString, CopyShortConstExpressionSmallStringIsShortSmallString)
 
     auto shortTextCopy = shortText;
 
-#if __cpp_constexpr >= 201304
     ASSERT_TRUE(shortTextCopy.isShortString());
-#else
-    ASSERT_TRUE(shortTextCopy.isReadOnlyReference());
-#endif
 }
 
 TEST(SmallString, CopyLongConstExpressionSmallStringIsLongSmallString)
@@ -675,6 +664,24 @@ TEST(SmallString, MidTwoParameter)
     auto midString = text.mid(5, 4);
 
     ASSERT_THAT(midString, Eq(SmallString("text")));
+}
+
+TEST(SmallString, SmallStringViewMidOneParameter)
+{
+    SmallStringView text("some text");
+
+    auto midString = text.mid(5);
+
+    ASSERT_THAT(midString, Eq(SmallStringView("text")));
+}
+
+TEST(SmallString, SmallStringViewMidTwoParameter)
+{
+    SmallStringView text("some text and more");
+
+    auto midString = text.mid(5, 4);
+
+    ASSERT_THAT(midString, Eq(SmallStringView("text")));
 }
 
 TEST(SmallString, SizeOfEmptyStringl)
@@ -1650,11 +1657,29 @@ TEST(SmallString, StringViewPlusOperator)
     ASSERT_THAT(result, "text and more text");
 }
 
+TEST(SmallString, StringViewPlusOperatorReverseOrder)
+{
+    SmallStringView text = " and more text";
+
+    auto result = "text" + text;
+
+    ASSERT_THAT(result, "text and more text");
+}
+
 TEST(SmallString, StringPlusOperator)
 {
     SmallString text = "text";
 
     auto result = text + " and more text";
+
+    ASSERT_THAT(result, "text and more text");
+}
+
+TEST(SmallString, StringPlusOperatorReverseOrder)
+{
+    SmallString text = " and more text";
+
+    auto result = "text" + text;
 
     ASSERT_THAT(result, "text and more text");
 }
@@ -1669,7 +1694,7 @@ TEST(SmallString, ToView)
 {
     SmallString text = "text";
 
-    auto view = text.toView();
+    auto view = text.toStringView();
 
     ASSERT_THAT(view, "text");
 

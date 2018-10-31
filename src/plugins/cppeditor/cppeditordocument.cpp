@@ -103,7 +103,7 @@ CppEditorDocument::CppEditorDocument()
 {
     setId(CppEditor::Constants::CPPEDITOR_ID);
     setSyntaxHighlighter(new CppHighlighter);
-    setIndenter(new CppTools::CppQtStyleIndenter);
+    setIndenter(CppTools::CppModelManager::instance()->createCppIndenter());
 
     connect(this, &TextEditor::TextDocument::tabSettingsChanged,
             this, &CppEditorDocument::invalidateFormatterCache);
@@ -133,7 +133,7 @@ TextEditor::CompletionAssistProvider *CppEditorDocument::completionAssistProvide
     return m_completionAssistProvider;
 }
 
-TextEditor::QuickFixAssistProvider *CppEditorDocument::quickFixAssistProvider() const
+TextEditor::IAssistProvider *CppEditorDocument::quickFixAssistProvider() const
 {
     return CppEditorPlugin::instance()->quickFixProvider();
 }
@@ -394,7 +394,7 @@ const MinimizableInfoBars &CppEditorDocument::minimizableInfoBars() const
 CppTools::BaseEditorDocumentProcessor *CppEditorDocument::processor()
 {
     if (!m_processor) {
-        m_processor.reset(mm()->editorDocumentProcessor(this));
+        m_processor.reset(mm()->createEditorDocumentProcessor(this));
         connect(m_processor.data(), &CppTools::BaseEditorDocumentProcessor::projectPartInfoUpdated,
                 [this] (const CppTools::ProjectPartInfo &info)
         {
@@ -431,6 +431,13 @@ CppTools::BaseEditorDocumentProcessor *CppEditorDocument::processor()
     }
 
     return m_processor.data();
+}
+
+TextEditor::TabSettings CppEditorDocument::tabSettings() const
+{
+    return indenter()->hasTabSettings()
+            ? indenter()->tabSettings()
+            : TextEditor::TextDocument::tabSettings();
 }
 
 } // namespace Internal

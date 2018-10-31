@@ -34,12 +34,13 @@
 
 #include <nodeinstanceview.h>
 
+#include <app/app_version.h>
+
 #include <projectexplorer/kit.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/target.h>
 #include <projectexplorer/toolchain.h>
-#include <qmakeprojectmanager/qmakeproject.h>
-#include <qmakeprojectmanager/qmakenodes.h>
 #include <coreplugin/messagebox.h>
 #include <coreplugin/icore.h>
 #include <qtsupport/baseqtversion.h>
@@ -50,8 +51,10 @@
 #include <utils/algorithm.h>
 #include <utils/environment.h>
 #include <utils/hostosinfo.h>
+#include <utils/qtcassert.h>
 #include <utils/temporarydirectory.h>
 
+#include <QApplication>
 #include <QProcess>
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -62,8 +65,8 @@
 #include <QThread>
 #include <QSettings>
 
-static Q_LOGGING_CATEGORY(puppetStart, "qtc.puppet.start")
-static Q_LOGGING_CATEGORY(puppetBuild, "qtc.puppet.build")
+static Q_LOGGING_CATEGORY(puppetStart, "qtc.puppet.start", QtWarningMsg)
+static Q_LOGGING_CATEGORY(puppetBuild, "qtc.puppet.build", QtWarningMsg)
 
 namespace QmlDesigner {
 
@@ -140,7 +143,7 @@ bool PuppetCreator::useOnlyFallbackPuppet() const
     if (!m_kit || !m_kit->isValid())
         qWarning() << "Invalid kit for QML puppet";
     return m_designerSettings.value(DesignerSettingsKey::USE_ONLY_FALLBACK_PUPPET
-                                    ).toBool() || m_kit == 0 || !m_kit->isValid();
+                                    ).toBool() || m_kit == nullptr || !m_kit->isValid();
 #else
     return true;
 #endif
@@ -150,10 +153,9 @@ QString PuppetCreator::getStyleConfigFileName() const
 {
 #ifndef QMLDESIGNER_TEST
     if (m_currentProject) {
-        for (const QString &fileName : m_currentProject->files(ProjectExplorer::Project::SourceFiles)) {
-            QFileInfo fileInfo(fileName);
-            if (fileInfo.fileName() == "qtquickcontrols2.conf")
-                return  fileName;
+        for (const Utils::FileName &fileName : m_currentProject->files(ProjectExplorer::Project::SourceFiles)) {
+            if (fileName.fileName() == "qtquickcontrols2.conf")
+                return  fileName.toString();
         }
     }
 #endif
@@ -226,7 +228,7 @@ QProcess *PuppetCreator::puppetProcess(const QString &puppetPath,
 #endif
     if (debugPuppet == puppetMode || debugPuppet == "all") {
         QMessageBox::information(Core::ICore::dialogParent(),
-            QCoreApplication::translate("PuppetCreator", "Puppet is starting ..."),
+            QCoreApplication::translate("PuppetCreator", "Puppet is starting..."),
             QCoreApplication::translate("PuppetCreator", "You can now attach your debugger to the %1 puppet with process id: %2.")
                                  .arg(puppetMode, QString::number(puppetProcess->processId())));
     }
@@ -316,9 +318,9 @@ static void warnAboutInvalidKit()
                                            QCoreApplication::translate("PuppetCreator",
                                                                        "The QML emulation layer (QML Puppet) cannot be built because the kit is not configured correctly. "
                                                                        "For example the compiler can be misconfigured. "
-                                                                       "Fix the kit configuration and restart Qt Creator. "
+                                                                       "Fix the kit configuration and restart %1. "
                                                                        "Otherwise, the fallback emulation layer, which does not support all features, will be used."
-                                                                       ));
+                                                                       ).arg(Core::Constants::IDE_DISPLAY_NAME));
 }
 
 void PuppetCreator::createQml2PuppetExecutableIfMissing()
@@ -369,7 +371,11 @@ QString PuppetCreator::qmlPuppetDirectory(PuppetType puppetType) const
         return qmlPuppetToplevelBuildDirectory() + '/' + QCoreApplication::applicationVersion()
                 + '/' + QString::fromLatin1(qtHash());
 
-    return qmlPuppetFallbackDirectory();
+#ifndef QMLDESIGNER_TEST
+    return qmlPuppetFallbackDirectory(m_designerSettings);
+#else
+    return QString();
+#endif
 }
 
 QString PuppetCreator::defaultPuppetFallbackDirectory()
@@ -380,15 +386,16 @@ QString PuppetCreator::defaultPuppetFallbackDirectory()
         return Core::ICore::libexecPath();
 }
 
-QString PuppetCreator::qmlPuppetFallbackDirectory() const
+QString PuppetCreator::qmlPuppetFallbackDirectory(const DesignerSettings &settings)
 {
 #ifndef QMLDESIGNER_TEST
-    QString puppetFallbackDirectory = m_designerSettings.value(
+    QString puppetFallbackDirectory = settings.value(
         DesignerSettingsKey::PUPPET_FALLBACK_DIRECTORY).toString();
-    if (puppetFallbackDirectory.isEmpty())
+    if (puppetFallbackDirectory.isEmpty() || !QFileInfo::exists(puppetFallbackDirectory))
         return defaultPuppetFallbackDirectory();
     return puppetFallbackDirectory;
 #else
+    Q_UNUSED(settings);
     return QString();
 #endif
 }
@@ -419,10 +426,10 @@ QProcessEnvironment PuppetCreator::processEnvironment() const
         environment.prependOrSetPath(qtBinPath.toString());
     }
     environment.set("QML_BAD_GUI_RENDER_LOOP", "true");
-    environment.set("QML_USE_MOCKUPS", "true");
     environment.set("QML_PUPPET_MODE", "true");
     environment.set("QML_DISABLE_DISK_CACHE", "true");
-    if (!environment.hasKey("QT_SCREEN_SCALE_FACTORS"))
+    if (!environment.hasKey("QT_SCREEN_SCALE_FACTORS") && !environment.hasKey("QT_SCALE_FACTOR")
+            && QApplication::testAttribute(Qt::AA_EnableHighDpiScaling))
         environment.set("QT_AUTO_SCREEN_SCALE_FACTOR", "1");
 
 #ifndef QMLDESIGNER_TEST
@@ -465,12 +472,10 @@ QProcessEnvironment PuppetCreator::processEnvironment() const
     if (!styleConfigFileName.isEmpty())
         environment.appendOrSet("QT_QUICK_CONTROLS_CONF", styleConfigFileName);
 
-    if (m_currentProject) {
-        auto qmakeProject = qobject_cast<QmakeProjectManager::QmakeProject *>(m_currentProject);
-        if (qmakeProject) {
-            QStringList designerImports = qmakeProject->rootProjectNode()->variableValue(QmakeProjectManager::Variable::QmlDesignerImportPath);
-            importPaths.append(designerImports);
-        }
+    if (m_currentProject && m_currentProject->activeTarget()) {
+        QStringList designerImports = m_currentProject->activeTarget()
+                ->additionalData("QmlDesignerImportPath").toStringList();
+        importPaths.append(designerImports);
     }
 
     if (m_availablePuppetType == FallbackPuppet)

@@ -228,8 +228,9 @@ SymbolAncestorInfo SymbolGroupValue::infoOfAncestor(const std::string &name) con
 SymbolGroupValue SymbolGroupValue::addSymbol(const ULONG64 address, const std::string &type) const
 {
     const std::string &pointerToType = pointedToSymbolName(address, type);
+    std::string tmp;
     if (SymbolGroupNode *ancestorNode =
-            node()->symbolGroup()->addSymbol(module(), pointerToType, "", "", &std::string())) {
+            node()->symbolGroup()->addSymbol(module(), pointerToType, "", "", &tmp)) {
         return SymbolGroupValue(ancestorNode, m_context);
     }
     if (isValid() && SymbolGroupValue::verbose) { // Do not report subsequent errors
@@ -1574,6 +1575,7 @@ static KnownType knownClassTypeHelper(const std::string &type,
     case 29:
         if (!type.compare(qPos, 29, "QXmlStreamNotationDeclaration"))
             return KT_QXmlStreamNotationDeclaration;
+        break;
     case 30:
         if (!type.compare(qPos, 30, "QPatternist::SequenceType::Ptr"))
             return KT_QPatternist_SequenceType_Ptr;
@@ -2063,8 +2065,9 @@ static inline bool dumpQRegion(const SymbolGroupValue &v, std::wostream &str, vo
     namestr << "(" << info.prependQtGuiModule("QRegionPrivate *") << ")("
             << std::showbase << std::hex << d.pointerValue() << ')';
 
+    std::string tmp;
     SymbolGroupNode *qRegionPrivateNode
-            = v.node()->symbolGroup()->addSymbol(v.module(), namestr.str(), std::string(), &std::string());
+            = v.node()->symbolGroup()->addSymbol(v.module(), namestr.str(), std::string(), &tmp);
     if (!qRegionPrivateNode)
         return false;
 
@@ -2127,14 +2130,15 @@ static inline bool dumpQHostAddress(const SymbolGroupValue &v, std::wostream &st
     std::ostringstream namestr;
     namestr << '(' << info.prependQtNetworkModule("QHostAddressPrivate *") << ")("
             << std::showbase << std::hex << d.pointerValue() << ')';
+    std::string tmp;
     SymbolGroupNode *qHostAddressPrivateNode
-            = v.node()->symbolGroup()->addSymbol(v.module(), namestr.str(), std::string(), &std::string());
+            = v.node()->symbolGroup()->addSymbol(v.module(), namestr.str(), std::string(), &tmp);
     if (!qHostAddressPrivateNode)
         return false;
     const SymbolGroupValue qHostAddressPrivateValue = SymbolGroupValue(qHostAddressPrivateNode, v.context());
     const bool parsed = readPODFromMemory<bool>(qHostAddressPrivateValue.context().dataspaces,
                                                 qHostAddressPrivateValue["isParsed"].address(),
-                                                sizeof(bool), false, &std::string());
+                                                sizeof(bool), false, &tmp);
     if (parsed) {
         const int protocol = qHostAddressPrivateValue["protocol"].intValue(-1);
         if (protocol < 0) {
@@ -2887,7 +2891,8 @@ static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, std::str
         if (const SymbolGroupValue mv = dataV.typeCast(vmType.c_str())) {
             SymbolGroupNode *mapNode = mv.node();
             std::wstring value;
-            if (dumpSimpleType(mapNode, dataV.context(), &value, &std::string())
+            std::string tmp;
+            if (dumpSimpleType(mapNode, dataV.context(), &value, &tmp)
                     == SymbolGroupNode::SimpleDumperOk) {
                 str << value;
                 if (specialInfoIn)
@@ -2902,7 +2907,8 @@ static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, std::str
         if (const SymbolGroupValue vl = dataV.typeCast(vLType.c_str())) {
             SymbolGroupNode *vListNode = vl.node();
             std::wstring value;
-            if (dumpSimpleType(vListNode, dataV.context(), &value, &std::string())
+            std::string tmp;
+            if (dumpSimpleType(vListNode, dataV.context(), &value, &tmp)
                     == SymbolGroupNode::SimpleDumperOk) {
                 str << value;
                 if (specialInfoIn)
@@ -2928,7 +2934,8 @@ static bool dumpQVariant(const SymbolGroupValue &v, std::wostream &str, std::str
         if (const SymbolGroupValue sl = dataV.typeCast(qtInfo.prependQtCoreModule("QStringList *").c_str())) {
             SymbolGroupNode *listNode = sl.node();
             std::wstring value;
-            if (dumpSimpleType(listNode, dataV.context(), &value, &std::string())
+            std::string tmp;
+            if (dumpSimpleType(listNode, dataV.context(), &value, &tmp)
                     == SymbolGroupNode::SimpleDumperOk) {
                 str << value;
                 if (specialInfoIn)

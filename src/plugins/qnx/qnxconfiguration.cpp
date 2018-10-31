@@ -41,7 +41,7 @@
 #include <qtsupport/qtversionmanager.h>
 #include <qtsupport/qtkitinformation.h>
 
-#include <qmakeprojectmanager/qmakekitinformation.h>
+#include <qmakeprojectmanager/qmakeprojectmanagerconstants.h>
 
 #include <debugger/debuggeritem.h>
 #include <debugger/debuggeritemmanager.h>
@@ -300,18 +300,19 @@ ProjectExplorer::Kit *QnxConfiguration::createKit(
     QnxQtVersion *qnxQt = qnxQtVersion(target);
     // Do not create incomplete kits if no qt qnx version found
     if (!qnxQt)
-        return 0;
+        return nullptr;
 
-    Kit *kit = new Kit;
+    auto kit = std::make_unique<Kit>();
+    Kit *kptr = kit.get();
 
-    QtKitInformation::setQtVersion(kit, qnxQt);
-    ToolChainKitInformation::setToolChain(kit, toolChain);
-    ToolChainKitInformation::clearToolChain(kit, ProjectExplorer::Constants::C_LANGUAGE_ID);
+    QtKitInformation::setQtVersion(kptr, qnxQt);
+    ToolChainKitInformation::setToolChain(kptr, toolChain);
+    ToolChainKitInformation::clearToolChain(kptr, ProjectExplorer::Constants::C_LANGUAGE_ID);
 
     if (debugger.isValid())
-        DebuggerKitInformation::setDebugger(kit, debugger);
+        DebuggerKitInformation::setDebugger(kptr, debugger);
 
-    DeviceTypeKitInformation::setDeviceTypeId(kit, Constants::QNX_QNX_OS_TYPE);
+    DeviceTypeKitInformation::setDeviceTypeId(kptr, Constants::QNX_QNX_OS_TYPE);
     // TODO: Add sysroot?
 
     kit->setUnexpandedDisplayName(
@@ -329,11 +330,11 @@ ProjectExplorer::Kit *QnxConfiguration::createKit(
     kit->setSticky(DeviceTypeKitInformation::id(), true);
     kit->setSticky(SysRootKitInformation::id(), true);
     kit->setSticky(DebuggerKitInformation::id(), true);
-    kit->setSticky(QmakeProjectManager::QmakeKitInformation::id(), true);
+    kit->setSticky(QmakeProjectManager::Constants::KIT_INFORMATION_ID, true);
 
     // add kit with device and qt version not sticky
-    KitManager::registerKit(kit);
-    return kit;
+    KitManager::registerKit(std::move(kit));
+    return kptr;
 }
 
 QStringList QnxConfiguration::validationErrors() const

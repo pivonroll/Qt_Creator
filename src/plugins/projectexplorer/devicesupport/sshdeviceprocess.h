@@ -27,15 +27,17 @@
 
 #include "deviceprocess.h"
 
+#include <memory>
+
 namespace ProjectExplorer {
 
-class StandardRunnable;
+class Runnable;
 
 class PROJECTEXPLORER_EXPORT SshDeviceProcess : public DeviceProcess
 {
     Q_OBJECT
 public:
-    explicit SshDeviceProcess(const QSharedPointer<const IDevice> &device, QObject *parent = 0);
+    explicit SshDeviceProcess(const QSharedPointer<const IDevice> &device, QObject *parent = nullptr);
     ~SshDeviceProcess() override;
 
     void start(const Runnable &runnable) override;
@@ -67,12 +69,12 @@ private:
     void handleKillOperationFinished(const QString &errorMessage);
     void handleKillOperationTimeout();
 
-    virtual QString fullCommandLine(const StandardRunnable &runnable) const;
+    virtual QString fullCommandLine(const Runnable &runnable) const;
     virtual qint64 processId() const;
 
     class SshDeviceProcessPrivate;
     friend class SshDeviceProcessPrivate;
-    SshDeviceProcessPrivate * const d;
+    const std::unique_ptr<SshDeviceProcessPrivate> d;
 };
 
 } // namespace ProjectExplorer

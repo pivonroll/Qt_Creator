@@ -75,7 +75,7 @@ private:
 
 TextMarkRegistry *m_instance = nullptr;
 
-TextMark::TextMark(const QString &fileName, int lineNumber, Id category, double widthFactor)
+TextMark::TextMark(const FileName &fileName, int lineNumber, Id category, double widthFactor)
     : m_fileName(fileName)
     , m_lineNumber(lineNumber)
     , m_visible(true)
@@ -95,12 +95,12 @@ TextMark::~TextMark()
     m_baseTextDocument = nullptr;
 }
 
-QString TextMark::fileName() const
+FileName TextMark::fileName() const
 {
     return m_fileName;
 }
 
-void TextMark::updateFileName(const QString &fileName)
+void TextMark::updateFileName(const FileName &fileName)
 {
     if (fileName == m_fileName)
         return;
@@ -267,7 +267,7 @@ void TextMark::dragToLine(int lineNumber)
 
 void TextMark::addToToolTipLayout(QGridLayout *target) const
 {
-    auto *contentLayout = new QVBoxLayout;
+    auto contentLayout = new QVBoxLayout;
     addToolTipContent(contentLayout);
     if (contentLayout->count() > 0) {
         const int row = target->rowCount();
@@ -290,6 +290,7 @@ bool TextMark::addToolTipContent(QLayout *target) const
     }
 
     auto textLabel = new QLabel;
+    textLabel->setOpenExternalLinks(true);
     textLabel->setText(text);
     // Differentiate between tool tips that where explicitly set and default tool tips.
     textLabel->setEnabled(!m_toolTip.isEmpty());
@@ -324,8 +325,9 @@ TextMarkRegistry::TextMarkRegistry(QObject *parent)
 
 void TextMarkRegistry::add(TextMark *mark)
 {
-    instance()->m_marks[FileName::fromString(mark->fileName())].insert(mark);
-    auto document = qobject_cast<TextDocument*>(DocumentModel::documentForFilePath(mark->fileName()));
+    instance()->m_marks[mark->fileName()].insert(mark);
+    auto document = qobject_cast<TextDocument *>(
+        DocumentModel::documentForFilePath(mark->fileName().toString()));
     if (!document)
         return;
     document->addMark(mark);
@@ -333,7 +335,7 @@ void TextMarkRegistry::add(TextMark *mark)
 
 bool TextMarkRegistry::remove(TextMark *mark)
 {
-    return instance()->m_marks[FileName::fromString(mark->fileName())].remove(mark);
+    return instance()->m_marks[mark->fileName()].remove(mark);
 }
 
 TextMarkRegistry *TextMarkRegistry::instance()
@@ -345,7 +347,7 @@ TextMarkRegistry *TextMarkRegistry::instance()
 
 void TextMarkRegistry::editorOpened(IEditor *editor)
 {
-    auto document = qobject_cast<TextDocument *>(editor ? editor->document() : 0);
+    auto document = qobject_cast<TextDocument *>(editor ? editor->document() : nullptr);
     if (!document)
         return;
     if (!m_marks.contains(document->filePath()))
@@ -358,7 +360,7 @@ void TextMarkRegistry::editorOpened(IEditor *editor)
 void TextMarkRegistry::documentRenamed(IDocument *document, const
                                            QString &oldName, const QString &newName)
 {
-    TextDocument *baseTextDocument = qobject_cast<TextDocument *>(document);
+    auto baseTextDocument = qobject_cast<TextDocument *>(document);
     if (!baseTextDocument)
         return;
     FileName oldFileName = FileName::fromString(oldName);
@@ -374,7 +376,7 @@ void TextMarkRegistry::documentRenamed(IDocument *document, const
     m_marks[newFileName].unite(toBeMoved);
 
     foreach (TextMark *mark, toBeMoved)
-        mark->updateFileName(newName);
+        mark->updateFileName(newFileName);
 }
 
 void TextMarkRegistry::allDocumentsRenamed(const QString &oldName, const QString &newName)
@@ -390,7 +392,7 @@ void TextMarkRegistry::allDocumentsRenamed(const QString &oldName, const QString
     m_marks[oldFileName].clear();
 
     foreach (TextMark *mark, oldFileNameMarks)
-        mark->updateFileName(newName);
+        mark->updateFileName(newFileName);
 }
 
 QHash<AnnotationColors::SourceColors, AnnotationColors> AnnotationColors::m_colorCache;

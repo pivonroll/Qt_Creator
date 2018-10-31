@@ -38,6 +38,7 @@
 
 #include <projectexplorer/projectexplorericons.h>
 #include <projectexplorer/runconfiguration.h>
+#include <projectexplorer/runconfigurationaspects.h>
 
 #include <QApplication>
 
@@ -57,8 +58,8 @@ ValgrindToolRunner::ValgrindToolRunner(RunControl *runControl)
     runControl->setIcon(ProjectExplorer::Icons::ANALYZER_START_SMALL_TOOLBAR);
     setSupportsReRunning(false);
 
-    if (IRunConfigurationAspect *aspect = runControl->runConfiguration()->extraAspect(ANALYZER_VALGRIND_SETTINGS))
-        m_settings = qobject_cast<ValgrindBaseSettings *>(aspect->currentSettings());
+    m_settings = runControl->runConfiguration()
+            ->currentSettings<ValgrindBaseSettings>(ANALYZER_VALGRIND_SETTINGS);
 
     if (!m_settings)
         m_settings = ValgrindPlugin::globalSettings();
@@ -83,11 +84,17 @@ void ValgrindToolRunner::start()
     m_runner.setValgrindExecutable(m_settings->valgrindExecutable());
     m_runner.setValgrindArguments(genericToolArguments() + toolArguments());
     m_runner.setDevice(device());
-    QTC_ASSERT(runnable().is<StandardRunnable>(), reportFailure());
-    m_runner.setDebuggee(runnable().as<StandardRunnable>());
+    m_runner.setDebuggee(runnable());
+
+    if (auto aspect = runControl()->runConfiguration()->aspect<TerminalAspect>())
+        m_runner.setUseTerminal(aspect->useTerminal());
 
     connect(&m_runner, &ValgrindRunner::processOutputReceived,
             this, &ValgrindToolRunner::receiveProcessOutput);
+    connect(&m_runner, &ValgrindRunner::valgrindExecuted,
+            this, [this](const QString &commandLine) {
+        appendMessage(commandLine, NormalMessageFormat);
+    });
     connect(&m_runner, &ValgrindRunner::processErrorReceived,
             this, &ValgrindToolRunner::receiveProcessError);
     connect(&m_runner, &ValgrindRunner::finished,
@@ -110,8 +117,7 @@ void ValgrindToolRunner::stop()
 
 QString ValgrindToolRunner::executable() const
 {
-    QTC_ASSERT(runnable().is<StandardRunnable>(), return QString());
-    return runnable().as<StandardRunnable>().executable;
+    return runnable().executable;
 }
 
 QStringList ValgrindToolRunner::genericToolArguments() const

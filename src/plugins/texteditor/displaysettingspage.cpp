@@ -41,14 +41,14 @@ struct DisplaySettingsPage::DisplaySettingsPagePrivate
 
     const DisplaySettingsPageParameters m_parameters;
     QPointer<QWidget> m_widget;
-    Internal::Ui::DisplaySettingsPage *m_page;
+    Internal::Ui::DisplaySettingsPage *m_page = nullptr;
     DisplaySettings m_displaySettings;
     MarginSettings m_marginSettings;
 };
 
 DisplaySettingsPage::DisplaySettingsPagePrivate::DisplaySettingsPagePrivate
     (const DisplaySettingsPageParameters &p)
-    : m_parameters(p), m_page(0)
+    : m_parameters(p)
 {
     m_displaySettings.fromSettings(m_parameters.settingsPrefix, Core::ICore::settings());
     m_marginSettings.fromSettings(m_parameters.settingsPrefix, Core::ICore::settings());
@@ -96,7 +96,7 @@ void DisplaySettingsPage::finish()
     if (!d->m_page) // page was never shown
         return;
     delete d->m_page;
-    d->m_page = 0;
+    d->m_page = nullptr;
 }
 
 void DisplaySettingsPage::settingsFromUI(DisplaySettings &displaySettings,
@@ -126,6 +126,8 @@ void DisplaySettingsPage::settingsFromUI(DisplaySettings &displaySettings,
         displaySettings.m_annotationAlignment = AnnotationAlignment::NextToMargin;
     else if (d->m_page->rightAligned->isChecked())
         displaySettings.m_annotationAlignment = AnnotationAlignment::RightSide;
+    else if (d->m_page->betweenLines->isChecked())
+        displaySettings.m_annotationAlignment = AnnotationAlignment::BetweenLines;
 }
 
 void DisplaySettingsPage::settingsToUI()
@@ -154,6 +156,7 @@ void DisplaySettingsPage::settingsToUI()
     case AnnotationAlignment::NextToContent: d->m_page->leftAligned->setChecked(true); break;
     case AnnotationAlignment::NextToMargin: d->m_page->atMargin->setChecked(true); break;
     case AnnotationAlignment::RightSide: d->m_page->rightAligned->setChecked(true); break;
+    case AnnotationAlignment::BetweenLines: d->m_page->betweenLines->setChecked(true); break;
     }
 }
 

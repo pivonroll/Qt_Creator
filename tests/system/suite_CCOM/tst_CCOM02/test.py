@@ -29,7 +29,7 @@ source("../../shared/qtcreator.py")
 # entry of test
 def main():
     # prepare example project
-    sourceExample = os.path.join(Qt5Path.examplesPath(Targets.DESKTOP_561_DEFAULT),
+    sourceExample = os.path.join(Qt5Path.examplesPath(Targets.DESKTOP_5_6_1_DEFAULT),
                                  "quick", "animation")
     proFile = "animation.pro"
     if not neededFilePresent(os.path.join(sourceExample, proFile)):
@@ -37,7 +37,7 @@ def main():
     # copy example project to temp directory
     templateDir = prepareTemplate(sourceExample, "/../shared")
     examplePath = os.path.join(templateDir, proFile)
-    startApplication("qtcreator" + SettingsPath)
+    startQC()
     if not startedWithoutPluginError():
         return
     # open example project

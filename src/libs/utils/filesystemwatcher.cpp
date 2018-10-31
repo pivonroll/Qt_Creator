@@ -87,32 +87,32 @@ class FileSystemWatcherStaticData
 {
 public:
     FileSystemWatcherStaticData() :
-        maxFileOpen(getFileLimit()) , m_objectCount(0), m_watcher(0) {}
+        maxFileOpen(getFileLimit()) {}
 
     quint64 maxFileOpen;
-    int m_objectCount;
+    int m_objectCount = 0;
     QHash<QString, int> m_fileCount;
     QHash<QString, int> m_directoryCount;
-    QFileSystemWatcher *m_watcher;
+    QFileSystemWatcher *m_watcher = nullptr;
 };
 
-typedef QMap<int, FileSystemWatcherStaticData> FileSystemWatcherStaticDataMap;
+using FileSystemWatcherStaticDataMap = QMap<int, FileSystemWatcherStaticData>;
 
 Q_GLOBAL_STATIC(FileSystemWatcherStaticDataMap, fileSystemWatcherStaticDataMap)
 
 class WatchEntry
 {
 public:
-    typedef FileSystemWatcher::WatchMode WatchMode;
+    using WatchMode = FileSystemWatcher::WatchMode;
 
     explicit WatchEntry(const QString &file, WatchMode wm) :
         watchMode(wm), modifiedTime(QFileInfo(file).lastModified()) {}
 
-    WatchEntry() : watchMode(FileSystemWatcher::WatchAllChanges) {}
+    WatchEntry() = default;
 
     bool trigger(const QString &fileName);
 
-    WatchMode watchMode;
+    WatchMode watchMode = FileSystemWatcher::WatchAllChanges;
     QDateTime modifiedTime;
 };
 
@@ -131,13 +131,13 @@ bool WatchEntry::trigger(const QString &fileName)
     return false;
 }
 
-typedef QHash<QString, WatchEntry> WatchEntryMap;
-typedef WatchEntryMap::iterator WatchEntryMapIterator;
+using WatchEntryMap = QHash<QString, WatchEntry>;
+using WatchEntryMapIterator = WatchEntryMap::iterator;
 
 class FileSystemWatcherPrivate
 {
 public:
-    explicit FileSystemWatcherPrivate(int id) : m_id(id), m_staticData(0) {}
+    explicit FileSystemWatcherPrivate(int id) : m_id(id), m_staticData(nullptr) {}
 
     WatchEntryMap m_files;
     WatchEntryMap m_directories;
@@ -208,7 +208,7 @@ FileSystemWatcher::~FileSystemWatcher()
 
     if (--(d->m_staticData->m_objectCount) == 0) {
         delete d->m_staticData->m_watcher;
-        d->m_staticData->m_watcher = 0;
+        d->m_staticData->m_watcher = nullptr;
         d->m_staticData->m_fileCount.clear();
         d->m_staticData->m_directoryCount.clear();
         if (debug)
@@ -253,6 +253,13 @@ void FileSystemWatcher::addFiles(const QStringList &files, WatchMode wm)
 
         if (count == 1)
             toAdd << file;
+
+        const QString directory = QFileInfo(file).path();
+        const int dirCount = ++d->m_staticData->m_directoryCount[directory];
+        Q_ASSERT(dirCount > 0);
+
+        if (dirCount == 1)
+            toAdd << directory;
     }
 
     if (!toAdd.isEmpty())
@@ -282,6 +289,13 @@ void FileSystemWatcher::removeFiles(const QStringList &files)
 
         if (!count)
             toRemove << file;
+
+        const QString directory = QFileInfo(file).path();
+        const int dirCount = --d->m_staticData->m_directoryCount[directory];
+        Q_ASSERT(dirCount >= 0);
+
+        if (!dirCount)
+            toRemove << directory;
     }
 
     if (!toRemove.isEmpty())
@@ -390,6 +404,23 @@ void FileSystemWatcher::slotDirectoryChanged(const QString &path)
                      << it.value().watchMode
                      << it.value().modifiedTime.toString(Qt::ISODate);
         emit directoryChanged(path);
+    }
+
+    QStringList toReadd;
+    const QDir dir(path);
+    for (const QFileInfo &entry : dir.entryInfoList(QDir::Files)) {
+        const QString file = entry.filePath();
+        if (d->m_files.contains(file))
+            toReadd.append(file);
+    }
+
+    if (!toReadd.isEmpty()) {
+        for (const QString &rejected : d->m_staticData->m_watcher->addPaths(toReadd))
+            toReadd.removeOne(rejected);
+
+        // If we've successfully added the file, that means it was deleted and replaced.
+        for (const QString &reAdded : toReadd)
+            emit fileChanged(reAdded);
     }
 }
 

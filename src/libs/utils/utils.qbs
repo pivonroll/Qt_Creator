@@ -38,10 +38,7 @@ Project {
 
         files: [
             "QtConcurrentTools",
-            "asconst.h",
             "algorithm.h",
-            "annotateditemdelegate.cpp",
-            "annotateditemdelegate.h",
             "ansiescapecodehandler.cpp",
             "ansiescapecodehandler.h",
             "appmainwindow.cpp",
@@ -52,8 +49,6 @@ Project {
             "benchmarker.h",
             "buildablehelperlibrary.cpp",
             "buildablehelperlibrary.h",
-            "camelhumpmatcher.cpp",
-            "camelhumpmatcher.h",
             "categorysortfiltermodel.cpp",
             "categorysortfiltermodel.h",
             "changeset.cpp",
@@ -74,10 +69,14 @@ Project {
             "crumblepath.cpp",
             "crumblepath.h",
             "declarationmacros.h",
+            "delegates.cpp",
+            "delegates.h",
             "detailsbutton.cpp",
             "detailsbutton.h",
             "detailswidget.cpp",
             "detailswidget.h",
+            "differ.cpp",
+            "differ.h",
             "dropsupport.cpp",
             "dropsupport.h",
             "elfreader.cpp",
@@ -101,6 +100,8 @@ Project {
             "fancylineedit.h",
             "fancymainwindow.cpp",
             "fancymainwindow.h",
+            "filecrumblabel.cpp",
+            "filecrumblabel.h",
             "fileinprojectfinder.cpp",
             "fileinprojectfinder.h",
             "filenamevalidatinglineedit.cpp",
@@ -114,9 +115,13 @@ Project {
             "filewizardpage.cpp",
             "filewizardpage.h",
             "filewizardpage.ui",
+            "fixedsizeclicklabel.cpp",
+            "fixedsizeclicklabel.h",
             "flowlayout.cpp",
             "flowlayout.h",
             "functiontraits.h",
+            "fuzzymatcher.cpp",
+            "fuzzymatcher.h",
             "guard.cpp",
             "guard.h",
             "highlightingitemdelegate.cpp",
@@ -133,8 +138,8 @@ Project {
             "itemviews.h",
             "json.cpp",
             "json.h",
-            "linecolumnlabel.cpp",
-            "linecolumnlabel.h",
+            "linecolumn.h",
+            "link.h",
             "listutils.h",
             "macroexpander.cpp",
             "macroexpander.h",
@@ -152,7 +157,6 @@ Project {
             "outputformat.h",
             "outputformatter.cpp",
             "outputformatter.h",
-            "objectpool.h",
             "overridecursor.cpp",
             "overridecursor.h",
             "parameteraction.cpp",
@@ -163,6 +167,8 @@ Project {
             "pathlisteditor.h",
             "persistentsettings.cpp",
             "persistentsettings.h",
+            "predicates.h",
+            "pointeralgorithm.h",
             "port.cpp",
             "port.h",
             "portlist.cpp",
@@ -179,7 +185,6 @@ Project {
             "proxycredentialsdialog.cpp",
             "proxycredentialsdialog.h",
             "proxycredentialsdialog.ui",
-            "qtcfallthrough.h",
             "qtcassert.cpp",
             "qtcassert.h",
             "qtcolorbutton.cpp",
@@ -188,6 +193,7 @@ Project {
             "qtcprocess.h",
             "reloadpromptutils.cpp",
             "reloadpromptutils.h",
+            "removefiledialog.cpp", "removefiledialog.h", "removefiledialog.ui",
             "runextensions.cpp",
             "runextensions.h",
             "savedaction.cpp",
@@ -195,6 +201,8 @@ Project {
             "savefile.cpp",
             "savefile.h",
             "scopedswap.h",
+            "settingsaccessor.cpp",
+            "settingsaccessor.h",
             "settingsselector.cpp",
             "settingsselector.h",
             "settingsutils.h",
@@ -250,6 +258,8 @@ Project {
             "utils_global.h",
             "utilsicons.h",
             "utilsicons.cpp",
+            "variant.h",
+            "../3rdparty/variant/variant.hpp",
             "winutils.cpp",
             "winutils.h",
             "wizard.cpp",
@@ -299,10 +309,19 @@ Project {
         }
 
         Group {
-            name: "FileUtils_osx"
+            name: "FileUtils_macos"
             condition: qbs.targetOS.contains("macos")
             files: [
                 "fileutils_mac.h", "fileutils_mac.mm",
+            ]
+        }
+
+        Group {
+            name: "Theme_macos"
+            condition: qbs.targetOS.contains("macos")
+            prefix: "theme/"
+            files: [
+                "theme_mac.h", "theme_mac.mm",
             ]
         }
 

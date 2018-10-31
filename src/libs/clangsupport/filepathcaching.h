@@ -40,9 +40,7 @@ namespace ClangBackEnd {
 
 class CLANGSUPPORT_EXPORT FilePathCaching final : public FilePathCachingInterface
 {
-    using Factory = FilePathStorageSqliteStatementFactory<Sqlite::Database,
-                                                          Sqlite::ReadStatement,
-                                                          Sqlite::WriteStatement>;
+    using Factory = FilePathStorageSqliteStatementFactory<Sqlite::Database>;
     using Storage = FilePathStorage<Factory>;
     using Cache = FilePathCache<Storage>;
 public:
@@ -50,7 +48,7 @@ public:
         : m_factory(database)
     {}
 
-    FilePathId filePathId(Utils::SmallStringView filePath) const override;
+    FilePathId filePathId(FilePathView filePath) const override;
     FilePath filePath(FilePathId filePathId) const override;
 
 private:

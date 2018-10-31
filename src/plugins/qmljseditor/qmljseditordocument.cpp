@@ -32,6 +32,7 @@
 #include "qmljsquickfixassist.h"
 #include "qmljssemantichighlighter.h"
 #include "qmljssemanticinfoupdater.h"
+#include "qmljstextmark.h"
 #include "qmloutlinemodel.h"
 
 #include <coreplugin/coreconstants.h>
@@ -107,7 +108,7 @@ protected:
     using Visitor::visit;
     using Visitor::endVisit;
 
-    virtual bool visit(AST::UiScriptBinding *node)
+    bool visit(AST::UiScriptBinding *node) override
     {
         if (asString(node->qualifiedId) == QLatin1String("id")) {
             if (AST::ExpressionStatement *stmt = AST::cast<AST::ExpressionStatement*>(node->statement)) {
@@ -129,7 +130,7 @@ protected:
         return false;
     }
 
-    virtual bool visit(AST::IdentifierExpression *node)
+    bool visit(AST::IdentifierExpression *node) override
     {
         if (!node->name.isEmpty()) {
             const QString &name = node->name.toString();
@@ -204,7 +205,7 @@ protected:
         decl->endColumn = last.startColumn + last.length;
     }
 
-    virtual bool visit(AST::UiObjectDefinition *node)
+    bool visit(AST::UiObjectDefinition *node) override
     {
         ++_depth;
 
@@ -222,12 +223,12 @@ protected:
         return true; // search for more bindings
     }
 
-    virtual void endVisit(AST::UiObjectDefinition *)
+    void endVisit(AST::UiObjectDefinition *) override
     {
         --_depth;
     }
 
-    virtual bool visit(AST::UiObjectBinding *node)
+    bool visit(AST::UiObjectBinding *node) override
     {
         ++_depth;
 
@@ -249,12 +250,12 @@ protected:
         return true; // search for more bindings
     }
 
-    virtual void endVisit(AST::UiObjectBinding *)
+    void endVisit(AST::UiObjectBinding *) override
     {
         --_depth;
     }
 
-    virtual bool visit(AST::UiScriptBinding *)
+    bool visit(AST::UiScriptBinding *) override
     {
         ++_depth;
 
@@ -271,17 +272,17 @@ protected:
         return false; // more more bindings in this subtree.
     }
 
-    virtual void endVisit(AST::UiScriptBinding *)
+    void endVisit(AST::UiScriptBinding *) override
     {
         --_depth;
     }
 
-    virtual bool visit(AST::FunctionExpression *)
+    bool visit(AST::FunctionExpression *) override
     {
         return false;
     }
 
-    virtual bool visit(AST::FunctionDeclaration *ast)
+    bool visit(AST::FunctionDeclaration *ast) override
     {
         if (ast->name.isEmpty())
             return false;
@@ -308,7 +309,7 @@ protected:
         return false;
     }
 
-    virtual bool visit(AST::VariableDeclaration *ast)
+    bool visit(AST::VariableDeclaration *ast) override
     {
         if (ast->name.isEmpty())
             return false;
@@ -328,7 +329,7 @@ protected:
         return false;
     }
 
-    bool visit(AST::BinaryExpression *ast)
+    bool visit(AST::BinaryExpression *ast) override
     {
         AST::FieldMemberExpression *field = AST::cast<AST::FieldMemberExpression *>(ast->left);
         AST::FunctionExpression *funcExpr = AST::cast<AST::FunctionExpression *>(ast->right);
@@ -375,33 +376,33 @@ public:
 protected:
     using AST::Visitor::visit;
 
-    virtual bool visit(AST::UiObjectBinding *ast)
+    bool visit(AST::UiObjectBinding *ast) override
     {
         if (ast->initializer && ast->initializer->lbraceToken.length)
             _ranges.append(createRange(ast, ast->initializer));
         return true;
     }
 
-    virtual bool visit(AST::UiObjectDefinition *ast)
+    bool visit(AST::UiObjectDefinition *ast) override
     {
         if (ast->initializer && ast->initializer->lbraceToken.length)
             _ranges.append(createRange(ast, ast->initializer));
         return true;
     }
 
-    virtual bool visit(AST::FunctionExpression *ast)
+    bool visit(AST::FunctionExpression *ast) override
     {
         _ranges.append(createRange(ast));
         return true;
     }
 
-    virtual bool visit(AST::FunctionDeclaration *ast)
+    bool visit(AST::FunctionDeclaration *ast) override
     {
         _ranges.append(createRange(ast));
         return true;
     }
 
-    bool visit(AST::BinaryExpression *ast)
+    bool visit(AST::BinaryExpression *ast) override
     {
         auto field = AST::cast<AST::FieldMemberExpression *>(ast->left);
         auto funcExpr = AST::cast<AST::FunctionExpression *>(ast->right);
@@ -411,7 +412,7 @@ protected:
         return true;
     }
 
-    virtual bool visit(AST::UiScriptBinding *ast)
+    bool visit(AST::UiScriptBinding *ast) override
     {
         if (AST::Block *block = AST::cast<AST::Block *>(ast->statement))
             _ranges.append(createRange(ast, block));
@@ -498,6 +499,10 @@ QmlJSEditorDocumentPrivate::~QmlJSEditorDocumentPrivate()
 {
     m_semanticInfoUpdater->abort();
     m_semanticInfoUpdater->wait();
+    // clean up all marks, otherwise a callback could try to access deleted members.
+    // see QTCREATORBUG-20199
+    cleanDiagnosticMarks();
+    cleanSemanticMarks();
 }
 
 void QmlJSEditorDocumentPrivate::invalidateFormatterCache()
@@ -521,10 +526,13 @@ void QmlJSEditorDocumentPrivate::onDocumentUpdated(Document::Ptr doc)
     if (doc->editorRevision() != q->document()->revision())
         return;
 
+    cleanDiagnosticMarks();
     if (doc->ast()) {
         // got a correctly parsed (or recovered) file.
         m_semanticInfoDocRevision = doc->editorRevision();
         m_semanticInfoUpdater->update(doc, ModelManagerInterface::instance()->snapshot());
+    } else if (doc->language().isFullySupportedLanguage()) {
+        createTextMarks(doc->diagnosticMessages());
     }
     emit q->updateCodeWarnings(doc);
 }
@@ -573,6 +581,7 @@ void QmlJSEditorDocumentPrivate::acceptNewSemanticInfo(const SemanticInfo &seman
         }
     }
 
+    createTextMarks(m_semanticInfo);
     emit q->semanticInfoUpdated(m_semanticInfo); // calls triggerPendingUpdates as necessary
 }
 
@@ -582,6 +591,64 @@ void QmlJSEditorDocumentPrivate::updateOutlineModel()
         return; // outline update will be retriggered when semantic info is updated
 
     m_outlineModel->update(m_semanticInfo);
+}
+
+static void cleanMarks(QVector<TextEditor::TextMark *> *marks, TextEditor::TextDocument *doc)
+{
+    // if doc is null, this method is improperly called, so better do nothing that leave an
+    // inconsistent state where marks are cleared but not removed from doc.
+    if (!marks || !doc)
+        return;
+    for (TextEditor::TextMark *mark : *marks) {
+        doc->removeMark(mark);
+        delete mark;
+    }
+    marks->clear();
+}
+
+void QmlJSEditorDocumentPrivate::createTextMarks(const QList<DiagnosticMessage> &diagnostics)
+{
+    for (const DiagnosticMessage &diagnostic : diagnostics) {
+        const auto onMarkRemoved = [this](QmlJSTextMark *mark) {
+            m_diagnosticMarks.removeAll(mark);
+            delete mark;
+         };
+
+        auto mark = new QmlJSTextMark(q->filePath(), diagnostic, onMarkRemoved);
+        m_diagnosticMarks.append(mark);
+        q->addMark(mark);
+    }
+}
+
+void QmlJSEditorDocumentPrivate::cleanDiagnosticMarks()
+{
+    cleanMarks(&m_diagnosticMarks, q);
+}
+
+void QmlJSEditorDocumentPrivate::createTextMarks(const SemanticInfo &info)
+{
+    cleanSemanticMarks();
+    const auto onMarkRemoved = [this](QmlJSTextMark *mark) {
+        m_semanticMarks.removeAll(mark);
+        delete mark;
+    };
+    for (const DiagnosticMessage &diagnostic : qAsConst(info.semanticMessages)) {
+        auto mark = new QmlJSTextMark(q->filePath(),
+                                      diagnostic, onMarkRemoved);
+        m_semanticMarks.append(mark);
+        q->addMark(mark);
+    }
+    for (const QmlJS::StaticAnalysis::Message &message : qAsConst(info.staticAnalysisMessages)) {
+        auto mark = new QmlJSTextMark(q->filePath(),
+                                      message, onMarkRemoved);
+        m_semanticMarks.append(mark);
+        q->addMark(mark);
+    }
+}
+
+void QmlJSEditorDocumentPrivate::cleanSemanticMarks()
+{
+    cleanMarks(&m_semanticMarks, q);
 }
 
 } // Internal
@@ -621,9 +688,9 @@ Internal::QmlOutlineModel *QmlJSEditorDocument::outlineModel() const
     return d->m_outlineModel;
 }
 
-TextEditor::QuickFixAssistProvider *QmlJSEditorDocument::quickFixAssistProvider() const
+TextEditor::IAssistProvider *QmlJSEditorDocument::quickFixAssistProvider() const
 {
-    return Internal::QmlJSEditorPlugin::instance()->quickFixAssistProvider();
+    return Internal::QmlJSEditorPlugin::quickFixAssistProvider();
 }
 
 void QmlJSEditorDocument::setDiagnosticRanges(const QVector<QTextLayout::FormatRange> &ranges)

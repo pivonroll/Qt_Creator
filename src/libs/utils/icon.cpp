@@ -47,10 +47,10 @@ static QPixmap maskToColorAndAlpha(const QPixmap &mask, const QColor &color)
 {
     QImage result(mask.toImage().convertToFormat(QImage::Format_ARGB32));
     result.setDevicePixelRatio(mask.devicePixelRatio());
-    QRgb *bitsStart = reinterpret_cast<QRgb*>(result.bits());
+    auto bitsStart = reinterpret_cast<QRgb*>(result.bits());
     const QRgb *bitsEnd = bitsStart + result.width() * result.height();
     const QRgb tint = color.rgb() & 0x00ffffff;
-    const QRgb alpha = QRgb(color.alpha());
+    const auto alpha = QRgb(color.alpha());
     for (QRgb *pixel = bitsStart; pixel < bitsEnd; ++pixel) {
         QRgb pixelAlpha = (((~*pixel) & 0xff) * alpha) >> 8;
         *pixel = (pixelAlpha << 24) | tint;
@@ -58,8 +58,8 @@ static QPixmap maskToColorAndAlpha(const QPixmap &mask, const QColor &color)
     return QPixmap::fromImage(result);
 }
 
-typedef QPair<QPixmap, QColor> MaskAndColor;
-typedef QList<MaskAndColor> MasksAndColors;
+using MaskAndColor = QPair<QPixmap, QColor>;
+using MasksAndColors = QList<MaskAndColor>;
 static MasksAndColors masksAndColors(const Icon &icon, int dpr)
 {
     MasksAndColors result;
@@ -154,21 +154,7 @@ static QPixmap masksToIcon(const MasksAndColors &masks, const QPixmap &combinedM
     return result;
 }
 
-static QPixmap combinedPlainPixmaps(const QVector<IconMaskAndColor> &images)
-{
-    QPixmap result(StyleHelper::dpiSpecificImageFile(images.first().first));
-    auto pixmap = images.constBegin();
-    pixmap++;
-    for (;pixmap != images.constEnd(); ++pixmap) {
-        const QPixmap overlay(StyleHelper::dpiSpecificImageFile((*pixmap).first));
-        result.paintEngine()->painter()->drawPixmap(0, 0, overlay);
-    }
-    return result;
-}
-
-Icon::Icon()
-{
-}
+Icon::Icon() = default;
 
 Icon::Icon(std::initializer_list<IconMaskAndColor> args, Icon::IconStyleOptions style)
     : QVector<IconMaskAndColor>(args)
@@ -187,7 +173,7 @@ QIcon Icon::icon() const
     if (isEmpty()) {
         return QIcon();
     } else if (m_style == None) {
-        return QIcon(combinedPlainPixmaps(*this));
+        return QIcon(constFirst().first);
     } else {
         QIcon result;
         const int maxDpr = qRound(qApp->devicePixelRatio());
@@ -203,17 +189,19 @@ QIcon Icon::icon() const
     }
 }
 
-QPixmap Icon::pixmap() const
+QPixmap Icon::pixmap(QIcon::Mode iconMode) const
 {
     if (isEmpty()) {
         return QPixmap();
     } else if (m_style == None) {
-        return combinedPlainPixmaps(*this);
+        return QPixmap(StyleHelper::dpiSpecificImageFile(constFirst().first));
     } else {
         const MasksAndColors masks =
                 masksAndColors(*this, qRound(qApp->devicePixelRatio()));
         const QPixmap combinedMask = Utils::combinedMask(masks, m_style);
-        return masksToIcon(masks, combinedMask, m_style);
+        return iconMode == QIcon::Disabled
+                ? maskToColorAndAlpha(combinedMask, creatorTheme()->color(Theme::IconsDisabledColor))
+                : masksToIcon(masks, combinedMask, m_style);
     }
 }
 

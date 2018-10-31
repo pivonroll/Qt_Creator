@@ -36,6 +36,7 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/session.h>
 
+#include <utils/algorithm.h>
 #include <utils/runextensions.h>
 #include <utils/qtcassert.h>
 
@@ -68,12 +69,12 @@ SymbolsFindFilter::SymbolsFindFilter(CppModelManager *manager)
 
 QString SymbolsFindFilter::id() const
 {
-    return QLatin1String("CppSymbols");
+    return QLatin1String(Constants::SYMBOLS_FIND_FILTER_ID);
 }
 
 QString SymbolsFindFilter::displayName() const
 {
-    return tr("C++ Symbols");
+    return QString(Constants::SYMBOLS_FIND_FILTER_DISPLAY_NAME);
 }
 
 bool SymbolsFindFilter::isEnabled() const
@@ -128,7 +129,7 @@ void SymbolsFindFilter::startSearch(SearchResult *search)
     QSet<QString> projectFileNames;
     if (parameters.scope == SymbolSearcher::SearchProjectsOnly) {
         for (ProjectExplorer::Project *project : ProjectExplorer::SessionManager::projects())
-            projectFileNames += project->files(ProjectExplorer::Project::AllFiles).toSet();
+            projectFileNames += Utils::transform(project->files(ProjectExplorer::Project::AllFiles), &Utils::FileName::toString).toSet();
     }
 
     QFutureWatcher<SearchResultItem> *watcher = new QFutureWatcher<SearchResultItem>();
@@ -190,18 +191,20 @@ QWidget *SymbolsFindFilter::createConfigWidget()
 void SymbolsFindFilter::writeSettings(QSettings *settings)
 {
     settings->beginGroup(QLatin1String(SETTINGS_GROUP));
-    settings->setValue(QLatin1String(SETTINGS_SYMBOLTYPES), (int)m_symbolsToSearch);
-    settings->setValue(QLatin1String(SETTINGS_SEARCHSCOPE), (int)m_scope);
+    settings->setValue(QLatin1String(SETTINGS_SYMBOLTYPES), int(m_symbolsToSearch));
+    settings->setValue(QLatin1String(SETTINGS_SEARCHSCOPE), int(m_scope));
     settings->endGroup();
 }
 
 void SymbolsFindFilter::readSettings(QSettings *settings)
 {
     settings->beginGroup(QLatin1String(SETTINGS_GROUP));
-    m_symbolsToSearch = (SearchSymbols::SymbolTypes)settings->value(QLatin1String(SETTINGS_SYMBOLTYPES),
-                                        (int)SearchSymbols::AllTypes).toInt();
-    m_scope = (SearchScope)settings->value(QLatin1String(SETTINGS_SEARCHSCOPE),
-                                           (int)SymbolSearcher::SearchProjectsOnly).toInt();
+    m_symbolsToSearch = static_cast<SearchSymbols::SymbolTypes>(
+                settings->value(QLatin1String(SETTINGS_SYMBOLTYPES),
+                                int(SearchSymbols::AllTypes)).toInt());
+    m_scope = static_cast<SearchScope>(
+                settings->value(QLatin1String(SETTINGS_SEARCHSCOPE),
+                                int(SymbolSearcher::SearchProjectsOnly)).toInt());
     settings->endGroup();
     emit symbolsToSearchChanged();
 }

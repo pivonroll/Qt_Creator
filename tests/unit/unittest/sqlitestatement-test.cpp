@@ -620,6 +620,59 @@ TEST_F(SqliteStatement, GetValuesWithTupleArgumentsCallsResetIfExceptionIsThrown
                  Sqlite::StatementHasError);
 }
 
+TEST_F(SqliteStatement, DoubleThrowExceptionsInReset)
+{
+    MockSqliteStatement mockStatement;
+    ON_CALL(mockStatement, next()).WillByDefault(Throw(Sqlite::StatementHasError("")));
+    ON_CALL(mockStatement, reset()).WillByDefault(Throw(Sqlite::StatementHasError("")));
+
+    ASSERT_THROW(mockStatement.values<int>(3, std::vector<std::tuple<int>>{{1}, {2}}),
+                 Sqlite::StatementHasError);
+}
+
+TEST_F(SqliteStatement, ThrowExceptionOnlyInReset)
+{
+    MockSqliteStatement mockStatement;
+    ON_CALL(mockStatement, reset()).WillByDefault(Throw(Sqlite::StatementHasError("")));
+
+    ASSERT_THROW(mockStatement.values<int>(3, std::vector<std::tuple<int>>{{1}, {2}}),
+                 Sqlite::StatementHasError);
+}
+
+TEST_F(SqliteStatement, ResetIfWriteIsThrowingException)
+{
+    MockSqliteStatement mockStatement;
+
+    EXPECT_CALL(mockStatement, bind(1, TypedEq<Utils::SmallStringView>("bar")))
+            .WillOnce(Throw(Sqlite::StatementIsBusy("")));
+    EXPECT_CALL(mockStatement, reset());
+
+    ASSERT_ANY_THROW(mockStatement.write("bar"));
+}
+
+TEST_F(SqliteStatement, ResetIfWriteNamedIsThrowingException)
+{
+    MockSqliteStatement mockStatement;
+
+    EXPECT_CALL(mockStatement, bindingIndexForName(TypedEq<Utils::SmallStringView>("@foo")))
+            .WillOnce(Return(1));
+    EXPECT_CALL(mockStatement, bind(1, TypedEq<Utils::SmallStringView>("bar")))
+            .WillOnce(Throw(Sqlite::StatementIsBusy("")));
+    EXPECT_CALL(mockStatement, reset());
+
+    ASSERT_ANY_THROW(mockStatement.writeNamed("@foo", "bar"));
+}
+
+TEST_F(SqliteStatement, ResetIfExecuteThrowsException)
+{
+    MockSqliteStatement mockStatement;
+
+    EXPECT_CALL(mockStatement, next()).WillOnce(Throw(Sqlite::StatementIsBusy("")));
+    EXPECT_CALL(mockStatement, reset());
+
+    ASSERT_ANY_THROW(mockStatement.execute());
+}
+
 void SqliteStatement::SetUp()
 {
     database.execute("CREATE TABLE test(name TEXT UNIQUE, number NUMERIC, value NUMERIC)");

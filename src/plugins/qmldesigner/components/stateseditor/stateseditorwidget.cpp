@@ -56,6 +56,10 @@ enum {
 
 namespace QmlDesigner {
 
+static QString propertyEditorResourcesPath() {
+    return Core::ICore::resourcePath() + QStringLiteral("/qmldesigner/propertyEditorQmlSources");
+}
+
 int StatesEditorWidget::currentStateInternalId() const
 {
     QTC_ASSERT(rootObject(), return -1);
@@ -81,16 +85,16 @@ void StatesEditorWidget::showAddNewStatesButton(bool showAddNewStatesButton)
 }
 
 StatesEditorWidget::StatesEditorWidget(StatesEditorView *statesEditorView, StatesEditorModel *statesEditorModel)
-    : QQuickWidget(),
-      m_statesEditorView(statesEditorView),
-      m_imageProvider(0),
-      m_qmlSourceUpdateShortcut(0)
+    : m_statesEditorView(statesEditorView),
+    m_imageProvider(nullptr),
+    m_qmlSourceUpdateShortcut(nullptr)
 {
     m_imageProvider = new Internal::StatesEditorImageProvider;
     m_imageProvider->setNodeInstanceView(statesEditorView->nodeInstanceView());
 
     engine()->addImageProvider(QStringLiteral("qmldesigner_stateseditor"), m_imageProvider);
     engine()->addImportPath(qmlSourcesPath());
+    engine()->addImportPath(propertyEditorResourcesPath() + "/imports");
 
     m_qmlSourceUpdateShortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_F4), this);
     connect(m_qmlSourceUpdateShortcut, &QShortcut::activated, this, &StatesEditorWidget::reloadQmlSource);
@@ -110,9 +114,7 @@ StatesEditorWidget::StatesEditorWidget(StatesEditorView *statesEditorView, State
     reloadQmlSource();
 }
 
-StatesEditorWidget::~StatesEditorWidget()
-{
-}
+StatesEditorWidget::~StatesEditorWidget() = default;
 
 QString StatesEditorWidget::qmlSourcesPath() {
     return Core::ICore::resourcePath() + QStringLiteral("/qmldesigner/statesEditorQmlSources");

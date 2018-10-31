@@ -36,7 +36,7 @@
 #include <coreplugin/actionmanager/command.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/icontext.h>
-#include <extensionsystem/pluginmanager.h>
+
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 #include <utils/itemviews.h>
@@ -56,14 +56,27 @@ const char SESSION_FILTER_WARNINGS[] = "TaskWindow.IncludeWarnings";
 }
 
 namespace ProjectExplorer {
+
+static QList<ITaskHandler *> g_taskHandlers;
+
+ITaskHandler::ITaskHandler()
+{
+    g_taskHandlers.append(this);
+}
+
+ITaskHandler::~ITaskHandler()
+{
+    g_taskHandlers.removeOne(this);
+}
+
 namespace Internal {
 
 class TaskView : public Utils::ListView
 {
 public:
-    TaskView(QWidget *parent = 0);
-    ~TaskView();
-    void resizeEvent(QResizeEvent *e);
+    TaskView(QWidget *parent = nullptr);
+    ~TaskView() override;
+    void resizeEvent(QResizeEvent *e) override;
 };
 
 class TaskWindowContext : public Core::IContext
@@ -79,10 +92,10 @@ class TaskDelegate : public QStyledItemDelegate
     friend class TaskView; // for using Positions::minimumSize()
 
 public:
-    TaskDelegate(QObject * parent = 0);
-    ~TaskDelegate();
-    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const;
-    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const;
+    TaskDelegate(QObject * parent = nullptr);
+    ~TaskDelegate() override;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 
     // TaskView uses this method if the size of the taskview changes
     void emitSizeHintChanged(const QModelIndex &index);
@@ -92,7 +105,7 @@ public:
 private:
     void generateGradientPixmap(int width, int height, QColor color, bool selected) const;
 
-    mutable int m_cachedHeight;
+    mutable int m_cachedHeight = 0;
     mutable QFont m_cachedFont;
 
     /*
@@ -181,8 +194,7 @@ TaskView::TaskView(QWidget *parent)
     verticalScrollBar()->setSingleStep(vStepSize);
 }
 
-TaskView::~TaskView()
-{ }
+TaskView::~TaskView() = default;
 
 void TaskView::resizeEvent(QResizeEvent *e)
 {
@@ -197,11 +209,18 @@ void TaskView::resizeEvent(QResizeEvent *e)
 class TaskWindowPrivate
 {
 public:
+    ITaskHandler *handler(const QAction *action)
+    {
+        ITaskHandler *handler = m_actionToHandlerMap.value(action, nullptr);
+        return g_taskHandlers.contains(handler) ? handler : nullptr;
+    }
+
     Internal::TaskModel *m_model;
     Internal::TaskFilterModel *m_filter;
     Internal::TaskView *m_listview;
     Internal::TaskWindowContext *m_taskWindowContext;
     QMenu *m_contextMenu;
+    QMap<const QAction *, ITaskHandler *> m_actionToHandlerMap;
     ITaskHandler *m_defaultHandler = nullptr;
     QToolButton *m_filterWarningsButton;
     QToolButton *m_categoriesButton;
@@ -223,7 +242,7 @@ static QToolButton *createFilterButton(const QIcon &icon, const QString &toolTip
     return button;
 }
 
-TaskWindow::TaskWindow() : d(new TaskWindowPrivate)
+TaskWindow::TaskWindow() : d(std::make_unique<TaskWindowPrivate>())
 {
     d->m_model = new Internal::TaskModel(this);
     d->m_filter = new Internal::TaskFilterModel(d->m_model);
@@ -233,7 +252,7 @@ TaskWindow::TaskWindow() : d(new TaskWindowPrivate)
     d->m_listview->setFrameStyle(QFrame::NoFrame);
     d->m_listview->setWindowTitle(displayName());
     d->m_listview->setSelectionMode(QAbstractItemView::SingleSelection);
-    Internal::TaskDelegate *tld = new Internal::TaskDelegate(this);
+    auto *tld = new Internal::TaskDelegate(this);
     d->m_listview->setItemDelegate(tld);
     d->m_listview->setWindowIcon(Icons::WINDOW.icon());
     d->m_listview->setContextMenuPolicy(Qt::ActionsContextMenu);
@@ -302,15 +321,6 @@ TaskWindow::~TaskWindow()
     delete d->m_listview;
     delete d->m_filter;
     delete d->m_model;
-    delete d;
-}
-
-static ITaskHandler *handler(QAction *action)
-{
-    QVariant prop = action->property("ITaskHandler");
-    ITaskHandler *handler = qobject_cast<ITaskHandler *>(prop.value<QObject *>());
-    QTC_CHECK(handler);
-    return handler;
 }
 
 void TaskWindow::delayedInitialization()
@@ -321,21 +331,20 @@ void TaskWindow::delayedInitialization()
 
     alreadyDone = true;
 
-    QList<ITaskHandler *> handlers = ExtensionSystem::PluginManager::getObjects<ITaskHandler>();
-    foreach (ITaskHandler *h, handlers) {
+    for (ITaskHandler *h : g_taskHandlers) {
         if (h->isDefaultHandler() && !d->m_defaultHandler)
             d->m_defaultHandler = h;
 
         QAction *action = h->createAction(this);
         QTC_ASSERT(action, continue);
-        action->setProperty("ITaskHandler", qVariantFromValue(qobject_cast<QObject*>(h)));
+        d->m_actionToHandlerMap.insert(action, h);
         connect(action, &QAction::triggered, this, &TaskWindow::actionTriggered);
         d->m_actions << action;
 
         Core::Id id = h->actionManagerId();
         if (id.isValid()) {
-            Core::Command *cmd = Core::ActionManager::instance()
-                    ->registerAction(action, id, d->m_taskWindowContext->context(), true);
+            Core::Command *cmd =
+                Core::ActionManager::registerAction(action, id, d->m_taskWindowContext->context(), true);
             action = cmd->action();
         }
         d->m_listview->addAction(action);
@@ -383,7 +392,7 @@ void TaskWindow::currentChanged(const QModelIndex &index)
 {
     const Task task = index.isValid() ? d->m_filter->task(index) : Task();
     foreach (QAction *action, d->m_actions) {
-        ITaskHandler *h = handler(action);
+        ITaskHandler *h = d->handler(action);
         action->setEnabled((task.isNull() || !h) ? false : h->canHandle(task));
     }
 }
@@ -435,9 +444,12 @@ void TaskWindow::addTask(const Task &task)
     emit tasksChanged();
     navigateStateChanged();
 
-    if (task.type == Task::Error && d->m_filter->filterIncludesErrors()
-            && !d->m_filter->filteredCategories().contains(task.category))
+    if ((task.options & Task::FlashWorthy)
+         && task.type == Task::Error
+         && d->m_filter->filterIncludesErrors()
+         && !d->m_filter->filteredCategories().contains(task.category)) {
         flash();
+    }
 }
 
 void TaskWindow::removeTask(const Task &task)
@@ -499,7 +511,7 @@ void TaskWindow::actionTriggered()
     auto action = qobject_cast<QAction *>(sender());
     if (!action || !action->isEnabled())
         return;
-    ITaskHandler *h = handler(action);
+    ITaskHandler *h = d->handler(action);
     if (!h)
         return;
 
@@ -519,7 +531,7 @@ void TaskWindow::setShowWarnings(bool show)
 
 void TaskWindow::updateCategoriesMenu()
 {
-    typedef QMap<QString, Core::Id>::ConstIterator NameToIdsConstIt;
+    using NameToIdsConstIt = QMap<QString, Core::Id>::ConstIterator;
 
     d->m_categoriesMenu->clear();
 
@@ -656,13 +668,10 @@ bool TaskWindow::canNavigate() const
 /////
 
 TaskDelegate::TaskDelegate(QObject *parent) :
-    QStyledItemDelegate(parent),
-    m_cachedHeight(0)
+    QStyledItemDelegate(parent)
 { }
 
-TaskDelegate::~TaskDelegate()
-{
-}
+TaskDelegate::~TaskDelegate() = default;
 
 QSize TaskDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {

@@ -37,8 +37,6 @@
 
 #include <coreplugin/icore.h>
 
-#include <extensionsystem/pluginmanager.h>
-
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 
@@ -90,7 +88,7 @@ QList<BuildInfo *> ProjectImporter::import(const Utils::FileName &importPath, bo
 {
     QList<BuildInfo *> result;
 
-    const QLoggingCategory log("qtc.projectexplorer.import");
+    const QLoggingCategory log("qtc.projectexplorer.import", QtWarningMsg);
     qCDebug(log) << "ProjectImporter::import" << importPath << silent;
 
     QFileInfo fi = importPath.toFileInfo();
@@ -194,6 +192,7 @@ void ProjectImporter::markKitAsTemporary(Kit *k) const
 
 void ProjectImporter::makePersistent(Kit *k) const
 {
+    QTC_ASSERT(k, return);
     if (!k->hasValue(KIT_IS_TEMPORARY))
         return;
 
@@ -231,6 +230,7 @@ void ProjectImporter::makePersistent(Kit *k) const
 
 void ProjectImporter::cleanupKit(Kit *k) const
 {
+    QTC_ASSERT(k, return);
     foreach (const TemporaryInformationHandler &tih, m_temporaryHandlers) {
         const Core::Id fid = fullId(tih.id);
         const QVariantList temporaryValues
@@ -250,6 +250,7 @@ void ProjectImporter::cleanupKit(Kit *k) const
 
 void ProjectImporter::addProject(Kit *k) const
 {
+    QTC_ASSERT(k, return);
     if (!k->hasValue(KIT_IS_TEMPORARY))
         return;
 
@@ -261,6 +262,7 @@ void ProjectImporter::addProject(Kit *k) const
 
 void ProjectImporter::removeProject(Kit *k) const
 {
+    QTC_ASSERT(k, return);
     if (!k->hasValue(KIT_IS_TEMPORARY))
         return;
 
@@ -278,31 +280,33 @@ void ProjectImporter::removeProject(Kit *k) const
 
 bool ProjectImporter::isTemporaryKit(Kit *k) const
 {
+    QTC_ASSERT(k, return false);
     return k->hasValue(KIT_IS_TEMPORARY);
 }
 
 Kit *ProjectImporter::createTemporaryKit(const KitSetupFunction &setup) const
 {
-    Kit *k = new Kit;
+    auto k = std::make_unique<Kit>();
+    Kit *kptr = k.get();
     UpdateGuard guard(*this);
     {
-        KitGuard kitGuard(k);
+        KitGuard kitGuard(kptr);
         k->setUnexpandedDisplayName(QCoreApplication::translate("ProjectExplorer::ProjectImporter", "Imported Kit"));;
 
         // Set up values:
         foreach (KitInformation *ki, KitManager::kitInformation())
-            ki->setup(k);
+            ki->setup(kptr);
 
-        setup(k);
+        setup(kptr);
 
         foreach (KitInformation *ki, KitManager::kitInformation())
-            ki->fix(k);
+            ki->fix(kptr);
 
-        markKitAsTemporary(k);
-        addProject(k);
+        markKitAsTemporary(kptr);
+        addProject(kptr);
     } // ~KitGuard, sending kitUpdated
-    KitManager::registerKit(k); // potentially adds kits to other targetsetuppages
-    return k;
+    KitManager::registerKit(std::move(k)); // potentially adds kits to other targetsetuppages
+    return kptr;
 }
 
 bool ProjectImporter::findTemporaryHandler(Core::Id id) const
@@ -347,6 +351,7 @@ void ProjectImporter::useTemporaryKitInformation(Core::Id id,
 
 void ProjectImporter::addTemporaryData(Core::Id id, const QVariant &cleanupData, Kit *k) const
 {
+    QTC_ASSERT(k, return);
     QTC_ASSERT(findTemporaryHandler(id), return);
     const Core::Id fid = fullId(id);
 
@@ -368,11 +373,9 @@ bool ProjectImporter::hasKitWithTemporaryData(Core::Id id, const QVariant &data)
 static ProjectImporter::ToolChainData
 createToolChains(const Utils::FileName &toolChainPath, const Core::Id &language)
 {
-    const QList<ToolChainFactory *> factories
-            = ExtensionSystem::PluginManager::getObjects<ToolChainFactory>();
     ProjectImporter::ToolChainData data;
 
-    for (ToolChainFactory *factory : factories) {
+    for (ToolChainFactory *factory : ToolChainFactory::allToolChainFactories()) {
         data.tcs = factory->autoDetect(toolChainPath, language);
         if (data.tcs.isEmpty())
             continue;

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2018 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the Qt Creator documentation.
@@ -30,9 +30,13 @@
 // **********************************************************************
 
 /*!
-    \contentspage {Qt Creator Manual}
-    \previouspage creator-building-targets.html
+    \contentspage index.html
     \page creator-running-targets.html
+    \if defined(qtdesignstudio)
+    \previouspage studio-live-preview.html
+    \else
+    \previouspage creator-building-targets.html
+    \endif
     \nextpage creator-deployment.html
 
     \title Running on Multiple Platforms
@@ -61,9 +65,25 @@
 
     \endlist
 
+    The \uicontrol {Application Output} pane displays the status of the
+    application while it is running. You can select the \uicontrol Run button
+    in the pane to re-run applications without building them first. This is
+    useful when developing Qt Quick applications, because the QML files are
+    interpreted at runtime. Therefore, the application does not need to be
+    built again if you edited only QML files. This saves time especially if
+    the application contains large image files that would need to be bundled
+    into the resource file before running the application.
+
+    \image qtcreator-application-output.png
+
+    \if defined(qtcreator)
     For more information on the options you have, see
     \l{Specifying Run Settings}.
+    \endif
 
     \include linux-mobile/creator-projects-running-generic-linux.qdocinc running on embedded linux
+
+    \if defined(qtcreator)
     \include qnx/creator-projects-running-qnx.qdocinc running on qnx
+    \endif
 */

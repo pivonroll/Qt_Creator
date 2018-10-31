@@ -80,12 +80,11 @@ SOURCES += texteditorplugin.cpp \
     codeassist/runner.cpp \
     codeassist/completionassistprovider.cpp \
     codeassist/genericproposalmodel.cpp \
-    codeassist/quickfixassistprovider.cpp \
-    codeassist/quickfixassistprocessor.cpp \
     codeassist/genericproposal.cpp \
     codeassist/genericproposalwidget.cpp \
     codeassist/iassistproposalmodel.cpp \
     codeassist/textdocumentmanipulator.cpp \
+    codeassist/documentcontentcompletion.cpp\
     tabsettingswidget.cpp \
     simplecodestylepreferences.cpp \
     simplecodestylepreferenceswidget.cpp \
@@ -102,7 +101,9 @@ SOURCES += texteditorplugin.cpp \
     codeassist/keywordscompletionassist.cpp \
     completionsettingspage.cpp \
     commentssettings.cpp \
-    marginsettings.cpp
+    marginsettings.cpp \
+    formattexteditor.cpp \
+    command.cpp
 
 HEADERS += texteditorplugin.h \
     plaintexteditorfactory.h \
@@ -191,13 +192,12 @@ HEADERS += texteditorplugin.h \
     codeassist/assistproposaliteminterface.h \
     codeassist/completionassistprovider.h \
     codeassist/genericproposalmodel.h \
-    codeassist/quickfixassistprovider.h \
-    codeassist/quickfixassistprocessor.h \
     codeassist/genericproposal.h \
     codeassist/genericproposalwidget.h \
     codeassist/iassistproposalmodel.h \
     codeassist/textdocumentmanipulator.h \
     codeassist/textdocumentmanipulatorinterface.h \
+    codeassist/documentcontentcompletion.h \
     tabsettingswidget.h \
     simplecodestylepreferences.h \
     simplecodestylepreferenceswidget.h \
@@ -216,7 +216,9 @@ HEADERS += texteditorplugin.h \
     blockrange.h \
     completionsettingspage.h \
     commentssettings.h \
-    textstyles.h
+    textstyles.h \
+    formattexteditor.h \
+    command.h
 
 FORMS += \
     displaysettingspage.ui \

@@ -29,15 +29,15 @@
 
 #include <coreplugin/icore.h>
 #include <coreplugin/messagemanager.h>
-#include <extensionsystem/pluginmanager.h>
-#include <projectexplorer/project.h>
+
 #include <projectexplorer/projectexplorerconstants.h>
 #include <ssh/sshhostkeydatabase.h>
+#include <utils/algorithm.h>
 #include <utils/fileutils.h>
 #include <utils/persistentsettings.h>
-#include <utils/qtcassert.h>
 #include <utils/portlist.h>
-#include <utils/algorithm.h>
+#include <utils/qtcassert.h>
+#include <utils/stringutils.h>
 
 #include <QFileInfo>
 #include <QHash>
@@ -46,6 +46,7 @@
 #include <QVariantList>
 
 #include <limits>
+#include <memory>
 
 namespace ProjectExplorer {
 namespace Internal {
@@ -57,8 +58,7 @@ const char DefaultDevicesKey[] = "DefaultDevices";
 class DeviceManagerPrivate
 {
 public:
-    DeviceManagerPrivate() : writer(0)
-    { }
+    DeviceManagerPrivate() = default;
 
     int indexForId(Core::Id id) const
     {
@@ -74,15 +74,15 @@ public:
     QHash<Core::Id, Core::Id> defaultDevices;
     QSsh::SshHostKeyDatabasePtr hostKeyDatabase;
 
-    Utils::PersistentSettingsWriter *writer;
+    Utils::PersistentSettingsWriter *writer = nullptr;
 };
-DeviceManager *DeviceManagerPrivate::clonedInstance = 0;
+DeviceManager *DeviceManagerPrivate::clonedInstance = nullptr;
 
 } // namespace Internal
 
 using namespace Internal;
 
-DeviceManager *DeviceManager::m_instance = 0;
+DeviceManager *DeviceManager::m_instance = nullptr;
 
 DeviceManager *DeviceManager::instance()
 {
@@ -104,12 +104,12 @@ void DeviceManager::replaceInstance()
 void DeviceManager::removeClonedInstance()
 {
     delete DeviceManagerPrivate::clonedInstance;
-    DeviceManagerPrivate::clonedInstance = 0;
+    DeviceManagerPrivate::clonedInstance = nullptr;
 }
 
 DeviceManager *DeviceManager::cloneInstance()
 {
-    QTC_ASSERT(!DeviceManagerPrivate::clonedInstance, return 0);
+    QTC_ASSERT(!DeviceManagerPrivate::clonedInstance, return nullptr);
 
     DeviceManagerPrivate::clonedInstance = new DeviceManager(false);
     copy(instance(), DeviceManagerPrivate::clonedInstance, true);
@@ -150,7 +150,7 @@ void DeviceManager::load()
     // read devices file from global settings path
     QHash<Core::Id, Core::Id> defaultDevices;
     QList<IDevice::Ptr> sdkDevices;
-    if (reader.load(systemSettingsFilePath(QLatin1String("/qtcreator/devices.xml"))))
+    if (reader.load(systemSettingsFilePath(QLatin1String("/devices.xml"))))
         sdkDevices = fromMap(reader.restoreValues().value(DeviceManagerKey).toMap(), &defaultDevices);
     // read devices file from user settings path
     QList<IDevice::Ptr> userDevices;
@@ -199,8 +199,9 @@ QList<IDevice::Ptr> DeviceManager::fromMap(const QVariantMap &map,
         const IDeviceFactory * const factory = restoreFactory(map);
         if (!factory)
             continue;
-        const IDevice::Ptr device = factory->restore(map);
+        const IDevice::Ptr device = factory->construct();
         QTC_ASSERT(device, continue);
+        device->fromMap(map);
         devices << device;
     }
     return devices;
@@ -210,7 +211,7 @@ QVariantMap DeviceManager::toMap() const
 {
     QVariantMap map;
     QVariantMap defaultDeviceMap;
-    typedef QHash<Core::Id, Core::Id> TypeIdHash;
+    using TypeIdHash = QHash<Core::Id, Core::Id>;
     for (TypeIdHash::ConstIterator it = d->defaultDevices.constBegin();
              it != d->defaultDevices.constEnd(); ++it) {
         defaultDeviceMap.insert(it.key().toString(), it.value().toSetting());
@@ -230,9 +231,8 @@ Utils::FileName DeviceManager::settingsFilePath(const QString &extension)
 
 Utils::FileName DeviceManager::systemSettingsFilePath(const QString &deviceFileRelativePath)
 {
-    return Utils::FileName::fromString(
-              QFileInfo(Core::ICore::settings(QSettings::SystemScope)->fileName()).absolutePath()
-              + deviceFileRelativePath);
+    return Utils::FileName::fromString(Core::ICore::installerResourcePath()
+                                       + deviceFileRelativePath);
 }
 
 void DeviceManager::addDevice(const IDevice::ConstPtr &_device)
@@ -245,7 +245,7 @@ void DeviceManager::addDevice(const IDevice::ConstPtr &_device)
             names << tmp->displayName();
     }
 
-    device->setDisplayName(Project::makeUnique(device->displayName(), names));
+    device->setDisplayName(Utils::makeUniquelyNumbered(device->displayName(), names));
 
     const int pos = d->indexForId(device->id());
 
@@ -338,9 +338,10 @@ void DeviceManager::setDefaultDevice(Core::Id id)
 
 const IDeviceFactory *DeviceManager::restoreFactory(const QVariantMap &map)
 {
-    IDeviceFactory *factory = ExtensionSystem::PluginManager::getObject<IDeviceFactory>(
-        [&map](IDeviceFactory *factory) {
-            return factory->canRestore(map);
+    const Core::Id deviceType = IDevice::typeFromMap(map);
+    IDeviceFactory *factory = Utils::findOrDefault(IDeviceFactory::allDeviceFactories(),
+        [&map, deviceType](IDeviceFactory *factory) {
+            return factory->canRestore(map) && factory->deviceType() == deviceType;
         });
 
     if (!factory)
@@ -350,7 +351,7 @@ const IDeviceFactory *DeviceManager::restoreFactory(const QVariantMap &map)
     return factory;
 }
 
-DeviceManager::DeviceManager(bool isInstance) : d(new DeviceManagerPrivate)
+DeviceManager::DeviceManager(bool isInstance) : d(std::make_unique<DeviceManagerPrivate>())
 {
     if (isInstance) {
         QTC_ASSERT(!m_instance, return);
@@ -371,8 +372,7 @@ DeviceManager::~DeviceManager()
     if (d->clonedInstance != this)
         delete d->writer;
     if (m_instance == this)
-        m_instance = 0;
-    delete d;
+        m_instance = nullptr;
 }
 
 IDevice::ConstPtr DeviceManager::deviceAt(int idx) const
@@ -430,9 +430,9 @@ public:
 
     static Core::Id testTypeId() { return "TestType"; }
 private:
-    TestDevice(const TestDevice &other) : IDevice(other) {}
+    TestDevice(const TestDevice &other) = default;
     QString displayType() const override { return QLatin1String("blubb"); }
-    IDeviceWidget *createWidget() override { return 0; }
+    IDeviceWidget *createWidget() override { return nullptr; }
     QList<Core::Id> actionIds() const override { return QList<Core::Id>(); }
     QString displayNameForActionId(Core::Id) const override { return QString(); }
     void executeAction(Core::Id, QWidget *) override { }

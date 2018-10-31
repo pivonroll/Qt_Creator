@@ -43,14 +43,15 @@ class HighlightDefinitionHandler : public QXmlDefaultHandler
 {
 public:
     HighlightDefinitionHandler(const QSharedPointer<HighlightDefinition> &definition);
-    ~HighlightDefinitionHandler();
+    ~HighlightDefinitionHandler() override;
 
-    bool startDocument();
-    bool endDocument();
+    bool startDocument() override;
+    bool endDocument() override;
     bool startElement(const QString &namespaceURI, const QString &localName,
-                      const QString &qName, const QXmlAttributes &atts);
-    bool endElement(const QString &namespaceURI, const QString &localName, const QString &qName);
-    bool characters(const QString &ch);
+                      const QString &qName, const QXmlAttributes &atts) override;
+    bool endElement(const QString &namespaceURI, const QString &localName,
+                    const QString &qName) override;
+    bool characters(const QString &ch) override;
 
 private:
     void listElementStarted(const QXmlAttributes &atts);
@@ -67,6 +68,7 @@ private:
     void detect2CharsStarted(const QXmlAttributes &atts);
     void anyCharStarted(const QXmlAttributes &atts);
     void stringDetectedStarted(const QXmlAttributes &atts);
+    void wordDetectStarted(const QXmlAttributes &atts);
     void regExprStarted(const QXmlAttributes &atts);
     void keywordStarted(const QXmlAttributes &atts);
     void intStarted(const QXmlAttributes &atts);

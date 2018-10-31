@@ -27,13 +27,15 @@
 
 #include "deviceprocesslist.h"
 
+#include <memory>
+
 namespace ProjectExplorer {
 
 class PROJECTEXPLORER_EXPORT SshDeviceProcessList : public DeviceProcessList
 {
     Q_OBJECT
 public:
-    explicit SshDeviceProcessList(const IDevice::ConstPtr &device, QObject *parent = 0);
+    explicit SshDeviceProcessList(const IDevice::ConstPtr &device, QObject *parent = nullptr);
     ~SshDeviceProcessList() override;
 
 private:
@@ -51,7 +53,7 @@ private:
     void setFinished();
 
     class SshDeviceProcessListPrivate;
-    SshDeviceProcessListPrivate * const d;
+    const std::unique_ptr<SshDeviceProcessListPrivate> d;
 };
 
 } // namespace ProjectExplorer

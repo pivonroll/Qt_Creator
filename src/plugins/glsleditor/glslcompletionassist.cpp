@@ -161,15 +161,15 @@ static QIcon glslIcon(IconTypes iconType)
 
     switch (iconType) {
     case IconTypeType:
-        return Icons::iconForType(Icons::ClassIconType);
+        return Utils::CodeModelIcon::iconForType(Utils::CodeModelIcon::Class);
     case IconTypeConst:
-        return Icons::iconForType(Icons::EnumeratorIconType);
+        return Utils::CodeModelIcon::iconForType(Utils::CodeModelIcon::Enumerator);
     case IconTypeKeyword:
-        return Icons::iconForType(Icons::KeywordIconType);
+        return Utils::CodeModelIcon::iconForType(Utils::CodeModelIcon::Keyword);
     case IconTypeFunction:
-        return Icons::iconForType(Icons::FuncPublicIconType);
+        return Utils::CodeModelIcon::iconForType(Utils::CodeModelIcon::FuncPublic);
     case IconTypeVariable:
-        return Icons::iconForType(Icons::VarPublicIconType);
+        return Utils::CodeModelIcon::iconForType(Utils::CodeModelIcon::VarPublic);
     case IconTypeAttribute: {
         static const QIcon icon =
                 Icon({{member, Theme::IconsCodeModelAttributeColor}}, Icon::Tint).icon();
@@ -187,7 +187,7 @@ static QIcon glslIcon(IconTypes iconType)
     }
     case IconTypeOther:
     default:
-        return Icons::iconForType(Icons::NamespaceIconType);
+        return Utils::CodeModelIcon::iconForType(Utils::CodeModelIcon::Namespace);
     }
 }
 
@@ -209,16 +209,48 @@ bool GlslCompletionAssistProvider::isActivationCharSequence(const QString &seque
     return isActivationChar(sequence.at(0));
 }
 
+struct FunctionItem
+{
+    FunctionItem() {}
+    explicit FunctionItem(const GLSL::Function *function);
+    QString prettyPrint(int currentArgument) const;
+    QString returnValue;
+    QString name;
+    QStringList argsWithType;
+};
+
+FunctionItem::FunctionItem(const GLSL::Function *function)
+{
+    Q_ASSERT(function);
+    returnValue = function->returnType()->toString();
+    name = function->name();
+    for (auto arg : function->arguments())
+        argsWithType.append(arg->type()->toString() + QLatin1Char(' ') + arg->name());
+}
+
+QString FunctionItem::prettyPrint(int currentArgument) const
+{
+    QString result = returnValue + QLatin1Char(' ') + name + QLatin1Char('(');
+    for (int i = 0; i < argsWithType.size(); ++i) {
+        if (i != 0)
+            result += QLatin1String(", ");
+        if (currentArgument == i)
+            result += QLatin1String("<b>");
+        result += argsWithType.at(i);
+        if (currentArgument == i)
+            result += QLatin1String("</b>");
+    }
+    result += QLatin1Char(')');
+    return result;
+}
+
 // -----------------------------
 // GlslFunctionHintProposalModel
 // -----------------------------
 class GlslFunctionHintProposalModel : public IFunctionHintProposalModel
 {
 public:
-    GlslFunctionHintProposalModel(QVector<GLSL::Function *> functionSymbols)
-        : m_items(functionSymbols)
-        , m_currentArg(-1)
-    {}
+    GlslFunctionHintProposalModel(QVector<GLSL::Function *> functionSymbols);
 
     void reset() override {}
     int size() const override { return m_items.size(); }
@@ -226,13 +258,20 @@ public:
     int activeArgument(const QString &prefix) const override;
 
 private:
-    QVector<GLSL::Function *> m_items;
+    QVector<FunctionItem> m_items;
     mutable int m_currentArg;
 };
 
+GlslFunctionHintProposalModel::GlslFunctionHintProposalModel(QVector<GLSL::Function *> symbols)
+    : m_currentArg(-1)
+{
+    for (const GLSL::Function *symbol : symbols)
+        m_items.append(FunctionItem(symbol));
+}
+
 QString GlslFunctionHintProposalModel::text(int index) const
 {
-    return m_items.at(index)->prettyPrint(m_currentArg);
+    return m_items.at(index).prettyPrint(m_currentArg);
 }
 
 int GlslFunctionHintProposalModel::activeArgument(const QString &prefix) const
@@ -479,7 +518,7 @@ IAssistProposal *GlslCompletionAssistProcessor::perform(const AssistInterface *i
 IAssistProposal *GlslCompletionAssistProcessor::createHintProposal(
     const QVector<GLSL::Function *> &symbols)
 {
-    IFunctionHintProposalModel *model = new GlslFunctionHintProposalModel(symbols);
+    FunctionHintProposalModelPtr model(new GlslFunctionHintProposalModel(symbols));
     IAssistProposal *proposal = new FunctionHintProposal(m_startPosition, model);
     return proposal;
 }

@@ -30,6 +30,8 @@
 #include <QAbstractItemModel>
 #include <QList>
 
+#include <memory>
+
 namespace ProjectExplorer {
 
 namespace Internal { class DeviceProcessListPrivate; }
@@ -50,7 +52,7 @@ class PROJECTEXPLORER_EXPORT DeviceProcessList : public QAbstractItemModel
     Q_OBJECT
 
 public:
-    DeviceProcessList(const IDevice::ConstPtr &device, QObject *parent = 0);
+    DeviceProcessList(const IDevice::ConstPtr &device, QObject *parent = nullptr);
     ~DeviceProcessList() override;
 
     void update();
@@ -86,7 +88,7 @@ private:
 
     void setFinished();
 
-    Internal::DeviceProcessListPrivate * const d;
+    const std::unique_ptr<Internal::DeviceProcessListPrivate> d;
 };
 
 } // namespace ProjectExplorer

@@ -77,7 +77,7 @@ using namespace ProjectExplorer;
 using namespace Utils;
 
 namespace {
-Q_LOGGING_CATEGORY(avdConfigLog, "qtc.android.androidconfig")
+Q_LOGGING_CATEGORY(avdConfigLog, "qtc.android.androidconfig", QtWarningMsg)
 }
 
 namespace Android {
@@ -125,10 +125,12 @@ namespace {
     const QLatin1String sdkToolsVersionKey("Pkg.Revision");
     const QLatin1String ndkRevisionKey("Pkg.Revision");
 
+    const QString defaultQtLiveApk = Core::ICore::resourcePath() +
+            ("/qtlive/android/armv7/qt_live_viewer.apk");
+
     static QString sdkSettingsFileName()
     {
-        return QFileInfo(Core::ICore::settings(QSettings::SystemScope)->fileName()).absolutePath()
-                + QLatin1String("/qtcreator/android.xml");
+        return Core::ICore::installerResourcePath() + "/android.xml";
     }
 
     static bool is32BitUserSpace()
@@ -310,7 +312,7 @@ void AndroidConfig::updateNdkInformation() const
         const QString &fileName = it.next();
         m_availableNdkPlatforms.push_back(fileName.midRef(fileName.lastIndexOf(QLatin1Char('-')) + 1).toInt());
     }
-    Utils::sort(m_availableNdkPlatforms, std::greater<int>());
+    Utils::sort(m_availableNdkPlatforms, std::greater<>());
 
     // detect toolchain host
     QStringList hostPatterns;
@@ -410,6 +412,17 @@ FileName AndroidConfig::avdManagerToolPath() const
     return avdManagerPath;
 }
 
+FileName AndroidConfig::aaptToolPath() const
+{
+    Utils::FileName aaptToolPath = m_sdkLocation;
+    aaptToolPath.appendPath("build-tools");
+    QString toolPath = QString("%1/aapt").arg(buildToolsVersion().toString());
+    if (HostOsInfo::isWindowsHost())
+        toolPath += QTC_HOST_EXE_SUFFIX;
+    aaptToolPath.appendPath(toolPath);
+    return aaptToolPath;
+}
+
 FileName AndroidConfig::gccPath(const Abi &abi, Core::Id lang,
                                 const QString &ndkToolChainVersion) const
 {
@@ -425,6 +438,13 @@ FileName AndroidConfig::gdbPath(const Abi &abi, const QString &ndkToolChainVersi
         return FileName::fromString(gdbPath);
 
     return toolPath(abi, ndkToolChainVersion).appendString(QLatin1String("-gdb" QTC_HOST_EXE_SUFFIX));
+}
+
+FileName AndroidConfig::makePath() const
+{
+    const QString makePath = QString::fromLatin1("%1/prebuilt/%2/bin/make" QTC_HOST_EXE_SUFFIX)
+            .arg(m_ndkLocation.toString()).arg(toolchainHost());
+    return FileName::fromString(makePath);
 }
 
 FileName AndroidConfig::openJDKBinPath() const
@@ -689,13 +709,13 @@ bool AndroidConfig::useNativeUiTools() const
 
 QString AndroidConfig::bestNdkPlatformMatch(int target) const
 {
-    target = std::max(9, target);
+    target = std::max(AndroidManager::apiLevelRange().first, target);
     updateNdkInformation();
     foreach (int apiLevel, m_availableNdkPlatforms) {
         if (apiLevel <= target)
             return QString::fromLatin1("android-%1").arg(apiLevel);
     }
-    return QLatin1String("android-9");
+    return QString("android-%1").arg(AndroidManager::apiLevelRange().first);
 }
 
 FileName AndroidConfig::sdkLocation() const
@@ -748,11 +768,32 @@ FileName AndroidConfig::ndkLocation() const
     return m_ndkLocation;
 }
 
+static inline QString gdbServerArch(const Abi &abi)
+{
+    switch (abi.architecture()) {
+    case Abi::X86Architecture:
+        return abi.wordWidth() == 64 ? QString{"x86_64"} : QString{"x86"};
+    case Abi::ArmArchitecture:
+        return abi.wordWidth() == 64 ? QString{"arm64"} : QString{"arm"};
+    default: return {};
+    };
+}
+
+FileName AndroidConfig::gdbServer(const ProjectExplorer::Abi &abi) const
+{
+    FileName path = AndroidConfigurations::currentConfig().ndkLocation();
+    path.appendPath(QString::fromLatin1("prebuilt/android-%1/gdbserver/gdbserver")
+                    .arg(gdbServerArch(abi)));
+    if (path.exists())
+        return path;
+    return {};
+}
+
 QVersionNumber AndroidConfig::ndkVersion() const
 {
     QVersionNumber version;
     if (!m_ndkLocation.exists()) {
-        qCDebug(avdConfigLog) << "Can not find ndk version. Check NDK path."
+        qCDebug(avdConfigLog) << "Cannot find ndk version. Check NDK path."
                               << m_ndkLocation.toString();
         return version;
     }
@@ -785,11 +826,11 @@ QVersionNumber AndroidConfig::ndkVersion() const
                 version = QVersionNumber::fromString(QString("%1.%2.0").arg(major)
                                                      .arg((int)minor[0].toLatin1() - 97));
             } else {
-                qCDebug(avdConfigLog) << "Can not find ndk version. Can not parse RELEASE.TXT."
+                qCDebug(avdConfigLog) << "Cannot find ndk version. Cannot parse RELEASE.TXT."
                                       << content;
             }
         } else {
-            qCDebug(avdConfigLog) << "Can not find ndk version." << errorString;
+            qCDebug(avdConfigLog) << "Cannot find ndk version." << errorString;
         }
     }
     return version;
@@ -850,6 +891,14 @@ bool AndroidConfig::automaticKitCreation() const
 void AndroidConfig::setAutomaticKitCreation(bool b)
 {
     m_automaticKitCreation = b;
+}
+
+FileName AndroidConfig::qtLiveApkPath() const
+{
+    QString apkPathStr(defaultQtLiveApk);
+    if (qEnvironmentVariableIsSet("QTC_QT_LIVE_APK_PATH"))
+         apkPathStr = QString::fromLocal8Bit(qgetenv("QTC_QT_LIVE_APK_PATH"));
+    return Utils::FileName::fromString(apkPathStr);
 }
 
 ///////////////////////////////////
@@ -1009,9 +1058,7 @@ void AndroidConfigurations::updateAutomaticKitList()
             && tc->typeId() == Constants::ANDROID_TOOLCHAIN_ID
             && !static_cast<const AndroidToolChain *>(tc)->isSecondaryToolChain();
     });
-    const QList<AndroidToolChain *> toolchains = Utils::transform(tmp, [](ToolChain *tc) {
-            return static_cast<AndroidToolChain *>(tc);
-    });
+    const auto toolchains = Utils::static_container_cast<AndroidToolChain *>(tmp);
     for (AndroidToolChain *tc : toolchains) {
         if (tc->isSecondaryToolChain() || tc->language() != Core::Id(ProjectExplorer::Constants::CXX_LANGUAGE_ID))
             continue;
@@ -1031,17 +1078,18 @@ void AndroidConfigurations::updateAutomaticKitList()
         };
 
         for (const QtSupport::BaseQtVersion *qt : qtVersionsForArch.value(tc->targetAbi())) {
-            Kit *newKit = new Kit;
-            initBasicKitData(newKit, qt);
-            Kit *existingKit = Utils::findOrDefault(existingKits, [newKit](const Kit *k) {
-                return matchKits(newKit, k);
+            auto newKit = std::make_unique<Kit>();
+            Kit *toSetup = newKit.get();
+            initBasicKitData(toSetup, qt);
+            Kit *existingKit = Utils::findOrDefault(existingKits, [toSetup](const Kit *k) {
+                return matchKits(toSetup, k);
             });
             if (existingKit) {
                 // Existing kit found.
                 // Update the existing kit with new data.
                 initBasicKitData(existingKit, qt);
-                KitManager::deleteKit(newKit);
-                newKit = existingKit;
+                newKit.reset();
+                toSetup = existingKit;
             }
 
             Debugger::DebuggerItem debugger;
@@ -1052,16 +1100,16 @@ void AndroidConfigurations::updateAutomaticKitList()
             debugger.setAbi(tc->targetAbi());
             debugger.reinitializeFromFile();
             QVariant id = Debugger::DebuggerItemManager::registerDebugger(debugger);
-            Debugger::DebuggerKitInformation::setDebugger(newKit, id);
+            Debugger::DebuggerKitInformation::setDebugger(toSetup, id);
 
-            AndroidGdbServerKitInformation::setGdbSever(newKit, tc->suggestedGdbServer());
-            newKit->makeSticky();
-            newKit->setUnexpandedDisplayName(tr("Android for %1 (GCC %2, %3)")
-                                             .arg(static_cast<const AndroidQtVersion *>(qt)->targetArch())
-                                             .arg(tc->ndkToolChainVersion())
-                                             .arg(qt->displayName()));
+            AndroidGdbServerKitInformation::setGdbSever(toSetup, currentConfig().gdbServer(tc->targetAbi()));
+            toSetup->makeSticky();
+            toSetup->setUnexpandedDisplayName(tr("Android for %1 (GCC %2, %3)")
+                                              .arg(static_cast<const AndroidQtVersion *>(qt)->targetArch())
+                                              .arg(tc->ndkToolChainVersion())
+                                              .arg(qt->displayName()));
             if (!existingKit)
-                KitManager::registerKit(newKit);
+                KitManager::registerKit(std::move(newKit));
         }
     }
 }
@@ -1132,24 +1180,22 @@ void AndroidConfigurations::save()
     settings->endGroup();
 }
 
-AndroidConfigurations::AndroidConfigurations(QObject *parent)
-    : QObject(parent),
-      m_sdkManager(new AndroidSdkManager(m_config))
+AndroidConfigurations::AndroidConfigurations()
+    : m_sdkManager(new AndroidSdkManager(m_config))
 {
     load();
 
     connect(SessionManager::instance(), &SessionManager::projectRemoved,
             this, &AndroidConfigurations::clearDefaultDevices);
+    connect(DeviceManager::instance(), &DeviceManager::devicesLoaded,
+            this, &AndroidConfigurations::updateAndroidDevice);
 
     m_force32bit = is32BitUserSpace();
 
     m_instance = this;
 }
 
-AndroidConfigurations::~AndroidConfigurations()
-{
-
-}
+AndroidConfigurations::~AndroidConfigurations() = default;
 
 static FileName javaHomeForJavac(const FileName &location)
 {
@@ -1204,13 +1250,12 @@ void AndroidConfigurations::load()
                                                               QSettings::NativeFormat));
             allVersions = settings->childGroups();
 #ifdef Q_OS_WIN
-#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
             if (allVersions.isEmpty()) {
                 settings.reset(new QSettings(jdkSettingsPath, QSettings::Registry64Format));
                 allVersions = settings->childGroups();
             }
-#endif
-#endif
+#endif // Q_OS_WIN
+
             QString javaHome;
             int major = -1;
             int minor = -1;
@@ -1259,6 +1304,15 @@ void AndroidConfigurations::updateAndroidDevice()
         devMgr->removeDevice(Core::Id(Constants::ANDROID_DEVICE_ID));
 }
 
-AndroidConfigurations *AndroidConfigurations::m_instance = 0;
+AndroidConfigurations *AndroidConfigurations::m_instance = nullptr;
+
+QDebug &operator<<(QDebug &stream, const AndroidDeviceInfo &device)
+{
+    stream << "Type:"<< (device.type == AndroidDeviceInfo::Emulator ? "Emulator" : "Device")
+           << ", ABI:" << device.cpuAbi << ", Serial:" << device.serialNumber
+           << ", Name:" << device.avdname << ", API:" << device.sdk
+           << ", Authorised:" << !device.unauthorized;
+    return stream;
+}
 
 } // namespace Android

@@ -53,13 +53,14 @@ public:
         ItemDelegateRole,
     };
 
-    BaseTreeView(QWidget *parent = 0);
-    ~BaseTreeView();
+    BaseTreeView(QWidget *parent = nullptr);
+    ~BaseTreeView() override;
 
     void setSettings(QSettings *settings, const QByteArray &key);
 
     void setModel(QAbstractItemModel *model) override;
     void mousePressEvent(QMouseEvent *ev) override;
+    void mouseReleaseEvent(QMouseEvent *ev) override;
     void contextMenuEvent(QContextMenuEvent *ev) override;
     void showEvent(QShowEvent *ev) override;
     void keyPressEvent(QKeyEvent *ev) override;
@@ -109,7 +110,7 @@ template <class T> T *checkEventType(QEvent *ev)
 class QTCREATOR_UTILS_EXPORT ItemViewEvent
 {
 public:
-    ItemViewEvent() {}
+    ItemViewEvent() = default;
     ItemViewEvent(QEvent *ev, QAbstractItemView *view);
 
     template <class T> T *as() const {

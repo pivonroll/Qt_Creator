@@ -30,6 +30,7 @@
 #include <QPen>
 #include <QGraphicsScene>
 #include <QGraphicsTextItem>
+#include <memory>
 
 #include <abstractview.h>
 
@@ -82,11 +83,11 @@ static QPolygonF boundingRectInLayerItemSpaceForItem(FormEditorItem *item, QGrap
 static bool checkSingleSelection(const QList<FormEditorItem*> &itemList)
 {
     return !itemList.isEmpty()
-            && itemList.first()
-            && itemList.first()->qmlItemNode().view()->singleSelectedModelNode().isValid();
+            && itemList.constFirst()
+            && itemList.constFirst()->qmlItemNode().view()->singleSelectedModelNode().isValid();
 }
 
-const int labelHeight = 16;
+const int labelHeight = 18;
 
 void SelectionIndicator::setItems(const QList<FormEditorItem*> &itemList)
 {
@@ -98,7 +99,7 @@ void SelectionIndicator::setItems(const QList<FormEditorItem*> &itemList)
         if (!item->qmlItemNode().isValid())
             continue;
 
-        QGraphicsPolygonItem *newSelectionIndicatorGraphicsItem = new QGraphicsPolygonItem(m_layerItem.data());
+        auto newSelectionIndicatorGraphicsItem = new QGraphicsPolygonItem(m_layerItem.data());
         m_indicatorShapeHash.insert(item, newSelectionIndicatorGraphicsItem);
         newSelectionIndicatorGraphicsItem->setPolygon(boundingRectInLayerItemSpaceForItem(item, m_layerItem.data()));
         newSelectionIndicatorGraphicsItem->setFlag(QGraphicsItem::ItemIsSelectable, false);
@@ -112,8 +113,8 @@ void SelectionIndicator::setItems(const QList<FormEditorItem*> &itemList)
     }
 
     if (checkSingleSelection(itemList)) {
-        FormEditorItem *selectedItem = itemList.first();
-        m_labelItem.reset(new QGraphicsPolygonItem(m_layerItem.data()));
+        FormEditorItem *selectedItem = itemList.constFirst();
+        m_labelItem = std::make_unique<QGraphicsPolygonItem>(m_layerItem.data());
 
         QGraphicsWidget *toolbar = DesignerActionManager::instance().createFormEditorToolBar(m_labelItem.get());
         toolbar->setPos(1, -1);
@@ -135,7 +136,7 @@ void SelectionIndicator::setItems(const QList<FormEditorItem*> &itemList)
         labelRect.moveTo(0, 0);
         m_labelItem->setPolygon(labelRect);
         m_labelItem->setPos(pos + QPointF(0, -labelHeight));
-        int offset = labelHeight + 2 - textItem->boundingRect().height();
+        const int offset = (labelHeight - textItem->boundingRect().height()) / 2;
         textItem->setPos(QPointF(toolbar->size().width(), offset));
         m_labelItem->setFlag(QGraphicsItem::ItemIsSelectable, false);
         QPen pen;
@@ -161,7 +162,7 @@ void SelectionIndicator::updateItems(const QList<FormEditorItem*> &itemList)
 
     if (checkSingleSelection(itemList)
             && m_labelItem) {
-        FormEditorItem *selectedItem = itemList.first();
+        FormEditorItem *selectedItem = itemList.constFirst();
         QPolygonF labelPolygon = boundingRectInLayerItemSpaceForItem(selectedItem, m_layerItem.data());
         QRectF labelRect = labelPolygon.boundingRect();
         QPointF pos = labelRect.topLeft();

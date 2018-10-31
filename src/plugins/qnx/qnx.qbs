@@ -12,15 +12,12 @@ QtcPlugin {
     Depends { name: "Debugger" }
     Depends { name: "ProjectExplorer" }
     Depends { name: "QtSupport" }
-    Depends { name: "QmakeProjectManager" }
     Depends { name: "RemoteLinux" }
 
     files: [
         "qnxdeployqtlibrariesdialog.cpp",
         "qnxdeployqtlibrariesdialog.h",
         "qnxdeployqtlibrariesdialog.ui",
-        "pathchooserdelegate.cpp",
-        "pathchooserdelegate.h",
         "qnxtoolchain.cpp",
         "qnxtoolchain.h",
         "qnx.qrc",
@@ -35,10 +32,6 @@ QtcPlugin {
         "qnxdebugsupport.h",
         "qnxdeployconfiguration.cpp",
         "qnxdeployconfiguration.h",
-        "qnxdeployconfigurationfactory.cpp",
-        "qnxdeployconfigurationfactory.h",
-        "qnxdeploystepfactory.cpp",
-        "qnxdeploystepfactory.h",
         "qnxdevice.cpp",
         "qnxdevice.h",
         "qnxdevicefactory.cpp",
@@ -70,8 +63,6 @@ QtcPlugin {
         "qnxqtversionfactory.h",
         "qnxrunconfiguration.cpp",
         "qnxrunconfiguration.h",
-        "qnxrunconfigurationfactory.cpp",
-        "qnxrunconfigurationfactory.h",
         "qnxutils.cpp",
         "qnxutils.h",
         "qnx_export.h",

@@ -31,6 +31,8 @@
 
 #include <QObject>
 
+#include <memory>
+
 namespace QSsh { class SshHostKeyDatabase; }
 namespace Utils { class FileName; }
 
@@ -101,12 +103,13 @@ private:
     static Utils::FileName systemSettingsFilePath(const QString &deviceFileRelativePath);
     static void copy(const DeviceManager *source, DeviceManager *target, bool deep);
 
-    Internal::DeviceManagerPrivate * const d;
+    const std::unique_ptr<Internal::DeviceManagerPrivate> d;
 
     static DeviceManager *m_instance;
 
     friend class Internal::DeviceManagerPrivate;
     friend class ProjectExplorerPlugin;
+    friend class ProjectExplorerPluginPrivate;
 };
 
 } // namespace ProjectExplorer

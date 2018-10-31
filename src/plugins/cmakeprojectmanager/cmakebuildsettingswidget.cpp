@@ -38,7 +38,6 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/target.h>
 
-#include <utils/asconst.h>
 #include <utils/categorysortfiltermodel.h>
 #include <utils/detailswidget.h>
 #include <utils/fancylineedit.h>
@@ -243,6 +242,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     connect(project, &ProjectExplorer::Project::parsingStarted, this, [this]() {
         updateButtonState();
+        m_configView->setEnabled(false);
         m_showProgressTimer.start();
     });
 
@@ -257,6 +257,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             this, [this, buildDirChooser, stretcher]() {
         m_configModel->setConfiguration(m_buildConfiguration->configurationFromCMake());
         m_configView->expandAll();
+        m_configView->setEnabled(true);
         stretcher->stretch();
         updateButtonState();
         buildDirChooser->triggerChanged(); // refresh valid state...

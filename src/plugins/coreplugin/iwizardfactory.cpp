@@ -151,7 +151,7 @@ namespace {
 static QList<IFeatureProvider *> s_providerList;
 QList<IWizardFactory *> s_allFactories;
 QList<IWizardFactory::FactoryCreator> s_factoryCreators;
-QAction *s_inspectWizardAction = 0;
+QAction *s_inspectWizardAction = nullptr;
 bool s_areFactoriesLoaded = false;
 bool s_isWizardRunning = false;
 QWidget *s_currentWizard = nullptr;
@@ -270,7 +270,7 @@ QString IWizardFactory::runPath(const QString &defaultPath)
 
 Utils::Wizard *IWizardFactory::runWizard(const QString &path, QWidget *parent, Id platform, const QVariantMap &variables)
 {
-    QTC_ASSERT(!s_isWizardRunning, return 0);
+    QTC_ASSERT(!s_isWizardRunning, return nullptr);
 
     s_isWizardRunning = true;
     ICore::updateNewItemDialogState();
@@ -280,7 +280,8 @@ Utils::Wizard *IWizardFactory::runWizard(const QString &path, QWidget *parent, I
     if (wizard) {
         s_currentWizard = wizard;
         // Connect while wizard exists:
-        connect(m_action, &QAction::triggered, wizard, [wizard]() { ICore::raiseWindow(wizard); });
+        if (m_action)
+            connect(m_action, &QAction::triggered, wizard, [wizard]() { ICore::raiseWindow(wizard); });
         connect(s_inspectWizardAction, &QAction::triggered,
                 wizard, [wizard]() { wizard->showVariables(); });
         connect(wizard, &Utils::Wizard::finished, this, [wizard](int result) {

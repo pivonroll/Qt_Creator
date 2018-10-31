@@ -53,11 +53,13 @@ class SQLITE_EXPORT BaseStatement
 public:
     explicit BaseStatement(Utils::SmallStringView sqlStatement, Database &database);
 
+    BaseStatement(const BaseStatement &) = delete;
+    BaseStatement &operator=(const BaseStatement &) = delete;
+
     static void deleteCompiledStatement(sqlite3_stmt *m_compiledStatement);
 
     bool next() const;
     void step() const;
-    void execute() const;
     void reset() const;
 
     int fetchIntValue(int column) const;
@@ -111,6 +113,7 @@ public:
     [[noreturn]] void throwStatementIsBusy(const char *whatHasHappened) const;
     [[noreturn]] void throwStatementHasError(const char *whatHasHappened) const;
     [[noreturn]] void throwStatementIsMisused(const char *whatHasHappened) const;
+    [[noreturn]] void throwIoError(const char *whatHasHappened) const;
     [[noreturn]] void throwConstraintPreventsModification(const char *whatHasHappened) const;
     [[noreturn]] void throwNoValuesToFetch(const char *whatHasHappened) const;
     [[noreturn]] void throwInvalidColumnFetched(const char *whatHasHappened) const;
@@ -122,6 +125,9 @@ public:
     QString columnName(int column) const;
 
     Database &database() const;
+
+protected:
+    ~BaseStatement() = default;
 
 private:
     std::unique_ptr<sqlite3_stmt, void (*)(sqlite3_stmt*)> m_compiledStatement;
@@ -146,11 +152,18 @@ extern template SQLITE_EXPORT Utils::SmallString BaseStatement::fetchValue<Utils
 extern template SQLITE_EXPORT Utils::PathString BaseStatement::fetchValue<Utils::PathString>(int column) const;
 
 template <typename BaseStatement>
-class SQLITE_EXPORT StatementImplementation : public BaseStatement
+class StatementImplementation : public BaseStatement
 {
 
 public:
     using BaseStatement::BaseStatement;
+
+    void execute()
+    {
+        Resetter resetter{*this};
+        BaseStatement::next();
+        resetter.reset();
+    }
 
     void bindValues()
     {
@@ -165,8 +178,10 @@ public:
     template<typename... ValueType>
     void write(const ValueType&... values)
     {
+        Resetter resetter{*this};
         bindValuesByIndex(1, values...);
-        BaseStatement::execute();
+        BaseStatement::next();
+        resetter.reset();
     }
 
     template<typename... ValueType>
@@ -178,8 +193,10 @@ public:
     template<typename... ValueType>
     void writeNamed(const ValueType&... values)
     {
+        Resetter resetter{*this};
         bindValuesByName(values...);
-        BaseStatement::execute();
+        BaseStatement::next();
+        resetter.reset();
     }
 
     template <typename ResultType,
@@ -192,6 +209,8 @@ public:
 
         while (BaseStatement::next())
            emplaceBackValues<ResultTypeCount>(resultValues);
+
+        resetter.reset();
 
         return resultValues;
     }
@@ -209,6 +228,8 @@ public:
 
         while (BaseStatement::next())
            emplaceBackValues<ResultTypeCount>(resultValues);
+
+        resetter.reset();
 
         return resultValues;
     }
@@ -228,6 +249,8 @@ public:
 
             while (BaseStatement::next())
                 emplaceBackValues<ResultTypeCount>(resultValues);
+
+            resetter.reset();
         }
 
         return resultValues;
@@ -249,6 +272,8 @@ public:
 
             while (BaseStatement::next())
                 emplaceBackValues<ResultTypeCount>(resultValues);
+
+            resetter.reset();
         }
 
         return resultValues;
@@ -267,6 +292,8 @@ public:
         if (BaseStatement::next())
            resultValue = assignValue<Utils::optional<ResultType>, ResultTypeCount>();
 
+        resetter.reset();
+
         return resultValue;
     }
 
@@ -280,6 +307,8 @@ public:
         return statement.template fetchValue<Type>(0);
     }
 
+protected:
+    ~StatementImplementation() = default;
 
 private:
     struct Resetter
@@ -288,12 +317,29 @@ private:
             : statement(statement)
         {}
 
-        ~Resetter()
+        void reset()
         {
-            statement.reset();
+            try {
+                statement.reset();
+            } catch (...) {
+                shouldReset = false;
+                throw;
+            }
+
+            shouldReset = false;
+        }
+
+        ~Resetter() noexcept
+        {
+            try {
+                if (shouldReset)
+                    statement.reset();
+            } catch (...) {
+            }
         }
 
         StatementImplementation &statement;
+        bool shouldReset = true;
     };
 
     struct ValueGetter

@@ -36,23 +36,35 @@ using testing::UnorderedElementsAre;
 using testing::IsEmpty;
 
 using ClangBackEnd::V2::ProjectPartContainer;
+using ClangBackEnd::FilePathId;
 
 class ProjectParts : public testing::Test
 {
 protected:
     ClangBackEnd::ProjectParts projectParts;
+    FilePathId firstHeader{1, 1};
+    FilePathId secondHeader{1, 2};
+    FilePathId firstSource{1, 11};
+    FilePathId secondSource{1, 12};
+    FilePathId thirdSource{1, 13};
     ProjectPartContainer projectPartContainer1{"id",
                                               {"-DUNIX", "-O2"},
-                                              {"headers1.h", "header2.h"},
-                                              {"source1.cpp", "source2.cpp"}};
+                                              {{"DEFINE", "1"}},
+                                              {"/includes"},
+                                              {firstHeader, secondHeader},
+                                              {firstSource, secondSource}};
     ProjectPartContainer updatedProjectPartContainer1{"id",
                                                       {"-DUNIX", "-O2"},
-                                                      {"headers1.h", "header2.h"},
-                                                      {"source1.cpp", "source2.cpp", "source3.cpp" }};
+                                                      {{"DEFINE", "1"}},
+                                                      {"/includes"},
+                                                      {firstHeader, secondHeader},
+                                                      {firstSource, secondSource, thirdSource}};
     ProjectPartContainer projectPartContainer2{"id2",
                                               {"-DUNIX", "-O2"},
-                                              {"headers1.h", "header2.h"},
-                                              {"source1.cpp", "source2.cpp"}};
+                                              {{"DEFINE", "1"}},
+                                              {"/includes"},
+                                              {firstHeader, secondHeader},
+                                              {firstSource, secondSource}};
 };
 
 TEST_F(ProjectParts, GetNoProjectPartsForAddingEmptyProjectParts)
@@ -76,16 +88,11 @@ TEST_F(ProjectParts, ProjectPartAdded)
     ASSERT_THAT(projectParts.projectParts(), ElementsAre(projectPartContainer1));
 }
 
-TEST_F(ProjectParts, FilterDublicateProjectPartsForUpdating)
-{
-    auto updatedProjectParts = projectParts.update({projectPartContainer1, projectPartContainer1});
-
-    ASSERT_THAT(updatedProjectParts, ElementsAre(projectPartContainer1));
-}
-
 TEST_F(ProjectParts, FilteredProjectPartAdded)
 {
-    projectParts.update({projectPartContainer1, projectPartContainer1});
+    projectParts.update({projectPartContainer1});
+
+    projectParts.update({projectPartContainer1});
 
     ASSERT_THAT(projectParts.projectParts(), ElementsAre(projectPartContainer1));
 }
@@ -106,13 +113,6 @@ TEST_F(ProjectParts, NoDuplicateProjectPartAfterUpdatingWithNotNewProjectPart)
     auto updatedProjectParts = projectParts.update({projectPartContainer1});
 
     ASSERT_THAT(projectParts.projectParts(), ElementsAre(projectPartContainer1));
-}
-
-TEST_F(ProjectParts, FilterUniqueProjectParts)
-{
-    auto updatedProjectParts = projectParts.uniqueProjectParts({projectPartContainer1, projectPartContainer2, projectPartContainer1});
-
-    ASSERT_THAT(updatedProjectParts, ElementsAre(projectPartContainer1, projectPartContainer2));
 }
 
 TEST_F(ProjectParts, MergeProjectParts)
@@ -162,7 +162,7 @@ TEST_F(ProjectParts, Remove)
 {
     projectParts.update({projectPartContainer1, projectPartContainer2});
 
-    projectParts.remove({projectPartContainer1.projectPartId()});
+    projectParts.remove({projectPartContainer1.projectPartId});
 
     ASSERT_THAT(projectParts.projectParts(), ElementsAre(projectPartContainer2));
 }
@@ -171,7 +171,7 @@ TEST_F(ProjectParts, GetProjectById)
 {
     projectParts.update({projectPartContainer1, projectPartContainer2});
 
-    auto projectPartContainers = projectParts.projects({projectPartContainer1.projectPartId()});
+    auto projectPartContainers = projectParts.projects({projectPartContainer1.projectPartId});
 
     ASSERT_THAT(projectPartContainers, ElementsAre(projectPartContainer1));
 }
@@ -181,7 +181,7 @@ TEST_F(ProjectParts, GetProjectsByIds)
 {
     projectParts.update({projectPartContainer1, projectPartContainer2});
 
-    auto projectPartContainers = projectParts.projects({projectPartContainer1.projectPartId(), projectPartContainer2.projectPartId()});
+    auto projectPartContainers = projectParts.projects({projectPartContainer1.projectPartId, projectPartContainer2.projectPartId});
 
     ASSERT_THAT(projectPartContainers, UnorderedElementsAre(projectPartContainer1, projectPartContainer2));
 }

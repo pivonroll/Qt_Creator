@@ -30,9 +30,11 @@
 #include <projectexplorer/kitconfigwidget.h>
 #include <projectexplorer/kitmanager.h>
 
+#include <utils/elidinglabel.h>
+#include <utils/qtcassert.h>
+
 #include <qbs.h>
 
-#include <QLabel>
 #include <QPushButton>
 
 using namespace ProjectExplorer;
@@ -46,7 +48,7 @@ class ConfigWidget final : public KitConfigWidget
 public:
     ConfigWidget(Kit *kit, const KitInformation *kitInfo)
         : KitConfigWidget(kit, kitInfo),
-          m_contentLabel(new QLabel),
+          m_contentLabel(new Utils::ElidingLabel),
           m_changeButton(new QPushButton(tr("Change...")))
     {
         connect(m_changeButton, &QPushButton::clicked, this, &ConfigWidget::changeProperties);
@@ -70,6 +72,13 @@ private:
     QPushButton * const m_changeButton;
 };
 
+QbsKitInformation::QbsKitInformation()
+{
+    setObjectName(QLatin1String("QbsKitInformation"));
+    setId(QbsKitInformation::id());
+    setPriority(22000);
+}
+
 QString QbsKitInformation::displayName()
 {
     return tr("Additional Qbs Profile Settings");
@@ -89,11 +98,13 @@ QString QbsKitInformation::representation(const Kit *kit)
 
 QVariantMap QbsKitInformation::properties(const Kit *kit)
 {
+    QTC_ASSERT(kit, return QVariantMap());
     return kit->value(id()).toMap();
 }
 
 void QbsKitInformation::setProperties(Kit *kit, const QVariantMap &properties)
 {
+    QTC_ASSERT(kit, return);
     kit->setValue(id(), properties);
 }
 

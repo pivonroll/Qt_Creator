@@ -48,12 +48,7 @@ public:
 AbstractRemoteLinuxDeployStep::AbstractRemoteLinuxDeployStep(BuildStepList *bsl, Core::Id id)
     : BuildStep(bsl, id), d(new Internal::AbstractRemoteLinuxDeployStepPrivate)
 {
-}
-
-AbstractRemoteLinuxDeployStep::AbstractRemoteLinuxDeployStep(BuildStepList *bsl,
-        AbstractRemoteLinuxDeployStep *other)
-    : BuildStep(bsl, other), d(new Internal::AbstractRemoteLinuxDeployStepPrivate)
-{
+    setRunInGuiThread(true);
 }
 
 AbstractRemoteLinuxDeployStep::~AbstractRemoteLinuxDeployStep()
@@ -114,11 +109,6 @@ void AbstractRemoteLinuxDeployStep::cancel()
                    OutputFormat::NormalMessage);
     d->hasError = true;
     deployService()->stop();
-}
-
-BuildStepConfigWidget *AbstractRemoteLinuxDeployStep::createConfigWidget()
-{
-    return new SimpleBuildStepConfigWidget(this);
 }
 
 RemoteLinuxDeployConfiguration *AbstractRemoteLinuxDeployStep::deployConfiguration() const

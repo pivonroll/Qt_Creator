@@ -59,28 +59,22 @@ using namespace QmlDebug::Constants;
 namespace Debugger {
 namespace Internal {
 
-Q_LOGGING_CATEGORY(qmlInspectorLog, "qtc.dbg.qmlinspector")
+Q_LOGGING_CATEGORY(qmlInspectorLog, "qtc.dbg.qmlinspector", QtWarningMsg)
 
 /*!
  * DebuggerAgent updates the watchhandler with the object tree data.
  */
 QmlInspectorAgent::QmlInspectorAgent(QmlEngine *engine, QmlDebugConnection *connection)
     : m_qmlEngine(engine)
-    , m_engineClient(0)
-    , m_engineQueryId(0)
-    , m_rootContextQueryId(0)
     , m_objectToSelect(WatchItem::InvalidId)
-    , m_masterEngine(engine)
-    , m_toolsClient(0)
+    , m_toolsClient(nullptr)
     , m_targetToSync(NoTarget)
     , m_debugIdToSelect(WatchItem::InvalidId)
     , m_currentSelectedDebugId(WatchItem::InvalidId)
-    , m_toolsClientConnected(false)
     , m_inspectorToolsContext("Debugger.QmlInspector")
     , m_selectAction(new QAction(this))
     , m_zoomAction(new QAction(this))
     , m_showAppOnTopAction(action(ShowAppOnTop))
-    , m_engineClientConnected(false)
 {
     m_debugIdToIname.insert(WatchItem::InvalidId, "inspect");
     connect(action(ShowQmlObjectTree),
@@ -91,9 +85,6 @@ QmlInspectorAgent::QmlInspectorAgent(QmlEngine *engine, QmlDebugConnection *conn
     m_delayQueryTimer.setInterval(100);
     connect(&m_delayQueryTimer, &QTimer::timeout,
             this, &QmlInspectorAgent::queryEngineContext);
-
-    if (!m_masterEngine->isMasterEngine())
-        m_masterEngine = m_masterEngine->masterEngine();
 
     auto engineClient1 = new DeclarativeEngineDebugClient(connection);
     connect(engineClient1, &BaseEngineDebugClient::newState,
@@ -137,8 +128,8 @@ QmlInspectorAgent::QmlInspectorAgent(QmlEngine *engine, QmlDebugConnection *conn
             this, &QmlInspectorAgent::toolsClientStateChanged);
 
     // toolbar
-    m_selectAction->setObjectName(QLatin1String("QML Select Action"));
-    m_zoomAction->setObjectName(QLatin1String("QML Zoom Action"));
+    m_selectAction->setObjectName("QML Select Action");
+    m_zoomAction->setObjectName("QML Zoom Action");
     m_selectAction->setCheckable(true);
     m_zoomAction->setCheckable(true);
     m_showAppOnTopAction->setCheckable(true);
@@ -232,7 +223,7 @@ bool QmlInspectorAgent::selectObjectInTree(int debugId)
         // we may have to fetch it
         m_objectToSelect = debugId;
         using namespace QmlDebug::Constants;
-        if (m_engineClient->objectName() == QLatin1String(QDECLARATIVE_ENGINE)) {
+        if (m_engineClient->objectName() == QDECLARATIVE_ENGINE) {
             // reset current Selection
             QString root = m_qmlEngine->watchHandler()->watchItem(QModelIndex())->iname;
             m_qmlEngine->watchHandler()->setCurrentItem(root);
@@ -331,9 +322,9 @@ void QmlInspectorAgent::onResult(quint32 queryId, const QVariant &value,
                || type == "RESET_BINDING_R"
                || type == "SET_METHOD_BODY_R") {
         // FIXME: This is not supported anymore.
-        QString msg = QLatin1String(type) + tr("Success:");
-        msg += QLatin1Char(' ');
-        msg += value.toBool() ? QLatin1Char('1') : QLatin1Char('0');
+        QString msg = type + tr("Success:");
+        msg += ' ';
+        msg += value.toBool() ? '1' : '0';
         // if (!value.toBool())
         //     emit automaticUpdateFailed();
         log(LogReceive, msg);
@@ -344,8 +335,8 @@ void QmlInspectorAgent::onResult(quint32 queryId, const QVariant &value,
     if (m_objectTreeQueryIds.contains(queryId)) {
         m_objectTreeQueryIds.removeOne(queryId);
         if (value.type() == QVariant::List) {
-            QVariantList objList = value.toList();
-            foreach (const QVariant &var, objList) {
+            const QVariantList objList = value.toList();
+            for (const QVariant &var : objList) {
                 // TODO: check which among the list is the actual
                 // object that needs to be selected.
                 verifyAndInsertObjectInTree(qvariant_cast<ObjectReference>(var));
@@ -375,13 +366,58 @@ void QmlInspectorAgent::newObject(int engineId, int /*objectId*/, int /*parentId
 {
     qCDebug(qmlInspectorLog) << __FUNCTION__ << "()";
 
-    log(LogReceive, QLatin1String("OBJECT_CREATED"));
+    log(LogReceive, "OBJECT_CREATED");
 
     if (m_engine.debugId() != engineId)
         return;
 
     // TODO: FIX THIS for qt 5.x (Needs update in the qt side)
     m_delayQueryTimer.start();
+}
+
+static void sortChildrenIfNecessary(WatchItem *propertiesWatch)
+{
+    if (boolSetting(SortStructMembers)) {
+        propertiesWatch->sortChildren([](const WatchItem *item1, const WatchItem *item2) {
+            return item1->name < item2->name;
+        });
+    }
+}
+
+static bool insertChildren(WatchItem *parent, const QVariant &value)
+{
+    switch (value.type()) {
+    case QVariant::Map: {
+        const QVariantMap map = value.toMap();
+        for (auto it = map.begin(), end = map.end(); it != end; ++it) {
+            auto child = new WatchItem;
+            child->name = it.key();
+            child->value = it.value().toString();
+            child->type = QLatin1String(it.value().typeName());
+            child->valueEditable = false;
+            child->wantsChildren = insertChildren(child, it.value());
+            parent->appendChild(child);
+        }
+        sortChildrenIfNecessary(parent);
+        return true;
+    }
+    case QVariant::List: {
+        const QVariantList list = value.toList();
+        for (int i = 0, end = list.size(); i != end; ++i) {
+            auto child = new WatchItem;
+            const QVariant &value = list.at(i);
+            child->arrayIndex = i;
+            child->value = value.toString();
+            child->type = QLatin1String(value.typeName());
+            child->valueEditable = false;
+            child->wantsChildren = insertChildren(child, value);
+            parent->appendChild(child);
+        }
+        return true;
+    }
+    default:
+        return false;
+    }
 }
 
 void QmlInspectorAgent::onValueChanged(int debugId, const QByteArray &propertyName,
@@ -395,6 +431,8 @@ void QmlInspectorAgent::onValueChanged(int debugId, const QByteArray &propertyNa
             << value.toString();
     if (WatchItem *item = watchHandler->findItem(iname)) {
         item->value = value.toString();
+        item->removeChildren();
+        item->wantsChildren = insertChildren(item, value);
         item->update();
     }
 }
@@ -418,7 +456,7 @@ void QmlInspectorAgent::queryEngineContext()
     if (!isConnected() || !boolSetting(ShowQmlObjectTree))
         return;
 
-    log(LogSend, QLatin1String("LIST_OBJECTS"));
+    log(LogSend, "LIST_OBJECTS");
 
     m_rootContextQueryId
             = m_engineClient->queryRootContexts(m_engine);
@@ -431,7 +469,7 @@ void QmlInspectorAgent::fetchObject(int debugId)
     if (!isConnected() || !boolSetting(ShowQmlObjectTree))
         return;
 
-    log(LogSend, QLatin1String("FETCH_OBJECT ") + QString::number(debugId));
+    log(LogSend, "FETCH_OBJECT " + QString::number(debugId));
     quint32 queryId = m_engineClient->queryObject(debugId);
     qCDebug(qmlInspectorLog) << __FUNCTION__ << '(' << debugId << ')'
                              << " - query id" << queryId;
@@ -537,7 +575,7 @@ void QmlInspectorAgent::insertObjectInTree(const ObjectReference &object)
         m_qmlEngine->watchHandler()->setCurrentItem(iname);
         m_objectToSelect = WatchItem::InvalidId;
     }
-    m_qmlEngine->watchHandler()->updateWatchersWindow();
+    m_qmlEngine->watchHandler()->updateLocalsWindow();
     m_qmlEngine->watchHandler()->reexpandItems();
 }
 
@@ -552,7 +590,7 @@ void QmlInspectorAgent::buildDebugIdHashRecursive(const ObjectReference &ref)
 
     // handle the case where the url contains the revision number encoded.
     //(for object created by the debugger)
-    static QRegExp rx(QLatin1String("(.*)_(\\d+):(\\d+)$"));
+    static QRegExp rx("(.*)_(\\d+):(\\d+)$");
     if (rx.exactMatch(fileUrl.path())) {
         fileUrl.setPath(rx.cap(1));
         rev = rx.cap(2).toInt();
@@ -661,16 +699,11 @@ void QmlInspectorAgent::addWatchData(const ObjectReference &obj,
             propertyWatch->exp = propertyName;
             propertyWatch->type = property.valueTypeName();
             propertyWatch->value = property.value().toString();
-            propertyWatch->wantsChildren = false;
+            propertyWatch->wantsChildren = insertChildren(propertyWatch, property.value());
             propertiesWatch->appendChild(propertyWatch);
         }
 
-        if (boolSetting(SortStructMembers)) {
-            propertiesWatch->sortChildren([](const WatchItem *item1, const WatchItem *item2) {
-                return item1->name < item2->name;
-            });
-        }
-
+        sortChildrenIfNecessary(propertiesWatch);
         m_qmlEngine->watchHandler()->insertItem(propertiesWatch);
     }
 
@@ -717,7 +750,7 @@ void QmlInspectorAgent::clientStateChanged(QmlDebugClient::State state)
 {
     QString serviceName;
     float version = 0;
-    if (QmlDebugClient *client = qobject_cast<QmlDebugClient*>(sender())) {
+    if (auto client = qobject_cast<QmlDebugClient*>(sender())) {
         serviceName = client->name();
         version = client->serviceVersion();
     }
@@ -727,7 +760,7 @@ void QmlInspectorAgent::clientStateChanged(QmlDebugClient::State state)
 
 void QmlInspectorAgent::toolsClientStateChanged(QmlDebugClient::State state)
 {
-    BaseToolsClient *client = qobject_cast<BaseToolsClient*>(sender());
+    auto client = qobject_cast<BaseToolsClient*>(sender());
     QTC_ASSERT(client, return);
     if (state == QmlDebugClient::Enabled) {
         m_toolsClient = client;
@@ -754,7 +787,7 @@ void QmlInspectorAgent::toolsClientStateChanged(QmlDebugClient::State state)
         Core::ICore::addAdditionalContext(m_inspectorToolsContext);
 
         m_toolsClientConnected = true;
-        enableTools(m_masterEngine->state() == InferiorRunOk);
+        enableTools(m_qmlEngine->state() == InferiorRunOk);
         if (m_showAppOnTopAction->isChecked())
             m_toolsClient->showAppOnTop(true);
 
@@ -781,8 +814,7 @@ void QmlInspectorAgent::toolsClientStateChanged(QmlDebugClient::State state)
 
 void QmlInspectorAgent::engineClientStateChanged(QmlDebugClient::State state)
 {
-    BaseEngineDebugClient *client
-            = qobject_cast<BaseEngineDebugClient*>(sender());
+    auto client = qobject_cast<BaseEngineDebugClient*>(sender());
 
     if (state == QmlDebugClient::Enabled && !m_engineClientConnected) {
         // We accept the first client that is enabled and reject the others.
@@ -870,7 +902,7 @@ void QmlInspectorAgent::setActiveEngineClient(BaseEngineDebugClient *client)
 void QmlInspectorAgent::jumpToObjectDefinitionInEditor(
         const FileReference &objSource, int debugId)
 {
-    const QString fileName = m_masterEngine->toFileInProject(objSource.url());
+    const QString fileName = m_qmlEngine->toFileInProject(objSource.url());
 
     Core::EditorManager::openEditorAt(fileName, objSource.lineNumber());
     if (debugId != WatchItem::InvalidId && debugId != m_currentSelectedDebugId) {

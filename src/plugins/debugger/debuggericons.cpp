@@ -44,6 +44,9 @@ const Icon WATCHPOINT({
 const Icon TRACEPOINT({
         {":/utils/images/eye_open.png", Theme::TextColorNormal},
         {":/debugger/images/tracepointoverlay.png", Theme::TextColorNormal}}, Icon::Tint | Icon::PunchEdges);
+const Icon TRACEPOINT_TOOLBAR({
+        {":/utils/images/eye_open.png", Theme::IconsBaseColor},
+        {":/debugger/images/tracepointoverlay.png", Theme::IconsBaseColor}});
 const Icon CONTINUE(
         ":/debugger/images/debugger_continue.png");
 const Icon CONTINUE_FLAT({
@@ -63,6 +66,9 @@ const Icon INTERRUPT(
 const Icon INTERRUPT_FLAT({
         {":/debugger/images/debugger_interrupt_mask.png", Theme::IconsInterruptToolBarColor},
         {":/projectexplorer/images/debugger_beetle_mask.png", Theme::IconsDebugColor}});
+const Icon STOP_FLAT({
+        {":/debugger/images/debugger_stop_mask.png", Theme::IconsStopColor},
+        {":/projectexplorer/images/debugger_beetle_mask.png", Theme::IconsDebugColor}});
 const Icon DEBUG_INTERRUPT_SMALL({
         {":/utils/images/interrupt_small.png", Theme::IconsInterruptColor},
         {":/projectexplorer/images/debugger_overlay_small.png", Theme::PanelTextColorMid}}, Icon::MenuTintedStyle);
@@ -78,17 +84,26 @@ const Icon DEBUG_EXIT_SMALL_TOOLBAR({
 const Icon LOCATION({
         {":/debugger/images/location_background.png", Theme::IconsCodeModelOverlayForegroundColor},
         {":/debugger/images/location.png", Theme::IconsWarningToolBarColor}}, Icon::Tint);
+const Icon REVERSE_LOCATION({
+        {":/debugger/images/debugger_reversemode_background.png", Theme::IconsCodeModelOverlayForegroundColor},
+        {":/debugger/images/debugger_reversemode.png", Theme::IconsWarningToolBarColor}}, Icon::Tint);
 const Icon REVERSE_MODE({
         {":/debugger/images/debugger_reversemode_background.png", Theme::IconsCodeModelOverlayForegroundColor},
         {":/debugger/images/debugger_reversemode.png", Theme::IconsInfoColor}}, Icon::Tint);
+const Icon DIRECTION_BACKWARD({
+        {":/debugger/images/debugger_reversemode_background.png", Theme::IconsCodeModelOverlayForegroundColor},
+        {":/debugger/images/debugger_reversemode.png", Theme::IconsInfoColor}}, Icon::Tint);
+const Icon DIRECTION_FORWARD({
+        {":/debugger/images/location_background.png", Theme::IconsCodeModelOverlayForegroundColor},
+        {":/debugger/images/location.png", Theme::IconsInfoColor}}, Icon::Tint);
 const Icon APP_ON_TOP({
-        {":/debugger/images/qml/app-on-top.png", Theme::PanelTextColorMid}}, Icon::MenuTintedStyle);
+        {":/utils/images/app-on-top.png", Theme::PanelTextColorMid}}, Icon::MenuTintedStyle);
 const Icon APP_ON_TOP_TOOLBAR({
-        {":/debugger/images/qml/app-on-top.png", Theme::IconsBaseColor}});
+        {":/utils/images/app-on-top.png", Theme::IconsBaseColor}});
 const Icon SELECT({
-        {":/debugger/images/qml/select.png", Theme::PanelTextColorMid}}, Icon::MenuTintedStyle);
+        {":/utils/images/select.png", Theme::PanelTextColorMid}}, Icon::MenuTintedStyle);
 const Icon SELECT_TOOLBAR({
-        {":/debugger/images/qml/select.png", Theme::IconsBaseColor}});
+        {":/utils/images/select.png", Theme::IconsBaseColor}});
 const Icon EMPTY(
         ":/debugger/images/debugger_empty_14.png");
 const Icon RECORD_ON({

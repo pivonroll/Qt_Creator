@@ -492,7 +492,7 @@ def qdump__QFile(d, value):
     if qtVersion >= 0x050700:
         if d.isWindowsTarget():
             if d.isMsvcTarget():
-                offset = 184 if is32bit else 248
+                offset = 176 if is32bit else 248
             else:
                 offset = 172 if is32bit else 248
         else:
@@ -644,10 +644,8 @@ def qdump__QFiniteStack(d, value):
 def qdump__QFlags(d, value):
     i = value.split('{int}')[0]
     enumType = value.type[0]
-    if d.isGdb:
-        d.putValue(i.cast('enum ' + enumType.name).display(useHex = 1))
-    else:
-        d.putValue(i.cast(enumType.name).display())
+    v = i.cast(enumType.name)
+    d.putValue(v.displayEnum('0x%04x'))
     d.putNumChild(0)
 
 
@@ -1795,6 +1793,14 @@ def qdump__QVector(d, value):
     d.putItemCount(size)
     d.putPlotData(data, size, value.type[0])
 
+def qdump__QObjectConnectionList(d, value):
+    dd = d.extractPointer(value)
+    data, size, alloc = d.vectorDataHelper(dd)
+    d.check(0 <= size and size <= alloc and alloc <= 1000 * 1000 * 1000)
+    d.putItemCount(size)
+    d.putPlotData(data, size, d.createType('@QObjectPrivate::ConnectionList'))
+
+
 def qdump__QVarLengthArray(d, value):
     (cap, size, data) = value.split('iip')
     d.check(0 <= size)
@@ -1808,7 +1814,10 @@ def qdump__QSharedPointer(d, value):
 def qdump__QWeakPointer(d, value):
     qdump_QWeakPointerHelper(d, value, True)
 
-def qdump_QWeakPointerHelper(d, value, isWeak):
+def qdump__QPointer(d, value):
+    qdump_QWeakPointerHelper(d, value['wp'], True, value.type[0])
+
+def qdump_QWeakPointerHelper(d, value, isWeak, innerType = None):
     if isWeak:
         (d_ptr, val) = value.split('pp')
     else:
@@ -1830,7 +1839,8 @@ def qdump_QWeakPointerHelper(d, value, isWeak):
     d.check(strongref <= weakref)
     d.check(weakref <= 10*1000*1000)
 
-    innerType = value.type[0]
+    if innerType is None:
+        innerType = value.type[0]
     with Children(d):
         short = d.putSubItem('data', d.createValue(val, innerType))
         d.putIntItem('weakref', weakref)
@@ -2785,7 +2795,7 @@ def qdump__qfloat16(d, value):
     elif exp == 0b11111:
         res = ('-inf' if sign else 'inf') if fraction == 0 else 'nan'
     else:
-        res = (-1)**sign * (1 + fraction / 2**10) * 2**(exp - 15)
+        res = (-1)**sign * (1 + 1. * fraction / 2**10) * 2**(exp - 15)
     d.putValue(res)
     d.putNumChild(1)
     d.putPlainChildren(value)

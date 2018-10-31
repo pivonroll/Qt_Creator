@@ -39,6 +39,7 @@
 #include <cpptools/cppclassesfilter.h>
 #include <cpptools/cppcodestylesettings.h>
 #include <cpptools/cpppointerdeclarationformatter.h>
+#include <cpptools/cpprefactoringchanges.h>
 #include <cpptools/cpptoolsbridge.h>
 #include <cpptools/cpptoolsconstants.h>
 #include <cpptools/cpptoolsreuse.h>
@@ -56,7 +57,6 @@
 
 #include <utils/fancylineedit.h>
 #include <utils/qtcassert.h>
-#include <utils/qtcfallthrough.h>
 
 #include <QApplication>
 #include <QComboBox>
@@ -66,12 +66,15 @@
 #include <QFormLayout>
 #include <QInputDialog>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSharedPointer>
 #include <QStack>
 #include <QTextCursor>
 #include <QTextCodec>
 
+#include <bitset>
 #include <cctype>
+#include <limits>
 
 using namespace CPlusPlus;
 using namespace CppTools;
@@ -79,60 +82,25 @@ using namespace TextEditor;
 using Utils::ChangeSet;
 
 namespace CppEditor {
-namespace Internal {
 
-void registerQuickFixes(ExtensionSystem::IPlugin *plugIn)
+static QList<CppQuickFixFactory *> g_cppQuickFixFactories;
+
+CppQuickFixFactory::CppQuickFixFactory()
 {
-    plugIn->addAutoReleasedObject(new AddIncludeForUndefinedIdentifier);
-
-    plugIn->addAutoReleasedObject(new FlipLogicalOperands);
-    plugIn->addAutoReleasedObject(new InverseLogicalComparison);
-    plugIn->addAutoReleasedObject(new RewriteLogicalAnd);
-
-    plugIn->addAutoReleasedObject(new ConvertToCamelCase);
-
-    plugIn->addAutoReleasedObject(new ConvertCStringToNSString);
-    plugIn->addAutoReleasedObject(new ConvertNumericLiteral);
-    plugIn->addAutoReleasedObject(new TranslateStringLiteral);
-    plugIn->addAutoReleasedObject(new WrapStringLiteral);
-
-    plugIn->addAutoReleasedObject(new MoveDeclarationOutOfIf);
-    plugIn->addAutoReleasedObject(new MoveDeclarationOutOfWhile);
-
-    plugIn->addAutoReleasedObject(new SplitIfStatement);
-    plugIn->addAutoReleasedObject(new SplitSimpleDeclaration);
-
-    plugIn->addAutoReleasedObject(new AddLocalDeclaration);
-    plugIn->addAutoReleasedObject(new AddBracesToIf);
-    plugIn->addAutoReleasedObject(new RearrangeParamDeclarationList);
-    plugIn->addAutoReleasedObject(new ReformatPointerDeclaration);
-
-    plugIn->addAutoReleasedObject(new CompleteSwitchCaseStatement);
-    plugIn->addAutoReleasedObject(new InsertQtPropertyMembers);
-    plugIn->addAutoReleasedObject(new ConvertQt4Connect);
-
-    plugIn->addAutoReleasedObject(new ApplyDeclDefLinkChanges);
-    plugIn->addAutoReleasedObject(new ConvertFromAndToPointer);
-    plugIn->addAutoReleasedObject(new ExtractFunction);
-    plugIn->addAutoReleasedObject(new ExtractLiteralAsParameter);
-    plugIn->addAutoReleasedObject(new GenerateGetterSetter);
-    plugIn->addAutoReleasedObject(new InsertDeclFromDef);
-    plugIn->addAutoReleasedObject(new InsertDefFromDecl);
-
-    plugIn->addAutoReleasedObject(new MoveFuncDefOutside);
-    plugIn->addAutoReleasedObject(new MoveAllFuncDefOutside);
-    plugIn->addAutoReleasedObject(new MoveFuncDefToDecl);
-
-    plugIn->addAutoReleasedObject(new AssignToLocalVariable);
-
-    plugIn->addAutoReleasedObject(new InsertVirtualMethods);
-
-    plugIn->addAutoReleasedObject(new OptimizeForLoop);
-
-    plugIn->addAutoReleasedObject(new EscapeStringLiteral);
-
-    plugIn->addAutoReleasedObject(new ExtraRefactoringOperations);
+    g_cppQuickFixFactories.append(this);
 }
+
+CppQuickFixFactory::~CppQuickFixFactory()
+{
+    g_cppQuickFixFactories.removeOne(this);
+}
+
+const QList<CppQuickFixFactory *> &CppQuickFixFactory::cppQuickFixFactories()
+{
+    return g_cppQuickFixFactories;
+}
+
+namespace Internal {
 
 // In the following anonymous namespace all functions are collected, which could be of interest for
 // different quick fixes.
@@ -590,6 +558,8 @@ void RewriteLogicalAnd::match(const CppQuickFixInterface &interface, QuickFixOpe
 
     QSharedPointer<RewriteLogicalAndOp> op(new RewriteLogicalAndOp(interface));
 
+    ASTMatcher matcher;
+
     if (expression->match(op->pattern, &matcher) &&
             file->tokenAt(op->pattern->binary_op_token).is(T_AMPER_AMPER) &&
             file->tokenAt(op->left->unary_op_token).is(T_EXCLAIM) &&
@@ -601,7 +571,7 @@ void RewriteLogicalAnd::match(const CppQuickFixInterface &interface, QuickFixOpe
     }
 }
 
-bool SplitSimpleDeclaration::checkDeclaration(SimpleDeclarationAST *declaration)
+static bool checkDeclarationForSplit(SimpleDeclarationAST *declaration)
 {
     if (!declaration->semicolon_token)
         return false;
@@ -696,7 +666,7 @@ void SplitSimpleDeclaration::match(const CppQuickFixInterface &interface,
         if (CoreDeclaratorAST *coreDecl = node->asCoreDeclarator()) {
             core_declarator = coreDecl;
         } else if (SimpleDeclarationAST *simpleDecl = node->asSimpleDeclaration()) {
-            if (checkDeclaration(simpleDecl)) {
+            if (checkDeclarationForSplit(simpleDecl)) {
                 SimpleDeclarationAST *declaration = simpleDecl;
 
                 const int startOfDeclSpecifier = file->startOf(declaration->decl_specifier_list->firstToken());
@@ -1073,10 +1043,76 @@ void SplitIfStatement::match(const CppQuickFixInterface &interface, QuickFixOper
 /* Analze a string/character literal like "x", QLatin1String("x") and return the literal
  * (StringLiteral or NumericLiteral for characters) and its type
  * and the enclosing function (QLatin1String, tr...) */
-ExpressionAST *WrapStringLiteral::analyze(const QList<AST *> &path,
-                                          const CppRefactoringFilePtr &file, Type *type,
-                                          QByteArray *enclosingFunction /* = 0 */,
-                                          CallAST **enclosingFunctionCall /* = 0 */)
+
+enum StringLiteralType { TypeString, TypeObjCString, TypeChar, TypeNone };
+
+enum ActionFlags {
+    EncloseInQLatin1CharAction = 0x1,
+    EncloseInQLatin1StringAction = 0x2,
+    EncloseInQStringLiteralAction = 0x4,
+    EncloseActionMask = EncloseInQLatin1CharAction
+    | EncloseInQLatin1StringAction | EncloseInQStringLiteralAction,
+    TranslateTrAction = 0x8,
+    TranslateQCoreApplicationAction = 0x10,
+    TranslateNoopAction = 0x20,
+    TranslationMask = TranslateTrAction
+    | TranslateQCoreApplicationAction | TranslateNoopAction,
+    RemoveObjectiveCAction = 0x40,
+    ConvertEscapeSequencesToCharAction = 0x100,
+    ConvertEscapeSequencesToStringAction = 0x200,
+    SingleQuoteAction = 0x400,
+    DoubleQuoteAction = 0x800
+};
+
+
+/* Convert single-character string literals into character literals with some
+ * special cases "a" --> 'a', "'" --> '\'', "\n" --> '\n', "\"" --> '"'. */
+static QByteArray stringToCharEscapeSequences(const QByteArray &content)
+{
+    if (content.size() == 1)
+        return content.at(0) == '\'' ? QByteArray("\\'") : content;
+    if (content.size() == 2 && content.at(0) == '\\')
+        return content == "\\\"" ? QByteArray(1, '"') : content;
+    return QByteArray();
+}
+
+/* Convert character literal into a string literal with some special cases
+ * 'a' -> "a", '\n' -> "\n", '\'' --> "'", '"' --> "\"". */
+static QByteArray charToStringEscapeSequences(const QByteArray &content)
+{
+    if (content.size() == 1)
+        return content.at(0) == '"' ? QByteArray("\\\"") : content;
+    if (content.size() == 2)
+        return content == "\\'" ? QByteArray("'") : content;
+    return QByteArray();
+}
+
+static QString msgQtStringLiteralDescription(const QString &replacement)
+{
+    return QApplication::translate("CppTools::QuickFix", "Enclose in %1(...)").arg(replacement);
+}
+
+static QString stringLiteralReplacement(unsigned actions)
+{
+    if (actions & EncloseInQLatin1CharAction)
+        return QLatin1String("QLatin1Char");
+    if (actions & EncloseInQLatin1StringAction)
+        return QLatin1String("QLatin1String");
+    if (actions & EncloseInQStringLiteralAction)
+        return QLatin1String("QStringLiteral");
+    if (actions & TranslateTrAction)
+        return QLatin1String("tr");
+    if (actions & TranslateQCoreApplicationAction)
+        return QLatin1String("QCoreApplication::translate");
+    if (actions & TranslateNoopAction)
+        return QLatin1String("QT_TRANSLATE_NOOP");
+    return QString();
+}
+
+static ExpressionAST *analyzeStringLiteral(const QList<AST *> &path,
+                                           const CppRefactoringFilePtr &file, StringLiteralType *type,
+                                           QByteArray *enclosingFunction = nullptr,
+                                           CallAST **enclosingFunctionCall = nullptr)
 {
     *type = TypeNone;
     if (enclosingFunction)
@@ -1122,8 +1158,6 @@ namespace {
 class WrapStringLiteralOp : public CppQuickFixOperation
 {
 public:
-    typedef WrapStringLiteral Factory;
-
     WrapStringLiteralOp(const CppQuickFixInterface &interface, int priority,
                         unsigned actions, const QString &description, ExpressionAST *literal,
                         const QString &translationContext = QString())
@@ -1144,46 +1178,46 @@ public:
         const int endPos = currentFile->endOf(m_literal);
 
         // kill leading '@'. No need to adapt endPos, that is done by ChangeSet
-        if (m_actions & Factory::RemoveObjectiveCAction)
+        if (m_actions & RemoveObjectiveCAction)
             changes.remove(startPos, startPos + 1);
 
         // Fix quotes
-        if (m_actions & (Factory::SingleQuoteAction | Factory::DoubleQuoteAction)) {
-            const QString newQuote((m_actions & Factory::SingleQuoteAction)
+        if (m_actions & (SingleQuoteAction | DoubleQuoteAction)) {
+            const QString newQuote((m_actions & SingleQuoteAction)
                                    ? QLatin1Char('\'') : QLatin1Char('"'));
             changes.replace(startPos, startPos + 1, newQuote);
             changes.replace(endPos - 1, endPos, newQuote);
         }
 
         // Convert single character strings into character constants
-        if (m_actions & Factory::ConvertEscapeSequencesToCharAction) {
+        if (m_actions & ConvertEscapeSequencesToCharAction) {
             StringLiteralAST *stringLiteral = m_literal->asStringLiteral();
             QTC_ASSERT(stringLiteral, return ;);
             const QByteArray oldContents(currentFile->tokenAt(stringLiteral->literal_token).identifier->chars());
-            const QByteArray newContents = Factory::stringToCharEscapeSequences(oldContents);
+            const QByteArray newContents = stringToCharEscapeSequences(oldContents);
             QTC_ASSERT(!newContents.isEmpty(), return ;);
             if (oldContents != newContents)
                 changes.replace(startPos + 1, endPos -1, QString::fromLatin1(newContents));
         }
 
         // Convert character constants into strings constants
-        if (m_actions & Factory::ConvertEscapeSequencesToStringAction) {
+        if (m_actions & ConvertEscapeSequencesToStringAction) {
             NumericLiteralAST *charLiteral = m_literal->asNumericLiteral(); // char 'c' constants are numerical.
             QTC_ASSERT(charLiteral, return ;);
             const QByteArray oldContents(currentFile->tokenAt(charLiteral->literal_token).identifier->chars());
-            const QByteArray newContents = Factory::charToStringEscapeSequences(oldContents);
+            const QByteArray newContents = charToStringEscapeSequences(oldContents);
             QTC_ASSERT(!newContents.isEmpty(), return ;);
             if (oldContents != newContents)
                 changes.replace(startPos + 1, endPos -1, QString::fromLatin1(newContents));
         }
 
         // Enclose in literal or translation function, macro.
-        if (m_actions & (Factory::EncloseActionMask | Factory::TranslationMask)) {
+        if (m_actions & (EncloseActionMask | TranslationMask)) {
             changes.insert(endPos, QString(QLatin1Char(')')));
-            QString leading = Factory::replacement(m_actions);
+            QString leading = stringLiteralReplacement(m_actions);
             leading += QLatin1Char('(');
             if (m_actions
-                    & (Factory::TranslateQCoreApplicationAction | Factory::TranslateNoopAction)) {
+                    & (TranslateQCoreApplicationAction | TranslateNoopAction)) {
                 leading += QLatin1Char('"');
                 leading += m_translationContext;
                 leading += QLatin1String("\", ");
@@ -1205,11 +1239,11 @@ private:
 
 void WrapStringLiteral::match(const CppQuickFixInterface &interface, QuickFixOperations &result)
 {
-    Type type = TypeNone;
+    StringLiteralType type = TypeNone;
     QByteArray enclosingFunction;
     const QList<AST *> &path = interface.path();
     CppRefactoringFilePtr file = interface.currentFile();
-    ExpressionAST *literal = analyze(path, file, &type, &enclosingFunction);
+    ExpressionAST *literal = analyzeStringLiteral(path, file, &type, &enclosingFunction);
     if (!literal || type == TypeNone)
         return;
     if ((type == TypeChar && enclosingFunction == "QLatin1Char")
@@ -1220,7 +1254,7 @@ void WrapStringLiteral::match(const CppQuickFixInterface &interface, QuickFixOpe
     const int priority = path.size() - 1; // very high priority
     if (type == TypeChar) {
         unsigned actions = EncloseInQLatin1CharAction;
-        QString description = msgQtStringLiteralDescription(replacement(actions));
+        QString description = msgQtStringLiteralDescription(stringLiteralReplacement(actions));
         result << new WrapStringLiteralOp(interface, priority, actions, description, literal);
         if (NumericLiteralAST *charLiteral = literal->asNumericLiteral()) {
             const QByteArray contents(file->tokenAt(charLiteral->literal_token).identifier->chars());
@@ -1254,74 +1288,23 @@ void WrapStringLiteral::match(const CppQuickFixInterface &interface, QuickFixOpe
         }
         actions = EncloseInQLatin1StringAction | objectiveCActions;
         result << new WrapStringLiteralOp(interface, priority, actions,
-                                          msgQtStringLiteralDescription(replacement(actions), 4), literal);
+                                          msgQtStringLiteralDescription(stringLiteralReplacement(actions)), literal);
         actions = EncloseInQStringLiteralAction | objectiveCActions;
         result << new WrapStringLiteralOp(interface, priority, actions,
-                                          msgQtStringLiteralDescription(replacement(actions), 5), literal);
+                                          msgQtStringLiteralDescription(stringLiteralReplacement(actions)), literal);
     }
-}
-
-QString WrapStringLiteral::replacement(unsigned actions)
-{
-    if (actions & EncloseInQLatin1CharAction)
-        return QLatin1String("QLatin1Char");
-    if (actions & EncloseInQLatin1StringAction)
-        return QLatin1String("QLatin1String");
-    if (actions & EncloseInQStringLiteralAction)
-        return QLatin1String("QStringLiteral");
-    if (actions & TranslateTrAction)
-        return QLatin1String("tr");
-    if (actions & TranslateQCoreApplicationAction)
-        return QLatin1String("QCoreApplication::translate");
-    if (actions & TranslateNoopAction)
-        return QLatin1String("QT_TRANSLATE_NOOP");
-    return QString();
-}
-
-/* Convert single-character string literals into character literals with some
- * special cases "a" --> 'a', "'" --> '\'', "\n" --> '\n', "\"" --> '"'. */
-QByteArray WrapStringLiteral::stringToCharEscapeSequences(const QByteArray &content)
-{
-    if (content.size() == 1)
-        return content.at(0) == '\'' ? QByteArray("\\'") : content;
-    if (content.size() == 2 && content.at(0) == '\\')
-        return content == "\\\"" ? QByteArray(1, '"') : content;
-    return QByteArray();
-}
-
-/* Convert character literal into a string literal with some special cases
- * 'a' -> "a", '\n' -> "\n", '\'' --> "'", '"' --> "\"". */
-QByteArray WrapStringLiteral::charToStringEscapeSequences(const QByteArray &content)
-{
-    if (content.size() == 1)
-        return content.at(0) == '"' ? QByteArray("\\\"") : content;
-    if (content.size() == 2)
-        return content == "\\'" ? QByteArray("'") : content;
-    return QByteArray();
-}
-
-inline QString WrapStringLiteral::msgQtStringLiteralDescription(const QString &replacement,
-                                                                       int qtVersion)
-{
-    return QApplication::translate("CppTools::QuickFix", "Enclose in %1(...) (Qt %2)")
-           .arg(replacement).arg(qtVersion);
-}
-
-inline QString WrapStringLiteral::msgQtStringLiteralDescription(const QString &replacement)
-{
-    return QApplication::translate("CppTools::QuickFix", "Enclose in %1(...)").arg(replacement);
 }
 
 void TranslateStringLiteral::match(const CppQuickFixInterface &interface,
                                    QuickFixOperations &result)
 {
     // Initialize
-    WrapStringLiteral::Type type = WrapStringLiteral::TypeNone;
+    StringLiteralType type = TypeNone;
     QByteArray enclosingFunction;
     const QList<AST *> &path = interface.path();
     CppRefactoringFilePtr file = interface.currentFile();
-    ExpressionAST *literal = WrapStringLiteral::analyze(path, file, &type, &enclosingFunction);
-    if (!literal || type != WrapStringLiteral::TypeString
+    ExpressionAST *literal = analyzeStringLiteral(path, file, &type, &enclosingFunction);
+    if (!literal || type != TypeString
        || isQtStringLiteral(enclosingFunction) || isQtStringTranslation(enclosingFunction))
         return;
 
@@ -1343,7 +1326,7 @@ void TranslateStringLiteral::match(const CppQuickFixInterface &interface,
                     if (s->type()->isFunctionType()) {
                         // no context required for tr
                         result << new WrapStringLiteralOp(interface, path.size() - 1,
-                                                          WrapStringLiteral::TranslateTrAction,
+                                                          TranslateTrAction,
                                                           description, literal);
                         return;
                     }
@@ -1361,7 +1344,7 @@ void TranslateStringLiteral::match(const CppQuickFixInterface &interface,
             if (trContext.isEmpty())
                 trContext = QLatin1String("GLOBAL");
             result << new WrapStringLiteralOp(interface, path.size() - 1,
-                                              WrapStringLiteral::TranslateQCoreApplicationAction,
+                                              TranslateQCoreApplicationAction,
                                               description, literal, trContext);
             return;
         }
@@ -1369,7 +1352,7 @@ void TranslateStringLiteral::match(const CppQuickFixInterface &interface,
 
     // We need to use Q_TRANSLATE_NOOP
     result << new WrapStringLiteralOp(interface, path.size() - 1,
-                                      WrapStringLiteral::TranslateNoopAction,
+                                      TranslateNoopAction,
                                       description, literal, trContext);
 }
 
@@ -1422,13 +1405,13 @@ void ConvertCStringToNSString::match(const CppQuickFixInterface &interface,
     if (!interface.editor()->cppEditorDocument()->isObjCEnabled())
         return;
 
-    WrapStringLiteral::Type type = WrapStringLiteral::TypeNone;
+    StringLiteralType type = TypeNone;
     QByteArray enclosingFunction;
     CallAST *qlatin1Call;
     const QList<AST *> &path = interface.path();
-    ExpressionAST *literal = WrapStringLiteral::analyze(path, file, &type, &enclosingFunction,
-                                                        &qlatin1Call);
-    if (!literal || type != WrapStringLiteral::TypeString)
+    ExpressionAST *literal = analyzeStringLiteral(path, file, &type, &enclosingFunction,
+                                                  &qlatin1Call);
+    if (!literal || type != TypeString)
         return;
     if (!isQtStringLiteral(enclosingFunction))
         qlatin1Call = 0;
@@ -1498,18 +1481,29 @@ void ConvertNumericLiteral::match(const CppQuickFixInterface &interface, QuickFi
 
     // convert to number
     bool valid;
-    ulong value = QString::fromUtf8(spell).left(numberLength).toULong(&valid, 0);
-    if (!valid) // e.g. octal with digit > 7
+    ulong value = 0;
+    const QString x = QString::fromUtf8(spell).left(numberLength);
+    if (x.startsWith("0b", Qt::CaseInsensitive))
+        value = x.midRef(2).toULong(&valid, 2);
+    else
+        value = x.toULong(&valid, 0);
+
+    if (!valid)
         return;
 
     const int priority = path.size() - 1; // very high priority
     const int start = file->startOf(literal);
     const char * const str = numeric->chars();
 
+    const bool isBinary = numberLength > 2 && str[0] == '0' && tolower(str[1]) == 'b';
+    const bool isOctal = numberLength >= 2 && str[0] == '0' && str[1] >= '0' && str[1] <= '7';
+    const bool isDecimal = !(isBinary || isOctal || numeric->isHex());
+
     if (!numeric->isHex()) {
         /*
           Convert integer literal to hex representation.
           Replace
+            0b100000
             32
             040
           With
@@ -1524,42 +1518,64 @@ void ConvertNumericLiteral::match(const CppQuickFixInterface &interface, QuickFi
         result << op;
     }
 
-    if (value != 0) {
-        if (!(numberLength > 1 && str[0] == '0' && str[1] != 'x' && str[1] != 'X')) {
-            /*
-              Convert integer literal to octal representation.
-              Replace
-                32
-                0x20
-              With
-                040
-            */
-            QString replacement;
-            replacement.sprintf("0%lo", value);
-            auto op = new ConvertNumericLiteralOp(interface, start, start + numberLength, replacement);
-            op->setDescription(QApplication::translate("CppTools::QuickFix", "Convert to Octal"));
-            op->setPriority(priority);
-            result << op;
-        }
+    if (!isOctal) {
+        /*
+          Convert integer literal to octal representation.
+          Replace
+            0b100000
+            32
+            0x20
+          With
+            040
+        */
+        QString replacement;
+        replacement.sprintf("0%lo", value);
+        auto op = new ConvertNumericLiteralOp(interface, start, start + numberLength, replacement);
+        op->setDescription(QApplication::translate("CppTools::QuickFix", "Convert to Octal"));
+        op->setPriority(priority);
+        result << op;
     }
 
-    if (value != 0 || numeric->isHex()) {
-        if (!(numberLength > 1 && str[0] != '0')) {
-            /*
-              Convert integer literal to decimal representation.
-              Replace
-                0x20
-                040
-              With
-                32
-            */
-            QString replacement;
-            replacement.sprintf("%lu", value);
-            auto op = new ConvertNumericLiteralOp(interface, start, start + numberLength, replacement);
-            op->setDescription(QApplication::translate("CppTools::QuickFix", "Convert to Decimal"));
-            op->setPriority(priority);
-            result << op;
+    if (!isDecimal) {
+        /*
+          Convert integer literal to decimal representation.
+          Replace
+            0b100000
+            0x20
+            040
+           With
+            32
+        */
+        QString replacement;
+        replacement.sprintf("%lu", value);
+        auto op = new ConvertNumericLiteralOp(interface, start, start + numberLength, replacement);
+        op->setDescription(QApplication::translate("CppTools::QuickFix", "Convert to Decimal"));
+        op->setPriority(priority);
+        result << op;
+    }
+
+    if (!isBinary) {
+        /*
+          Convert integer literal to binary representation.
+          Replace
+            32
+            0x20
+            040
+          With
+            0b100000
+        */
+        QString replacement = "0b";
+        if (value == 0) {
+            replacement.append('0');
+        } else {
+            std::bitset<std::numeric_limits<decltype (value)>::digits> b(value);
+            QRegularExpression re("^[0]*");
+            replacement.append(QString::fromStdString(b.to_string()).remove(re));
         }
+        auto op = new ConvertNumericLiteralOp(interface, start, start + numberLength, replacement);
+        op->setDescription(QApplication::translate("CppTools::QuickFix", "Convert to Binary"));
+        op->setPriority(priority);
+        result << op;
     }
 }
 
@@ -1666,9 +1682,8 @@ namespace {
 class ConvertToCamelCaseOp: public CppQuickFixOperation
 {
 public:
-    ConvertToCamelCaseOp(const CppQuickFixInterface &interface, int priority,
-                         const QString &newName)
-        : CppQuickFixOperation(interface, priority)
+    ConvertToCamelCaseOp(const CppQuickFixInterface &interface, const QString &newName)
+        : CppQuickFixOperation(interface, -1)
         , m_name(newName)
     {
         setDescription(QApplication::translate("CppTools::QuickFix", "Convert to Camel Case"));
@@ -1728,7 +1743,7 @@ void ConvertToCamelCase::match(const CppQuickFixInterface &interface, QuickFixOp
         return;
     for (int i = 1; i < newName.length() - 1; ++i) {
         if (ConvertToCamelCaseOp::isConvertibleUnderscore(newName, i)) {
-            result << new ConvertToCamelCaseOp(interface, path.size() - 1, newName);
+            result << new ConvertToCamelCaseOp(interface, newName);
             return;
         }
     }
@@ -1754,7 +1769,7 @@ namespace {
 
 QString findShortestInclude(const QString currentDocumentFilePath,
                             const QString candidateFilePath,
-                            const ProjectPartHeaderPaths &headerPaths)
+                            const ProjectExplorer::HeaderPaths &headerPaths)
 {
     QString result;
 
@@ -1763,7 +1778,7 @@ QString findShortestInclude(const QString currentDocumentFilePath,
     if (fileInfo.path() == QFileInfo(currentDocumentFilePath).path()) {
         result = QLatin1Char('"') + fileInfo.fileName() + QLatin1Char('"');
     } else {
-        foreach (const ProjectPartHeaderPath &headerPath, headerPaths) {
+        foreach (const ProjectExplorer::HeaderPath &headerPath, headerPaths) {
             if (!candidateFilePath.startsWith(headerPath.path))
                 continue;
             QString relativePath = candidateFilePath.mid(headerPath.path.size());
@@ -1778,12 +1793,12 @@ QString findShortestInclude(const QString currentDocumentFilePath,
 }
 
 QString findQtIncludeWithSameName(const QString &className,
-                                  const ProjectPartHeaderPaths &headerPaths)
+                                  const ProjectExplorer::HeaderPaths &headerPaths)
 {
     QString result;
 
     // Check for a header file with the same name in the Qt include paths
-    foreach (const ProjectPartHeaderPath &headerPath, headerPaths) {
+    foreach (const ProjectExplorer::HeaderPath &headerPath, headerPaths) {
         if (!headerPath.path.contains(QLatin1String("/Qt"))) // "QtCore", "QtGui" etc...
             continue;
 
@@ -1798,9 +1813,9 @@ QString findQtIncludeWithSameName(const QString &className,
     return result;
 }
 
-ProjectPartHeaderPaths relevantHeaderPaths(const QString &filePath)
+ProjectExplorer::HeaderPaths relevantHeaderPaths(const QString &filePath)
 {
-    ProjectPartHeaderPaths headerPaths;
+    ProjectExplorer::HeaderPaths headerPaths;
 
     CppModelManager *modelManager = CppModelManager::instance();
     const QList<ProjectPart::Ptr> projectParts = modelManager->projectPart(filePath);
@@ -1896,8 +1911,8 @@ bool matchName(const Name *name, QList<Core::LocatorFilterEntry> *matches, QStri
     if (!name)
         return false;
 
-    if (CppClassesFilter *classesFilter
-            = ExtensionSystem::PluginManager::getObject<CppClassesFilter>()) {
+    if (Core::ILocatorFilter *classesFilter
+            = CppTools::CppModelManager::instance()->classesFilter()) {
         QFutureInterface<Core::LocatorFilterEntry> dummy;
 
         const Overview oo;
@@ -1945,7 +1960,7 @@ void AddIncludeForUndefinedIdentifier::match(const CppQuickFixInterface &interfa
     QString className;
     QList<Core::LocatorFilterEntry> matches;
     const QString currentDocumentFilePath = interface.semanticInfo().doc->fileName();
-    const ProjectPartHeaderPaths headerPaths = relevantHeaderPaths(currentDocumentFilePath);
+    const ProjectExplorer::HeaderPaths headerPaths = relevantHeaderPaths(currentDocumentFilePath);
     bool qtHeaderFileIncludeOffered = false;
 
     // Find an include file through the locator
@@ -2292,7 +2307,7 @@ public:
     QStringList values;
 };
 
-Enum *findEnum(const QList<LookupItem> &results, const LookupContext &ctxt)
+static Enum *findEnum(const QList<LookupItem> &results, const LookupContext &ctxt)
 {
     foreach (const LookupItem &result, results) {
         const FullySpecifiedType fst = result.type();
@@ -2993,15 +3008,15 @@ public:
         switch (m_type) {
         case GetterSetterType:
             setPriority(5);
-            setDescription(QuickFixFactory::tr("Create Getter and Setter Member Functions"));
+            setDescription(CppQuickFixFactory::tr("Create Getter and Setter Member Functions"));
             break;
         case GetterType:
             setPriority(4);
-            setDescription(QuickFixFactory::tr("Create Getter Member Function"));
+            setDescription(CppQuickFixFactory::tr("Create Getter Member Function"));
             break;
         case SetterType:
             setPriority(3);
-            setDescription(QuickFixFactory::tr("Create Setter Member Function"));
+            setDescription(CppQuickFixFactory::tr("Create Setter Member Function"));
             break;
         default:
             break;
@@ -3287,9 +3302,17 @@ public:
 
         // Write class qualification, if any.
         if (matchingClass) {
-            const Name *name = rewriteName(matchingClass->name(), &env, control);
-            funcDef.append(printer.prettyName(name));
-            funcDef.append(QLatin1String("::"));
+            Class *current = matchingClass;
+            QVector<const Name *> classes{matchingClass->name()};
+            while (current->enclosingScope()->asClass()) {
+                current = current->enclosingScope()->asClass();
+                classes.prepend(current->name());
+            }
+            for (const Name *n : classes) {
+                const Name *name = rewriteName(n, &env, control);
+                funcDef.append(printer.prettyName(name));
+                funcDef.append(QLatin1String("::"));
+            }
         }
 
         // Write the extracted function itself and its call.
@@ -3681,7 +3704,7 @@ void ExtractFunction::match(const CppQuickFixInterface &interface, QuickFixOpera
     int selStart = cursor.selectionStart();
     int selEnd = cursor.selectionEnd();
     if (selStart > selEnd)
-        qSwap(selStart, selEnd);
+        std::swap(selStart, selEnd);
 
     Overview printer;
 
@@ -4125,8 +4148,8 @@ public:
     {
         setDescription(
                 mode == FromPointer
-                ? QuickFixFactory::tr("Convert to Stack Variable")
-                : QuickFixFactory::tr("Convert to Pointer"));
+                ? CppQuickFixFactory::tr("Convert to Stack Variable")
+                : CppQuickFixFactory::tr("Convert to Pointer"));
     }
 
     void perform() override
@@ -4472,7 +4495,7 @@ public:
         , m_signalName(signalName)
         , m_storageName(storageName)
     {
-        setDescription(QuickFixFactory::tr("Generate Missing Q_PROPERTY Members"));
+        setDescription(CppQuickFixFactory::tr("Generate Missing Q_PROPERTY Members"));
     }
 
     void perform()
@@ -4750,7 +4773,7 @@ public:
                                                     scopeAtInsertPos);
         QString funcDef = prefix + funcDec;
         const int startPosition = m_fromFile->endOf(funcAST->declarator);
-        const int endPosition = m_fromFile->endOf(funcAST->function_body);
+        const int endPosition = m_fromFile->endOf(funcAST);
         funcDef += m_fromFile->textOf(startPosition, endPosition);
         funcDef += suffix;
 
@@ -6038,7 +6061,64 @@ void ExtraRefactoringOperations::match(const CppQuickFixInterface &interface,
     }
 }
 
+void createCppQuickFixes()
+{
+    new AddIncludeForUndefinedIdentifier;
 
+    new FlipLogicalOperands;
+    new InverseLogicalComparison;
+    new RewriteLogicalAnd;
+
+    new ConvertToCamelCase;
+
+    new ConvertCStringToNSString;
+    new ConvertNumericLiteral;
+    new TranslateStringLiteral;
+    new WrapStringLiteral;
+
+    new MoveDeclarationOutOfIf;
+    new MoveDeclarationOutOfWhile;
+
+    new SplitIfStatement;
+    new SplitSimpleDeclaration;
+
+    new AddLocalDeclaration;
+    new AddBracesToIf;
+    new RearrangeParamDeclarationList;
+    new ReformatPointerDeclaration;
+
+    new CompleteSwitchCaseStatement;
+    new InsertQtPropertyMembers;
+    new ConvertQt4Connect;
+
+    new ApplyDeclDefLinkChanges;
+    new ConvertFromAndToPointer;
+    new ExtractFunction;
+    new ExtractLiteralAsParameter;
+    new GenerateGetterSetter;
+    new InsertDeclFromDef;
+    new InsertDefFromDecl;
+
+    new MoveFuncDefOutside;
+    new MoveAllFuncDefOutside;
+    new MoveFuncDefToDecl;
+
+    new AssignToLocalVariable;
+
+    new InsertVirtualMethods;
+
+    new OptimizeForLoop;
+
+    new EscapeStringLiteral;
+
+    new ExtraRefactoringOperations;
+}
+
+void destroyCppQuickFixes()
+{
+    for (int i = g_cppQuickFixFactories.size(); --i >= 0; )
+        delete g_cppQuickFixFactories.at(i);
+}
 
 } // namespace Internal
 } // namespace CppEditor

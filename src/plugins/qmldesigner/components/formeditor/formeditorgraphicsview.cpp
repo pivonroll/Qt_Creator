@@ -32,6 +32,8 @@
 #include <QGraphicsProxyWidget>
 #include <QCoreApplication>
 
+#include <QTimer>
+
 namespace QmlDesigner {
 
 FormEditorGraphicsView::FormEditorGraphicsView(QWidget *parent) :
@@ -44,7 +46,6 @@ FormEditorGraphicsView::FormEditorGraphicsView(QWidget *parent) :
     setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
     setOptimizationFlags(QGraphicsView::DontSavePainterState);
     setRenderHint(QPainter::Antialiasing, false);
-    setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     setFrameShape(QFrame::NoFrame);
 
@@ -66,7 +67,7 @@ bool FormEditorGraphicsView::eventFilter(QObject *watched, QEvent *event)
             stopPanning(event);
         }
         if (event->type() == QEvent::MouseMove) {
-            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+            auto mouseEvent = static_cast<QMouseEvent*>(event);
             if (!m_panningStartPosition.isNull()) {
                 horizontalScrollBar()->setValue(horizontalScrollBar()->value() -
                     (mouseEvent->x() - m_panningStartPosition.x()));
@@ -111,8 +112,8 @@ void FormEditorGraphicsView::mouseReleaseEvent(QMouseEvent *event)
 bool isTextInputItem(QGraphicsItem* item)
 {
     if (item && item->isWidget()) {
-        QGraphicsWidget *graphicsWidget = static_cast<QGraphicsWidget *>(item);
-        QGraphicsProxyWidget * textInputProxyWidget = qobject_cast<QGraphicsProxyWidget *>(graphicsWidget);
+        auto graphicsWidget = static_cast<QGraphicsWidget *>(item);
+        auto textInputProxyWidget = qobject_cast<QGraphicsProxyWidget *>(graphicsWidget);
         if (textInputProxyWidget && textInputProxyWidget->widget() && (
                 strcmp(textInputProxyWidget->widget()->metaObject()->className(), "QLineEdit") == 0 ||
                 strcmp(textInputProxyWidget->widget()->metaObject()->className(), "QTextEdit") == 0)) {
@@ -140,17 +141,6 @@ void FormEditorGraphicsView::keyReleaseEvent(QKeyEvent *event)
         stopPanning(event);
 
     QGraphicsView::keyReleaseEvent(event);
-}
-
-void FormEditorGraphicsView::paintEvent(QPaintEvent *event)
-{
-    QGraphicsView::paintEvent(event);
-
-    if (m_blockPainting) {
-        QWidget::paintEvent(event);
-        QPainter painter(viewport());
-        painter.drawPixmap(0, 0, m_lastUpdate);
-    }
 }
 
 void FormEditorGraphicsView::startPanning(QEvent *event)
@@ -211,17 +201,6 @@ void FormEditorGraphicsView::drawBackground(QPainter *painter, const QRectF &rec
     painter->setPen(Qt::black);
     painter->drawRect(rootItemRect());
     painter->restore();
-}
-
-void FormEditorGraphicsView::setBlockPainting(bool block)
-{
-    if (block)
-        m_lastUpdate = viewport()->grab();
-
-    m_blockPainting = block;
-
-    if (!block)
-        update();
 }
 
 } // namespace QmlDesigner

@@ -37,6 +37,7 @@
 #include <QMouseEvent>
 #include <QScrollArea>
 #include <QSlider>
+#include <QStyle>
 #include <QToolButton>
 #include <QDebug>
 
@@ -664,7 +665,7 @@ void PreviewLabel::paintEvent(QPaintEvent *event)
         p.setBackgroundMode(Qt::TransparentMode);
         {
             QPen pen(Qt::SolidLine);
-            pen.setColor("#F0F0F0");
+            pen.setColor(QColor(0xf0, 0xf0, 0xf0));
             p.setPen(pen);
 
             if (m_left >= 0)
@@ -679,9 +680,9 @@ void PreviewLabel::paintEvent(QPaintEvent *event)
 
         {
             QBrush brush(Qt::Dense4Pattern);
-            brush.setColor("#101010");
+            brush.setColor(QColor(0x10, 0x10, 0x10));
             QPen pen(brush, 1, Qt::DotLine);
-            pen.setColor("#101010");
+            pen.setColor(QColor(0x10, 0x10, 0x10));
             p.setPen(pen);
 
             if (m_left >= 0)

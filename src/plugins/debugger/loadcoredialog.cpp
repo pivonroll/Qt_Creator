@@ -117,7 +117,7 @@ SelectRemoteFileDialog::SelectRemoteFileDialog(QWidget *parent)
     m_buttonBox->button(QDialogButtonBox::Ok)->setDefault(true);
     m_buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    auto layout = new QVBoxLayout(this);
     layout->addWidget(m_fileSystemView);
     layout->addWidget(m_textBrowser);
     layout->addWidget(m_buttonBox);
@@ -234,7 +234,7 @@ public:
     {
         State st;
         st.localCoreFile = p.useLocalCoreFile();
-        st.validKit = (kitChooser->currentKit() != 0);
+        st.validKit = (kitChooser->currentKit() != nullptr);
         st.validLocalExecFilename = localExecFileName->isValid();
 
         if (st.localCoreFile)
@@ -270,17 +270,17 @@ AttachCoreDialog::AttachCoreDialog(QWidget *parent)
     d->selectRemoteCoreButton = new QPushButton(PathChooser::browseButtonLabel(), this);
 
     d->localCoreFileName = new PathChooser(this);
-    d->localCoreFileName->setHistoryCompleter(QLatin1String("Debugger.CoreFile.History"));
+    d->localCoreFileName->setHistoryCompleter("Debugger.CoreFile.History");
     d->localCoreFileName->setExpectedKind(PathChooser::File);
     d->localCoreFileName->setPromptDialogTitle(tr("Select Core File"));
 
     d->localExecFileName = new PathChooser(this);
-    d->localExecFileName->setHistoryCompleter(QLatin1String("LocalExecutable"));
+    d->localExecFileName->setHistoryCompleter("LocalExecutable");
     d->localExecFileName->setExpectedKind(PathChooser::File);
     d->localExecFileName->setPromptDialogTitle(tr("Select Executable"));
 
     d->overrideStartScriptFileName = new PathChooser(this);
-    d->overrideStartScriptFileName->setHistoryCompleter(QLatin1String("Debugger.StartupScript.History"));
+    d->overrideStartScriptFileName->setHistoryCompleter("Debugger.StartupScript.History");
     d->overrideStartScriptFileName->setExpectedKind(PathChooser::File);
     d->overrideStartScriptFileName->setPromptDialogTitle(tr("Select Startup Script"));
 
@@ -363,7 +363,7 @@ void AttachCoreDialog::coreFileChanged(const QString &core)
     if (!HostOsInfo::isWindowsHost() && QFile::exists(core)) {
         Kit *k = d->kitChooser->currentKit();
         QTC_ASSERT(k, return);
-        StandardRunnable debugger = DebuggerKitInformation::runnable(k);
+        Runnable debugger = DebuggerKitInformation::runnable(k);
         CoreInfo cinfo = CoreInfo::readExecutableNameFromCore(debugger, core);
         if (!cinfo.foundExecutableName.isEmpty())
             d->localExecFileName->setFileName(FileName::fromString(cinfo.foundExecutableName));

@@ -28,6 +28,7 @@ SOURCES += \
     $$PWD/environmentdialog.cpp \
     $$PWD/qtcprocess.cpp \
     $$PWD/reloadpromptutils.cpp \
+    $$PWD/settingsaccessor.cpp \
     $$PWD/shellcommand.cpp \
     $$PWD/shellcommandpage.cpp \
     $$PWD/settingsselector.cpp \
@@ -49,7 +50,6 @@ SOURCES += \
     $$PWD/codegeneration.cpp \
     $$PWD/newclasswidget.cpp \
     $$PWD/classnamevalidatinglineedit.cpp \
-    $$PWD/linecolumnlabel.cpp \
     $$PWD/fancylineedit.cpp \
     $$PWD/qtcolorbutton.cpp \
     $$PWD/savedaction.cpp \
@@ -74,7 +74,7 @@ SOURCES += \
     $$PWD/crumblepath.cpp \
     $$PWD/historycompleter.cpp \
     $$PWD/buildablehelperlibrary.cpp \
-    $$PWD/annotateditemdelegate.cpp \
+    $$PWD/delegates.cpp \
     $$PWD/fileinprojectfinder.cpp \
     $$PWD/statuslabel.cpp \
     $$PWD/outputformatter.cpp \
@@ -116,9 +116,13 @@ SOURCES += \
     $$PWD/utilsicons.cpp \
     $$PWD/guard.cpp \
     $$PWD/highlightingitemdelegate.cpp \
-    $$PWD/camelhumpmatcher.cpp \
+    $$PWD/fuzzymatcher.cpp \
     $$PWD/textutils.cpp \
-    $$PWD/url.cpp
+    $$PWD/url.cpp \
+    $$PWD/filecrumblabel.cpp \
+    $$PWD/fixedsizeclicklabel.cpp \
+    $$PWD/removefiledialog.cpp \
+    $$PWD/differ.cpp
 
 win32:SOURCES += $$PWD/consoleprocess_win.cpp
 else:SOURCES += $$PWD/consoleprocess_unix.cpp
@@ -128,9 +132,11 @@ HEADERS += \
     $$PWD/environment.h \
     $$PWD/environmentmodel.h \
     $$PWD/environmentdialog.h \
+    $$PWD/pointeralgorithm.h \
     $$PWD/qtcprocess.h \
     $$PWD/utils_global.h \
     $$PWD/reloadpromptutils.h \
+    $$PWD/settingsaccessor.h \
     $$PWD/settingsselector.h \
     $$PWD/shellcommand.h \
     $$PWD/shellcommandpage.h \
@@ -153,7 +159,6 @@ HEADERS += \
     $$PWD/codegeneration.h \
     $$PWD/newclasswidget.h \
     $$PWD/classnamevalidatinglineedit.h \
-    $$PWD/linecolumnlabel.h \
     $$PWD/fancylineedit.h \
     $$PWD/qtcolorbutton.h \
     $$PWD/savedaction.h \
@@ -180,7 +185,7 @@ HEADERS += \
     $$PWD/crumblepath.h \
     $$PWD/historycompleter.h \
     $$PWD/buildablehelperlibrary.h \
-    $$PWD/annotateditemdelegate.h \
+    $$PWD/delegates.h \
     $$PWD/fileinprojectfinder.h \
     $$PWD/statuslabel.h \
     $$PWD/outputformatter.h \
@@ -230,7 +235,6 @@ HEADERS += \
     $$PWD/port.h \
     $$PWD/functiontraits.h \
     $$PWD/mapreduce.h \
-    $$PWD/objectpool.h \
     $$PWD/declarationmacros.h \
     $$PWD/smallstring.h \
     $$PWD/smallstringiterator.h \
@@ -241,27 +245,37 @@ HEADERS += \
     $$PWD/sizedarray.h \
     $$PWD/smallstringio.h \
     $$PWD/guard.h \
-    $$PWD/asconst.h \
     $$PWD/smallstringfwd.h \
     $$PWD/optional.h \
     $$PWD/../3rdparty/optional/optional.hpp \
-    $$PWD/qtcfallthrough.h \
+    $$PWD/variant.h \
+    $$PWD/../3rdparty/variant/variant.hpp \
     $$PWD/highlightingitemdelegate.h \
-    $$PWD/camelhumpmatcher.h \
+    $$PWD/fuzzymatcher.h \
     $$PWD/textutils.h \
-    $$PWD/url.h
+    $$PWD/predicates.h \
+    $$PWD/url.h \
+    $$PWD/filecrumblabel.h \
+    $$PWD/linecolumn.h \
+    $$PWD/link.h \
+    $$PWD/fixedsizeclicklabel.h \
+    $$PWD/removefiledialog.h \
+    $$PWD/differ.h
 
 FORMS += $$PWD/filewizardpage.ui \
-    $$PWD/projectintropage.ui \
     $$PWD/newclasswidget.ui \
-    $$PWD/proxycredentialsdialog.ui
+    $$PWD/projectintropage.ui \
+    $$PWD/proxycredentialsdialog.ui \
+    $$PWD/removefiledialog.ui
 
 RESOURCES += $$PWD/utils.qrc
 
 osx {
     HEADERS += \
+        $$PWD/theme/theme_mac.h \
         $$PWD/fileutils_mac.h
     OBJECTIVE_SOURCES += \
+        $$PWD/theme/theme_mac.mm \
         $$PWD/fileutils_mac.mm \
         $$PWD/processhandle_mac.mm
     LIBS += -framework Foundation -framework AppKit

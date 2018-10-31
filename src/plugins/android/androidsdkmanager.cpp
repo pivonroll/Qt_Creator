@@ -41,7 +41,7 @@
 #include <QSettings>
 
 namespace {
-Q_LOGGING_CATEGORY(sdkManagerLog, "qtc.android.sdkManager")
+Q_LOGGING_CATEGORY(sdkManagerLog, "qtc.android.sdkManager", QtWarningMsg)
 }
 
 namespace Android {
@@ -260,6 +260,7 @@ public:
         BuildToolsMarker            = 0x080,
         SdkToolsMarker              = 0x100,
         PlatformToolsMarker         = 0x200,
+        EmulatorToolsMarker         = 0x400,
         SectionMarkers = InstalledPackagesMarker | AvailablePackagesMarkers | AvailableUpdatesMarker
     };
 
@@ -278,6 +279,7 @@ private:
     BuildTools *parseBuildToolsPackage(const QStringList &data) const;
     SdkTools *parseSdkToolsPackage(const QStringList &data) const;
     PlatformTools *parsePlatformToolsPackage(const QStringList &data) const;
+    EmulatorTools *parseEmulatorToolsPackage(const QStringList &data) const;
     MarkerTag parseMarkers(const QString &line);
 
     MarkerTag m_currentSection = MarkerTag::None;
@@ -292,7 +294,8 @@ const std::map<SdkManagerOutputParser::MarkerTag, const char *> markerTags {
     {SdkManagerOutputParser::MarkerTag::SystemImageMarker,          "system-images"},
     {SdkManagerOutputParser::MarkerTag::BuildToolsMarker,           "build-tools"},
     {SdkManagerOutputParser::MarkerTag::SdkToolsMarker,             "tools"},
-    {SdkManagerOutputParser::MarkerTag::PlatformToolsMarker,        "platform-tools"}
+    {SdkManagerOutputParser::MarkerTag::PlatformToolsMarker,        "platform-tools"},
+    {SdkManagerOutputParser::MarkerTag::EmulatorToolsMarker,        "emulator"}
 };
 
 AndroidSdkManager::AndroidSdkManager(const AndroidConfig &config, QObject *parent):
@@ -310,9 +313,7 @@ SdkPlatformList AndroidSdkManager::installedSdkPlatforms()
 {
     AndroidSdkPackageList list = m_d->filteredPackages(AndroidSdkPackage::Installed,
                                                        AndroidSdkPackage::SdkPlatformPackage);
-    return Utils::transform(list, [](AndroidSdkPackage *p) {
-       return static_cast<SdkPlatform *>(p);
-    });
+    return Utils::static_container_cast<SdkPlatform *>(list);
 }
 
 const AndroidSdkPackageList &AndroidSdkManager::allSdkPackages()
@@ -513,7 +514,7 @@ void SdkManagerOutputParser::compilePackageAssociations()
             return platform && platform->apiLevel() == imageApi;
         });
         if (itr != m_packages.end()) {
-            SdkPlatform *platform = static_cast<SdkPlatform*>(*itr);
+            auto platform = static_cast<SdkPlatform*>(*itr);
             platform->addSystemImage(static_cast<SystemImage *>(image));
         }
     }
@@ -541,6 +542,10 @@ void SdkManagerOutputParser::parsePackageData(MarkerTag packageMarker, const QSt
 
     case MarkerTag::PlatformToolsMarker:
         createPackage(&SdkManagerOutputParser::parsePlatformToolsPackage);
+        break;
+
+    case MarkerTag::EmulatorToolsMarker:
+        createPackage(&SdkManagerOutputParser::parseEmulatorToolsPackage);
         break;
 
     case MarkerTag::PlatformMarker:
@@ -622,7 +627,7 @@ AndroidSdkPackage *SdkManagerOutputParser::parsePlatform(const QStringList &data
     if (parseAbstractData(packageData, data, 2, "Platform")) {
         int apiLevel = platformNameToApiLevel(packageData.headerParts.at(1));
         if (apiLevel == -1) {
-            qCDebug(sdkManagerLog) << "Platform: Can not parse api level:"<< data;
+            qCDebug(sdkManagerLog) << "Platform: Cannot parse api level:"<< data;
             return nullptr;
         }
         platform = new SdkPlatform(packageData.revision, data.at(0), apiLevel);
@@ -642,7 +647,7 @@ QPair<SystemImage *, int> SdkManagerOutputParser::parseSystemImage(const QString
     if (parseAbstractData(packageData, data, 4, "System-image")) {
         int apiLevel = platformNameToApiLevel(packageData.headerParts.at(1));
         if (apiLevel == -1) {
-            qCDebug(sdkManagerLog) << "System-image: Can not parse api level:"<< data;
+            qCDebug(sdkManagerLog) << "System-image: Cannot parse api level:"<< data;
             return result;
         }
         auto image = new SystemImage(packageData.revision, data.at(0),
@@ -703,6 +708,22 @@ PlatformTools *SdkManagerOutputParser::parsePlatformToolsPackage(const QStringLi
                                   "unavailable:" << data;
     }
     return platformTools;
+}
+
+EmulatorTools *SdkManagerOutputParser::parseEmulatorToolsPackage(const QStringList &data) const
+{
+    EmulatorTools *emulatorTools = nullptr;
+    GenericPackageData packageData;
+    if (parseAbstractData(packageData, data, 1, "Emulator-tools")) {
+        emulatorTools = new EmulatorTools(packageData.revision, data.at(0));
+        emulatorTools->setDescriptionText(packageData.description);
+        emulatorTools->setDisplayText(packageData.description);
+        emulatorTools->setInstalledLocation(packageData.installedLocation);
+    } else {
+        qCDebug(sdkManagerLog) << "Emulator-tools: Parsing failed. Minimum required data "
+                                  "unavailable:" << data;
+    }
+    return emulatorTools;
 }
 
 SdkManagerOutputParser::MarkerTag SdkManagerOutputParser::parseMarkers(const QString &line)

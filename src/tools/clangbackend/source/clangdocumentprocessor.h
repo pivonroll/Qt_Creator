@@ -37,7 +37,6 @@ class Document;
 class Documents;
 class DocumentProcessorData;
 class JobRequest;
-class ProjectParts;
 class UnsavedFiles;
 
 class DocumentProcessor
@@ -46,7 +45,6 @@ public:
     DocumentProcessor(const Document &document,
                       Documents &documents,
                       UnsavedFiles &unsavedFiles,
-                      ProjectParts &projects,
                       ClangCodeModelClientInterface &client);
 
     JobRequest createJobRequest(JobRequest::Type type,
@@ -59,6 +57,7 @@ public:
                         = PreferredTranslationUnit::RecentlyParsed);
 
     JobRequests process();
+    JobRequests stop();
 
     Document document() const;
 

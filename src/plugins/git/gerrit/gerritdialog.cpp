@@ -33,7 +33,6 @@
 
 #include <coreplugin/icore.h>
 
-#include <utils/asconst.h>
 #include <utils/hostosinfo.h>
 #include <utils/progressindicator.h>
 #include <utils/qtcassert.h>
@@ -70,7 +69,7 @@ GerritDialog::GerritDialog(const QSharedPointer<GerritParameters> &p,
     m_ui->remoteComboBox->setParameters(m_parameters);
     m_ui->remoteComboBox->setFallbackEnabled(true);
     m_queryModel->setStringList(m_parameters->savedQueries);
-    QCompleter *completer = new QCompleter(this);
+    auto completer = new QCompleter(this);
     completer->setModel(m_queryModel);
     m_ui->queryLineEdit->setSpecialCompleter(completer);
     m_ui->queryLineEdit->setOkColor(Utils::creatorTheme()->color(Utils::Theme::TextColorNormal));
@@ -217,6 +216,23 @@ void GerritDialog::refresh()
     m_ui->treeView->sortByColumn(-1);
 }
 
+void GerritDialog::scheduleUpdateRemotes()
+{
+    if (isVisible())
+        updateRemotes();
+    else
+        m_shouldUpdateRemotes = true;
+}
+
+void GerritDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    if (m_shouldUpdateRemotes) {
+        m_shouldUpdateRemotes = false;
+        updateRemotes();
+    }
+}
+
 void GerritDialog::remoteChanged()
 {
     const GerritServer server = m_ui->remoteComboBox->currentServer();
@@ -225,7 +241,8 @@ void GerritDialog::remoteChanged()
            return;
     }
     *m_server = server;
-    refresh();
+    if (isVisible())
+        refresh();
 }
 
 void GerritDialog::updateRemotes(bool forceReload)

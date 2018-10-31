@@ -26,7 +26,7 @@
 #include "sshdeviceprocess.h"
 
 #include "idevice.h"
-#include "../runnables.h"
+#include "../runconfiguration.h"
 
 #include <ssh/sshconnection.h>
 #include <ssh/sshconnectionmanager.h>
@@ -48,7 +48,7 @@ public:
     bool serverSupportsSignals = false;
     QSsh::SshConnection *connection = nullptr;
     QSsh::SshRemoteProcess::Ptr process;
-    StandardRunnable runnable;
+    Runnable runnable;
     QString errorMessage;
     QSsh::SshRemoteProcess::ExitStatus exitStatus;
     DeviceProcessSignalOperation::Ptr killOperation;
@@ -63,7 +63,7 @@ public:
 };
 
 SshDeviceProcess::SshDeviceProcess(const IDevice::ConstPtr &device, QObject *parent)
-    : DeviceProcess(device, parent), d(new SshDeviceProcessPrivate(this))
+    : DeviceProcess(device, parent), d(std::make_unique<SshDeviceProcessPrivate>(this))
 {
     connect(&d->killTimer, &QTimer::timeout, this, &SshDeviceProcess::handleKillOperationTimeout);
 }
@@ -71,22 +71,16 @@ SshDeviceProcess::SshDeviceProcess(const IDevice::ConstPtr &device, QObject *par
 SshDeviceProcess::~SshDeviceProcess()
 {
     d->setState(SshDeviceProcessPrivate::Inactive);
-    delete d;
 }
 
 void SshDeviceProcess::start(const Runnable &runnable)
 {
     QTC_ASSERT(d->state == SshDeviceProcessPrivate::Inactive, return);
-    if (!runnable.is<StandardRunnable>()) {
-        d->errorMessage = tr("Internal error");
-        error(QProcess::FailedToStart);
-        return;
-    }
     d->setState(SshDeviceProcessPrivate::Connecting);
 
     d->errorMessage.clear();
     d->exitCode = -1;
-    d->runnable = runnable.as<StandardRunnable>();
+    d->runnable = runnable;
     d->connection = QSsh::acquireConnection(device()->sshParameters());
     connect(d->connection, &QSsh::SshConnection::error,
             this, &SshDeviceProcess::handleConnectionError);
@@ -250,13 +244,19 @@ void SshDeviceProcess::handleProcessFinished(int exitStatus)
 
 void SshDeviceProcess::handleStdout()
 {
-    d->stdOut += d->process->readAllStandardOutput();
+    QByteArray output = d->process->readAllStandardOutput();
+    if (output.isEmpty())
+        return;
+    d->stdOut += output;
     emit readyReadStandardOutput();
 }
 
 void SshDeviceProcess::handleStderr()
 {
-    d->stdErr += d->process->readAllStandardError();
+    QByteArray output = d->process->readAllStandardError();
+    if (output.isEmpty())
+        return;
+    d->stdErr += output;
     emit readyReadStandardError();
 }
 
@@ -280,7 +280,7 @@ void SshDeviceProcess::handleKillOperationTimeout()
     emit finished();
 }
 
-QString SshDeviceProcess::fullCommandLine(const StandardRunnable &runnable) const
+QString SshDeviceProcess::fullCommandLine(const Runnable &runnable) const
 {
     QString cmdLine = runnable.executable;
     if (!runnable.commandLineArguments.isEmpty())
@@ -347,7 +347,7 @@ void SshDeviceProcess::SshDeviceProcessPrivate::setState(SshDeviceProcess::SshDe
     if (connection) {
         connection->disconnect(q);
         QSsh::releaseConnection(connection);
-        connection = 0;
+        connection = nullptr;
     }
 }
 

@@ -51,7 +51,32 @@
 static const char templatePathC[] = "templates/wizards";
 static const char configFileC[] = "wizard.xml";
 
+namespace {
+bool enableLoadTemplateFiles()
+{
+#ifdef WITH_TESTS
+    static bool value = qEnvironmentVariableIsEmpty("QTC_DISABLE_LOAD_TEMPLATES_FOR_TEST");
+#else
+    static bool value = true;
+#endif
+    return value;
+}
+}
+
 namespace ProjectExplorer {
+
+static QList<ICustomWizardMetaFactory *> g_customWizardMetaFactories;
+
+ICustomWizardMetaFactory::ICustomWizardMetaFactory(const QString &klass, Core::IWizardFactory::WizardKind kind) :
+    m_klass(klass), m_kind(kind)
+{
+    g_customWizardMetaFactories.append(this);
+}
+
+ICustomWizardMetaFactory::~ICustomWizardMetaFactory()
+{
+    g_customWizardMetaFactories.removeOne(this);
+}
 
 namespace Internal {
 /*!
@@ -135,7 +160,7 @@ void CustomWizard::setParameters(const CustomWizardParametersPtr &p)
 
 Core::BaseFileWizard *CustomWizard::create(QWidget *parent, const Core::WizardDialogParameters &p) const
 {
-    QTC_ASSERT(!d->m_parameters.isNull(), return 0);
+    QTC_ASSERT(!d->m_parameters.isNull(), return nullptr);
     auto wizard = new Core::BaseFileWizard(this, p.extraValues(), parent);
 
     d->m_context->reset();
@@ -188,7 +213,7 @@ static inline bool createFile(CustomWizardFile cwFile,
         generatedFile.setContents(CustomWizardContext::processFile(fm, contentsIn));
     }
 
-    Core::GeneratedFile::Attributes attributes = 0;
+    Core::GeneratedFile::Attributes attributes = {};
     if (cwFile.openEditor)
         attributes |= Core::GeneratedFile::OpenEditorAttribute;
     if (cwFile.openProject)
@@ -205,7 +230,7 @@ template <class WizardPage>
     foreach (int pageId, w->pageIds())
         if (auto wp = qobject_cast<WizardPage *>(w->page(pageId)))
             return wp;
-    return 0;
+    return nullptr;
 }
 
 // Determine where to run the generator script. The user may specify
@@ -326,7 +351,7 @@ CustomWizard::CustomWizardContextPtr CustomWizard::context() const
 
 CustomWizard *CustomWizard::createWizard(const CustomProjectWizard::CustomWizardParametersPtr &p)
 {
-    ICustomWizardMetaFactory *factory = ExtensionSystem::PluginManager::getObject<ICustomWizardMetaFactory>(
+    ICustomWizardMetaFactory *factory = Utils::findOrDefault(g_customWizardMetaFactories,
         [&p](ICustomWizardMetaFactory *factory) {
             return p->klass.isEmpty() ? (p->kind == factory->kind()) : (p->klass == factory->klass());
         });
@@ -337,7 +362,7 @@ CustomWizard *CustomWizard::createWizard(const CustomProjectWizard::CustomWizard
 
     if (!rc) {
         qWarning("Unable to create custom wizard for class %s.", qPrintable(p->klass));
-        return 0;
+        return nullptr;
     }
 
     rc->setParameters(p);
@@ -394,7 +419,7 @@ QList<Core::IWizardFactory *> CustomWizard::createWizards()
 
     QList<CustomWizardParametersPtr> toCreate;
 
-    while (!dirs.isEmpty()) {
+    while (enableLoadTemplateFiles() && !dirs.isEmpty()) {
         const QFileInfo dirFi = dirs.takeFirst();
         const QDir dir(dirFi.absoluteFilePath());
         if (CustomWizardPrivate::verbose)
@@ -462,9 +487,7 @@ QList<Core::IWizardFactory *> CustomWizard::createWizards()
     for QLineEdit-type fields' default text.
 */
 
-CustomProjectWizard::CustomProjectWizard()
-{
-}
+CustomProjectWizard::CustomProjectWizard() = default;
 
 /*!
     Can be reimplemented to create custom project wizards.
@@ -515,7 +538,7 @@ void CustomProjectWizard::initProjectWizardDialog(BaseProjectWizardDialog *w,
 
 Core::GeneratedFiles CustomProjectWizard::generateFiles(const QWizard *w, QString *errorMessage) const
 {
-    const BaseProjectWizardDialog *dialog = qobject_cast<const BaseProjectWizardDialog *>(w);
+    const auto *dialog = qobject_cast<const BaseProjectWizardDialog *>(w);
     QTC_ASSERT(dialog, return Core::GeneratedFiles());
     // Add project name as macro. Path is here under project directory
     CustomWizardContextPtr ctx = context();

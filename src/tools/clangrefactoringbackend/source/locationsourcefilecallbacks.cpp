@@ -27,22 +27,8 @@
 
 #include "macropreprocessorcallbacks.h"
 
-#if defined(__GNUC__)
-#    pragma GCC diagnostic push
-#    pragma GCC diagnostic ignored "-Wunused-parameter"
-#elif defined(_MSC_VER)
-#    pragma warning(push)
-#    pragma warning( disable : 4100 )
-#endif
-
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Lex/Preprocessor.h>
-
-#if defined(__GNUC__)
-#    pragma GCC diagnostic pop
-#elif defined(_MSC_VER)
-#    pragma warning(pop)
-#endif
 
 #include <memory>
 
@@ -57,7 +43,7 @@ LocationSourceFileCallbacks::LocationSourceFileCallbacks(uint line,
 {
 }
 
-bool LocationSourceFileCallbacks::handleBeginSource(clang::CompilerInstance &compilerInstance, llvm::StringRef /*fileName*/)
+bool LocationSourceFileCallbacks::handleBeginSource(clang::CompilerInstance &compilerInstance)
 {
     auto &preprocessor = compilerInstance.getPreprocessor();
 

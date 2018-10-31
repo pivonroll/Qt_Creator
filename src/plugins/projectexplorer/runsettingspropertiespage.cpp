@@ -29,7 +29,6 @@
 #include "deployconfiguration.h"
 #include "runconfiguration.h"
 #include "target.h"
-#include "project.h"
 #include "projectconfigurationmodel.h"
 #include "session.h"
 
@@ -38,6 +37,7 @@
 #include <projectexplorer/buildmanager.h>
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
+#include <utils/stringutils.h>
 #include <utils/utilsicons.h>
 
 #include <QVariant>
@@ -57,7 +57,7 @@ namespace Internal {
 
 struct FactoryAndId
 {
-    IRunConfigurationFactory *factory;
+    RunConfigurationFactory *factory;
     Core::Id id;
 };
 
@@ -237,25 +237,20 @@ void RunSettingsWidget::aboutToShowAddMenu()
         connect(cloneAction, &QAction::triggered,
                 this, &RunSettingsWidget::cloneRunConfiguration);
     }
-    QList<IRunConfigurationFactory *> factories =
-        ExtensionSystem::PluginManager::getObjects<IRunConfigurationFactory>();
-
     QList<QAction *> menuActions;
-    foreach (IRunConfigurationFactory *factory, factories) {
-        QList<Core::Id> ids = factory->availableCreationIds(m_target);
-        foreach (Core::Id id, ids) {
-            auto action = new QAction(factory->displayNameForId(id), m_addRunMenu);
-            connect(action, &QAction::triggered, [factory, id, this]() {
-                RunConfiguration *newRC = factory->create(m_target, id);
-                if (!newRC)
-                    return;
-                QTC_CHECK(newRC->id() == id);
-                m_target->addRunConfiguration(newRC);
-                m_target->setActiveRunConfiguration(newRC);
-                m_removeRunToolButton->setEnabled(m_target->runConfigurations().size() > 1);
-            });
-            menuActions.append(action);
-        }
+    for (const RunConfigurationCreationInfo &item :
+            RunConfigurationFactory::creatorsForTarget(m_target)) {
+        auto action = new QAction(item.displayName, m_addRunMenu);
+        connect(action, &QAction::triggered, [item, this] {
+            RunConfiguration *newRC = item.create(m_target);
+            if (!newRC)
+                return;
+            QTC_CHECK(newRC->id() == item.id);
+            m_target->addRunConfiguration(newRC);
+            m_target->setActiveRunConfiguration(newRC);
+            m_removeRunToolButton->setEnabled(m_target->runConfigurations().size() > 1);
+        });
+        menuActions.append(action);
     }
 
     Utils::sort(menuActions, &QAction::text);
@@ -266,10 +261,6 @@ void RunSettingsWidget::aboutToShowAddMenu()
 void RunSettingsWidget::cloneRunConfiguration()
 {
     RunConfiguration* activeRunConfiguration = m_target->activeRunConfiguration();
-    IRunConfigurationFactory *factory = IRunConfigurationFactory::find(m_target,
-                                                                       activeRunConfiguration);
-    if (!factory)
-        return;
 
     //: Title of a the cloned RunConfiguration window, text of the window
     QString name = uniqueRCName(
@@ -277,11 +268,11 @@ void RunSettingsWidget::cloneRunConfiguration()
                                               tr("Clone Configuration"),
                                               tr("New configuration name:"),
                                               QLineEdit::Normal,
-                                              m_target->activeRunConfiguration()->displayName()));
+                                              activeRunConfiguration->displayName()));
     if (name.isEmpty())
         return;
 
-    RunConfiguration *newRc = factory->clone(m_target, activeRunConfiguration);
+    RunConfiguration *newRc = RunConfigurationFactory::clone(m_target, activeRunConfiguration);
     if (!newRc)
         return;
 
@@ -515,7 +506,7 @@ QString RunSettingsWidget::uniqueDCName(const QString &name)
                 continue;
             dcNames.append(dc->displayName());
         }
-        result = Project::makeUnique(result, dcNames);
+        result = Utils::makeUniquelyNumbered(result, dcNames);
     }
     return result;
 }
@@ -530,28 +521,29 @@ QString RunSettingsWidget::uniqueRCName(const QString &name)
                 continue;
             rcNames.append(rc->displayName());
         }
-        result = Project::makeUnique(result, rcNames);
+        result = Utils::makeUniquelyNumbered(result, rcNames);
     }
     return result;
 }
 
 void RunSettingsWidget::addRunControlWidgets()
 {
-    foreach (IRunConfigurationAspect *aspect, m_runConfiguration->extraAspects()) {
-        RunConfigWidget *rcw = aspect->createConfigurationWidget();
-        if (rcw)
-            addSubWidget(rcw);
+    for (ProjectConfigurationAspect *aspect : m_runConfiguration->aspects()) {
+        if (QWidget *rcw = aspect->createConfigWidget()) {
+            auto label = new QLabel(this);
+            label->setText(aspect->displayName());
+            connect(aspect, &GlobalOrProjectAspect::changed, label, [label, aspect] {
+                label->setText(aspect->displayName());
+            });
+            addSubWidget(rcw, label);
+        }
     }
 }
 
-void RunSettingsWidget::addSubWidget(RunConfigWidget *widget)
+void RunSettingsWidget::addSubWidget(QWidget *widget, QLabel *label)
 {
     widget->setContentsMargins(0, 10, 0, 0);
 
-    auto label = new QLabel(this);
-    label->setText(widget->displayName());
-    connect(widget, &RunConfigWidget::displayNameChanged,
-            label, &QLabel::setText);
     QFont f = label->font();
     f.setBold(true);
     f.setPointSizeF(f.pointSizeF() * 1.2);
@@ -568,8 +560,7 @@ void RunSettingsWidget::addSubWidget(RunConfigWidget *widget)
 
 void RunSettingsWidget::removeSubWidgets()
 {
-    // foreach does not like commas in types, it's only a macro after all
-    foreach (const RunConfigItem &item, m_subWidgets) {
+    for (const RunConfigItem &item : m_subWidgets) {
         delete item.first;
         delete item.second;
     }

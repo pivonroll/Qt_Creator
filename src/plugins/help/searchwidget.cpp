@@ -32,6 +32,7 @@
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
+#include <utils/progressindicator.h>
 #include <utils/styledbar.h>
 #include <utils/utilsicons.h>
 
@@ -43,6 +44,7 @@
 #include <QHelpSearchResultWidget>
 #include <QKeyEvent>
 #include <QLayout>
+#include <QLabel>
 #include <QMap>
 #include <QMenu>
 #include <QRegExp>
@@ -54,10 +56,6 @@
 using namespace Help::Internal;
 
 SearchWidget::SearchWidget()
-    : zoomCount(0)
-    , m_progress(0)
-    , searchEngine(0)
-    , resultWidget(0)
 {
 }
 
@@ -112,11 +110,14 @@ void SearchWidget::showEvent(QShowEvent *event)
 
         Utils::StyledBar *toolbar = new Utils::StyledBar(this);
         toolbar->setSingleRow(false);
-        QHelpSearchQueryWidget *queryWidget = searchEngine->queryWidget();
+        m_queryWidget = searchEngine->queryWidget();
         QLayout *tbLayout = new QVBoxLayout();
         tbLayout->setSpacing(6);
         tbLayout->setMargin(4);
-        tbLayout->addWidget(queryWidget);
+        tbLayout->addWidget(m_queryWidget);
+        m_indexingDocumentationLabel = new QLabel(tr("Indexing Documentation"), toolbar);
+        m_indexingDocumentationLabel->hide();
+        tbLayout->addWidget(m_indexingDocumentationLabel);
         toolbar->setLayout(tbLayout);
 
         Utils::StyledBar *toolbar2 = new Utils::StyledBar(this);
@@ -127,12 +128,17 @@ void SearchWidget::showEvent(QShowEvent *event)
         tbLayout->addWidget(resultWidget = searchEngine->resultWidget());
         toolbar2->setLayout(tbLayout);
 
+        m_indexingIndicator = new Utils::ProgressIndicator(Utils::ProgressIndicatorSize::Medium,
+                                                           resultWidget);
+        m_indexingIndicator->attachToWidget(resultWidget);
+        m_indexingIndicator->hide();
+
         vLayout->addWidget(toolbar);
         vLayout->addWidget(toolbar2);
 
-        setFocusProxy(queryWidget);
+        setFocusProxy(m_queryWidget);
 
-        connect(queryWidget, &QHelpSearchQueryWidget::search, this, &SearchWidget::search);
+        connect(m_queryWidget, &QHelpSearchQueryWidget::search, this, &SearchWidget::search);
         connect(resultWidget, &QHelpSearchResultWidget::requestShowLink, this,
                 [this](const QUrl &url) {
                     emit linkActivated(url, currentSearchTerms(), false/*newPage*/);
@@ -158,28 +164,7 @@ void SearchWidget::showEvent(QShowEvent *event)
 
 void SearchWidget::search() const
 {
-    static const QStringList charsToEscapeList({
-        "\\", "+", "-", "!", "(", ")", ":", "^", "[", "]", "{", "}", "~"
-    });
-
-    static const QString escapeChar("\\");
-    static const QRegExp regExp("[\\+\\-\\!\\(\\)\\^\\[\\]\\{\\}~:]");
-
-    QList<QHelpSearchQuery> escapedQueries;
-    const QList<QHelpSearchQuery> queries = searchEngine->queryWidget()->query();
-    foreach (const QHelpSearchQuery &query, queries) {
-        QHelpSearchQuery escapedQuery;
-        escapedQuery.fieldName = query.fieldName;
-        foreach (QString word, query.wordList) {
-            if (word.contains(regExp)) {
-                foreach (const QString &charToEscape, charsToEscapeList)
-                    word.replace(charToEscape, escapeChar + charToEscape);
-            }
-            escapedQuery.wordList.append(word);
-        }
-        escapedQueries.append(escapedQuery);
-    }
-    searchEngine->search(escapedQueries);
+    searchEngine->search(searchEngine->queryWidget()->searchInput());
 }
 
 void SearchWidget::searchingStarted()
@@ -205,6 +190,10 @@ void SearchWidget::indexingStarted()
     m_watcher.setFuture(m_progress->future());
     connect(&m_watcher, &QFutureWatcherBase::canceled,
             searchEngine, &QHelpSearchEngine::cancelIndexing);
+
+    m_queryWidget->hide();
+    m_indexingDocumentationLabel->show();
+    m_indexingIndicator->show();
 }
 
 void SearchWidget::indexingFinished()
@@ -212,7 +201,11 @@ void SearchWidget::indexingFinished()
     m_progress->reportFinished();
 
     delete m_progress;
-    m_progress = NULL;
+    m_progress = nullptr;
+
+    m_queryWidget->show();
+    m_indexingDocumentationLabel->hide();
+    m_indexingIndicator->hide();
 }
 
 bool SearchWidget::eventFilter(QObject *o, QEvent *e)
@@ -243,9 +236,9 @@ void SearchWidget::contextMenuEvent(QContextMenuEvent *contextMenuEvent)
     if (!browser->rect().contains(point, true))
         return;
 
-    QAction *openLink = 0;
-    QAction *openLinkInNewTab = 0;
-    QAction *copyAnchorAction = 0;
+    QAction *openLink = nullptr;
+    QAction *openLinkInNewTab = nullptr;
+    QAction *copyAnchorAction = nullptr;
 
     QMenu menu;
     QUrl link = browser->anchorAt(point);
@@ -272,24 +265,7 @@ void SearchWidget::contextMenuEvent(QContextMenuEvent *contextMenuEvent)
 
 QStringList SearchWidget::currentSearchTerms() const
 {
-    QList<QHelpSearchQuery> queryList = searchEngine->query();
-
-    QStringList terms;
-    foreach (const QHelpSearchQuery &query, queryList) {
-        switch (query.fieldName) {
-        case QHelpSearchQuery::ALL:
-        case QHelpSearchQuery::PHRASE:
-        case QHelpSearchQuery::DEFAULT:
-        case QHelpSearchQuery::ATLEAST: {
-                foreach (QString term, query.wordList)
-                    terms.append(term.remove(QLatin1Char('"')));
-            }
-            break;
-        default:
-            break;
-        }
-    }
-    return terms;
+    return searchEngine->searchInput().split(QRegExp("\\W+"), QString::SkipEmptyParts);
 }
 
 // #pragma mark -- SearchSideBarItem

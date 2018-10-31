@@ -65,7 +65,6 @@ public:
     void setRegisterValue(const QString &name, const QString &value) override;
     bool hasCapability(unsigned cap) const override;
 
-    bool isSynchronous() const override;
     QString qtNamespace() const override;
 
     void createSnapshot() override;
@@ -79,7 +78,6 @@ public:
         const QString &expr, const QVariant &value) override;
 
     DebuggerEngine *cppEngine() override { return m_cppEngine; }
-    DebuggerEngine *qmlEngine() const;
     DebuggerEngine *activeEngine() override { return m_activeEngine; }
     void setRunTool(DebuggerRunTool *runTool) override;
 
@@ -106,7 +104,6 @@ protected:
     void doUpdateLocals(const UpdateParameters &up) override;
 
     void setupEngine() override;
-    void setupInferior() override;
     void runEngine() override;
     void shutdownInferior() override;
     void shutdownEngine() override;

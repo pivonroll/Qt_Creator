@@ -35,16 +35,11 @@
 
 using namespace ProjectExplorer;
 
-DeviceCheckBuildStep::DeviceCheckBuildStep(BuildStepList *bsl, Core::Id id)
-    : BuildStep(bsl, id)
+DeviceCheckBuildStep::DeviceCheckBuildStep(BuildStepList *bsl)
+    : BuildStep(bsl, stepId())
 {
-    setDefaultDisplayName(stepDisplayName());
-}
-
-DeviceCheckBuildStep::DeviceCheckBuildStep(BuildStepList *bsl, DeviceCheckBuildStep *bs)
-    : BuildStep(bsl, bs)
-{
-    setDefaultDisplayName(stepDisplayName());
+    setDefaultDisplayName(displayName());
+    setWidgetExpandedByDefault(false);
 }
 
 bool DeviceCheckBuildStep::init(QList<const BuildStep *> &earlierSteps)
@@ -68,7 +63,7 @@ bool DeviceCheckBuildStep::init(QList<const BuildStep *> &earlierSteps)
             return false;
         }
 
-        IDevice::Ptr newDevice = factory->create(deviceTypeId);
+        IDevice::Ptr newDevice = factory->create();
         if (newDevice.isNull()) {
             emit addOutput(tr("No device configured."), BuildStep::OutputFormat::ErrorMessage);
             return false;
@@ -88,17 +83,12 @@ void DeviceCheckBuildStep::run(QFutureInterface<bool> &fi)
     reportRunResult(fi, true);
 }
 
-BuildStepConfigWidget *DeviceCheckBuildStep::createConfigWidget()
-{
-    return new SimpleBuildStepConfigWidget(this);
-}
-
 Core::Id DeviceCheckBuildStep::stepId()
 {
     return "ProjectExplorer.DeviceCheckBuildStep";
 }
 
-QString DeviceCheckBuildStep::stepDisplayName()
+QString DeviceCheckBuildStep::displayName()
 {
     return tr("Check for a configured device");
 }

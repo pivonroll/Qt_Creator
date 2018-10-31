@@ -40,10 +40,10 @@
 #include <coreplugin/icontext.h>
 #include <coreplugin/icore.h>
 #include <debugger/analyzer/analyzerrunconfigwidget.h>
+#include <debugger/analyzer/analyzericons.h>
 
 #include <projectexplorer/projectexplorer.h>
 
-#include <QtPlugin>
 #include <QCoreApplication>
 #include <QPointer>
 
@@ -58,19 +58,20 @@ static ValgrindGlobalSettings *theGlobalSettings = 0;
 class ValgrindOptionsPage : public IOptionsPage
 {
 public:
-    explicit ValgrindOptionsPage()
+    explicit ValgrindOptionsPage(QObject *parent)
+        : IOptionsPage(parent)
     {
         setId(ANALYZER_VALGRIND_SETTINGS);
         setDisplayName(QCoreApplication::translate("Valgrind::Internal::ValgrindOptionsPage", "Valgrind"));
         setCategory("T.Analyzer");
         setDisplayCategory(QCoreApplication::translate("Analyzer", "Analyzer"));
-        setCategoryIcon(Utils::Icon(":/images/analyzer_category.png"));
+        setCategoryIcon(Analyzer::Icons::SETTINGSCATEGORY_ANALYZER);
     }
 
     QWidget *widget()
     {
         if (!m_widget)
-            m_widget = new ValgrindConfigWidget(theGlobalSettings, 0, true);
+            m_widget = new ValgrindConfigWidget(theGlobalSettings, true);
         return m_widget;
     }
 
@@ -88,25 +89,19 @@ private:
     QPointer<QWidget> m_widget;
 };
 
-class ValgrindRunConfigurationAspect : public IRunConfigurationAspect
+class ValgrindRunConfigurationAspect : public GlobalOrProjectAspect
 {
 public:
-    ValgrindRunConfigurationAspect(RunConfiguration *parent)
-        : IRunConfigurationAspect(parent)
+    ValgrindRunConfigurationAspect(Target *)
     {
-        setProjectSettings(new ValgrindProjectSettings());
+        setProjectSettings(new ValgrindProjectSettings);
         setGlobalSettings(ValgrindPlugin::globalSettings());
         setId(ANALYZER_VALGRIND_SETTINGS);
         setDisplayName(QCoreApplication::translate("Valgrind::Internal::ValgrindRunConfigurationAspect",
                                                    "Valgrind Settings"));
         setUsingGlobalSettings(true);
         resetProjectToGlobalSettings();
-        setRunConfigWidgetCreator([this] { return new Debugger::AnalyzerRunConfigWidget(this); });
-    }
-
-    ValgrindRunConfigurationAspect *create(RunConfiguration *parent) const override
-    {
-        return new ValgrindRunConfigurationAspect(parent);
+        setConfigWidgetCreator([this] { return new Debugger::AnalyzerRunConfigWidget(this); });
     }
 };
 
@@ -121,7 +116,7 @@ bool ValgrindPlugin::initialize(const QStringList &, QString *)
     theGlobalSettings = new ValgrindGlobalSettings;
     theGlobalSettings->readSettings();
 
-    addAutoReleasedObject(new ValgrindOptionsPage);
+    new ValgrindOptionsPage(this);
 
     RunConfiguration::registerAspect<ValgrindRunConfigurationAspect>();
 

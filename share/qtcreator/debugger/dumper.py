@@ -337,6 +337,10 @@ class DumperBase:
         #warn('EXPANDED INAMES: %s' % self.expandedINames)
         #warn('WATCHERS: %s' % self.watchers)
 
+    def resetPerStepCaches(self):
+        self.perStepCache = {}
+        pass
+
     def resetCaches(self):
         # This is a cache mapping from 'type name' to 'display alternatives'.
         self.qqFormats = { 'QVariant (QVariantMap)' : mapForms() }
@@ -354,6 +358,14 @@ class DumperBase:
         # Maps type names to static metaobjects. If a type is known
         # to not be QObject derived, it contains a 0 value.
         self.knownStaticMetaObjects = {}
+
+        # A dictionary to serve as a per debugging step cache.
+        # Cleared on each step over / into / continue.
+        self.perStepCache = {}
+
+        # A dictionary to serve as a general cache throughout the whole
+        # debug session.
+        self.generalCache = {}
 
         self.counts = {}
         self.structPatternCache = {}
@@ -703,10 +715,8 @@ class DumperBase:
         elided, shown = self.computeLimit(size, limit)
         return elided, self.readMemory(data, shown)
 
-    def putCharArrayHelper(self, data, size, charType,
-                           displayFormat = AutomaticFormat,
-                           makeExpandable = True):
-        charSize = charType.size()
+    def putCharArrayValue(self, data, size, charSize,
+                          displayFormat = AutomaticFormat):
         bytelen = size * charSize
         elided, shown = self.computeLimit(bytelen, self.displayStringLimit)
         mem = self.readMemory(data, shown)
@@ -728,6 +738,12 @@ class DumperBase:
         if displayFormat in (SeparateLatin1StringFormat, SeparateUtf8StringFormat, SeparateFormat):
             elided, shown = self.computeLimit(bytelen, 100000)
             self.putDisplay(encodingType + ':separate', self.readMemory(data, shown))
+
+    def putCharArrayHelper(self, data, size, charType,
+                           displayFormat = AutomaticFormat,
+                           makeExpandable = True):
+        charSize = charType.size()
+        self.putCharArrayValue(data, size, charSize, displayFormat = displayFormat)
 
         if makeExpandable:
             self.putNumChild(size)
@@ -1945,7 +1961,7 @@ class DumperBase:
 
                         with SubItem(self, '[connections]'):
                             if connectionListsPtr:
-                                typeName = ns + 'QVector<' + ns + 'QObjectPrivate::ConnectionList>'
+                                typeName = '@QObjectConnectionListVector'
                                 self.putItem(self.createValue(connectionListsPtr, typeName))
                             else:
                                 self.putItemCount(0)
@@ -2245,6 +2261,11 @@ class DumperBase:
                         p += 1
 
     def extractPointer(self, value):
+        try:
+            if value.type.code == TypeCodeArray:
+                return value.address()
+        except:
+            pass
         code = 'I' if self.ptrSize() == 4 else 'Q'
         return self.extractSomething(value, code, 8 * self.ptrSize())
 
@@ -2742,10 +2763,8 @@ class DumperBase:
         if typeobj.code == TypeCodeBitfield:
             #warn('BITFIELD VALUE: %s %d %s' % (value.name, value.lvalue, typeName))
             self.putNumChild(0)
-            if typeobj.ltarget and typeobj.ltarget.code == TypeCodeEnum:
-                self.putValue(typeobj.ltarget.typeData().enumHexDisplay(value.lvalue, value.laddress))
-            else:
-                self.putValue(value.lvalue)
+            dd = typeobj.ltarget.typeData().enumDisplay
+            self.putValue(str(value.lvalue) if dd is None else dd(value.lvalue, value.laddress, '%d'))
             self.putType(typeName)
             return
 
@@ -2908,17 +2927,21 @@ class DumperBase:
                     % (self.name, self.type.name, self.lbitsize, self.lbitpos,
                        self.dumper.hexencode(self.ldata), addr)
 
-        def display(self, useHex = 1):
-            if self.type.code == TypeCodeEnum:
-                intval = self.integer()
-                if useHex:
-                    return self.type.typeData().enumHexDisplay(intval, self.laddress)
-                return self.type.typeData().enumDisplay(intval, self.laddress)
+        def displayEnum(self, form='%d'):
+            intval = self.integer()
+            dd = self.type.typeData().enumDisplay
+            if dd is None:
+                return str(intval)
+            return dd(intval, self.laddress, form)
+
+        def display(self):
             simple = self.value()
             if simple is not None:
                 return str(simple)
             if self.ldisplay is not None:
                 return self.ldisplay
+            if self.type.code == TypeCodeEnum:
+                return self.displayEnum()
             #if self.ldata is not None:
             #    if sys.version_info[0] == 2 and isinstance(self.ldata, buffer):
             #        return bytes(self.ldata).encode('hex')
@@ -2937,7 +2960,10 @@ class DumperBase:
                 return self.detypedef().integer()
             elif self.type.code == TypeCodeBitfield:
                 return self.lvalue
-            unsigned = self.type.name.startswith('unsigned')
+            # Could be something like 'short unsigned int'
+            unsigned = self.type.name == 'unsigned' \
+                    or self.type.name.startswith('unsigned ') \
+                    or self.type.name.find(' unsigned ') != -1
             bitsize = self.type.bitsize()
             return self.extractInteger(bitsize, unsigned)
 
@@ -3372,7 +3398,7 @@ class DumperBase:
             self.code = None
             self.name = None
             self.typeId = None
-            self.enumDisplay = str
+            self.enumDisplay = None
             self.moduleName = None
 
         def copy(self):
@@ -3606,7 +3632,11 @@ class DumperBase:
                     'QXmlStreamNotationDeclaration', 'QXmlStreamEntityDeclaration'
                     ):
                 return True
-            return strippedName == 'QStringList' and self.dumper.qtVersion() >= 0x050000
+            if strippedName == 'QStringList':
+                return self.dumper.qtVersion() >= 0x050000
+            if strippedName == 'QList':
+                return self.dumper.qtVersion() >= 0x050600
+            return False
 
     class Field(collections.namedtuple('Field',
                 ['dumper', 'name', 'type', 'bitsize', 'bitpos',
@@ -3651,6 +3681,9 @@ class DumperBase:
         if not self.isInt(address):
             error('wrong')
         return bytes(struct.pack(self.packCode + self.ptrCode(), address))
+
+    def fromPointerData(self, bytes_value):
+        return struct.unpack(self.packCode + self.ptrCode(), bytes_value)
 
     def createPointerValue(self, targetAddress, targetTypish):
         if not isinstance(targetTypish, self.Type) and not isinstance(targetTypish, str):

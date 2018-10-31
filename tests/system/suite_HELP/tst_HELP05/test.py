@@ -45,13 +45,14 @@ def verifyInteractiveQMLHelp(lineText, helpText):
                 % (helpText, getHelpTitle()))
 
 def main():
-    startApplication("qtcreator" + SettingsPath)
+    startQC()
     if not startedWithoutPluginError():
         return
     qchs = []
     for p in Qt5Path.getPaths(Qt5Path.DOCS):
         qchs.append(os.path.join(p, "qtquick.qch"))
     addHelpDocumentation(qchs)
+    setFixedHelpViewer(HelpViewer.SIDEBYSIDE)
     # create qt quick application
     createNewQtQuickApplication(tempDir(), "SampleApp")
     editorArea = waitForObject(":Qt Creator_QmlJSEditor::QmlJSTextEditorWidget")

@@ -46,7 +46,7 @@ static void moveCursorToEndOfName(QTextCursor *tc)
         return;
 
     QChar ch = doc->characterAt(tc->position());
-    while (ch.isLetterOrNumber() || ch == QLatin1Char('_')) {
+    while (ch.isLetterOrNumber() || ch == '_') {
         tc->movePosition(QTextCursor::NextCharacter);
         ch = doc->characterAt(tc->position());
     }
@@ -58,7 +58,7 @@ CPlusPlus::Symbol *AnalyzerUtils::findSymbolUnderCursor()
 {
     TextEditor::TextEditorWidget *widget = TextEditor::TextEditorWidget::currentTextEditorWidget();
     if (!widget)
-        return 0;
+        return nullptr;
 
     QTextCursor tc = widget->textCursor();
     int line = 0;
@@ -68,7 +68,7 @@ CPlusPlus::Symbol *AnalyzerUtils::findSymbolUnderCursor()
 
     const CPlusPlus::Snapshot &snapshot = CppTools::CppModelManager::instance()->snapshot();
     CPlusPlus::Document::Ptr doc = snapshot.document(widget->textDocument()->filePath());
-    QTC_ASSERT(doc, return 0);
+    QTC_ASSERT(doc, return nullptr);
 
     // fetch the expression's code
     CPlusPlus::ExpressionUnderCursor expressionUnderCursor(doc->languageFeatures());
@@ -80,7 +80,7 @@ CPlusPlus::Symbol *AnalyzerUtils::findSymbolUnderCursor()
     typeOfExpression.init(doc, snapshot);
     const QList<CPlusPlus::LookupItem> &lookupItems = typeOfExpression(expression.toUtf8(), scope);
     if (lookupItems.isEmpty())
-        return 0;
+        return nullptr;
 
     const CPlusPlus::LookupItem &lookupItem = lookupItems.first(); // ### TODO: select best candidate.
     return lookupItem.declaration();

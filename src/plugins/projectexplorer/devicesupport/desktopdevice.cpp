@@ -32,7 +32,6 @@
 
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/runconfiguration.h>
-#include <projectexplorer/runnables.h>
 
 #include <ssh/sshconnection.h>
 
@@ -61,9 +60,7 @@ DesktopDevice::DesktopDevice() : IDevice(Core::Id(DESKTOP_DEVICE_TYPE),
     setFreePorts(Utils::PortList::fromString(portRange));
 }
 
-DesktopDevice::DesktopDevice(const DesktopDevice &other) :
-    IDevice(other)
-{ }
+DesktopDevice::DesktopDevice(const DesktopDevice &other) = default;
 
 IDevice::DeviceInfo DesktopDevice::deviceInformation() const
 {
@@ -77,7 +74,7 @@ QString DesktopDevice::displayType() const
 
 IDeviceWidget *DesktopDevice::createWidget()
 {
-    return 0;
+    return nullptr;
     // DesktopDeviceConfigurationWidget currently has just one editable field viz. free ports.
     // Querying for an available port is quite straightforward. Having a field for the port
     // range can be confusing to the user. Hence, disabling the widget for now.
@@ -128,7 +125,7 @@ DeviceProcessSignalOperation::Ptr DesktopDevice::signalOperation() const
 class DesktopDeviceEnvironmentFetcher : public DeviceEnvironmentFetcher
 {
 public:
-    DesktopDeviceEnvironmentFetcher() {}
+    DesktopDeviceEnvironmentFetcher() = default;
 
     void start() override
     {
@@ -155,7 +152,7 @@ class DesktopPortsGatheringMethod : public PortsGatheringMethod
 
         Q_UNUSED(protocol)
 
-        StandardRunnable runnable;
+        Runnable runnable;
         if (HostOsInfo::isWindowsHost() || HostOsInfo::isMacHost()) {
             runnable.executable = "netstat";
             runnable.commandLineArguments =  "-a -n";

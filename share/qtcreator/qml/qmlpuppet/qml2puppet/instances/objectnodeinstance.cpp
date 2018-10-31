@@ -126,7 +126,8 @@ void ObjectNodeInstance::initializePropertyWatcher(const ObjectNodeInstance::Poi
     m_signalSpy.setObjectNodeInstance(objectNodeInstance);
 }
 
-void ObjectNodeInstance::initialize(const ObjectNodeInstance::Pointer &objectNodeInstance)
+void ObjectNodeInstance::initialize(const ObjectNodeInstance::Pointer &objectNodeInstance,
+                                    InstanceContainer::NodeFlags /*flags*/)
 {
     initializePropertyWatcher(objectNodeInstance);
     QmlPrivateGate::registerNodeInstanceMetaObject(objectNodeInstance->object(), objectNodeInstance->nodeInstanceServer()->engine());
@@ -395,7 +396,7 @@ QVariant ObjectNodeInstance::convertEnumToValue(const QVariant &value, const Pro
         QQmlExpression expression(context(), object(), enumeration.toString());
         adjustedValue =  expression.evaluate();
         if (expression.hasError())
-            qDebug() << "Enumeration can not be evaluated:" << object() << name << enumeration;
+            qDebug() << "Enumeration cannot be evaluated:" << object() << name << enumeration;
     }
     return adjustedValue;
 }
@@ -684,7 +685,7 @@ static inline QString fixComponentPathForIncompatibleQt(const QString &component
     if (componentPath.contains(importString)) {
         int index = componentPath.indexOf(importString) + 8;
         const QString relativeImportPath = componentPath.right(componentPath.length() - index);
-        QString fixedComponentPath = QLibraryInfo::location(QLibraryInfo::ImportsPath) + relativeImportPath;
+        QString fixedComponentPath = QLibraryInfo::location(QLibraryInfo::Qml2ImportsPath) + relativeImportPath;
         fixedComponentPath.replace(QLatin1Char('\\'), QLatin1Char('/'));
         if (QFileInfo::exists(fixedComponentPath))
             return fixedComponentPath;

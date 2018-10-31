@@ -24,9 +24,9 @@
 ****************************************************************************/
 
 #include "googletest.h"
-#include "mockrefactoringclientcallback.h"
 #include "mocksearchhandle.h"
 #include "mockfilepathcaching.h"
+#include "mockprogressmanager.h"
 #include "mocksymbolquery.h"
 
 #include <clangqueryprojectsfindfilter.h>
@@ -41,6 +41,7 @@
 
 #include <utils/smallstringvector.h>
 
+#include <QBuffer>
 #include <QTextCursor>
 #include <QTextDocument>
 
@@ -56,11 +57,6 @@ using ClangBackEnd::SourceLocationsForRenamingMessage;
 using ClangBackEnd::SourceRangesAndDiagnosticsForQueryMessage;
 using ClangBackEnd::SourceRangesForQueryMessage;
 
-using testing::_;
-using testing::Pair;
-using testing::Contains;
-using testing::NiceMock;
-
 using Utils::PathString;
 using Utils::SmallString;
 using Utils::SmallStringVector;
@@ -73,10 +69,14 @@ protected:
     NiceMock<MockFilePathCaching> mockFilePathCaching;
     NiceMock<MockSearchHandle> mockSearchHandle;
     NiceMock<MockSymbolQuery> mockSymbolQuery;
-    MockRefactoringClientCallBack callbackMock;
-    ClangRefactoring::RefactoringClient client;
-    ClangBackEnd::RefactoringConnectionClient connectionClient{&client};
-    RefactoringEngine engine{connectionClient.serverProxy(), client, mockFilePathCaching, mockSymbolQuery};
+    QBuffer ioDevice;
+    MockFunction<void(const QString &,
+                     const ClangBackEnd::SourceLocationsContainer &,
+                     int)> mockLocalRenaming;
+    NiceMock<MockProgressManager> mockProgressManager;
+    ClangRefactoring::RefactoringClient client{mockProgressManager};
+    ClangBackEnd::RefactoringServerProxy serverProxy{&client, &ioDevice};
+    RefactoringEngine engine{serverProxy, client, mockFilePathCaching, mockSymbolQuery};
     QString fileContent{QStringLiteral("int x;\nint y;")};
     QTextDocument textDocument{fileContent};
     QTextCursor cursor{&textDocument};
@@ -96,32 +96,19 @@ protected:
 
 TEST_F(RefactoringClient, SourceLocationsForRenaming)
 {
-    client.setLocalRenamingCallback([&] (const QString &symbolName,
-                                         const ClangBackEnd::SourceLocationsContainer &sourceLocations,
-                                         int textDocumentRevision) {
-        callbackMock.localRenaming(symbolName,
-                                   sourceLocations,
-                                   textDocumentRevision);
-    });
+    client.setLocalRenamingCallback(mockLocalRenaming.AsStdFunction());
 
-    EXPECT_CALL(callbackMock, localRenaming(renameMessage.symbolName().toQString(),
-                                            renameMessage.sourceLocations(),
-                                            renameMessage.textDocumentRevision()))
-        .Times(1);
+    EXPECT_CALL(mockLocalRenaming, Call(renameMessage.symbolName.toQString(),
+                                        renameMessage.sourceLocations,
+                                        renameMessage.textDocumentRevision));
 
     client.sourceLocationsForRenamingMessage(std::move(renameMessage));
 }
 
 TEST_F(RefactoringClient, AfterSourceLocationsForRenamingEngineIsUsableAgain)
 {
-    client.setLocalRenamingCallback([&] (const QString &symbolName,
-                                         const ClangBackEnd::SourceLocationsContainer &sourceLocations,
-                                         int textDocumentRevision) {
-        callbackMock.localRenaming(symbolName,
-                                   sourceLocations,
-                                   textDocumentRevision);
-    });
-    EXPECT_CALL(callbackMock, localRenaming(_,_,_));
+    client.setLocalRenamingCallback(mockLocalRenaming.AsStdFunction());
+    EXPECT_CALL(mockLocalRenaming, Call(_,_,_));
 
     client.sourceLocationsForRenamingMessage(std::move(renameMessage));
 
@@ -233,6 +220,13 @@ TEST_F(RefactoringClient, XXX)
         .Times(1);
 
     client.addSearchResult(sourceRange);
+}
+
+TEST_F(RefactoringClient, SetProgress)
+{
+    EXPECT_CALL(mockProgressManager, setProgress(10, 20));
+
+    client.progress({ClangBackEnd::ProgressType::Indexing, 10, 20});
 }
 
 void RefactoringClient::SetUp()

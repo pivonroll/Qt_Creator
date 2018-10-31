@@ -33,7 +33,6 @@
 #include <coreplugin/icore.h>
 #include <utils/qtcassert.h>
 #include <utils/fileutils.h>
-#include <utils/qtcfallthrough.h>
 #include "utils/runextensions.h"
 #include "utils/synchronousprocess.h"
 
@@ -59,7 +58,7 @@
 #include <string.h>
 #include <errno.h>
 
-static Q_LOGGING_CATEGORY(toolHandlerLog, "qtc.ios.toolhandler")
+static Q_LOGGING_CATEGORY(toolHandlerLog, "qtc.ios.toolhandler", QtWarningMsg)
 
 namespace Ios {
 
@@ -153,7 +152,7 @@ struct ParserState {
     QString key;
     QString value;
     QMap<QString,QString> info;
-    int progress, maxProgress;
+    int progress = 0, maxProgress = 0;
     int gdbPort, qmlPort;
     bool collectChars() {
         switch (kind) {
@@ -215,7 +214,7 @@ protected:
     IosToolHandler *q;
     QString m_deviceId;
     QString m_bundlePath;
-    IosToolHandler::RunKind m_runKind;
+    IosToolHandler::RunKind m_runKind = IosToolHandler::NormalRun;
     IosDeviceType m_devType;
 };
 
@@ -927,7 +926,7 @@ void IosSimulatorToolHandlerPrivate::installAppOnSimulator()
             didTransferApp(m_bundlePath, m_deviceId, IosToolHandler::Success);
         } else {
             errorMsg(IosToolHandler::tr("Application install on simulator failed. %1")
-                     .arg(QString::fromLocal8Bit(response.commandOutput)));
+                     .arg(response.commandOutput));
             didTransferApp(m_bundlePath, m_deviceId, IosToolHandler::Failure);
         }
         emit q->finished(q);
@@ -991,7 +990,7 @@ void IosSimulatorToolHandlerPrivate::launchAppOnSimulator(const QStringList &ext
         } else {
             m_pid = -1;
             errorMsg(IosToolHandler::tr("Application launch on simulator failed. %1")
-                     .arg(QString::fromLocal8Bit(response.commandOutput)));
+                     .arg(response.commandOutput));
             didStartApp(m_bundlePath, m_deviceId, Ios::IosToolHandler::Failure);
             stop(-1);
             q->finished(q);

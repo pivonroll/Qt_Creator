@@ -34,19 +34,64 @@
 #include <QString>
 #include <QVariantMap>
 
+QT_BEGIN_NAMESPACE
+class QFormLayout;
+QT_END_NAMESPACE
+
 namespace ProjectExplorer {
 
 class Project;
+
+class PROJECTEXPLORER_EXPORT ProjectConfigurationAspect : public QObject
+{
+    Q_OBJECT
+
+public:
+    ProjectConfigurationAspect();
+    ~ProjectConfigurationAspect() override;
+
+    void setId(Core::Id id) { m_id = id; }
+    void setDisplayName(const QString &displayName) { m_displayName = displayName; }
+    void setSettingsKey(const QString &settingsKey) { m_settingsKey = settingsKey; }
+
+    Core::Id id() const { return m_id; }
+    QString displayName() const { return m_displayName; }
+    QString settingsKey() const { return  m_settingsKey; }
+
+    bool isVisible() const { return m_visible; }
+    void setVisible(bool visible) { m_visible = visible; }
+
+    using ConfigWidgetCreator = std::function<QWidget *()>;
+    void setConfigWidgetCreator(const ConfigWidgetCreator &configWidgetCreator);
+    QWidget *createConfigWidget() const;
+
+    virtual void fromMap(const QVariantMap &) {}
+    virtual void toMap(QVariantMap &) const {}
+    virtual void addToConfigurationLayout(QFormLayout *) {}
+
+signals:
+    void changed();
+
+protected:
+    Core::Id m_id;
+    QString m_displayName;
+    QString m_settingsKey; // Name of data in settings.
+    bool m_visible = true;
+    ConfigWidgetCreator m_configWidgetCreator;
+};
 
 class PROJECTEXPLORER_EXPORT ProjectConfiguration : public QObject
 {
     Q_OBJECT
 
+protected:
+    explicit ProjectConfiguration(QObject *parent, Core::Id id);
+
 public:
-    // ctors are protected
-    ~ProjectConfiguration() = default;
+    ~ProjectConfiguration() override;
 
     Core::Id id() const;
+
     QString displayName() const;
 
     bool usesDefaultDisplayName() const;
@@ -69,17 +114,37 @@ public:
 
     virtual bool isActive() const = 0;
 
+    static QString settingsIdKey();
+
+    template<class Aspect, typename ...Args>
+    Aspect *addAspect(Args && ...args)
+    {
+        auto aspect = new Aspect(args...);
+        m_aspects.append(aspect);
+        return aspect;
+    }
+
+    const QList<ProjectConfigurationAspect *> aspects() const { return m_aspects; }
+
+    ProjectConfigurationAspect *aspect(Core::Id id) const;
+
+    template <typename T> T *aspect() const
+    {
+        for (ProjectConfigurationAspect *aspect : m_aspects)
+            if (T *result = qobject_cast<T *>(aspect))
+                return result;
+        return nullptr;
+    }
+
 signals:
     void displayNameChanged();
     void toolTipChanged();
 
 protected:
-    ProjectConfiguration(QObject *parent);
-    void initialize(Core::Id id);
-    void copyFrom(const ProjectConfiguration *source);
+    QList<ProjectConfigurationAspect *> m_aspects;
 
 private:
-    Core::Id m_id;
+    const Core::Id m_id;
     QString m_displayName;
     QString m_defaultDisplayName;
     QString m_toolTip;
@@ -101,8 +166,7 @@ signals:
     void enabledChanged();
 
 protected:
-    StatefulProjectConfiguration(QObject *parent);
-    void copyFrom(const StatefulProjectConfiguration *source);
+    StatefulProjectConfiguration(QObject *parent, Core::Id id);
 
     void setEnabled(bool enabled);
 
@@ -110,8 +174,7 @@ private:
     bool m_isEnabled = false;
 };
 
-// helper functions:
+// helper function:
 PROJECTEXPLORER_EXPORT Core::Id idFromMap(const QVariantMap &map);
-PROJECTEXPLORER_EXPORT QString displayNameFromMap(const QVariantMap &map);
 
 } // namespace ProjectExplorer

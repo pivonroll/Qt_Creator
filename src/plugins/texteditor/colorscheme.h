@@ -82,8 +82,8 @@ public:
     bool fromString(const QString &str);
 
 private:
-    QColor m_foreground = Qt::black;
-    QColor m_background = Qt::white;
+    QColor m_foreground;
+    QColor m_background;
     QColor m_underlineColor;
     double m_relativeForegroundSaturation = 0.0;
     double m_relativeForegroundLightness = 0.0;

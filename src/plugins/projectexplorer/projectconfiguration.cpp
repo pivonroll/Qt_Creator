@@ -25,33 +25,55 @@
 
 #include "projectconfiguration.h"
 
+#include <utils/algorithm.h>
+#include <utils/qtcassert.h>
+
 using namespace ProjectExplorer;
 
 const char CONFIGURATION_ID_KEY[] = "ProjectExplorer.ProjectConfiguration.Id";
 const char DISPLAY_NAME_KEY[] = "ProjectExplorer.ProjectConfiguration.DisplayName";
 const char DEFAULT_DISPLAY_NAME_KEY[] = "ProjectExplorer.ProjectConfiguration.DefaultDisplayName";
 
-ProjectConfiguration::ProjectConfiguration(QObject *parent)
-    : QObject(parent)
-{}
+// ProjectConfigurationAspect
 
-void ProjectConfiguration::initialize(Core::Id id)
+ProjectConfigurationAspect::ProjectConfigurationAspect() = default;
+
+ProjectConfigurationAspect::~ProjectConfigurationAspect() = default;
+
+void ProjectConfigurationAspect::setConfigWidgetCreator
+    (const ConfigWidgetCreator &configWidgetCreator)
 {
-    m_id = id;
+    m_configWidgetCreator = configWidgetCreator;
+}
+
+QWidget *ProjectConfigurationAspect::createConfigWidget() const
+{
+    return m_configWidgetCreator ? m_configWidgetCreator() : nullptr;
+}
+
+
+// ProjectConfiguration
+
+ProjectConfiguration::ProjectConfiguration(QObject *parent, Core::Id id)
+    : QObject(parent), m_id(id)
+{
+    QTC_CHECK(id.isValid());
     setObjectName(id.toString());
 }
 
-void ProjectConfiguration::copyFrom(const ProjectConfiguration *source)
+ProjectConfiguration::~ProjectConfiguration()
 {
-    Q_ASSERT(source);
-    m_id = source->m_id;
-    m_defaultDisplayName = source->m_defaultDisplayName;
-    m_displayName = tr("Clone of %1").arg(source->displayName());
+    qDeleteAll(m_aspects);
 }
 
 Core::Id ProjectConfiguration::id() const
 {
     return m_id;
+}
+
+QString ProjectConfiguration::settingsIdKey()
+{
+    return QString(CONFIGURATION_ID_KEY);
 }
 
 QString ProjectConfiguration::displayName() const
@@ -102,21 +124,39 @@ bool ProjectConfiguration::usesDefaultDisplayName() const
 
 QVariantMap ProjectConfiguration::toMap() const
 {
+    QTC_CHECK(m_id.isValid());
     QVariantMap map;
     map.insert(QLatin1String(CONFIGURATION_ID_KEY), m_id.toSetting());
     map.insert(QLatin1String(DISPLAY_NAME_KEY), m_displayName);
     map.insert(QLatin1String(DEFAULT_DISPLAY_NAME_KEY), m_defaultDisplayName);
+
+    for (const auto &aspect : m_aspects)
+        aspect->toMap(map);
+
     return map;
 }
 
 bool ProjectConfiguration::fromMap(const QVariantMap &map)
 {
-    m_id = Core::Id::fromSetting(map.value(QLatin1String(CONFIGURATION_ID_KEY)));
+    Core::Id id = Core::Id::fromSetting(map.value(QLatin1String(CONFIGURATION_ID_KEY)));
+    // Note: This is only "startsWith", not ==, as RunConfigurations currently still
+    // mangle in their build keys.
+    QTC_ASSERT(id.toString().startsWith(m_id.toString()), return false);
+
     m_displayName = map.value(QLatin1String(DISPLAY_NAME_KEY), QString()).toString();
     m_defaultDisplayName = map.value(QLatin1String(DEFAULT_DISPLAY_NAME_KEY),
                                      m_defaultDisplayName.isEmpty() ?
                                          m_displayName : m_defaultDisplayName).toString();
-    return m_id.isValid();
+
+    for (const auto &aspect : qAsConst(m_aspects))
+        aspect->fromMap(map);
+
+    return true;
+}
+
+ProjectConfigurationAspect *ProjectConfiguration::aspect(Core::Id id) const
+{
+    return Utils::findOrDefault(m_aspects, Utils::equal(&ProjectConfigurationAspect::id, id));
 }
 
 Core::Id ProjectExplorer::idFromMap(const QVariantMap &map)
@@ -124,25 +164,16 @@ Core::Id ProjectExplorer::idFromMap(const QVariantMap &map)
     return Core::Id::fromSetting(map.value(QLatin1String(CONFIGURATION_ID_KEY)));
 }
 
-QString ProjectExplorer::displayNameFromMap(const QVariantMap &map)
-{
-    return map.value(QLatin1String(DISPLAY_NAME_KEY), QString()).toString();
-}
+// StatefulProjectConfiguration
 
 bool StatefulProjectConfiguration::isEnabled() const
 {
     return m_isEnabled;
 }
 
-StatefulProjectConfiguration::StatefulProjectConfiguration(QObject *parent) :
-    ProjectConfiguration(parent)
+StatefulProjectConfiguration::StatefulProjectConfiguration(QObject *parent, Core::Id id) :
+    ProjectConfiguration(parent, id)
 { }
-
-void StatefulProjectConfiguration::copyFrom(const StatefulProjectConfiguration *source)
-{
-    ProjectConfiguration::copyFrom(source);
-    m_isEnabled = source->m_isEnabled;
-}
 
 void StatefulProjectConfiguration::setEnabled(bool enabled)
 {

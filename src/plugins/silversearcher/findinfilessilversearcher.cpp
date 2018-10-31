@@ -105,9 +105,6 @@ void runSilverSeacher(FutureInterfaceType &fi, FileFindParameters parameters)
     for (const QString &filter : parameters.exclusionFilters)
         arguments << "--ignore" << filter;
 
-    FileName path = FileName::fromUserInput(FileUtils::normalizePathName(directory));
-    arguments << parameters.text << path.toString();
-
     QString nameFiltersAsRegex;
     for (const QString &filter : parameters.nameFilters)
         nameFiltersAsRegex += QString("(%1)|").arg(convertWildcardToRegex(filter));
@@ -115,11 +112,22 @@ void runSilverSeacher(FutureInterfaceType &fi, FileFindParameters parameters)
 
     arguments << "-G" << nameFiltersAsRegex;
 
+    const FileName path = FileName::fromUserInput(FileUtils::normalizePathName(directory));
+    arguments << "--" << parameters.text << path.toString();
+
     QProcess process;
     process.start("ag", arguments);
     if (process.waitForFinished()) {
         typedef QList<FileSearchResult> FileSearchResultList;
-        SilverSearcher::SilverSearcherOutputParser parser(process.readAll());
+        QRegularExpression regexp;
+        if (parameters.flags & FindRegularExpression) {
+            const QRegularExpression::PatternOptions patternOptions =
+                    (parameters.flags & FindCaseSensitively)
+                    ? QRegularExpression::NoPatternOption : QRegularExpression::CaseInsensitiveOption;
+            regexp.setPattern(parameters.text);
+            regexp.setPatternOptions(patternOptions);
+        }
+        SilverSearcher::SilverSearcherOutputParser parser(process.readAll(), regexp);
         FileSearchResultList items = parser.parse();
         if (!items.isEmpty())
             fi.reportResult(items);
@@ -132,8 +140,8 @@ void runSilverSeacher(FutureInterfaceType &fi, FileFindParameters parameters)
 
 namespace SilverSearcher {
 
-FindInFilesSilverSearcher::FindInFilesSilverSearcher()
-    : m_widget(0),
+FindInFilesSilverSearcher::FindInFilesSilverSearcher(QObject *parent)
+    : SearchEngine(parent),
       m_path("ag"),
       m_toolName("SilverSearcher")
 {
@@ -189,7 +197,7 @@ QFuture<FileSearchResultList> FindInFilesSilverSearcher::executeSearch(
 IEditor *FindInFilesSilverSearcher::openEditor(const SearchResultItem & /*item*/,
                                                const FileFindParameters & /*parameters*/)
 {
-    return 0;
+    return nullptr;
 }
 
 void FindInFilesSilverSearcher::readSettings(QSettings * /*settings*/)

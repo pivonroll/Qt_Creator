@@ -103,27 +103,13 @@ ModelNode::ModelNode():
 
 }
 
-ModelNode::ModelNode(const ModelNode &other):
-        m_internalNode(other.m_internalNode),
-        m_model(other.m_model),
-        m_view(other.m_view)
-{
-}
+ModelNode::ModelNode(const ModelNode &other) = default;
 
-ModelNode& ModelNode::operator=(const ModelNode &other)
-{
-    this->m_model = other.m_model;
-    this->m_internalNode = other.m_internalNode;
-    this->m_view = other.m_view;
-
-    return *this;
-}
+ModelNode& ModelNode::operator=(const ModelNode &other) = default;
 
 /*! \brief does nothing
 */
-ModelNode::~ModelNode()
-{
-}
+ModelNode::~ModelNode() = default;
 
 /*! \brief returns the name of node which is a short cut to a property like objectName
 \return name of the node
@@ -310,7 +296,7 @@ QString ModelNode::simplifiedTypeName() const
         throw InvalidModelNodeException(__LINE__, __FUNCTION__, __FILE__);
     }
 
-    return QString::fromUtf8(type().split('.').last());
+    return QString::fromUtf8(type().split('.').constLast());
 }
 
 QString ModelNode::displayName() const
@@ -1118,14 +1104,15 @@ bool ModelNode::isComponent() const
 
     if (metaInfo().isView() && hasNodeProperty("delegate")) {
         const ModelNode delegateNode = nodeProperty("delegate").modelNode();
-        if (delegateNode.hasMetaInfo()) {
-            const NodeMetaInfo delegateMetaInfo = delegateNode.metaInfo();
-            if (delegateMetaInfo.isValid() && delegateMetaInfo.isFileComponent())
+        if (delegateNode.isValid()) {
+            if (delegateNode.hasMetaInfo()) {
+                const NodeMetaInfo delegateMetaInfo = delegateNode.metaInfo();
+                if (delegateMetaInfo.isValid() && delegateMetaInfo.isFileComponent())
+                    return true;
+            }
+            if (delegateNode.nodeSourceType() == ModelNode::NodeWithComponentSource)
                 return true;
         }
-
-        if (delegateNode.nodeSourceType() == ModelNode::NodeWithComponentSource)
-            return true;
     }
 
     if (metaInfo().isSubclassOf("QtQuick.Loader")) {
@@ -1137,7 +1124,7 @@ bool ModelNode::isComponent() const
          * the default property is always implcitly a NodeListProperty. This is something that has to be fixed.
          */
 
-            ModelNode componentNode = nodeListProperty("component").toModelNodeList().first();
+            ModelNode componentNode = nodeListProperty("component").toModelNodeList().constFirst();
             if (componentNode.nodeSourceType() == ModelNode::NodeWithComponentSource)
                 return true;
             if (componentNode.metaInfo().isFileComponent())
@@ -1174,7 +1161,7 @@ QIcon ModelNode::typeIcon() const
         QList <ItemLibraryEntry> itemLibraryEntryList = libraryInfo->entriesForType(
                     type(), majorVersion(), minorVersion());
         if (!itemLibraryEntryList.isEmpty())
-            return itemLibraryEntryList.first().typeIcon();
+            return itemLibraryEntryList.constFirst().typeIcon();
         else if (metaInfo().isValid())
             return QIcon(QStringLiteral(":/ItemLibrary/images/item-default-icon.png"));
     }

@@ -4,7 +4,8 @@ TEMPLATE  = subdirs
 
 SUBDIRS   = \
     autotest \
-    clangstaticanalyzer \
+    clangformat \
+    clangtools \
     coreplugin \
     texteditor \
     cppeditor \
@@ -56,8 +57,16 @@ SUBDIRS   = \
     scxmleditor \
     welcome \
     silversearcher \
-    vcprojectmanager
+    languageclient \
+    cppcheck \
+    compilationdatabaseprojectmanager \
+	vcprojectmanager 
 
+qtHaveModule(serialport) {
+    SUBDIRS += serialterminal
+} else {
+    warning("SerialTerminal plugin has been disabled since the Qt SerialPort module is not available.")
+}
 qtHaveModule(quick) {
     SUBDIRS += qmlprofiler
 } else {
@@ -97,21 +106,15 @@ exists(../shared/qbs/qbs.pro)|!isEmpty(QBS_INSTALL_DIR): \
     SUBDIRS += \
         qbsprojectmanager
 
-# prefer qmake variable set on command line over env var
-isEmpty(LLVM_INSTALL_DIR):LLVM_INSTALL_DIR=$$(LLVM_INSTALL_DIR)
-exists($$LLVM_INSTALL_DIR) {
-    SUBDIRS += clangcodemodel
+SUBDIRS += \
+    clangcodemodel
 
-    QTC_NO_CLANG_LIBTOOLING=$$(QTC_NO_CLANG_LIBTOOLING)
-    isEmpty(QTC_NO_CLANG_LIBTOOLING) {
-        SUBDIRS += clangrefactoring
-        SUBDIRS += clangpchmanager
-    } else {
-        warning("Building the Clang refactoring and the pch manager plugins are disabled.")
-    }
+QTC_ENABLE_CLANG_LIBTOOLING=$$(QTC_ENABLE_CLANG_LIBTOOLING)
+!isEmpty(QTC_ENABLE_CLANG_LIBTOOLING) {
+    SUBDIRS += clangrefactoring
+    SUBDIRS += clangpchmanager
 } else {
-    warning("Set LLVM_INSTALL_DIR to build the Clang Code Model. " \
-            "For details, see doc/src/editors/creator-clang-codemodel.qdoc.")
+    warning("Not building the clang refactoring plugin and the pch manager plugin.")
 }
 
 isEmpty(IDE_PACKAGE_MODE) {

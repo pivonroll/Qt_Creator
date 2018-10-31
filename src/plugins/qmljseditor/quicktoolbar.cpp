@@ -74,12 +74,8 @@ static inline const ObjectValue * getPropertyChangesTarget(Node *node, const Sco
     return 0;
 }
 
-QuickToolBar::QuickToolBar(QObject *parent)
-    : ::IContextPane(parent)
-    , m_editorWidget(0)
-    , m_blockWriting(false)
+QuickToolBar::QuickToolBar()
 {
-    m_node = 0;
     contextWidget();
 
     m_propertyOrder
@@ -100,7 +96,7 @@ QuickToolBar::QuickToolBar(QObject *parent)
                << QLatin1String("font.italic")
                << QLatin1String("font.underline")
                << QLatin1String("font.strikeout")
-               << QString::null
+               << QString()
                << QLatin1String("states")
                << QLatin1String("transitions")
                ;

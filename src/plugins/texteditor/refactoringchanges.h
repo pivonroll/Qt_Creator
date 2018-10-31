@@ -74,11 +74,12 @@ public:
     QString textOf(int start, int end) const;
     QString textOf(const Range &range) const;
 
+    Utils::ChangeSet changeSet() const;
     void setChangeSet(const Utils::ChangeSet &changeSet);
     void appendIndentRange(const Range &range);
     void appendReindentRange(const Range &range);
     void setOpenEditor(bool activate = false, int pos = -1);
-    void apply();
+    bool apply();
 
 protected:
     // users may only get const access to RefactoringFiles created through
@@ -101,15 +102,15 @@ protected:
     QString m_fileName;
     QSharedPointer<RefactoringChangesData> m_data;
     mutable Utils::TextFileFormat m_textFileFormat;
-    mutable QTextDocument *m_document;
-    TextEditorWidget *m_editor;
+    mutable QTextDocument *m_document = nullptr;
+    TextEditorWidget *m_editor = nullptr;
     Utils::ChangeSet m_changes;
     QList<Range> m_indentRanges;
     QList<Range> m_reindentRanges;
-    bool m_openEditor;
-    bool m_activateEditor;
-    int m_editorCursorPosition;
-    bool m_appliedOnce;
+    bool m_openEditor = false;
+    bool m_activateEditor = false;
+    int m_editorCursorPosition = -1;
+    bool m_appliedOnce = false;
 
     friend class RefactoringChanges; // access to constructor
 };

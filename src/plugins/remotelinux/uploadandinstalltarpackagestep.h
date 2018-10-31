@@ -54,20 +54,14 @@ class REMOTELINUX_EXPORT UploadAndInstallTarPackageStep : public AbstractRemoteL
 
 public:
     explicit UploadAndInstallTarPackageStep(ProjectExplorer::BuildStepList *bsl);
-    UploadAndInstallTarPackageStep(ProjectExplorer::BuildStepList *bsl,
-        UploadAndInstallTarPackageStep *other);
 
     bool initInternal(QString *error = 0) override;
-
-    ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
 
     static Core::Id stepId();
     static QString displayName();
 
 private:
     AbstractRemoteLinuxDeployService *deployService() const override { return m_deployService; }
-
-    void ctor();
 
     UploadAndInstallTarPackageService *m_deployService;
 };

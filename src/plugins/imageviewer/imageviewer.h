@@ -49,12 +49,13 @@ public:
     explicit ImageViewer(QWidget *parent = 0);
     ~ImageViewer() override;
 
-    Core::IDocument *document() override;
+    Core::IDocument *document() const override;
     QWidget *toolBar() override;
 
     IEditor *duplicate() override;
 
     void exportImage();
+    void exportMultiImages();
     void imageSizeUpdated(const QSize &size);
     void scaleFactorUpdate(qreal factor);
 

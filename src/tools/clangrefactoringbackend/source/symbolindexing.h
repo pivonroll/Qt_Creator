@@ -27,10 +27,14 @@
 
 #include "symbolindexinginterface.h"
 
-#include "storagesqlitestatementfactory.h"
 #include "symbolindexer.h"
 #include "symbolscollector.h"
+#include "processormanager.h"
+#include "symbolindexertaskqueue.h"
+#include "taskscheduler.h"
 #include "symbolstorage.h"
+
+#include <usedmacroandsourcestorage.h>
 
 #include <refactoringdatabaseinitializer.h>
 #include <filepathcachingfwd.h>
@@ -39,21 +43,56 @@
 #include <sqlitereadstatement.h>
 #include <sqlitewritestatement.h>
 
+#include <QFileSystemWatcher>
+
+#include <thread>
+
 namespace ClangBackEnd {
+
+class SymbolsCollectorManager;
+class RefactoringServer;
+
+class SymbolsCollectorManager final : public ClangBackEnd::ProcessorManager<SymbolsCollector>
+{
+public:
+    using Processor = SymbolsCollector;
+    SymbolsCollectorManager(const ClangBackEnd::GeneratedFiles &generatedFiles,
+                            Sqlite::Database &database)
+        : ProcessorManager(generatedFiles),
+          m_database(database)
+    {}
+
+protected:
+    std::unique_ptr<SymbolsCollector> createProcessor() const
+    {
+        return  std::make_unique<SymbolsCollector>(m_database);
+    }
+
+private:
+    Sqlite::Database &m_database;
+};
 
 class SymbolIndexing final : public SymbolIndexingInterface
 {
 public:
-    using StatementFactory = ClangBackEnd::StorageSqliteStatementFactory<Sqlite::Database,
-                                                                         Sqlite::ReadStatement,
-                                                                         Sqlite::WriteStatement>;
-    using Storage = ClangBackEnd::SymbolStorage<StatementFactory>;
-
+    using UsedMacroAndSourceStorage = ClangBackEnd::UsedMacroAndSourceStorage<Sqlite::Database>;
+    using SymbolStorage = ClangBackEnd::SymbolStorage<Sqlite::Database>;
     SymbolIndexing(Sqlite::Database &database,
-                   FilePathCachingInterface &filePathCache)
+                   FilePathCachingInterface &filePathCache,
+                   const GeneratedFiles &generatedFiles,
+                   ProgressCounter::SetProgressCallback &&setProgressCallback)
         : m_filePathCache(filePathCache),
-          m_statementFactory(database)
+          m_usedMacroAndSourceStorage(database),
+          m_symbolStorage(database),
+          m_collectorManger(generatedFiles, database),
+          m_progressCounter(std::move(setProgressCallback)),
+          m_indexerScheduler(m_collectorManger, m_indexerQueue, m_progressCounter, std::thread::hardware_concurrency())
     {
+    }
+
+    ~SymbolIndexing()
+    {
+        syncTasks();
     }
 
     SymbolIndexer &indexer()
@@ -61,18 +100,35 @@ public:
         return m_indexer;
     }
 
-    void updateProjectParts(V2::ProjectPartContainers &&projectParts,
-                            V2::FileContainers &&generatedFiles)
+    void syncTasks()
     {
-        m_indexer.updateProjectParts(std::move(projectParts), std::move(generatedFiles));
+        m_indexerScheduler.disable();
+        while (!m_indexerScheduler.futures().empty()) {
+            m_indexerScheduler.syncTasks();
+            m_indexerScheduler.freeSlots();
+        }
     }
 
+    void updateProjectParts(V2::ProjectPartContainers &&projectParts) override;
+
 private:
+    using SymbolIndexerTaskScheduler = TaskScheduler<SymbolsCollectorManager, SymbolIndexerTask::Callable>;
     FilePathCachingInterface &m_filePathCache;
-    SymbolsCollector m_collector{m_filePathCache};
-    StatementFactory m_statementFactory;
-    Storage m_symbolStorage{m_statementFactory, m_filePathCache};
-    SymbolIndexer m_indexer{m_collector, m_symbolStorage};
+    UsedMacroAndSourceStorage m_usedMacroAndSourceStorage;
+    SymbolStorage m_symbolStorage;
+    ClangPathWatcher<QFileSystemWatcher, QTimer> m_sourceWatcher{m_filePathCache};
+    FileStatusCache m_fileStatusCache{m_filePathCache};
+    SymbolsCollectorManager m_collectorManger;
+    ProgressCounter m_progressCounter;
+    SymbolIndexerTaskScheduler m_indexerScheduler;
+    SymbolIndexerTaskQueue m_indexerQueue{m_indexerScheduler, m_progressCounter};
+    SymbolIndexer m_indexer{m_indexerQueue,
+                            m_symbolStorage,
+                            m_usedMacroAndSourceStorage,
+                            m_sourceWatcher,
+                            m_filePathCache,
+                            m_fileStatusCache,
+                            m_symbolStorage.m_database};
 };
 
 } // namespace ClangBackEnd

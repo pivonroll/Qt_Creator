@@ -25,7 +25,7 @@
 
 #include "refactoringclientproxy.h"
 
-#include "cmbalivemessage.h"
+#include "alivemessage.h"
 #include "messageenvelop.h"
 #include "refactoringserverinterface.h"
 #include "clangrefactoringclientmessages.h"
@@ -86,7 +86,12 @@ void RefactoringClientProxy::sourceRangesAndDiagnosticsForQueryMessage(SourceRan
 
 void RefactoringClientProxy::sourceRangesForQueryMessage(SourceRangesForQueryMessage &&message)
 {
-     writeMessageBlock.write(message);
+    writeMessageBlock.write(message);
+}
+
+void RefactoringClientProxy::progress(ProgressMessage &&message)
+{
+    writeMessageBlock.write(message);
 }
 
 } // namespace ClangBackEnd

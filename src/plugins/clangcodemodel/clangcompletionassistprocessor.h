@@ -46,12 +46,12 @@ class ClangCompletionAssistProcessor : public CppTools::CppCompletionAssistProce
 
 public:
     ClangCompletionAssistProcessor();
-    ~ClangCompletionAssistProcessor();
+    ~ClangCompletionAssistProcessor() override;
 
     TextEditor::IAssistProposal *perform(const TextEditor::AssistInterface *interface) override;
 
-    void handleAvailableCompletions(const CodeCompletions &completions,
-                                    CompletionCorrection neededCorrection);
+    void handleAvailableCompletions(const CodeCompletions &completions);
+    bool running() final { return m_requestSent; }
 
     const TextEditor::TextEditorWidget *textEditorWidget() const;
 
@@ -61,10 +61,9 @@ private:
     int findStartOfName(int pos = -1) const;
     bool accepts() const;
 
-    TextEditor::IAssistProposal *createProposal(
-            CompletionCorrection neededCorrection = CompletionCorrection::NoCorrection) const;
+    TextEditor::IAssistProposal *createProposal();
     TextEditor::IAssistProposal *createFunctionHintProposal(
-            const CodeCompletions &completions) const;
+            const CodeCompletions &completions);
 
     bool completeInclude(const QTextCursor &cursor);
     bool completeInclude(int position);
@@ -93,6 +92,7 @@ private:
     QScopedPointer<const ClangCompletionAssistInterface> m_interface;
     unsigned m_completionOperator;
     enum CompletionRequestType { NormalCompletion, FunctionHintCompletion } m_sentRequestType;
+    bool m_requestSent = false;
     bool m_addSnippets = false; // For type == Type::NormalCompletion
 };
 

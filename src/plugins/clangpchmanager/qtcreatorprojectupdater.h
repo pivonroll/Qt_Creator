@@ -55,22 +55,23 @@ class QtCreatorProjectUpdater : public ProjectUpdaterType
 public:
     template <typename ClientType>
     QtCreatorProjectUpdater(ClangBackEnd::ProjectManagementServerInterface &server,
-                            ClientType &client)
-        : ProjectUpdaterType(server, client)
+                            ClientType &client,
+                            ClangBackEnd::FilePathCachingInterface &filePathCache)
+        : ProjectUpdaterType(server, client, filePathCache)
     {
         connectToCppModelManager();
     }
 
-    QtCreatorProjectUpdater(ClangBackEnd::ProjectManagementServerInterface &server)
-        : ProjectUpdaterType(server)
+    QtCreatorProjectUpdater(ClangBackEnd::ProjectManagementServerInterface &server,
+                            ClangBackEnd::FilePathCachingInterface &filePathCache)
+        : ProjectUpdaterType(server, filePathCache)
     {
         connectToCppModelManager();
     }
 
     void projectPartsUpdated(ProjectExplorer::Project *project)
     {
-        ProjectUpdaterType::updateProjectParts(Internal::createProjectParts(project),
-                                               Internal::createGeneratedFiles());
+        ProjectUpdaterType::updateProjectParts(Internal::createProjectParts(project));
     }
 
     void projectPartsRemoved(const QStringList &projectPartIds)
@@ -78,15 +79,35 @@ public:
         ProjectUpdaterType::removeProjectParts(projectPartIds);
     }
 
+    void abstractEditorUpdated(const QString &filePath, const QByteArray &contents)
+    {
+        ProjectUpdaterType::updateGeneratedFiles({{ClangBackEnd::FilePath{filePath}, contents}});
+    }
+
+    void abstractEditorRemoved(const QString &filePath)
+    {
+        ProjectUpdaterType::removeGeneratedFiles({ClangBackEnd::FilePath{filePath}});
+    }
+
 private:
     void connectToCppModelManager()
     {
+        ProjectUpdaterType::updateGeneratedFiles(Internal::createGeneratedFiles());
+
         QObject::connect(Internal::cppModelManager(),
                          &CppTools::CppModelManager::projectPartsUpdated,
                          [&] (ProjectExplorer::Project *project) { projectPartsUpdated(project); });
         QObject::connect(Internal::cppModelManager(),
                          &CppTools::CppModelManager::projectPartsRemoved,
                          [&] (const QStringList &projectPartIds) { projectPartsRemoved(projectPartIds); });
+        QObject::connect(Internal::cppModelManager(),
+                         &CppTools::CppModelManager::abstractEditorSupportContentsUpdated,
+                         [&] (const QString &filePath, const QByteArray &contents) {
+            abstractEditorUpdated(filePath, contents);
+        });
+        QObject::connect(Internal::cppModelManager(),
+                         &CppTools::CppModelManager::abstractEditorSupportRemoved,
+                         [&] (const QString &filePath) { abstractEditorRemoved(filePath); });
     }
 };
 

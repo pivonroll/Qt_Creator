@@ -50,6 +50,7 @@
 #include <QPair>
 #include <QString>
 #include <QTimer>
+#include <memory>
 
 namespace QmlDesigner {
 
@@ -72,9 +73,9 @@ FormEditorView::~FormEditorView()
 void FormEditorView::modelAttached(Model *model)
 {
     Q_ASSERT(model);
+    temporaryBlockView();
 
     AbstractView::modelAttached(model);
-    temporaryBlockView();
 
     Q_ASSERT(m_scene->formLayerItem());
 
@@ -148,14 +149,14 @@ void FormEditorView::createFormEditorWidget()
     m_formEditorWidget = QPointer<FormEditorWidget>(new FormEditorWidget(this));
     m_scene = QPointer<FormEditorScene>(new FormEditorScene(m_formEditorWidget.data(), this));
 
-    m_moveTool.reset(new MoveTool(this));
-    m_selectionTool.reset(new SelectionTool(this));
-    m_resizeTool.reset(new ResizeTool(this));
-    m_dragTool.reset(new DragTool(this));
+    m_moveTool = std::make_unique<MoveTool>(this);
+    m_selectionTool = std::make_unique<SelectionTool>(this);
+    m_resizeTool = std::make_unique<ResizeTool>(this);
+    m_dragTool = std::make_unique<DragTool>(this);
 
     m_currentTool = m_selectionTool.get();
 
-    Internal::FormEditorContext *formEditorContext = new Internal::FormEditorContext(m_formEditorWidget.data());
+    auto formEditorContext = new Internal::FormEditorContext(m_formEditorWidget.data());
     Core::ICore::addContextObject(formEditorContext);
 
     connect(formEditorWidget()->zoomAction(), &ZoomAction::zoomLevelChanged, [this]() {
@@ -167,11 +168,13 @@ void FormEditorView::createFormEditorWidget()
 
 void FormEditorView::temporaryBlockView()
 {
-    formEditorWidget()->graphicsView()->setBlockPainting(true);
+    formEditorWidget()->graphicsView()->setUpdatesEnabled(false);
+    static auto timer = new QTimer(qApp);
+    timer->setSingleShot(true);
+    timer->start(1000);
 
-    QTimer::singleShot(1000, this, [this]() {
-        formEditorWidget()->graphicsView()->setBlockPainting(false);
-
+    connect(timer, &QTimer::timeout, this, [this]() {
+        formEditorWidget()->graphicsView()->setUpdatesEnabled(true);
     });
 }
 
@@ -275,7 +278,7 @@ WidgetInfo FormEditorView::widgetInfo()
     if (!m_formEditorWidget)
         createFormEditorWidget();
 
-    return createWidgetInfo(m_formEditorWidget.data(), 0, "FormEditor", WidgetInfo::CentralPane, 0, tr("Form Editor"), DesignerWidgetFlags::IgnoreErrors);
+    return createWidgetInfo(m_formEditorWidget.data(), nullptr, "FormEditor", WidgetInfo::CentralPane, 0, tr("Form Editor"), DesignerWidgetFlags::IgnoreErrors);
 }
 
 FormEditorWidget *FormEditorView::formEditorWidget()
@@ -289,9 +292,15 @@ void FormEditorView::nodeIdChanged(const ModelNode& node, const QString &/*newId
 
     if (itemNode.isValid() && node.nodeSourceType() == ModelNode::NodeWithoutSource) {
         FormEditorItem *item = m_scene->itemForQmlItemNode(itemNode);
-        if (item)
+        if (item) {
+            if (node.isSelected()) {
+                m_currentTool->setItems(scene()->itemsForQmlItemNodes(toQmlItemNodeList(selectedModelNodes())));
+                m_scene->update();
+             }
             item->update();
+        }
     }
+
 }
 
 void FormEditorView::selectedNodesChanged(const QList<ModelNode> &selectedNodeList,
@@ -387,9 +396,9 @@ void FormEditorView::changeToCustomTool()
 {
     if (hasSelectedModelNodes()) {
         int handlingRank = 0;
-        AbstractCustomTool *selectedCustomTool = 0;
+        AbstractCustomTool *selectedCustomTool = nullptr;
 
-        ModelNode selectedModelNode = selectedModelNodes().first();
+        const ModelNode selectedModelNode = selectedModelNodes().constFirst();
 
         foreach (AbstractCustomTool *customTool, m_customToolList) {
             if (customTool->wantHandleItem(selectedModelNode) > handlingRank) {

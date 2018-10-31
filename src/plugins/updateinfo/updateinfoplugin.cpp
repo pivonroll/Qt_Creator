@@ -42,6 +42,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QMetaEnum>
+#include <QPointer>
 #include <QProcessEnvironment>
 #include <QTimer>
 #include <QtPlugin>
@@ -68,7 +69,7 @@ public:
     { }
 
     QString m_maintenanceTool;
-    ShellCommand *m_checkUpdatesCommand = 0;
+    QPointer<ShellCommand> m_checkUpdatesCommand;
     QString m_collectedOutput;
     QTimer *m_checkUpdatesTimer = 0;
 
@@ -178,16 +179,10 @@ bool UpdateInfoPlugin::isCheckForUpdatesRunning() const
     return d->m_checkUpdatesCommand;
 }
 
-bool UpdateInfoPlugin::delayedInitialize()
+void UpdateInfoPlugin::extensionsInitialized()
 {
     if (isAutomaticCheck())
         QTimer::singleShot(OneMinute, this, &UpdateInfoPlugin::startAutoCheckForUpdates);
-
-    return true;
-}
-
-void UpdateInfoPlugin::extensionsInitialized()
-{
 }
 
 bool UpdateInfoPlugin::initialize(const QStringList & /* arguments */, QString *errorMessage)
@@ -210,7 +205,7 @@ bool UpdateInfoPlugin::initialize(const QStringList & /* arguments */, QString *
     connect(ICore::instance(), &ICore::saveSettingsRequested,
             this, &UpdateInfoPlugin::saveSettings);
 
-    addAutoReleasedObject(new SettingsPage(this));
+    (void) new SettingsPage(this);
 
     QAction *checkForUpdatesAction = new QAction(tr("Check for Updates"), this);
     checkForUpdatesAction->setMenuRole(QAction::ApplicationSpecificRole);

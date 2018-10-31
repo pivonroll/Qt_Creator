@@ -445,8 +445,8 @@ class Dumper(DumperBase):
                     warn('UNKNOWN TYPE KEY: %s: %s' % (typeName, code))
             elif code == lldb.eTypeClassEnumeration:
                 tdata.code = TypeCodeEnum
-                tdata.enumDisplay = lambda intval, addr : \
-                    self.nativeTypeEnumDisplay(nativeType, intval)
+                tdata.enumDisplay = lambda intval, addr, form : \
+                    self.nativeTypeEnumDisplay(nativeType, intval, form)
             elif code in (lldb.eTypeClassComplexInteger, lldb.eTypeClassComplexFloat):
                 tdata.code = TypeCodeComplex
             elif code in (lldb.eTypeClassClass, lldb.eTypeClassStruct, lldb.eTypeClassUnion):
@@ -457,7 +457,7 @@ class Dumper(DumperBase):
                     self.listMembers(value, nativeType)
                 tdata.templateArguments = self.listTemplateParametersHelper(nativeType)
             elif code == lldb.eTypeClassFunction:
-                tdata.code = TypeCodeFunction,
+                tdata.code = TypeCodeFunction
             elif code == lldb.eTypeClassMemberPointer:
                 tdata.code = TypeCodeMemberPointer
 
@@ -534,7 +534,7 @@ class Dumper(DumperBase):
         #warn('NATIVE TYPE ID FOR %s IS %s' % (name, typeId))
         return typeId
 
-    def nativeTypeEnumDisplay(self, nativeType, intval):
+    def nativeTypeEnumDisplay(self, nativeType, intval, form):
         if hasattr(nativeType, 'get_enum_members_array'):
             for enumMember in nativeType.get_enum_members_array():
                 # Even when asking for signed we get unsigned with LLDB 3.8.
@@ -543,8 +543,8 @@ class Dumper(DumperBase):
                 if diff & mask == 0:
                     path = nativeType.GetName().split('::')
                     path[-1] = enumMember.GetName()
-                    return '%s (%d)' % ('::'.join(path), intval)
-        return '%d' % intval
+                    return '::'.join(path) + ' (' + (form % intval) + ')'
+        return form % intval
 
     def nativeDynamicTypeName(self, address, baseType):
         return None # FIXME: Seems sufficient, no idea why.
@@ -648,6 +648,21 @@ class Dumper(DumperBase):
 
     def isMsvcTarget(self):
         return False
+
+    def prettySymbolByAddress(self, address):
+        try:
+            result = lldb.SBCommandReturnObject()
+            # Cast the address to a function pointer to get the name and location of the function.
+            expression = 'po (void (*)()){}'
+            self.debugger.GetCommandInterpreter().HandleCommand(expression.format(address), result)
+            output = ''
+            if result.Succeeded():
+                output = result.GetOutput().strip()
+            if output:
+                return output
+        except:
+            pass
+        return '0x%x' % address
 
     def qtVersionAndNamespace(self):
         for func in self.target.FindFunctions('qVersion'):
@@ -774,6 +789,9 @@ class Dumper(DumperBase):
             if typeobj is not None:
                 return typeobj
 
+        return self.lookupNativeTypeInAllModules(name)
+
+    def lookupNativeTypeInAllModules(self, name):
         needle = self.canonicalTypeName(name)
         #warn('NEEDLE: %s ' % needle)
         warn('Searching for type %s across all target modules, this could be very slow' % name)
@@ -905,7 +923,10 @@ class Dumper(DumperBase):
         elif self.startMode_ == AttachCore:
             coreFile = args.get('coreFile', '');
             self.process = self.target.LoadCore(coreFile)
-            self.reportState('enginerunokandinferiorunrunnable')
+            if self.process.IsValid():
+                self.reportState('enginerunokandinferiorunrunnable')
+            else:
+                self.reportState('enginerunfailed')
         else:
             launchInfo = lldb.SBLaunchInfo(self.processArgs_)
             launchInfo.SetWorkingDirectory(self.workingDirectory_)
@@ -1106,6 +1127,13 @@ class Dumper(DumperBase):
 
         self.setVariableFetchingOptions(args)
 
+        # Reset certain caches whenever a step over / into / continue
+        # happens.
+        # FIXME: Caches are currently also cleared if currently
+        # selected frame is changed, that shouldn't happen.
+        if not self.partialVariable:
+            self.resetPerStepCaches()
+
         anyModule = self.target.GetModuleAtIndex(0)
         anySymbol = anyModule.GetSymbolAtIndex(0)
         self.fakeAddress = int(anySymbol.GetStartAddress())
@@ -1148,7 +1176,7 @@ class Dumper(DumperBase):
         #    values = [frame.FindVariable(partialVariable)]
         #else:
         if True:
-            values = list(frame.GetVariables(True, True, False, False))
+            values = list(frame.GetVariables(True, True, False, True))
             values.reverse() # To get shadowed vars numbered backwards.
 
         variables = []
@@ -1499,7 +1527,7 @@ class Dumper(DumperBase):
         self.reportResult('', args)
 
     def executeNextI(self, args):
-        self.currentThread().StepInstruction(lldb.eOnlyThisThread)
+        self.currentThread().StepInstruction(True)
         self.reportResult('', args)
 
     def executeStep(self, args):
@@ -1508,22 +1536,20 @@ class Dumper(DumperBase):
 
     def shutdownInferior(self, args):
         self.isShuttingDown_ = True
-        if self.process is None:
-            self.reportState('inferiorshutdownok')
-        else:
+        if self.process is not None:
             state = self.process.GetState()
             if state == lldb.eStateStopped:
                 self.process.Kill()
-            self.reportState('inferiorshutdownok')
+        self.reportState('inferiorshutdownfinished')
         self.reportResult('', args)
 
     def quit(self, args):
-        self.reportState('engineshutdownok')
+        self.reportState('engineshutdownfinished')
         self.process.Kill()
         self.reportResult('', args)
 
     def executeStepI(self, args):
-        self.currentThread().StepInstruction(lldb.eOnlyThisThread)
+        self.currentThread().StepInstruction(False)
         self.reportResult('', args)
 
     def executeStepOut(self, args = {}):
@@ -1877,6 +1903,10 @@ class SummaryDumper(Dumper, LogMixin):
 
     def report(self, stuff):
         return # Don't mess up lldb output
+
+    def lookupNativeTypeInAllModules(self, name):
+        warn('Failed to resolve type %s' % name)
+        return None
 
     def dump_summary(self, valobj, expanded = False):
         try:

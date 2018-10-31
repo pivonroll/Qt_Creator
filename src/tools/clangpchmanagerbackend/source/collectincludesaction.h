@@ -40,30 +40,32 @@ class CollectIncludesAction final : public clang::PreprocessOnlyAction
 {
 public:
     CollectIncludesAction(FilePathIds &includeIds,
-                          FilePathCachingInterface &filePathCache,
+                          FilePathIds &topIncludeIds,
+                          const FilePathCachingInterface &filePathCache,
                           std::vector<uint> &excludedIncludeUID,
                           std::vector<uint> &alreadyIncludedFileUIDs)
         : m_includeIds(includeIds),
+          m_topIncludeIds(topIncludeIds),
           m_filePathCache(filePathCache),
           m_excludedIncludeUID(excludedIncludeUID),
           m_alreadyIncludedFileUIDs(alreadyIncludedFileUIDs)
     {
     }
 
-    bool BeginSourceFileAction(clang::CompilerInstance &compilerInstance,
-                               llvm::StringRef filename) override
+    bool BeginSourceFileAction(clang::CompilerInstance &compilerInstance) override
     {
-      if (clang::PreprocessOnlyAction::BeginSourceFileAction(compilerInstance, filename)) {
+      if (clang::PreprocessOnlyAction::BeginSourceFileAction(compilerInstance)) {
           auto &preprocessor = compilerInstance.getPreprocessor();
-          auto &headerSearch = preprocessor.getHeaderSearchInfo();
 
           preprocessor.SetSuppressIncludeNotFoundError(true);
 
-          auto macroPreprocessorCallbacks = new CollectIncludesPreprocessorCallbacks(headerSearch,
-                                                                                     m_includeIds,
-                                                                                     m_filePathCache,
-                                                                                     m_excludedIncludeUID,
-                                                                                     m_alreadyIncludedFileUIDs);
+          auto macroPreprocessorCallbacks = new CollectIncludesPreprocessorCallbacks(
+                      m_includeIds,
+                      m_topIncludeIds,
+                      m_filePathCache,
+                      m_excludedIncludeUID,
+                      m_alreadyIncludedFileUIDs,
+                      compilerInstance.getSourceManager());
 
           preprocessor.addPPCallbacks(std::unique_ptr<clang::PPCallbacks>(macroPreprocessorCallbacks));
 
@@ -80,7 +82,8 @@ public:
 
 private:
     FilePathIds &m_includeIds;
-    FilePathCachingInterface &m_filePathCache;
+    FilePathIds &m_topIncludeIds;
+    const FilePathCachingInterface &m_filePathCache;
     std::vector<uint> &m_excludedIncludeUID;
     std::vector<uint> &m_alreadyIncludedFileUIDs;
 };

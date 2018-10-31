@@ -25,10 +25,11 @@
 
 #include "pchmanagerclientproxy.h"
 
-#include "cmbalivemessage.h"
+#include "alivemessage.h"
 #include "messageenvelop.h"
 #include "pchmanagerserverinterface.h"
 #include "precompiledheadersupdatedmessage.h"
+#include "progressmessage.h"
 
 #include <QDebug>
 #include <QIODevice>
@@ -74,6 +75,11 @@ void PchManagerClientProxy::alive()
 }
 
 void PchManagerClientProxy::precompiledHeadersUpdated(PrecompiledHeadersUpdatedMessage &&message)
+{
+    writeMessageBlock.write(message);
+}
+
+void PchManagerClientProxy::progress(ProgressMessage &&message)
 {
     writeMessageBlock.write(message);
 }

@@ -5,8 +5,6 @@ QT += \
     qml \
     sql
 
-qtHaveModule(help): QT += help
-
 # embedding build time information prevents repeatedly binary exact versions from same source code
 isEmpty(QTC_SHOW_BUILD_DATE): QTC_SHOW_BUILD_DATE = $$(QTC_SHOW_BUILD_DATE)
 !isEmpty(QTC_SHOW_BUILD_DATE): DEFINES += QTC_SHOW_BUILD_DATE
@@ -58,7 +56,6 @@ SOURCES += corejsextensions.cpp \
     progressmanager/progressbar.cpp \
     progressmanager/futureprogress.cpp \
     reaper.cpp \
-    statusbarwidget.cpp \
     coreplugin.cpp \
     modemanager.cpp \
     basefilewizard.cpp \
@@ -89,6 +86,7 @@ SOURCES += corejsextensions.cpp \
     sidebarwidget.cpp \
     externaltool.cpp \
     dialogs/externaltoolconfig.cpp \
+    dialogs/filepropertiesdialog.cpp \
     toolsettings.cpp \
     variablechooser.cpp \
     mimetypemagicdialog.cpp \
@@ -100,7 +98,6 @@ SOURCES += corejsextensions.cpp \
     idocumentfactory.cpp \
     textdocument.cpp \
     documentmanager.cpp \
-    removefiledialog.cpp \
     iversioncontrol.cpp \
     dialogs/addtovcsdialog.cpp \
     ioutputpane.cpp \
@@ -111,7 +108,9 @@ SOURCES += corejsextensions.cpp \
     iwelcomepage.cpp \
     externaltoolmanager.cpp \
     systemsettings.cpp \
-    coreicons.cpp
+    coreicons.cpp \
+    diffservice.cpp \
+    menubarfilter.cpp
 
 HEADERS += corejsextensions.h \
     mainwindow.h \
@@ -174,7 +173,6 @@ HEADERS += corejsextensions.h \
     ifilewizardextension.h \
     versiondialog.h \
     core_global.h \
-    statusbarwidget.h \
     coreplugin.h \
     modemanager.h \
     basefilewizard.h \
@@ -195,11 +193,13 @@ HEADERS += corejsextensions.h \
     designmode.h \
     editortoolbar.h \
     helpmanager.h \
+    helpmanager_implementation.h \
     outputpanemanager.h \
     navigationsubwidget.h \
     sidebarwidget.h \
     externaltool.h \
     dialogs/externaltoolconfig.h \
+    dialogs/filepropertiesdialog.h \
     toolsettings.h \
     variablechooser.h \
     mimetypemagicdialog.h \
@@ -213,7 +213,6 @@ HEADERS += corejsextensions.h \
     idocumentfactory.h \
     textdocument.h \
     documentmanager.h \
-    removefiledialog.h \
     dialogs/addtovcsdialog.h \
     patchtool.h \
     windowsupport.h \
@@ -223,7 +222,9 @@ HEADERS += corejsextensions.h \
     systemsettings.h \
     coreicons.h \
     editormanager/documentmodel_p.h \
-    diffservice.h
+    diffservice.h \
+    menubarfilter.h \
+    editormanager/ieditorfactory_p.h
 
 FORMS += dialogs/newdialog.ui \
     dialogs/saveitemsdialog.ui \
@@ -231,9 +232,9 @@ FORMS += dialogs/newdialog.ui \
     dialogs/openwithdialog.ui \
     generalsettings.ui \
     dialogs/externaltoolconfig.ui \
+    dialogs/filepropertiesdialog.ui \
     mimetypesettingspage.ui \
     mimetypemagicdialog.ui \
-    removefiledialog.ui \
     dialogs/addtovcsdialog.ui \
     systemsettings.ui
 

@@ -28,72 +28,108 @@
 #include "filepathexceptions.h"
 #include "filepathid.h"
 #include "filepath.h"
+#include "filepathview.h"
 #include "stringcache.h"
-
-#include <utils/smallstringview.h>
 
 #include <algorithm>
 
 namespace ClangBackEnd {
 
-class FilePathCacheBase
-{
-public:
-    static
-    std::ptrdiff_t lastSlashIndex(Utils::SmallStringView filePath)
-    {
-        auto foundReverse = std::find(filePath.rbegin(), filePath.rend(), '/');
-        auto found = foundReverse.base();
-        --found;
-
-        return std::distance(filePath.begin(), found);
-    }
-
-    static
-    Utils::SmallStringView directoryPath(Utils::SmallStringView filePath, std::ptrdiff_t slashIndex)
-    {
-        return {filePath.data(), std::size_t(std::max(std::ptrdiff_t(0), slashIndex))};
-    }
-
-    static
-    Utils::SmallStringView fileName(Utils::SmallStringView filePath, std::ptrdiff_t slashIndex)
-    {
-        return {filePath.data() + slashIndex + 1, filePath.size() - std::size_t(slashIndex) - 1};
-    }
-};
-
 template <typename FilePathStorage>
-class FilePathCache final : private FilePathCacheBase
+class CLANGSUPPORT_GCCEXPORT FilePathCache
 {
+    class FileNameView
+    {
+    public:
+        friend bool operator==(const FileNameView &first, const FileNameView &second)
+        {
+            return first.directoryId == second.directoryId
+                && first.fileName == second.fileName;
+        }
+
+        static
+        int compare(FileNameView first, FileNameView second) noexcept
+        {
+            int directoryDifference = first.directoryId - second.directoryId;
+
+            if (directoryDifference)
+                return directoryDifference;
+
+            return Utils::compare(first.fileName, second.fileName);
+        }
+
+    public:
+        Utils::SmallStringView fileName;
+        int directoryId;
+    };
+
+    class FileNameEntry
+    {
+    public:
+        FileNameEntry(Utils::SmallStringView fileName, int directoryId)
+            : fileName(fileName),
+              directoryId(directoryId)
+        {}
+
+        FileNameEntry(FileNameView view)
+            : fileName(view.fileName),
+              directoryId(view.directoryId)
+        {}
+
+        friend bool operator==(const FileNameEntry &first, const FileNameEntry &second)
+        {
+            return first.directoryId == second.directoryId
+                && first.fileName == second.fileName;
+        }
+
+        operator FileNameView() const
+        {
+            return {fileName, directoryId};
+        }
+
+        operator Utils::SmallString() &&
+        {
+            return std::move(fileName);
+        }
+
+    public:
+        Utils::SmallString fileName;
+        int directoryId;
+    };
+
     using DirectoryPathCache = StringCache<Utils::PathString,
+                                           Utils::SmallStringView,
                                            int,
                                            SharedMutex,
                                            decltype(&Utils::reverseCompare),
                                            Utils::reverseCompare>;
-    using FileNameCache = StringCache<Utils::SmallString,
+    using FileNameCache = StringCache<FileNameEntry,
+                                      FileNameView,
                                       int,
                                       SharedMutex,
-                                      decltype(&Utils::compare),
-                                      Utils::compare>;
+                                      decltype(&FileNameView::compare),
+                                      FileNameView::compare>;
 public:
     FilePathCache(FilePathStorage &filePathStorage)
         : m_filePathStorage(filePathStorage)
     {}
 
-    FilePathId filePathId(Utils::SmallStringView filePath) const
-    {
-        std::ptrdiff_t slashIndex = lastSlashIndex(filePath);
+    FilePathCache(const FilePathCache &) = delete;
+    FilePathCache &operator=(const FilePathCache &) = delete;
 
-        Utils::SmallStringView directoryPath = this->directoryPath(filePath, slashIndex);
-        int directoryId = m_directyPathCache.stringId(directoryPath,
+    FilePathId filePathId(FilePathView filePath) const
+    {
+        Utils::SmallStringView directoryPath = filePath.directory();
+
+        int directoryId = m_directoryPathCache.stringId(directoryPath,
                                                       [&] (const Utils::SmallStringView) {
             return m_filePathStorage.fetchDirectoryId(directoryPath);
         });
 
-        Utils::SmallStringView fileName = this->fileName(filePath, slashIndex);
+        Utils::SmallStringView fileName = filePath.name();
 
-        int fileNameId = m_fileNameCache.stringId(fileName,
-                                                  [&] (const Utils::SmallStringView) {
+        int fileNameId = m_fileNameCache.stringId({fileName, directoryId},
+                                                  [&] (const FileNameView) {
             return m_filePathStorage.fetchSourceId(directoryId, fileName);
         });
 
@@ -107,20 +143,22 @@ public:
 
         auto fetchFilePath = [&] (int id) { return m_filePathStorage.fetchDirectoryPath(id); };
 
-        Utils::PathString directoryPath = m_directyPathCache.string(filePathId.directoryId,
+        Utils::PathString directoryPath = m_directoryPathCache.string(filePathId.directoryId,
                                                                     fetchFilePath);
 
 
-        auto fetchSoureName = [&] (int id) { return m_filePathStorage.fetchSourceName(id); };
+        auto fetchSoureName = [&] (int id) {
+            return FileNameEntry{m_filePathStorage.fetchSourceName(id), filePathId.directoryId};
+        };
 
-        Utils::SmallString fileName = m_fileNameCache.string(filePathId.fileNameId,
+        Utils::SmallString fileName = m_fileNameCache.string(filePathId.filePathId,
                                                              fetchSoureName);
 
-        return {directoryPath, fileName};
+        return FilePath{directoryPath, fileName};
     }
 
 private:
-    mutable DirectoryPathCache m_directyPathCache;
+    mutable DirectoryPathCache m_directoryPathCache;
     mutable FileNameCache m_fileNameCache;
     FilePathStorage &m_filePathStorage;
 };

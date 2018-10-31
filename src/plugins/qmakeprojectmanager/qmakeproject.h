@@ -31,7 +31,6 @@
 #include "qmakeparsernodes.h"
 
 #include <projectexplorer/project.h>
-#include <projectexplorer/runconfiguration.h>
 
 #include <QStringList>
 #include <QFutureInterface>
@@ -48,12 +47,8 @@ namespace ProjectExplorer { class DeploymentData; }
 namespace QtSupport { class ProFileReader; }
 
 namespace QmakeProjectManager {
-class QmakeBuildConfiguration;
 
-namespace Internal {
-class CentralizedFolderWatcher;
-class QmakeProjectFiles;
-}
+namespace Internal { class CentralizedFolderWatcher; }
 
 class  QMAKEPROJECTMANAGER_EXPORT QmakeProject : public ProjectExplorer::Project
 {
@@ -65,21 +60,16 @@ public:
 
     QmakeProFile *rootProFile() const;
 
-    bool supportsKit(ProjectExplorer::Kit *k, QString *errorMesage) const final;
+    QList<ProjectExplorer::Task> projectIssues(const ProjectExplorer::Kit *k) const final;
 
     QmakeProFileNode *rootProjectNode() const final;
 
-    virtual QStringList filesGeneratedFrom(const QString &file) const final;
+    QStringList filesGeneratedFrom(const QString &file) const final;
 
     enum Parsing {ExactParse, ExactAndCumulativeParse };
     QList<QmakeProFile *> allProFiles(const QList<ProjectType> &projectTypes = QList<ProjectType>(),
                                       Parsing parse = ExactParse) const;
     QList<QmakeProFile *> applicationProFiles(Parsing parse = ExactParse) const;
-    bool hasApplicationProFile(const Utils::FileName &path) const;
-
-    QList<Core::Id> creationIds(Core::Id base,
-                                ProjectExplorer::IRunConfigurationFactory::CreationMode mode,
-                                const QList<ProjectType> &projectTypes = {});
 
     static void notifyChanged(const Utils::FileName &name);
 
@@ -100,7 +90,7 @@ public:
     /// \internal
     void incrementPendingEvaluateFutures();
     /// \internal
-    void decrementPendingEvaluateFutures(bool success);
+    void decrementPendingEvaluateFutures();
     /// \internal
     bool wasEvaluateCanceled();
 
@@ -109,17 +99,7 @@ public:
     void watchFolders(const QStringList &l, QmakePriFile *file);
     void unwatchFolders(const QStringList &l, QmakePriFile *file);
 
-    bool needsConfiguration() const final;
-
     void configureAsExampleProject(const QSet<Core::Id> &platforms) final;
-
-    bool requiresTargetPanel() const final;
-
-    /// \internal
-    QString disabledReasonForRunConfiguration(const Utils::FileName &proFilePath);
-
-    /// used by the default implementation of shadowBuildDirectory
-    static QString buildNameFor(const ProjectExplorer::Kit *k);
 
     void emitBuildDirectoryInitialized();
     static void proFileParseError(const QString &errorMessage);
@@ -131,10 +111,11 @@ public:
 
     QString mapProFilePathToTarget(const Utils::FileName &proFilePath);
 
+    QVariant additionalData(Core::Id id, const ProjectExplorer::Target *target) const final;
+
 signals:
     void proFileUpdated(QmakeProjectManager::QmakeProFile *pro, bool, bool);
     void buildDirectoryInitialized();
-    void proFilesEvaluated();
 
 public:
     void scheduleAsyncUpdate(QmakeProFile::AsyncUpdateDelay delay = QmakeProFile::ParseLater);
@@ -184,9 +165,9 @@ private:
     QMakeVfs *m_qmakeVfs = nullptr;
 
     // cached data during project rescan
-    QMakeGlobals *m_qmakeGlobals = nullptr;
+    std::unique_ptr<QMakeGlobals> m_qmakeGlobals;
     int m_qmakeGlobalsRefCnt = 0;
-    bool m_totalEvaluationSuccess = false;
+    bool m_invalidateQmakeVfsContents = false;
 
     QString m_qmakeSysroot;
 

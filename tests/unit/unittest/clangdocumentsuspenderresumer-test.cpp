@@ -33,7 +33,6 @@
 #include <clangdocuments.h>
 #include <clangdocumentsuspenderresumer.h>
 #include <clangtranslationunits.h>
-#include <projects.h>
 #include <unsavedfiles.h>
 #include <utf8string.h>
 
@@ -62,17 +61,6 @@ bool operator==(const SuspendResumeJobsEntry &a, const SuspendResumeJobsEntry &b
         && a.preferredTranslationUnit == b.preferredTranslationUnit;
 }
 
-std::ostream &operator<<(std::ostream &os, const SuspendResumeJobsEntry &entry)
-{
-    os << "SuspendResumeJobsEntry("
-       << entry.document.filePath() << ", "
-       << entry.jobRequestType << ", "
-       << entry.preferredTranslationUnit
-       << ")";
-
-    return os;
-}
-
 } // ClangBackEnd
 
 namespace {
@@ -80,30 +68,25 @@ namespace {
 class DocumentSuspenderResumer : public ::testing::Test
 {
 protected:
-    void SetUp() override;
     Document getDocument(const Utf8String &filePath);
     void categorizeDocuments(int hotDocumentsSize);
     SuspendResumeJobs createSuspendResumeJobs(int hotDocumentsSize = -1);
     static void setParsed(Document &document);
 
 protected:
-    ClangBackEnd::ProjectParts projects;
     ClangBackEnd::UnsavedFiles unsavedFiles;
-    ClangBackEnd::Documents documents{projects, unsavedFiles};
+    ClangBackEnd::Documents documents{unsavedFiles};
     DummyIpcClient dummyIpcClient;
-    ClangBackEnd::DocumentProcessors documentProcessors{documents, unsavedFiles, projects,
-                                                        dummyIpcClient};
-
-    const Utf8String projectPartId = Utf8StringLiteral("projectPartId");
+    ClangBackEnd::DocumentProcessors documentProcessors{documents, unsavedFiles, dummyIpcClient};
 
     const Utf8String filePath1 = Utf8StringLiteral(TESTDATA_DIR"/empty1.cpp");
-    const ClangBackEnd::FileContainer fileContainer1{filePath1, projectPartId, Utf8String(), true};
+    const ClangBackEnd::FileContainer fileContainer1{filePath1, Utf8String(), true};
 
     const Utf8String filePath2 = Utf8StringLiteral(TESTDATA_DIR"/empty2.cpp");
-    const ClangBackEnd::FileContainer fileContainer2{filePath2, projectPartId, Utf8String(), true};
+    const ClangBackEnd::FileContainer fileContainer2{filePath2, Utf8String(), true};
 
     const Utf8String filePath3 = Utf8StringLiteral(TESTDATA_DIR"/empty3.cpp");
-    const ClangBackEnd::FileContainer fileContainer3{filePath3, projectPartId, Utf8String(), true};
+    const ClangBackEnd::FileContainer fileContainer3{filePath3, Utf8String(), true};
 
     std::vector<Document> hotDocuments;
     std::vector<Document> coldDocuments;
@@ -183,7 +166,7 @@ TEST_F(DocumentSuspenderResumer, CategorizeWithMoreVisibleDocumentsThanHotDocume
     ASSERT_THAT(coldDocuments, IsEmpty());
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateSuspendJobForInvisible))
+TEST_F(DocumentSuspenderResumer, CreateSuspendJobForInvisible)
 {
     Document document = documents.create({fileContainer1})[0];
     document.setIsSuspended(false);
@@ -199,7 +182,7 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateSuspendJob
     ASSERT_THAT(jobs, ContainerEq(expectedJobs));
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(DoNotCreateSuspendJobForVisible))
+TEST_F(DocumentSuspenderResumer, DoNotCreateSuspendJobForVisible)
 {
     Document document = documents.create({fileContainer1})[0];
     document.setIsSuspended(false);
@@ -210,7 +193,7 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(DoNotCreateSuspe
     ASSERT_THAT(jobs, IsEmpty());
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(DoNotCreateSuspendJobForUnparsed))
+TEST_F(DocumentSuspenderResumer, DoNotCreateSuspendJobForUnparsed)
 {
     Document document = documents.create({fileContainer1})[0];
     document.setIsSuspended(false);
@@ -221,7 +204,7 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(DoNotCreateSuspe
     ASSERT_THAT(jobs, IsEmpty());
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateSuspendJobsForDocumentWithSupportiveTranslationUnit))
+TEST_F(DocumentSuspenderResumer, CreateSuspendJobsForDocumentWithSupportiveTranslationUnit)
 {
     Document document = documents.create({fileContainer1})[0];
     document.setIsSuspended(false);
@@ -238,7 +221,7 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateSuspendJob
     ASSERT_THAT(jobs, ContainerEq(expectedJobs));
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateResumeJob))
+TEST_F(DocumentSuspenderResumer, CreateResumeJob)
 {
     Document document = documents.create({fileContainer1})[0];
     document.setIsSuspended(true);
@@ -252,7 +235,7 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateResumeJob)
     ASSERT_THAT(jobs, ContainerEq(expectedJobs));
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(DoNotCreateResumeJobForInvisible))
+TEST_F(DocumentSuspenderResumer, DoNotCreateResumeJobForInvisible)
 {
     Document document = documents.create({fileContainer1})[0];
     document.setIsSuspended(true);
@@ -263,7 +246,7 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(DoNotCreateResum
     ASSERT_THAT(jobs, IsEmpty());
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateResumeJobsForDocumentWithSupportiveTranslationUnit))
+TEST_F(DocumentSuspenderResumer, CreateResumeJobsForDocumentWithSupportiveTranslationUnit)
 {
     Document document = documents.create({fileContainer1})[0];
     document.setIsSuspended(true);
@@ -279,7 +262,7 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateResumeJobs
     ASSERT_THAT(jobs, ContainerEq(expectedJobs));
 }
 
-TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateSuspendAndResumeJobs))
+TEST_F(DocumentSuspenderResumer, CreateSuspendAndResumeJobs)
 {
     Document hotDocument = documents.create({fileContainer1})[0];
     hotDocument.setIsSuspended(true);
@@ -297,14 +280,9 @@ TEST_F(DocumentSuspenderResumer, DISABLED_WITHOUT_SUSPEND_PATCH(CreateSuspendAnd
     ASSERT_THAT(jobs, ContainerEq(expectedJobs));
 }
 
-void DocumentSuspenderResumer::SetUp()
-{
-    projects.createOrUpdate({ClangBackEnd::ProjectPartContainer(projectPartId)});
-}
-
 ClangBackEnd::Document DocumentSuspenderResumer::getDocument(const Utf8String &filePath)
 {
-    return documents.document(filePath, projectPartId);
+    return documents.document(filePath);
 }
 
 void DocumentSuspenderResumer::categorizeDocuments(int hotDocumentsSize)

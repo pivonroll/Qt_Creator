@@ -94,7 +94,7 @@ public:
                  const QString &repository, const Utils::FileName &git,
                  const GerritServer &server,
                  FetchMode fm, QObject *parent = nullptr);
-    ~FetchContext();
+    ~FetchContext() override;
     void start();
 
 private:
@@ -254,7 +254,7 @@ void FetchContext::cherryPick()
 
 void FetchContext::checkout()
 {
-    GitPlugin::client()->stashAndCheckout(m_repository, "FETCH_HEAD");
+    GitPlugin::client()->checkout(m_repository, "FETCH_HEAD");
 }
 
 void FetchContext::terminate()
@@ -267,7 +267,6 @@ GerritPlugin::GerritPlugin(QObject *parent)
     : QObject(parent)
     , m_parameters(new GerritParameters)
     , m_server(new GerritServer)
-    , m_gerritCommand(0), m_pushToGerritCommand(0)
 {
 }
 
@@ -293,7 +292,12 @@ bool GerritPlugin::initialize(ActionContainer *ac)
     connect(pushAction, &QAction::triggered, this, [this]() { push(); });
     ac->addAction(m_pushToGerritCommand);
 
-    GitPlugin::instance()->addAutoReleasedObject(new GerritOptionsPage(m_parameters));
+    auto options = new GerritOptionsPage(m_parameters, this);
+    connect(options, &GerritOptionsPage::settingsChanged,
+            this, [this] {
+        if (m_dialog)
+            m_dialog->scheduleUpdateRemotes();
+    });
     return true;
 }
 
@@ -331,18 +335,22 @@ void GerritPlugin::push(const QString &topLevel)
     GitPlugin::client()->push(topLevel, {dialog.selectedRemoteName(), dialog.pushTarget()});
 }
 
+static QString currentRepository()
+{
+    return GitPlugin::instance()->currentState().topLevel();
+}
+
 // Open or raise the Gerrit dialog window.
 void GerritPlugin::openView()
 {
     if (m_dialog.isNull()) {
         while (!m_parameters->isValid()) {
-            Core::AsynchronousMessageBox::warning(tr("Error"),
-                                                  tr("Invalid Gerrit configuration. Host, user and ssh binary are mandatory."));
+            QMessageBox::warning(Core::ICore::dialogParent(), tr("Error"),
+                                 tr("Invalid Gerrit configuration. Host, user and ssh binary are mandatory."));
             if (!ICore::showOptionsDialog("Gerrit"))
                 return;
         }
-        const QString repository = GitPlugin::instance()->currentState().topLevel();
-        GerritDialog *gd = new GerritDialog(m_parameters, m_server, repository, ICore::mainWindow());
+        GerritDialog *gd = new GerritDialog(m_parameters, m_server, currentRepository(), ICore::mainWindow());
         gd->setModal(false);
         connect(gd, &GerritDialog::fetchDisplay, this,
                 [this](const QSharedPointer<GerritChange> &change) { fetch(change, FetchDisplay); });
@@ -354,8 +362,9 @@ void GerritPlugin::openView()
         connect(this, &GerritPlugin::fetchFinished, gd, &GerritDialog::fetchFinished);
         m_dialog = gd;
     } else {
-        m_dialog->refresh();
+        m_dialog->setCurrentPath(currentRepository());
     }
+    m_dialog->refresh();
     const Qt::WindowStates state = m_dialog->windowState();
     if (state & Qt::WindowMinimized)
         m_dialog->setWindowState(state & ~Qt::WindowMinimized);
@@ -365,7 +374,7 @@ void GerritPlugin::openView()
 
 void GerritPlugin::push()
 {
-    push(GitPlugin::instance()->currentState().topLevel());
+    push(currentRepository());
 }
 
 Utils::FileName GerritPlugin::gitBinDirectory()
@@ -458,8 +467,7 @@ void GerritPlugin::fetch(const QSharedPointer<GerritChange> &change, int mode)
     if (repository.isEmpty())
         return;
 
-    FetchContext *fc = new FetchContext(change, repository, git,
-                                        *m_server, FetchMode(mode), this);
+    auto fc = new FetchContext(change, repository, git, *m_server, FetchMode(mode), this);
     connect(fc, &QObject::destroyed, this, &GerritPlugin::fetchFinished);
     emit fetchStarted(change);
     fc->start();

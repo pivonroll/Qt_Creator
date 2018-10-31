@@ -26,6 +26,7 @@
 #include "projectinfo.h"
 
 #include <projectexplorer/abi.h>
+#include <projectexplorer/toolchain.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
 
@@ -41,12 +42,13 @@ ToolChainInfo::ToolChainInfo(const ProjectExplorer::ToolChain *toolChain,
                 = toolChain->targetAbi().osFlavor() == ProjectExplorer::Abi::WindowsMsvc2015Flavor;
         wordWidth = toolChain->targetAbi().wordWidth();
         targetTriple = toolChain->originalTargetTriple();
+        extraCodeModelFlags = toolChain->extraCodeModelFlags();
 
         // ...and save the potentially expensive operations for later so that
         // they can be run from a worker thread.
-        sysRoothPath = ProjectExplorer::SysRootKitInformation::sysRoot(kit).toString();
-        headerPathsRunner = toolChain->createSystemHeaderPathsRunner();
-        predefinedMacrosRunner = toolChain->createPredefinedMacrosRunner();
+        sysRootPath = ProjectExplorer::SysRootKitInformation::sysRoot(kit).toString();
+        headerPathsRunner = toolChain->createBuiltInHeaderPathsRunner();
+        macroInspectionRunner = toolChain->createMacroInspectionRunner();
     }
 }
 
@@ -61,6 +63,19 @@ ProjectUpdateInfo::ProjectUpdateInfo(ProjectExplorer::Project *project,
     , cxxToolChain(cxxToolChain)
     , cToolChainInfo(ToolChainInfo(cToolChain, kit))
     , cxxToolChainInfo(ToolChainInfo(cxxToolChain, kit))
+{
+}
+
+ProjectUpdateInfo::ProjectUpdateInfo(ProjectExplorer::Project *project,
+                  const ToolChainInfo &cToolChainInfo,
+                  const ToolChainInfo &cxxToolChainInfo,
+                  const RawProjectParts &rawProjectParts)
+    : project(project)
+    , rawProjectParts(rawProjectParts)
+    , cToolChain(nullptr)
+    , cxxToolChain(nullptr)
+    , cToolChainInfo(cToolChainInfo)
+    , cxxToolChainInfo(cxxToolChainInfo)
 {
 }
 
@@ -89,28 +104,10 @@ const QSet<QString> ProjectInfo::sourceFiles() const
     return m_sourceFiles;
 }
 
-void ProjectInfo::setCompilerCallData(const CompilerCallData &data)
-{
-    m_compilerCallData = data;
-}
-
-ProjectInfo::CompilerCallData ProjectInfo::compilerCallData() const
-{
-    return m_compilerCallData;
-}
-
-static bool operator==(const ProjectInfo::CompilerCallGroup &first,
-                       const ProjectInfo::CompilerCallGroup &second)
-{
-    return first.groupId == second.groupId
-        && first.callsPerSourceFile == second.callsPerSourceFile;
-}
-
 bool ProjectInfo::operator ==(const ProjectInfo &other) const
 {
     return m_project == other.m_project
         && m_projectParts == other.m_projectParts
-        && m_compilerCallData == other.m_compilerCallData
         && m_headerPaths == other.m_headerPaths
         && m_sourceFiles == other.m_sourceFiles
         && m_defines == other.m_defines;
@@ -144,11 +141,11 @@ void ProjectInfo::appendProjectPart(const ProjectPart::Ptr &projectPart)
 
 void ProjectInfo::finish()
 {
-    QSet<ProjectPartHeaderPath> uniqueHeaderPaths;
+    QSet<ProjectExplorer::HeaderPath> uniqueHeaderPaths;
 
     foreach (const ProjectPart::Ptr &part, m_projectParts) {
         // Update header paths
-        foreach (const ProjectPartHeaderPath &headerPath, part->headerPaths) {
+        foreach (const ProjectExplorer::HeaderPath &headerPath, part->headerPaths) {
             const int count = uniqueHeaderPaths.count();
             uniqueHeaderPaths.insert(headerPath);
             if (count < uniqueHeaderPaths.count())

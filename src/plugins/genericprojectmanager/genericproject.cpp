@@ -166,7 +166,6 @@ GenericProject::GenericProject(const Utils::FileName &fileName) :
     m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
 {
     setId(Constants::GENERICPROJECT_ID);
-    setProjectContext(Context(GenericProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
     setDisplayName(fileName.toFileInfo().completeBaseName());
 
@@ -240,7 +239,10 @@ bool GenericProject::saveRawList(const QStringList &rawList, const QString &file
 static void insertSorted(QStringList *list, const QString &value)
 {
     int pos = Utils::indexOf(*list, [value](const QString &s) { return s > value; });
-    list->insert(pos, value);
+    if (pos == -1)
+        list->append(value);
+    else
+        list->insert(pos, value);
 }
 
 bool GenericProject::addFiles(const QStringList &filePaths)
@@ -340,26 +342,27 @@ void GenericProject::refresh(RefreshOptions options)
     parseProject(options);
 
     if (options & Files) {
-        auto newRoot = new GenericProjectNode(this);
+        auto newRoot = std::make_unique<GenericProjectNode>(this);
 
         for (const QString &f : m_files) {
             FileType fileType = FileType::Source; // ### FIXME
             if (f.endsWith(".qrc"))
                 fileType = FileType::Resource;
-            newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(f), fileType, false));
+            newRoot->addNestedNode(std::make_unique<FileNode>(FileName::fromString(f), fileType,
+                                                              false));
         }
 
-        newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(m_filesFileName),
-                                             FileType::Project,
-                                             /* generated = */ false));
-        newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(m_includesFileName),
-                                             FileType::Project,
-                                             /* generated = */ false));
-        newRoot->addNestedNode(new FileNode(Utils::FileName::fromString(m_configFileName),
-                                             FileType::Project,
-                                             /* generated = */ false));
+        newRoot->addNestedNode(std::make_unique<FileNode>(FileName::fromString(m_filesFileName),
+                                                          FileType::Project,
+                                                          /* generated = */ false));
+        newRoot->addNestedNode(std::make_unique<FileNode>(FileName::fromString(m_includesFileName),
+                                                          FileType::Project,
+                                                          /* generated = */ false));
+        newRoot->addNestedNode(std::make_unique<FileNode>(FileName::fromString(m_configFileName),
+                                                          FileType::Project,
+                                                          /* generated = */ false));
 
-        setRootProjectNode(newRoot);
+        setRootProjectNode(std::move(newRoot));
     }
 
     refreshCppCodeModel();
@@ -433,10 +436,8 @@ void GenericProject::refreshCppCodeModel()
     CppTools::ProjectPart::QtVersion activeQtVersion = CppTools::ProjectPart::NoQt;
     if (QtSupport::BaseQtVersion *qtVersion =
             QtSupport::QtKitInformation::qtVersion(activeTarget()->kit())) {
-        if (qtVersion->qtVersion() <= QtSupport::QtVersionNumber(4,8,6))
-            activeQtVersion = CppTools::ProjectPart::Qt4_8_6AndOlder;
-        else if (qtVersion->qtVersion() < QtSupport::QtVersionNumber(5,0,0))
-            activeQtVersion = CppTools::ProjectPart::Qt4Latest;
+        if (qtVersion->qtVersion() < QtSupport::QtVersionNumber(5,0,0))
+            activeQtVersion = CppTools::ProjectPart::Qt4;
         else
             activeQtVersion = CppTools::ProjectPart::Qt5;
     }
@@ -475,12 +476,6 @@ void GenericProject::activeBuildConfigurationWasChanged()
     refresh(Everything);
 }
 
-QStringList GenericProject::buildTargets() const
-{
-    const QStringList targets = { "all", "clean" };
-    return targets;
-}
-
 Project::RestoreResult GenericProject::fromMap(const QVariantMap &map, QString *errorMessage)
 {
     const RestoreResult result = Project::fromMap(map, errorMessage);
@@ -502,7 +497,7 @@ Project::RestoreResult GenericProject::fromMap(const QVariantMap &map, QString *
             continue;
         }
         if (!t->activeRunConfiguration())
-            t->addRunConfiguration(IRunConfigurationFactory::createHelper<CustomExecutableRunConfiguration>(t));
+            t->addRunConfiguration(new CustomExecutableRunConfiguration(t));
     }
 
     m_activeTarget = activeTarget();

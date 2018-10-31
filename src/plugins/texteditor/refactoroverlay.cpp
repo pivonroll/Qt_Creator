@@ -27,7 +27,7 @@
 #include "textdocumentlayout.h"
 #include "texteditor.h"
 
-#include <utils/icon.h>
+#include <utils/utilsicons.h>
 
 #include <QPainter>
 
@@ -39,9 +39,7 @@ RefactorOverlay::RefactorOverlay(TextEditor::TextEditorWidget *editor) :
     QObject(editor),
     m_editor(editor),
     m_maxWidth(0),
-    m_icon(Utils::Icon({
-        {QLatin1String(":/texteditor/images/lightbulbcap.png"), Utils::Theme::PanelTextColorMid},
-        {QLatin1String(":/texteditor/images/lightbulb.png"), Utils::Theme::IconsWarningColor}}, Utils::Icon::Tint).icon())
+    m_icon(Utils::Icons::CODEMODEL_FIXIT.icon())
 {
 }
 
@@ -52,7 +50,7 @@ void RefactorOverlay::paint(QPainter *painter, const QRect &clip)
         paintMarker(m_markers.at(i), painter, clip);
     }
 
-    if (TextDocumentLayout *documentLayout = qobject_cast<TextDocumentLayout*>(m_editor->document()->documentLayout()))
+    if (auto documentLayout = qobject_cast<TextDocumentLayout*>(m_editor->document()->documentLayout()))
         documentLayout->setRequiredWidth(m_maxWidth);
 
 }

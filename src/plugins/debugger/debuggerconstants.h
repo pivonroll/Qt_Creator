@@ -37,9 +37,10 @@ const char MODE_DEBUG[]             = "Mode.Debug";
 const char C_DEBUGMODE[]            = "Debugger.DebugMode";
 const char C_CPPDEBUGGER[]          = "Gdb Debugger";
 const char C_QMLDEBUGGER[]          = "Qml/JavaScript Debugger";
+const char C_DEBUGGER_RUNNING[]     = "Debugger.Running";
+const char C_DEBUGGER_NOTRUNNING[]  = "Debugger.NotRunning";
 
-const char CppPerspectiveId[]       = "Debugger.Perspective.Cpp";
-const char QmlPerspectiveId[]       = "Debugger.Perspective.Qml";
+const char PRESET_PERSPECTIVE_ID[]  = "Debugger.Perspective.Preset";
 
 // Menu Groups
 const char G_GENERAL[]              = "Debugger.Group.General";
@@ -55,6 +56,7 @@ const char ABORT[]                  = "Debugger.Abort";
 const char STEP[]                   = "Debugger.StepLine";
 const char STEPOUT[]                = "Debugger.StepOut";
 const char NEXT[]                   = "Debugger.NextLine";
+const char START_AND_BREAK_ON_MAIN[]= "Debugger.StartAndBreakOnMain";
 const char REVERSE[]                = "Debugger.ReverseDirection";
 const char RESET[]                  = "Debugger.Reset";
 const char OPERATE_BY_INSTRUCTION[] = "Debugger.OperateByInstruction";
@@ -81,10 +83,6 @@ enum DebuggerState
     EngineSetupFailed,
     EngineSetupOk,
 
-    InferiorSetupRequested,
-    InferiorSetupFailed,
-    InferiorSetupOk,
-
     EngineRunRequested,
     EngineRunFailed,
 
@@ -99,12 +97,10 @@ enum DebuggerState
     InferiorStopFailed,        // Debuggee not stopped, will kill debugger
 
     InferiorShutdownRequested,
-    InferiorShutdownFailed,
-    InferiorShutdownOk,
+    InferiorShutdownFinished,
 
     EngineShutdownRequested,
-    EngineShutdownFailed,
-    EngineShutdownOk,
+    EngineShutdownFinished,
 
     DebuggerFinished
 };
@@ -162,7 +158,8 @@ enum DebuggerCapabilities
     WatchComplexExpressionsCapability = 1 << 26, // Used to filter out challenges for cdb.
     AdditionalQmlStackCapability      = 1 << 27, //!< C++ debugger engine is able to retrieve QML stack as well.
     ResetInferiorCapability           = 1 << 28, //!< restart program while debugging
-    NativeMixedCapability             = 1 << 29
+    NativeMixedCapability             = 1 << 29,
+    BreakIndividualLocationsCapability= 1 << 30  //!< Allows to enable/disable individual location for multi-location bps
 };
 
 enum LogChannel

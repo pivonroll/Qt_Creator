@@ -27,7 +27,6 @@
 
 #include "buildconfiguration.h"
 #include "environmentaspectwidget.h"
-#include "runnables.h"
 #include "kit.h"
 #include "target.h"
 
@@ -35,45 +34,29 @@
 
 namespace ProjectExplorer {
 
-// --------------------------------------------------------------------
-// LocalEnvironmentAspect:
-// --------------------------------------------------------------------
-
-QList<int> LocalEnvironmentAspect::possibleBaseEnvironments() const
-{
-    return QList<int>() << static_cast<int>(BuildEnvironmentBase)
-                        << static_cast<int>(SystemEnvironmentBase)
-                        << static_cast<int>(CleanEnvironmentBase);
-}
-
-QString LocalEnvironmentAspect::baseEnvironmentDisplayName(int base) const
-{
-    if (base == static_cast<int>(BuildEnvironmentBase))
-        return tr("Build Environment");
-    if (base == static_cast<int>(SystemEnvironmentBase))
-        return tr("System Environment");
-    if (base == static_cast<int>(CleanEnvironmentBase))
-        return tr("Clean Environment");
-    return QString();
-}
+enum BaseEnvironmentBase {
+    CleanEnvironmentBase = 0,
+    SystemEnvironmentBase,
+    BuildEnvironmentBase
+};
 
 Utils::Environment LocalEnvironmentAspect::baseEnvironment() const
 {
     int base = baseEnvironmentBase();
     Utils::Environment env;
     if (base == static_cast<int>(BuildEnvironmentBase)) {
-        if (BuildConfiguration *bc = runConfiguration()->target()->activeBuildConfiguration()) {
+        if (BuildConfiguration *bc = m_target->activeBuildConfiguration()) {
             env = bc->environment();
         } else { // Fallback for targets without buildconfigurations:
             env = Utils::Environment::systemEnvironment();
-            runConfiguration()->target()->kit()->addToEnvironment(env);
+            m_target->kit()->addToEnvironment(env);
         }
     } else if (base == static_cast<int>(SystemEnvironmentBase)) {
         env = Utils::Environment::systemEnvironment();
     }
 
     if (m_baseEnvironmentModifier)
-        m_baseEnvironmentModifier(runConfiguration(), env);
+        m_baseEnvironmentModifier(env);
 
     return env;
 }
@@ -84,21 +67,19 @@ void LocalEnvironmentAspect::buildEnvironmentHasChanged()
         emit environmentChanged();
 }
 
-LocalEnvironmentAspect::LocalEnvironmentAspect(RunConfiguration *parent,
+LocalEnvironmentAspect::LocalEnvironmentAspect(Target *target,
                                                const BaseEnvironmentModifier &modifier) :
-    EnvironmentAspect(parent), m_baseEnvironmentModifier(modifier)
+    m_baseEnvironmentModifier(modifier),
+    m_target(target)
 {
-    parent->target()->subscribeSignal(&BuildConfiguration::environmentChanged,
-                                      this, &LocalEnvironmentAspect::buildEnvironmentHasChanged);
-    connect(parent->target(), &Target::activeBuildConfigurationChanged,
-            this, &LocalEnvironmentAspect::buildEnvironmentHasChanged);
-}
+    addPreferredBaseEnvironment(BuildEnvironmentBase, tr("Build Environment"));
+    addSupportedBaseEnvironment(SystemEnvironmentBase, tr("System Environment"));
+    addSupportedBaseEnvironment(CleanEnvironmentBase, tr("Clean Environment"));
 
-LocalEnvironmentAspect *LocalEnvironmentAspect::create(RunConfiguration *parent) const
-{
-    auto result = new LocalEnvironmentAspect(parent, m_baseEnvironmentModifier);
-    result->setUserEnvironmentChanges(userEnvironmentChanges());
-    return result;
+    m_target->subscribeSignal(&BuildConfiguration::environmentChanged,
+                              this, &LocalEnvironmentAspect::buildEnvironmentHasChanged);
+    connect(m_target, &Target::activeBuildConfigurationChanged,
+            this, &LocalEnvironmentAspect::buildEnvironmentHasChanged);
 }
 
 } // namespace ProjectExplorer

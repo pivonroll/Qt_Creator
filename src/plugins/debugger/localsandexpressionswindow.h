@@ -31,17 +31,17 @@
 namespace Debugger {
 namespace Internal {
 
-class LocalsAndExpressionsWindow : public QWidget
+class LocalsAndInspectorWindow : public QWidget
 {
 public:
-    LocalsAndExpressionsWindow(QWidget *locals, QWidget *inspector,
-                               QWidget *returnWidget, QWidget *watchers);
+    LocalsAndInspectorWindow(QWidget *locals, QWidget *inspector,
+                             QWidget *returnWidget); // TODO parent?
 
     void setShowLocals(bool showLocals);
 
 private:
     QTimer m_timer;
-    bool m_showLocals;
+    bool m_showLocals = false;
 };
 
 } // namespace Internal

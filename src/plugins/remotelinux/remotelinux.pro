@@ -14,8 +14,6 @@ HEADERS += \
     publickeydeploymentdialog.h \
     genericlinuxdeviceconfigurationwizard.h \
     genericlinuxdeviceconfigurationfactory.h \
-    remotelinuxrunconfigurationwidget.h \
-    remotelinuxrunconfigurationfactory.h \
     remotelinuxdebugsupport.h \
     genericlinuxdeviceconfigurationwizardpages.h \
     abstractremotelinuxdeploystep.h \
@@ -25,8 +23,6 @@ HEADERS += \
     abstractuploadandinstallpackageservice.h \
     genericdirectuploadservice.h \
     remotelinuxdeployconfiguration.h \
-    remotelinuxdeployconfigurationfactory.h \
-    genericremotelinuxdeploystepfactory.h \
     abstractpackagingstep.h \
     tarpackagecreationstep.h \
     remotelinuxpackageinstaller.h \
@@ -36,12 +32,13 @@ HEADERS += \
     remotelinuxenvironmentreader.h \
     sshkeydeployer.h \
     typespecificdeviceconfigurationlistmodel.h \
-    remotelinuxutils.h \
     remotelinuxcustomcommanddeployservice.h \
     remotelinuxcustomcommanddeploymentstep.h \
     genericlinuxdeviceconfigurationwidget.h \
     remotelinuxcheckforfreediskspaceservice.h \
     remotelinuxcheckforfreediskspacestep.h \
+    remotelinuxkillappservice.h \
+    remotelinuxkillappstep.h \
     remotelinuxqmltoolingsupport.h \
     linuxdeviceprocess.h \
     remotelinuxcustomrunconfiguration.h \
@@ -59,8 +56,6 @@ SOURCES += \
     publickeydeploymentdialog.cpp \
     genericlinuxdeviceconfigurationwizard.cpp \
     genericlinuxdeviceconfigurationfactory.cpp \
-    remotelinuxrunconfigurationwidget.cpp \
-    remotelinuxrunconfigurationfactory.cpp \
     remotelinuxdebugsupport.cpp \
     genericlinuxdeviceconfigurationwizardpages.cpp \
     abstractremotelinuxdeploystep.cpp \
@@ -70,8 +65,6 @@ SOURCES += \
     abstractuploadandinstallpackageservice.cpp \
     genericdirectuploadservice.cpp \
     remotelinuxdeployconfiguration.cpp \
-    remotelinuxdeployconfigurationfactory.cpp \
-    genericremotelinuxdeploystepfactory.cpp \
     abstractpackagingstep.cpp \
     tarpackagecreationstep.cpp \
     remotelinuxpackageinstaller.cpp \
@@ -80,12 +73,13 @@ SOURCES += \
     remotelinuxenvironmentreader.cpp \
     sshkeydeployer.cpp \
     typespecificdeviceconfigurationlistmodel.cpp \
-    remotelinuxutils.cpp \
     remotelinuxcustomcommanddeployservice.cpp \
     remotelinuxcustomcommanddeploymentstep.cpp \
     genericlinuxdeviceconfigurationwidget.cpp \
     remotelinuxcheckforfreediskspaceservice.cpp \
     remotelinuxcheckforfreediskspacestep.cpp \
+    remotelinuxkillappservice.cpp \
+    remotelinuxkillappstep.cpp \
     remotelinuxqmltoolingsupport.cpp \
     linuxdeviceprocess.cpp \
     remotelinuxcustomrunconfiguration.cpp \
@@ -95,8 +89,7 @@ SOURCES += \
 FORMS += \
     genericlinuxdeviceconfigurationwizardsetuppage.ui \
     genericlinuxdeviceconfigurationwidget.ui \
-    remotelinuxcheckforfreediskspacestepwidget.ui \
-    remotelinuxcustomrunconfigurationwidget.ui
+    remotelinuxcheckforfreediskspacestepwidget.ui
 
 RESOURCES += remotelinux.qrc
 

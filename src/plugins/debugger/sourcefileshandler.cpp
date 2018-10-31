@@ -46,7 +46,7 @@ SourceFilesHandler::SourceFilesHandler(DebuggerEngine *engine)
     : m_engine(engine)
 {
     setObjectName("SourceFilesModel");
-    QSortFilterProxyModel *proxy = new QSortFilterProxyModel(this);
+    auto proxy = new QSortFilterProxyModel(this);
     proxy->setObjectName("SourceFilesProxyModel");
     proxy->setSourceModel(this);
     m_proxyModel = proxy;
@@ -67,8 +67,8 @@ QVariant SourceFilesHandler::headerData(int section,
 {
     if (orientation == Qt::Horizontal && role == Qt::DisplayRole) {
         static QString headers[] = {
-            tr("Internal Name") + QLatin1String("        "),
-            tr("Full Name") + QLatin1String("        "),
+            tr("Internal Name") + "        ",
+            tr("Full Name") + "        ",
         };
         return headers[section];
     }
@@ -78,9 +78,9 @@ QVariant SourceFilesHandler::headerData(int section,
 Qt::ItemFlags SourceFilesHandler::flags(const QModelIndex &index) const
 {
     if (index.row() >= m_fullNames.size())
-        return 0;
+        return nullptr;
     QFileInfo fi(m_fullNames.at(index.row()));
-    return fi.isReadable() ? QAbstractItemModel::flags(index) : Qt::ItemFlags(0);
+    return fi.isReadable() ? QAbstractItemModel::flags(index) : Qt::ItemFlags({});
 }
 
 QVariant SourceFilesHandler::data(const QModelIndex &index, int role) const
@@ -121,7 +121,7 @@ bool SourceFilesHandler::setData(const QModelIndex &idx, const QVariant &data, i
             QModelIndex index = idx.sibling(idx.row(), 0);
             QString name = index.data().toString();
 
-            auto addAction = [this, menu](const QString &display, bool on, const std::function<void()> &onTriggered) {
+            auto addAction = [menu](const QString &display, bool on, const std::function<void()> &onTriggered) {
                 QAction *act = menu->addAction(display);
                 act->setEnabled(on);
                 QObject::connect(act, &QAction::triggered, onTriggered);

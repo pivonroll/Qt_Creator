@@ -50,13 +50,11 @@ namespace Core {
 namespace Internal {
 
 SystemSettings::SystemSettings()
-    : m_page(nullptr), m_dialog(0)
+    : m_page(nullptr), m_dialog(nullptr)
 {
     setId(Constants::SETTINGS_ID_SYSTEM);
     setDisplayName(tr("System"));
     setCategory(Constants::SETTINGS_CATEGORY_CORE);
-    setDisplayCategory(QCoreApplication::translate("Core", Constants::SETTINGS_TR_CATEGORY_CORE));
-    setCategoryIcon(Utils::Icon(Constants::SETTINGS_CATEGORY_CORE_ICON));
 
     connect(VcsManager::instance(), &VcsManager::configurationChanged,
             this, &SystemSettings::updatePath);
@@ -71,14 +69,22 @@ QWidget *SystemSettings::widget()
 
         m_page->reloadBehavior->setCurrentIndex(EditorManager::reloadSetting());
         if (HostOsInfo::isAnyUnixHost()) {
-            const QStringList availableTerminals = ConsoleProcess::availableTerminalEmulators();
-            const QString currentTerminal = ConsoleProcess::terminalEmulator(ICore::settings(), false);
-            m_page->terminalComboBox->addItems(availableTerminals);
-            m_page->terminalComboBox->lineEdit()->setText(currentTerminal);
-            m_page->terminalComboBox->lineEdit()->setPlaceholderText(ConsoleProcess::defaultTerminalEmulator());
+            const QVector<TerminalCommand> availableTerminals = ConsoleProcess::availableTerminalEmulators();
+            for (const TerminalCommand &term : availableTerminals)
+                m_page->terminalComboBox->addItem(term.command, qVariantFromValue(term));
+            updateTerminalUi(ConsoleProcess::terminalEmulator(ICore::settings()));
+            connect(m_page->terminalComboBox,
+                    QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this,
+                    [this](int index) {
+                        updateTerminalUi(
+                            m_page->terminalComboBox->itemData(index).value<TerminalCommand>());
+                    });
         } else {
             m_page->terminalLabel->hide();
             m_page->terminalComboBox->hide();
+            m_page->terminalOpenArgs->hide();
+            m_page->terminalExecuteArgs->hide();
             m_page->resetTerminalButton->hide();
         }
 
@@ -123,7 +129,7 @@ QWidget *SystemSettings::widget()
 
         if (HostOsInfo::isMacHost()) {
             Qt::CaseSensitivity defaultSensitivity
-                    = OsSpecificAspects(HostOsInfo::hostOs()).fileNameCaseSensitivity();
+                    = OsSpecificAspects::fileNameCaseSensitivity(HostOsInfo::hostOs());
             if (defaultSensitivity == Qt::CaseSensitive) {
                 m_page->fileSystemCaseSensitivityChooser->addItem(tr("Case Sensitive (Default)"),
                                                                   Qt::CaseSensitive);
@@ -158,7 +164,9 @@ void SystemSettings::apply()
     EditorManager::setReloadSetting(IDocument::ReloadSetting(m_page->reloadBehavior->currentIndex()));
     if (HostOsInfo::isAnyUnixHost()) {
         ConsoleProcess::setTerminalEmulator(ICore::settings(),
-                                            m_page->terminalComboBox->lineEdit()->text());
+                                            {m_page->terminalComboBox->lineEdit()->text(),
+                                             m_page->terminalOpenArgs->text(),
+                                             m_page->terminalExecuteArgs->text()});
         if (!HostOsInfo::isMacHost()) {
             UnixUtils::setFileBrowser(ICore::settings(),
                                       m_page->externalFileBrowserEdit->text());
@@ -175,7 +183,7 @@ void SystemSettings::apply()
 
     if (HostOsInfo::isMacHost()) {
         Qt::CaseSensitivity defaultSensitivity
-                = OsSpecificAspects(HostOsInfo::hostOs()).fileNameCaseSensitivity();
+                = OsSpecificAspects::fileNameCaseSensitivity(HostOsInfo::hostOs());
         Qt::CaseSensitivity selectedSensitivity = Qt::CaseSensitivity(
                 m_page->fileSystemCaseSensitivityChooser->currentData().toInt());
         if (defaultSensitivity == selectedSensitivity)
@@ -189,13 +197,20 @@ void SystemSettings::finish()
 {
     delete m_widget;
     delete m_page;
-    m_page = 0;
+    m_page = nullptr;
 }
 
 void SystemSettings::resetTerminal()
 {
     if (HostOsInfo::isAnyUnixHost())
-        m_page->terminalComboBox->lineEdit()->clear();
+        m_page->terminalComboBox->setCurrentIndex(0);
+}
+
+void SystemSettings::updateTerminalUi(const TerminalCommand &term)
+{
+    m_page->terminalComboBox->lineEdit()->setText(term.command);
+    m_page->terminalOpenArgs->setText(term.openArgs);
+    m_page->terminalExecuteArgs->setText(term.executeArgs);
 }
 
 void SystemSettings::resetFileBrowser()

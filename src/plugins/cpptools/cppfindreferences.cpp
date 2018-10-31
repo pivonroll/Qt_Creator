@@ -36,7 +36,7 @@
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectnodes.h>
-#include <projectexplorer/session.h>
+#include <projectexplorer/projecttree.h>
 #include <texteditor/basefilefind.h>
 
 #include <utils/algorithm.h>
@@ -168,7 +168,7 @@ static QList<QByteArray> fullIdForSymbol(CPlusPlus::Symbol *symbol)
 
 namespace {
 
-class ProcessFile: public std::unary_function<QString, QList<CPlusPlus::Usage> >
+class ProcessFile
 {
     const WorkingCopy workingCopy;
     const CPlusPlus::Snapshot snapshot;
@@ -177,6 +177,10 @@ class ProcessFile: public std::unary_function<QString, QList<CPlusPlus::Usage> >
     QFutureInterface<CPlusPlus::Usage> *future;
 
 public:
+    // needed by QtConcurrent
+    using argument_type = const Utils::FileName &;
+    using result_type = QList<CPlusPlus::Usage>;
+
     ProcessFile(const WorkingCopy &workingCopy,
                 const CPlusPlus::Snapshot snapshot,
                 CPlusPlus::Document::Ptr symbolDocument,
@@ -230,7 +234,7 @@ public:
     }
 };
 
-class UpdateUI: public std::binary_function<QList<CPlusPlus::Usage> &, QList<CPlusPlus::Usage>, void>
+class UpdateUI
 {
     QFutureInterface<CPlusPlus::Usage> *future;
 
@@ -560,7 +564,7 @@ static void displayResults(SearchResult *search, QFutureWatcher<CPlusPlus::Usage
         if (Utils::contains(parameters.filesToRename, Utils::equal(&Node::filePath, result.path)))
             continue;
 
-        Node *node = SessionManager::nodeForFile(result.path);
+        Node *node = ProjectTree::nodeForFile(result.path);
         if (!node) // Not part of any project
             continue;
 
@@ -596,7 +600,7 @@ static void searchFinished(SearchResult *search, QFutureWatcher<CPlusPlus::Usage
 
 namespace {
 
-class FindMacroUsesInFile: public std::unary_function<QString, QList<CPlusPlus::Usage> >
+class FindMacroUsesInFile
 {
     const WorkingCopy workingCopy;
     const CPlusPlus::Snapshot snapshot;
@@ -604,6 +608,10 @@ class FindMacroUsesInFile: public std::unary_function<QString, QList<CPlusPlus::
     QFutureInterface<CPlusPlus::Usage> *future;
 
 public:
+    // needed by QtConcurrent
+    using argument_type = const Utils::FileName &;
+    using result_type = QList<CPlusPlus::Usage>;
+
     FindMacroUsesInFile(const WorkingCopy &workingCopy,
                         const CPlusPlus::Snapshot snapshot,
                         const CPlusPlus::Macro &macro,

@@ -26,7 +26,9 @@
 #include "pathchooser.h"
 
 #include "environment.h"
+#include "optional.h"
 #include "qtcassert.h"
+#include "macroexpander.h"
 
 #include "synchronousprocess.h"
 #include "hostosinfo.h"
@@ -49,9 +51,11 @@
     This class has some validation logic for embedding into QWizardPage.
 */
 
+namespace Utils {
+
 static QString appBundleExpandedPath(const QString &path)
 {
-    if (Utils::HostOsInfo::hostOs() == Utils::OsTypeMac && path.endsWith(".app")) {
+    if (HostOsInfo::hostOs() == OsTypeMac && path.endsWith(".app")) {
         // possibly expand to Foo.app/Contents/MacOS/Foo
         QFileInfo info(path);
         if (info.isDir()) {
@@ -63,9 +67,7 @@ static QString appBundleExpandedPath(const QString &path)
     return path;
 }
 
-Utils::PathChooser::AboutToShowContextMenuHandler Utils::PathChooser::s_aboutToShowContextMenuHandler;
-
-namespace Utils {
+PathChooser::AboutToShowContextMenuHandler PathChooser::s_aboutToShowContextMenuHandler;
 
 // ------------------ BinaryVersionToolTipEventFilter
 // Event filter to be installed on a lineedit used for entering
@@ -78,7 +80,7 @@ class BinaryVersionToolTipEventFilter : public QObject
 public:
     explicit BinaryVersionToolTipEventFilter(QLineEdit *le);
 
-    virtual bool eventFilter(QObject *, QEvent *);
+    bool eventFilter(QObject *, QEvent *) override;
 
     QStringList arguments() const { return m_arguments; }
     void setArguments(const QStringList &arguments) { m_arguments = arguments; }
@@ -102,7 +104,7 @@ bool BinaryVersionToolTipEventFilter::eventFilter(QObject *o, QEvent *e)
 {
     if (e->type() != QEvent::ToolTip)
         return false;
-    QLineEdit *le = qobject_cast<QLineEdit *>(o);
+    auto le = qobject_cast<QLineEdit *>(o);
     QTC_ASSERT(le, return false);
 
     const QString binary = le->text();
@@ -147,7 +149,7 @@ public:
         BinaryVersionToolTipEventFilter(pe->lineEdit()), m_pathChooser(pe) {}
 
 private:
-    virtual QString defaultToolTip() const
+    QString defaultToolTip() const override
         { return m_pathChooser->errorMessage(); }
 
     const PathChooser *m_pathChooser = nullptr;
@@ -165,7 +167,7 @@ public:
     QHBoxLayout *m_hLayout = nullptr;
     FancyLineEdit *m_lineEdit = nullptr;
 
-    PathChooser::Kind m_acceptingKind;
+    PathChooser::Kind m_acceptingKind = PathChooser::ExistingDirectory;
     QString m_dialogTitleOverride;
     QString m_dialogFilter;
     QString m_initialBrowsePathOverride;
@@ -173,12 +175,13 @@ public:
     Environment m_environment;
     BinaryVersionToolTipEventFilter *m_binaryVersionToolTipEventFilter = nullptr;
     QList<QAbstractButton *> m_buttons;
+    MacroExpander *m_macroExpander;
 };
 
 PathChooserPrivate::PathChooserPrivate() :
     m_hLayout(new QHBoxLayout),
     m_lineEdit(new FancyLineEdit),
-    m_acceptingKind(PathChooser::ExistingDirectory)
+    m_macroExpander(globalMacroExpander())
 {
 }
 
@@ -186,7 +189,12 @@ QString PathChooserPrivate::expandedPath(const QString &input) const
 {
     if (input.isEmpty())
         return input;
-    const QString path = FileName::fromUserInput(m_environment.expandVariables(input)).toString();
+
+    QString expandedInput = m_environment.expandVariables(input);
+    if (m_macroExpander)
+        expandedInput = m_macroExpander->expand(expandedInput);
+
+    const QString path = FileName::fromUserInput(expandedInput).toString();
     if (path.isEmpty())
         return path;
 
@@ -223,7 +231,7 @@ PathChooser::PathChooser(QWidget *parent) :
             [this] { emit rawPathChanged(rawPath()); });
     connect(d->m_lineEdit, &FancyLineEdit::validChanged, this, &PathChooser::validChanged);
     connect(d->m_lineEdit, &QLineEdit::editingFinished, this, &PathChooser::editingFinished);
-    connect(d->m_lineEdit, &QLineEdit::textChanged, this, [this] { emit pathChanged(path()); });
+    connect(d->m_lineEdit, &QLineEdit::textChanged, this, [this] { emit pathChanged(d->m_lineEdit->text()); });
 
     d->m_lineEdit->setMinimumWidth(120);
     d->m_lineEdit->setErrorColor(creatorTheme()->color(Theme::TextColorError));
@@ -340,14 +348,22 @@ QString PathChooser::expandedDirectory(const QString &input, const Environment &
     return path;
 }
 
+void setTextKeepingActiveCursor(QLineEdit *edit, const QString &text)
+{
+    optional<int> cursor = edit->hasFocus() ? make_optional(edit->cursorPosition()) : nullopt;
+    edit->setText(text);
+    if (cursor)
+        edit->setCursorPosition(*cursor);
+}
+
 void PathChooser::setPath(const QString &path)
 {
-    d->m_lineEdit->setText(QDir::toNativeSeparators(path));
+    setTextKeepingActiveCursor(d->m_lineEdit, QDir::toNativeSeparators(path));
 }
 
 void PathChooser::setFileName(const FileName &fn)
 {
-    d->m_lineEdit->setText(fn.toUserOutput());
+    setTextKeepingActiveCursor(d->m_lineEdit, fn.toUserOutput());
 }
 
 void PathChooser::setErrorColor(const QColor &errorColor)
@@ -521,7 +537,7 @@ bool PathChooser::validatePath(FancyLineEdit *edit, QString *errorMessage) const
 
     // Check if existing
     switch (d->m_acceptingKind) {
-    case PathChooser::ExistingDirectory: // fall through
+    case PathChooser::ExistingDirectory:
         if (!fi.exists()) {
             if (errorMessage)
                 *errorMessage = tr("The path \"%1\" does not exist.").arg(QDir::toNativeSeparators(expandedPath));
@@ -533,7 +549,7 @@ bool PathChooser::validatePath(FancyLineEdit *edit, QString *errorMessage) const
             return false;
         }
         break;
-    case PathChooser::File: // fall through
+    case PathChooser::File:
         if (!fi.exists()) {
             if (errorMessage)
                 *errorMessage = tr("The path \"%1\" does not exist.").arg(QDir::toNativeSeparators(expandedPath));
@@ -576,7 +592,7 @@ bool PathChooser::validatePath(FancyLineEdit *edit, QString *errorMessage) const
             return false;
         }
         break;
-    case PathChooser::Command: // fall through
+    case PathChooser::Command:
         if (fi.exists() && !fi.isExecutable()) {
             if (errorMessage)
                 *errorMessage = tr("Cannot execute \"%1\".").arg(QDir::toNativeSeparators(expandedPath));
@@ -639,6 +655,7 @@ QString PathChooser::promptDialogTitle() const
 void PathChooser::setPromptDialogFilter(const QString &filter)
 {
     d->m_dialogFilter = filter;
+    d->m_lineEdit->validate();
 }
 
 QString PathChooser::promptDialogFilter() const
@@ -674,13 +691,18 @@ QString PathChooser::toolVersion(const QString &binary, const QStringList &argum
 
 void PathChooser::installLineEditVersionToolTip(QLineEdit *le, const QStringList &arguments)
 {
-    BinaryVersionToolTipEventFilter *ef = new BinaryVersionToolTipEventFilter(le);
+    auto ef = new BinaryVersionToolTipEventFilter(le);
     ef->setArguments(arguments);
 }
 
 void PathChooser::setHistoryCompleter(const QString &historyKey, bool restoreLastItemFromHistory)
 {
     d->m_lineEdit->setHistoryCompleter(historyKey, restoreLastItemFromHistory);
+}
+
+void PathChooser::setMacroExpander(MacroExpander *macroExpander)
+{
+    d->m_macroExpander = macroExpander;
 }
 
 QStringList PathChooser::commandVersionArguments() const

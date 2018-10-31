@@ -79,7 +79,7 @@ static bool isElectricInLine(const QChar ch, const QString &text)
             return true;
         }
 
-        // fall-through
+        Q_FALLTHROUGH();
         // lines that start with : might have a constructor initializer list
     case '<':
     case '>': {
@@ -129,7 +129,8 @@ void CppQtStyleIndenter::indentBlock(QTextDocument *doc,
 void CppQtStyleIndenter::indent(QTextDocument *doc,
                                 const QTextCursor &cursor,
                                 const QChar &typedChar,
-                                const TextEditor::TabSettings &tabSettings)
+                                const TextEditor::TabSettings &tabSettings,
+                                bool /*autoTriggered*/)
 {
     if (cursor.hasSelection()) {
         QTextBlock block = doc->findBlock(cursor.selectionStart());

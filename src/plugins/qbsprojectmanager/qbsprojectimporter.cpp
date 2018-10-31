@@ -34,6 +34,7 @@
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/kitmanager.h>
 #include <projectexplorer/project.h>
+#include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectmacroexpander.h>
 #include <projectexplorer/toolchain.h>
@@ -93,7 +94,7 @@ static QString buildDir(const QString &projectFilePath, const Kit *k)
                                   BuildConfiguration::Unknown);
     const QString projectDir
             = Project::projectDirectory(FileName::fromString(projectFilePath)).toString();
-    const QString buildPath = expander.expand(Core::DocumentManager::buildDirectory());
+    const QString buildPath = expander.expand(ProjectExplorerPlugin::defaultBuildDirectoryTemplate());
     return FileUtils::resolvePath(projectDir, buildPath);
 }
 
@@ -231,7 +232,7 @@ QList<BuildInfo *> QbsProjectImporter::buildInfoListForKit(const Kit *k, void *d
         return result;
     }
     const auto * const bgData = static_cast<BuildGraphData *>(directoryData);
-    QbsBuildInfo * const buildInfo = new QbsBuildInfo(factory);
+    auto * const buildInfo = new QbsBuildInfo(factory);
     buildInfo->displayName = bgData->bgFilePath.toFileInfo().completeBaseName();
     buildInfo->buildType = bgData->buildVariant == "debug"
             ? BuildConfiguration::Debug : BuildConfiguration::Release;

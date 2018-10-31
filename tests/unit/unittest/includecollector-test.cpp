@@ -40,14 +40,28 @@ using testing::ElementsAre;
 using testing::UnorderedElementsAre;
 
 using ClangBackEnd::FilePathId;
+using ClangBackEnd::FilePathView;
 
 namespace {
 
 class IncludeCollector : public ::testing::Test
 {
 protected:
-    void SetUp();
-    FilePathId id(const Utils::SmallString &path);
+    void SetUp()
+    {
+        collector.addFile(TESTDATA_DIR, "includecollector_main.cpp", "", {"cc", "includecollector_main.cpp"});
+        collector.addFile(TESTDATA_DIR, "includecollector_main2.cpp", "", {"cc", "includecollector_main2.cpp"});
+
+        collector.addUnsavedFiles({{{TESTDATA_DIR, "includecollector_generated_file.h"}, "#pragma once", {}}});
+
+        collector.setExcludedIncludes(excludePaths.clone());
+        emptyCollector.setExcludedIncludes(excludePaths.clone());
+    }
+
+    FilePathId id(const Utils::SmallStringView &path)
+    {
+        return filePathCache.filePathId(FilePathView{path});
+    }
 
 protected:
     Sqlite::Database database{":memory:", Sqlite::JournalMode::Memory};
@@ -55,8 +69,8 @@ protected:
     ClangBackEnd::FilePathCaching filePathCache{database};
     ClangBackEnd::IncludeCollector collector{filePathCache};
     ClangBackEnd::IncludeCollector emptyCollector{filePathCache};
-    Utils::PathStringVector excludePaths = {TESTDATA_DIR "/includecollector_main.h",
-                                            TESTDATA_DIR "/includecollector_main2.h",
+    Utils::PathStringVector excludePaths = {TESTDATA_DIR "/includecollector_main.cpp",
+                                            TESTDATA_DIR "/includecollector_main2.cpp",
                                             TESTDATA_DIR "/includecollector_header1.h",
                                             TESTDATA_DIR "/includecollector_header2.h",
                                             TESTDATA_DIR "/includecollector_generated_file.h"};
@@ -68,7 +82,9 @@ TEST_F(IncludeCollector, IncludesExternalHeader)
 
     ASSERT_THAT(collector.takeIncludeIds(),
                 AllOf(Contains(id(TESTDATA_DIR "/includecollector_external1.h")),
-                      Contains(id(TESTDATA_DIR "/includecollector_external2.h"))));
+                      Contains(id(TESTDATA_DIR "/includecollector_external2.h")),
+                      Contains(id(TESTDATA_DIR "/includecollector_indirect_external.h")),
+                      Contains(id(TESTDATA_DIR "/includecollector_indirect_external2.h"))));
 }
 
 TEST_F(IncludeCollector, DoesNotIncludesInternalHeader)
@@ -85,7 +101,9 @@ TEST_F(IncludeCollector, NoDuplicate)
     ASSERT_THAT(collector.takeIncludeIds(),
                 UnorderedElementsAre(id(TESTDATA_DIR "/includecollector_external1.h"),
                                      id(TESTDATA_DIR "/includecollector_external2.h"),
-                                     id(TESTDATA_DIR "/includecollector_external3.h")));
+                                     id(TESTDATA_DIR "/includecollector_external3.h"),
+                                     id(TESTDATA_DIR "/includecollector_indirect_external.h"),
+                                     id(TESTDATA_DIR "/includecollector_indirect_external2.h")));
 }
 
 TEST_F(IncludeCollector, IncludesAreSorted)
@@ -93,7 +111,7 @@ TEST_F(IncludeCollector, IncludesAreSorted)
     collector.collectIncludes();
 
     ASSERT_THAT(collector.takeIncludeIds(),
-                SizeIs(3));
+                SizeIs(5));
 }
 
 TEST_F(IncludeCollector, If)
@@ -115,7 +133,9 @@ TEST_F(IncludeCollector, LocalPath)
     ASSERT_THAT(emptyCollector.takeIncludeIds(),
                 UnorderedElementsAre(id(TESTDATA_DIR "/includecollector_external1.h"),
                                      id(TESTDATA_DIR "/includecollector_external2.h"),
-                                     id(TESTDATA_DIR "/includecollector_external3.h")));
+                                     id(TESTDATA_DIR "/includecollector_external3.h"),
+                                     id(TESTDATA_DIR "/includecollector_indirect_external.h"),
+                                     id(TESTDATA_DIR "/includecollector_indirect_external2.h")));
 }
 
 TEST_F(IncludeCollector, IgnoreMissingFile)
@@ -125,23 +145,53 @@ TEST_F(IncludeCollector, IgnoreMissingFile)
     emptyCollector.collectIncludes();
 
     ASSERT_THAT(emptyCollector.takeIncludeIds(),
+                UnorderedElementsAre(id(TESTDATA_DIR "/includecollector_external1.h"),
+                                     id(TESTDATA_DIR "/includecollector_indirect_external.h"),
+                                     id(TESTDATA_DIR "/includecollector_indirect_external2.h")));
+}
+
+TEST_F(IncludeCollector, IncludesOnlyTopExternalHeader)
+{
+    collector.collectIncludes();
+
+    ASSERT_THAT(collector.takeTopIncludeIds(),
+                UnorderedElementsAre(id(TESTDATA_DIR "/includecollector_external1.h"),
+                                     id(TESTDATA_DIR "/includecollector_external2.h"),
+                                     id(TESTDATA_DIR "/includecollector_external3.h")));
+}
+
+TEST_F(IncludeCollector, TopIncludeInIfMacro)
+{
+    emptyCollector.addFile(TESTDATA_DIR, "includecollector_if.cpp", "", {"cc", "includecollector_if.cpp"});
+    emptyCollector.setExcludedIncludes({"includecollector_if.cpp"});
+
+    emptyCollector.collectIncludes();
+
+    ASSERT_THAT(emptyCollector.takeTopIncludeIds(),
+                ElementsAre(id(TESTDATA_DIR "/includecollector_true.h")));
+}
+
+TEST_F(IncludeCollector, TopIncludeWithLocalPath)
+{
+    emptyCollector.addFile(TESTDATA_DIR, "includecollector_main.cpp", "", {"cc", "includecollector_main.cpp"});
+
+    emptyCollector.collectIncludes();
+
+    ASSERT_THAT(emptyCollector.takeTopIncludeIds(),
+                UnorderedElementsAre(id(TESTDATA_DIR "/includecollector_external1.h"),
+                                     id(TESTDATA_DIR "/includecollector_external2.h"),
+                                     id(TESTDATA_DIR "/includecollector_external3.h")));
+}
+
+TEST_F(IncludeCollector, TopIncludesIgnoreMissingFile)
+{
+    emptyCollector.addFile(TESTDATA_DIR, "includecollector_missingfile.cpp", "", {"cc", "includecollector_missingfile.cpp"});
+    emptyCollector.setExcludedIncludes({"includecollector_missingfile.cpp"});
+
+    emptyCollector.collectIncludes();
+
+    ASSERT_THAT(emptyCollector.takeTopIncludeIds(),
                 UnorderedElementsAre(id(TESTDATA_DIR "/includecollector_external1.h")));
-}
-
-void IncludeCollector::SetUp()
-{
-    collector.addFile(TESTDATA_DIR, "includecollector_main.cpp", "", {"cc", "includecollector_main.cpp"});
-    collector.addFile(TESTDATA_DIR, "includecollector_main2.cpp", "", {"cc", "includecollector_main2.cpp"});
-
-    collector.addUnsavedFiles({{{TESTDATA_DIR, "includecollector_generated_file.h"}, "#pragma once", {}}});
-
-    collector.setExcludedIncludes(excludePaths.clone());
-    emptyCollector.setExcludedIncludes(excludePaths.clone());
-}
-
-FilePathId IncludeCollector::id(const Utils::SmallString &path)
-{
-    return filePathCache.filePathId(path);
 }
 
 }

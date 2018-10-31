@@ -77,6 +77,8 @@ public:
     QSharedPointer<CPlusPlus::TypeOfExpression> m_typeOfExpression;
 };
 
+using CppAssistProposalModelPtr = QSharedPointer<CppAssistProposalModel>;
+
 class InternalCompletionAssistProvider : public CppCompletionAssistProvider
 {
     Q_OBJECT
@@ -158,7 +160,7 @@ private:
     };
 
     QScopedPointer<const CppCompletionAssistInterface> m_interface;
-    QScopedPointer<CppAssistProposalModel> m_model;
+    CppAssistProposalModelPtr m_model;
 };
 
 class CppCompletionAssistInterface : public TextEditor::AssistInterface
@@ -183,7 +185,7 @@ public:
                                  int position,
                                  TextEditor::AssistReason reason,
                                  const CPlusPlus::Snapshot &snapshot,
-                                 const ProjectPartHeaderPaths &headerPaths,
+                                 const ProjectExplorer::HeaderPaths &headerPaths,
                                  const CPlusPlus::LanguageFeatures &features)
         : TextEditor::AssistInterface(textDocument, position, filePath, reason)
         , m_gotCppSpecifics(true)
@@ -193,7 +195,7 @@ public:
     {}
 
     const CPlusPlus::Snapshot &snapshot() const { getCppSpecifics(); return m_snapshot; }
-    const ProjectPartHeaderPaths &headerPaths() const
+    const ProjectExplorer::HeaderPaths &headerPaths() const
     { getCppSpecifics(); return m_headerPaths; }
     CPlusPlus::LanguageFeatures languageFeatures() const
     { getCppSpecifics(); return m_languageFeatures; }
@@ -205,7 +207,7 @@ private:
     mutable bool m_gotCppSpecifics;
     WorkingCopy m_workingCopy;
     mutable CPlusPlus::Snapshot m_snapshot;
-    mutable ProjectPartHeaderPaths m_headerPaths;
+    mutable ProjectExplorer::HeaderPaths m_headerPaths;
     mutable CPlusPlus::LanguageFeatures m_languageFeatures;
 };
 

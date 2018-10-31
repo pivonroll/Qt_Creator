@@ -123,11 +123,11 @@ public:
     //PluginInterface
     bool initialize(const QStringList &arguments, QString *errorMessage) override;
     void extensionsInitialized() override;
-    bool delayedInitialize() override;
+    void restoreKits();
     ShutdownFlag aboutToShutdown() override;
 
     static void setProjectExplorerSettings(const Internal::ProjectExplorerSettings &pes);
-    static Internal::ProjectExplorerSettings projectExplorerSettings();
+    static const Internal::ProjectExplorerSettings &projectExplorerSettings();
 
     static void startRunControl(RunControl *runControl);
     static void showRunErrorMessage(const QString &errorMessage);
@@ -163,6 +163,10 @@ public:
     static void openNewProjectDialog();
     static void openOpenProjectDialog();
 
+    static QString buildDirectoryTemplate();
+    static void setBuildDirectoryTemplate(const QString &dir);
+    static QString defaultBuildDirectoryTemplate();
+
 signals:
     void finishedInitialization();
 
@@ -170,7 +174,6 @@ signals:
     // or the file list of a specific project has changed.
     void fileListChanged();
 
-    void aboutToExecuteProject(ProjectExplorer::Project *project, Core::Id runMode);
     void recentProjectsChanged();
 
     void settingsChanged();
@@ -182,6 +185,15 @@ private:
 
 #ifdef WITH_TESTS
 private slots:
+    void testJsonWizardsEmptyWizard();
+    void testJsonWizardsEmptyPage();
+    void testJsonWizardsUnusedKeyAtFields_data();
+    void testJsonWizardsUnusedKeyAtFields();
+    void testJsonWizardsCheckBox();
+    void testJsonWizardsLineEdit();
+    void testJsonWizardsComboBox();
+    void testJsonWizardsIconList();
+
     void testAnsiFilterOutputParser_data();
     void testAnsiFilterOutputParser();
 
@@ -214,16 +226,32 @@ private slots:
     void testGccAbiGuessing_data();
     void testGccAbiGuessing();
 
+    void testAbiRoundTrips();
     void testAbiOfBinary_data();
     void testAbiOfBinary();
-    void testFlavorForOs();
     void testAbiFromTargetTriplet_data();
     void testAbiFromTargetTriplet();
+    void testAbiUserOsFlavor_data();
+    void testAbiUserOsFlavor();
 
     void testDeviceManager();
 
-    void testToolChainManager_data();
-    void testToolChainManager();
+    void testToolChainMerging_data();
+    void testToolChainMerging();
+
+    void testUserFileAccessor_prepareToReadSettings();
+    void testUserFileAccessor_prepareToReadSettingsObsoleteVersion();
+    void testUserFileAccessor_prepareToReadSettingsObsoleteVersionNewVersion();
+    void testUserFileAccessor_prepareToWriteSettings();
+    void testUserFileAccessor_mergeSettings();
+    void testUserFileAccessor_mergeSettingsEmptyUser();
+    void testUserFileAccessor_mergeSettingsEmptyShared();
+
+    void testProject_setup();
+    void testProject_changeDisplayName();
+    void testProject_parsingSuccess();
+    void testProject_parsingFail();
+    void testProject_projectTree();
 #endif // WITH_TESTS
 };
 

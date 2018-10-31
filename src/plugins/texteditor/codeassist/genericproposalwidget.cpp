@@ -31,9 +31,11 @@
 #include <texteditor/texteditorsettings.h>
 #include <texteditor/completionsettings.h>
 #include <texteditor/texteditorconstants.h>
+#include <texteditor/codeassist/assistproposaliteminterface.h>
 
 #include <utils/faketooltip.h>
 #include <utils/hostosinfo.h>
+#include <utils/utilsicons.h>
 
 #include <QRect>
 #include <QLatin1String>
@@ -49,6 +51,7 @@
 #include <QKeyEvent>
 #include <QDesktopWidget>
 #include <QLabel>
+#include <QStyledItemDelegate>
 
 using namespace Utils;
 
@@ -62,16 +65,16 @@ class ModelAdapter : public QAbstractListModel
     Q_OBJECT
 
 public:
-    ModelAdapter(GenericProposalModel *completionModel, QWidget *parent);
+    ModelAdapter(GenericProposalModelPtr completionModel, QWidget *parent);
 
-    virtual int rowCount(const QModelIndex &) const;
-    virtual QVariant data(const QModelIndex &index, int role) const;
+    int rowCount(const QModelIndex &) const override;
+    QVariant data(const QModelIndex &index, int role) const override;
 
 private:
-    GenericProposalModel *m_completionModel;
+    GenericProposalModelPtr m_completionModel;
 };
 
-ModelAdapter::ModelAdapter(GenericProposalModel *completionModel, QWidget *parent)
+ModelAdapter::ModelAdapter(GenericProposalModelPtr completionModel, QWidget *parent)
     : QAbstractListModel(parent)
     , m_completionModel(completionModel)
 {}
@@ -92,6 +95,8 @@ QVariant ModelAdapter::data(const QModelIndex &index, int role) const
         return m_completionModel->icon(index.row());
     else if (role == Qt::WhatsThisRole)
         return m_completionModel->detail(index.row());
+    else if (role == Qt::UserRole)
+        return m_completionModel->proposalItem(index.row())->requiresFixIts();
 
     return QVariant();
 }
@@ -102,10 +107,10 @@ QVariant ModelAdapter::data(const QModelIndex &index, int role) const
 class GenericProposalInfoFrame : public FakeToolTip
 {
 public:
-    GenericProposalInfoFrame(QWidget *parent = 0)
+    GenericProposalInfoFrame(QWidget *parent = nullptr)
         : FakeToolTip(parent), m_label(new QLabel(this))
     {
-        QVBoxLayout *layout = new QVBoxLayout(this);
+        auto layout = new QVBoxLayout(this);
         layout->setMargin(0);
         layout->setSpacing(0);
         layout->addWidget(m_label);
@@ -146,6 +151,7 @@ private:
 // -----------------------
 class GenericProposalListView : public QListView
 {
+    friend class ProposalItemDelegate;
 public:
     GenericProposalListView(QWidget *parent);
 
@@ -160,10 +166,53 @@ public:
     void selectLastRow() { selectRow(model()->rowCount() - 1); }
 };
 
+class ProposalItemDelegate : public QStyledItemDelegate
+{
+    Q_OBJECT
+public:
+    explicit ProposalItemDelegate(GenericProposalListView *parent = nullptr)
+        : QStyledItemDelegate(parent)
+        , m_parent(parent)
+    {
+    }
+
+    void paint(QPainter *painter,
+               const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override
+    {
+        static const QIcon fixItIcon = ::Utils::Icons::CODEMODEL_FIXIT.icon();
+
+        QStyledItemDelegate::paint(painter, option, index);
+
+        if (m_parent->model()->data(index, Qt::UserRole).toBool()) {
+            const QRect itemRect = m_parent->rectForIndex(index);
+            const QScrollBar *verticalScrollBar = m_parent->verticalScrollBar();
+
+            const int x = m_parent->width() - itemRect.height() - (verticalScrollBar->isVisible()
+                                                                   ? verticalScrollBar->width()
+                                                                   : 0);
+            const int iconSize = itemRect.height() - 5;
+            fixItIcon.paint(painter, QRect(x, itemRect.y() - m_parent->verticalOffset(),
+                                           iconSize, iconSize));
+        }
+    }
+
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        QSize size(QStyledItemDelegate::sizeHint(option, index));
+        if (m_parent->model()->data(index, Qt::UserRole).toBool())
+            size.setWidth(size.width() + m_parent->rectForIndex(index).height() - 5);
+        return size;
+    }
+private:
+    GenericProposalListView *m_parent;
+};
+
 GenericProposalListView::GenericProposalListView(QWidget *parent)
     : QListView(parent)
 {
     setVerticalScrollMode(QAbstractItemView::ScrollPerItem);
+    setItemDelegate(new ProposalItemDelegate(this));
 }
 
 QSize GenericProposalListView::calculateSize() const
@@ -208,7 +257,7 @@ public:
 
     const QWidget *m_underlyingWidget = nullptr;
     GenericProposalListView *m_completionListView;
-    GenericProposalModel *m_model = nullptr;
+    GenericProposalModelPtr m_model;
     QRect m_displayRect;
     bool m_isSynchronized = true;
     bool m_explicitlySelected = false;
@@ -297,7 +346,7 @@ GenericProposalWidget::GenericProposalWidget()
     connect(d->m_completionListView->verticalScrollBar(), &QAbstractSlider::sliderReleased,
             this, &GenericProposalWidget::turnOnAutoWidth);
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    auto layout = new QVBoxLayout(this);
     layout->setMargin(0);
     layout->addWidget(d->m_completionListView);
 
@@ -309,7 +358,6 @@ GenericProposalWidget::GenericProposalWidget()
 
 GenericProposalWidget::~GenericProposalWidget()
 {
-    delete d->m_model;
     delete d;
 }
 
@@ -336,10 +384,9 @@ void GenericProposalWidget::setUnderlyingWidget(const QWidget *underlyingWidget)
     d->m_underlyingWidget = underlyingWidget;
 }
 
-void GenericProposalWidget::setModel(IAssistProposalModel *model)
+void GenericProposalWidget::setModel(ProposalModelPtr model)
 {
-    delete d->m_model;
-    d->m_model = static_cast<GenericProposalModel *>(model);
+    d->m_model = model.staticCast<GenericProposalModel>();
     d->m_completionListView->setModel(new ModelAdapter(d->m_model, d->m_completionListView));
 
     connect(d->m_completionListView->selectionModel(), &QItemSelectionModel::currentChanged,
@@ -503,7 +550,7 @@ bool GenericProposalWidget::eventFilter(QObject *o, QEvent *e)
             d->m_infoFrame->close();
         return true;
     } else if (e->type() == QEvent::ShortcutOverride) {
-        QKeyEvent *ke = static_cast<QKeyEvent *>(e);
+        auto ke = static_cast<QKeyEvent *>(e);
         switch (ke->key()) {
         case Qt::Key_N:
         case Qt::Key_P:
@@ -513,7 +560,7 @@ bool GenericProposalWidget::eventFilter(QObject *o, QEvent *e)
             }
         }
     } else if (e->type() == QEvent::KeyPress) {
-        QKeyEvent *ke = static_cast<QKeyEvent *>(e);
+        auto ke = static_cast<QKeyEvent *>(e);
         switch (ke->key()) {
         case Qt::Key_Escape:
             abort();
@@ -611,7 +658,7 @@ bool GenericProposalWidget::activateCurrentProposalItem()
     return false;
 }
 
-GenericProposalModel *GenericProposalWidget::model()
+GenericProposalModelPtr GenericProposalWidget::model()
 {
     return d->m_model;
 }

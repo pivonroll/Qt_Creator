@@ -75,7 +75,7 @@ NavigatorView::NavigatorView(QObject* parent) :
     m_treeModel(new NavigatorTreeModel(this))
 {
 #ifndef QMLDESIGNER_TEST
-    Internal::NavigatorContext *navigatorContext = new Internal::NavigatorContext(m_widget.data());
+    auto navigatorContext = new Internal::NavigatorContext(m_widget.data());
     Core::ICore::addContextObject(navigatorContext);
 #endif
 
@@ -92,7 +92,7 @@ NavigatorView::NavigatorView(QObject* parent) :
     connect(m_widget.data(), &NavigatorWidget::filterToggled, this, &NavigatorView::filterToggled);
 
 #ifndef QMLDESIGNER_TEST
-    NameItemDelegate *idDelegate = new NameItemDelegate(this);
+    auto idDelegate = new NameItemDelegate(this);
     IconCheckboxItemDelegate *showDelegate =
             new IconCheckboxItemDelegate(this,
                                          Utils::Icons::EYE_OPEN_TOOLBAR.icon(),
@@ -207,6 +207,18 @@ void NavigatorView::handleChangedExport(const ModelNode &modelNode, bool exporte
 bool NavigatorView::isNodeInvisible(const ModelNode &modelNode) const
 {
     return modelNode.auxiliaryData("invisible").toBool();
+}
+
+void NavigatorView::disableWidget()
+{
+    if (m_widget)
+        m_widget->disableNavigator();
+}
+
+void NavigatorView::enableWidget()
+{
+    if (m_widget)
+        m_widget->enableNavigator();
 }
 
 ModelNode NavigatorView::modelNodeForIndex(const QModelIndex &modelIndex) const
@@ -327,11 +339,11 @@ void NavigatorView::leftButtonClicked()
         if (!node.isRootNode() && !node.parentProperty().parentModelNode().isRootNode()) {
             if (QmlItemNode::isValidQmlItemNode(node)) {
                 QPointF scenePos = QmlItemNode(node).instanceScenePosition();
-                node.parentProperty().parentProperty().reparentHere(node);
+                reparentAndCatch(node.parentProperty().parentProperty(), node);
                 if (!scenePos.isNull())
                     setScenePos(node, scenePos);
             } else {
-                node.parentProperty().parentProperty().reparentHere(node);
+                reparentAndCatch(node.parentProperty().parentProperty(), node);
             }
         }
     }
@@ -357,12 +369,12 @@ void NavigatorView::rightButtonClicked()
                         && QmlItemNode::isValidQmlItemNode(newParent)
                         && !newParent.metaInfo().defaultPropertyIsComponent()) {
                     QPointF scenePos = QmlItemNode(node).instanceScenePosition();
-                    newParent.nodeAbstractProperty(newParent.metaInfo().defaultPropertyName()).reparentHere(node);
+                    reparentAndCatch(newParent.nodeAbstractProperty(newParent.metaInfo().defaultPropertyName()), node);
                     if (!scenePos.isNull())
                         setScenePos(node, scenePos);
                 } else {
                     if (newParent.metaInfo().isValid() && !newParent.metaInfo().defaultPropertyIsComponent())
-                        newParent.nodeAbstractProperty(newParent.metaInfo().defaultPropertyName()).reparentHere(node);
+                        reparentAndCatch(newParent.nodeAbstractProperty(newParent.metaInfo().defaultPropertyName()), node);
                 }
             }
         }
@@ -454,7 +466,7 @@ void NavigatorView::updateItemSelection()
     blockSelectionChangedSignal(blocked);
 
     if (!selectedModelNodes().isEmpty())
-        treeWidget()->scrollTo(indexForModelNode(selectedModelNodes().first()));
+        treeWidget()->scrollTo(indexForModelNode(selectedModelNodes().constFirst()));
 
     // make sure selected nodes a visible
     foreach (const QModelIndex &selectedIndex, itemSelection.indexes()) {
@@ -467,7 +479,7 @@ QTreeView *NavigatorView::treeWidget() const
 {
     if (m_widget)
         return m_widget->treeView();
-    return 0;
+    return nullptr;
 }
 
 NavigatorTreeModel *NavigatorView::treeModel()
@@ -490,6 +502,15 @@ void NavigatorView::expandRecursively(const QModelIndex &index)
         if (!treeWidget()->isExpanded(currentIndex))
             treeWidget()->expand(currentIndex);
         currentIndex = currentIndex.parent();
+    }
+}
+
+void NavigatorView::reparentAndCatch(NodeAbstractProperty property, const ModelNode &modelNode)
+{
+    try {
+        property.reparentHere(modelNode);
+    }  catch (Exception &exception) {
+        exception.showException();
     }
 }
 

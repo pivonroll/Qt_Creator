@@ -40,6 +40,7 @@
 #include <utils/algorithm.h>
 #include <utils/environment.h>
 #include <utils/hostosinfo.h>
+#include <utils/synchronousprocess.h>
 
 #include <QDir>
 #include <QDirIterator>
@@ -83,13 +84,61 @@ AndroidToolChain::AndroidToolChain()
 {
 }
 
-AndroidToolChain::AndroidToolChain(const AndroidToolChain &tc) :
-    GccToolChain(tc), m_ndkToolChainVersion(tc.m_ndkToolChainVersion),
-    m_secondaryToolChain(tc.m_secondaryToolChain)
-{ }
+AndroidToolChain::AndroidToolChain(const AndroidToolChain &tc)  = default;
 
-AndroidToolChain::~AndroidToolChain()
-{ }
+AndroidToolChain::~AndroidToolChain() = default;
+
+static QString getArch(const QString &triple)
+{
+    if (triple.indexOf("x86_64") == 0)
+        return QString::fromUtf8("x86_64");
+    if (triple.indexOf("i686") == 0)
+        return QString::fromUtf8("x86");
+    if (triple.indexOf("mips64") == 0)
+        return QString::fromUtf8("mips64");
+    if (triple.indexOf("mips") == 0)
+        return QString::fromUtf8("mips");
+    if (triple.indexOf("aarch64") == 0)
+        return QString::fromUtf8("arm64-v8a");
+    return QString::fromUtf8("armeabi-v7a");
+}
+
+// Paths added here are those that were used by qmake. They were taken from
+// *qtsource*/qtbase/mkspecs/common/android-base-head.conf
+// Adding them here allows us to use them for all build systems.
+static void addBuiltInHeaderPaths(ProjectExplorer::HeaderPaths &paths,
+                                  const QString &triple, const QString &version)
+{
+    const Utils::FileName ndkPath = AndroidConfigurations::currentConfig().ndkLocation();
+
+    // Get short version (for example 4.9)
+    auto versionNumber = QVersionNumber::fromString(version);
+    const QString clangVersion = QString("%1.%2")
+            .arg(versionNumber.majorVersion()).arg(versionNumber.minorVersion());
+    Utils::FileName stdcppPath = ndkPath;
+    stdcppPath.appendPath("sources/cxx-stl/gnu-libstdc++/" + clangVersion);
+    Utils::FileName includePath = stdcppPath;
+    Utils::FileName cppLibsPath = stdcppPath;
+    cppLibsPath.appendPath("libs/" + getArch(triple) + "/include/");
+    paths.prepend({cppLibsPath.toString(), ProjectExplorer::HeaderPathType::BuiltIn});
+    includePath.appendPath("include/");
+    paths.prepend({includePath.toString(), ProjectExplorer::HeaderPathType::BuiltIn});
+
+    paths.prepend({ndkPath.toString() + "/sysroot/usr/include/" + triple,
+                   ProjectExplorer::HeaderPathType::BuiltIn});
+    paths.prepend({ndkPath.toString() + "/sysroot/usr/include",
+                   ProjectExplorer::HeaderPathType::BuiltIn});
+}
+
+AndroidToolChain::BuiltInHeaderPathsRunner AndroidToolChain::createBuiltInHeaderPathsRunner() const
+{
+    const QString triple = originalTargetTriple();
+    const QString version = this->version();
+    initExtraHeaderPathsFunction([triple, version] (HeaderPaths &paths) {
+        addBuiltInHeaderPaths(paths, triple, version);
+    });
+    return GccToolChain::createBuiltInHeaderPathsRunner();
+}
 
 QString AndroidToolChain::typeDisplayName() const
 {
@@ -99,7 +148,8 @@ QString AndroidToolChain::typeDisplayName() const
 bool AndroidToolChain::isValid() const
 {
     return GccToolChain::isValid() && targetAbi().isValid() && !m_ndkToolChainVersion.isEmpty()
-            && compilerCommand().isChildOf(AndroidConfigurations::currentConfig().ndkLocation());
+            && compilerCommand().isChildOf(AndroidConfigurations::currentConfig().ndkLocation())
+            && !originalTargetTriple().isEmpty();
 }
 
 void AndroidToolChain::addToEnvironment(Environment &env) const
@@ -131,9 +181,9 @@ bool AndroidToolChain::operator ==(const ToolChain &tc) const
     return m_ndkToolChainVersion == static_cast<const AndroidToolChain &>(tc).m_ndkToolChainVersion;
 }
 
-ToolChainConfigWidget *AndroidToolChain::configurationWidget()
+std::unique_ptr<ToolChainConfigWidget> AndroidToolChain::createConfigurationWidget()
 {
-    return new AndroidToolChainConfigWidget(this);
+    return std::make_unique<AndroidToolChainConfigWidget>(this);
 }
 
 FileName AndroidToolChain::suggestedDebugger() const
@@ -143,19 +193,7 @@ FileName AndroidToolChain::suggestedDebugger() const
 
 FileName AndroidToolChain::suggestedGdbServer() const
 {
-    FileName path = AndroidConfigurations::currentConfig().ndkLocation();
-    path.appendPath(QString::fromLatin1("prebuilt/android-%1/gdbserver/gdbserver")
-                    .arg(Abi::toString(targetAbi().architecture())));
-    if (path.exists())
-        return path;
-    path = AndroidConfigurations::currentConfig().ndkLocation();
-    path.appendPath(QString::fromLatin1("toolchains/%1-%2/prebuilt/gdbserver")
-                               .arg(AndroidConfig::toolchainPrefix(targetAbi()))
-                               .arg(m_ndkToolChainVersion));
-    if (path.exists())
-        return path;
-
-    return FileName();
+    return AndroidConfigurations::currentConfig().gdbServer(targetAbi());
 }
 
 QVariantMap AndroidToolChain::toMap() const
@@ -208,20 +246,22 @@ FileNameList AndroidToolChain::suggestedMkspecList() const
 
 QString AndroidToolChain::makeCommand(const Environment &env) const
 {
+    FileName makePath = AndroidConfigurations::currentConfig().makePath();
+    if (makePath.exists())
+        return makePath.toString();
     const Utils::FileNameList extraDirectories
             = Utils::transform(AndroidConfigurations::currentConfig().makeExtraSearchDirectories(),
                                [](const QString &s) { return Utils::FileName::fromString(s); });
     if (HostOsInfo::isWindowsHost()) {
-        FileName tmp = env.searchInPath("ma-make.exe", extraDirectories);
-        if (!tmp.isEmpty())
-            return tmp.toString();
-        tmp = env.searchInPath("mingw32-make", extraDirectories);
-        return tmp.isEmpty() ? QLatin1String("mingw32-make") : tmp.toString();
+        makePath = env.searchInPath("ma-make.exe", extraDirectories);
+        if (!makePath.isEmpty())
+            return makePath.toString();
+        makePath = env.searchInPath("mingw32-make", extraDirectories);
+        return makePath.isEmpty() ? QLatin1String("mingw32-make") : makePath.toString();
     }
 
-    QString make = "make";
-    FileName tmp = env.searchInPath(make, extraDirectories);
-    return tmp.isEmpty() ? make : tmp.toString();
+    makePath = env.searchInPath("make", extraDirectories);
+    return makePath.isEmpty() ? "make" : makePath.toString();
 }
 
 QString AndroidToolChain::ndkToolChainVersion() const
@@ -244,7 +284,9 @@ void AndroidToolChain::setSecondaryToolChain(bool b)
 
 GccToolChain::DetectedAbisResult AndroidToolChain::detectSupportedAbis() const
 {
-    return QList<Abi>() << targetAbi();
+    GccToolChain::DetectedAbisResult supportedAbis = GccToolChain::detectSupportedAbis();
+    supportedAbis.supportedAbis = {targetAbi()};
+    return supportedAbis;
 }
 
 // --------------------------------------------------------------------------
@@ -284,12 +326,12 @@ bool AndroidToolChainFactory::canRestore(const QVariantMap &data)
 
 ToolChain *AndroidToolChainFactory::restore(const QVariantMap &data)
 {
-    AndroidToolChain *tc = new AndroidToolChain();
+    auto tc = new AndroidToolChain();
     if (tc->fromMap(data))
         return tc;
 
     delete tc;
-    return 0;
+    return nullptr;
 }
 
 QList<AndroidToolChainFactory::AndroidToolChainInformation> AndroidToolChainFactory::toolchainPathsForNdk(const FileName &ndkPath)
@@ -362,6 +404,9 @@ bool AndroidToolChainFactory::versionCompareLess(const QList<int> &a, const QLis
 bool AndroidToolChainFactory::versionCompareLess(QList<AndroidToolChain *> atc,
                                                  QList<AndroidToolChain *> btc)
 {
+    if (atc.isEmpty() || btc.isEmpty())
+        return false;
+
     const QList<int> a = versionNumberFromString(atc.at(0)->ndkToolChainVersion());
     const QList<int> b = versionNumberFromString(btc.at(0)->ndkToolChainVersion());
 
@@ -406,16 +451,23 @@ AndroidToolChainFactory::autodetectToolChainsForNdk(const FileName &ndkPath,
         QList<AndroidToolChain *> toolChainBundle;
         for (Core::Id lang : {ProjectExplorer::Constants::CXX_LANGUAGE_ID, ProjectExplorer::Constants::C_LANGUAGE_ID}) {
             FileName compilerPath = AndroidConfigurations::currentConfig().gccPath(abi, lang, version);
+            if (!compilerPath.exists())
+                continue;
 
             AndroidToolChain *tc = findToolChain(compilerPath, lang, alreadyKnown);
-            if (!tc) {
+            if (!tc || tc->originalTargetTriple().isEmpty()) {
                 tc = new AndroidToolChain(abi, version, lang,
                                           ToolChain::AutoDetection);
                 tc->resetToolChain(compilerPath);
+                QTC_ASSERT(!tc->originalTargetTriple().isEmpty(),
+                           delete tc; continue);
             }
             result.append(tc);
             toolChainBundle.append(tc);
         }
+
+        if (toolChainBundle.isEmpty())
+            continue;
 
         auto it = newestToolChainForArch.constFind(abi);
         if (it == newestToolChainForArch.constEnd())
@@ -425,7 +477,7 @@ AndroidToolChainFactory::autodetectToolChainsForNdk(const FileName &ndkPath,
     }
 
     foreach (ToolChain *tc, result) {
-        AndroidToolChain *atc = static_cast<AndroidToolChain *>(tc);
+        auto atc = static_cast<AndroidToolChain *>(tc);
         atc->setSecondaryToolChain(!newestToolChainForArch.value(atc->targetAbi()).contains(atc));
     }
 

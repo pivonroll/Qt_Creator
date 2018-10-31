@@ -85,11 +85,11 @@ class FancyLineEditPrivate : public QObject
 public:
     explicit FancyLineEditPrivate(FancyLineEdit *parent);
 
-    virtual bool eventFilter(QObject *obj, QEvent *event);
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
     FancyLineEdit *m_lineEdit;
     IconButton *m_iconbutton[2];
-    HistoryCompleter *m_historyCompleter = 0;
+    HistoryCompleter *m_historyCompleter = nullptr;
     FancyLineEdit::ValidationFunction m_validationFunction = &FancyLineEdit::validateWithValidator;
     QString m_oldText;
     QMenu *m_menu[2];
@@ -105,7 +105,6 @@ public:
     QColor m_okTextColor;
     QColor m_errorTextColor = Qt::red;
     QString m_errorMessage;
-    QString m_initialText;
 };
 
 FancyLineEditPrivate::FancyLineEditPrivate(FancyLineEdit *parent) :
@@ -120,7 +119,7 @@ FancyLineEditPrivate::FancyLineEditPrivate(FancyLineEdit *parent) :
         m_iconbutton[i]->hide();
         m_iconbutton[i]->setAutoHide(false);
 
-        m_menu[i] = 0;
+        m_menu[i] = nullptr;
 
         m_menuTabFocusTrigger[i] = false;
         m_iconEnabled[i] = false;
@@ -195,7 +194,7 @@ QAbstractButton *FancyLineEdit::button(FancyLineEdit::Side side) const
 
 void FancyLineEdit::iconClicked()
 {
-    IconButton *button = qobject_cast<IconButton *>(sender());
+    auto button = qobject_cast<IconButton *>(sender());
     int index = -1;
     for (int i = 0; i < 2; ++i)
         if (d->m_iconbutton[i] == button)
@@ -237,7 +236,7 @@ void FancyLineEdit::updateButtonPositions()
 {
     QRect contentRect = rect();
     for (int i = 0; i < 2; ++i) {
-        Side iconpos = (Side)i;
+        Side iconpos = Side(i);
         if (layoutDirection() == Qt::RightToLeft)
             iconpos = (iconpos == Left ? Right : Left);
 
@@ -373,20 +372,6 @@ void FancyLineEdit::setFiltering(bool on)
     }
 }
 
-QString FancyLineEdit::initialText() const
-{
-    return d->m_initialText;
-}
-
-void FancyLineEdit::setInitialText(const QString &t)
-{
-    if (d->m_initialText != t) {
-        d->m_initialText = t;
-        d->m_firstChange = true;
-        setText(t);
-    }
-}
-
 QColor FancyLineEdit::errorColor() const
 {
     return d->m_errorTextColor;
@@ -458,13 +443,13 @@ void FancyLineEdit::validate()
     }
 
     d->m_errorMessage.clear();
-    // Are we displaying the initial text?
-    const bool isDisplayingInitialText = !d->m_initialText.isEmpty() && t == d->m_initialText;
-    const State newState = isDisplayingInitialText ?
-                               DisplayingInitialText :
-                               (d->m_validationFunction(this, &d->m_errorMessage) ? Valid : Invalid);
+    // Are we displaying the placeholder text?
+    const bool isDisplayingPlaceholderText = !placeholderText().isEmpty() && t.isEmpty();
+    const bool validates = d->m_validationFunction(this, &d->m_errorMessage);
+    const State newState = isDisplayingPlaceholderText ? DisplayingPlaceholderText
+                                                       : (validates ? Valid : Invalid);
     setToolTip(d->m_errorMessage);
-    // Changed..figure out if valid changed. DisplayingInitialText is not valid,
+    // Changed..figure out if valid changed. DisplayingPlaceholderText is not valid,
     // but should not show error color. Also trigger on the first change.
     if (newState != d->m_state || d->m_firstChange) {
         const bool validHasChanged = (d->m_state == Valid) != (newState == Valid);
@@ -488,9 +473,9 @@ void FancyLineEdit::validate()
 
     // Check buttons.
     if (d->m_oldText.isEmpty() || t.isEmpty()) {
-        for (int i = 0; i < 2; ++i) {
-            if (d->m_iconbutton[i]->hasAutoHide())
-                d->m_iconbutton[i]->animateShow(!t.isEmpty());
+        for (auto &button : qAsConst(d->m_iconbutton)) {
+            if (button->hasAutoHide())
+                button->animateShow(!t.isEmpty());
         }
         d->m_oldText = t;
     }

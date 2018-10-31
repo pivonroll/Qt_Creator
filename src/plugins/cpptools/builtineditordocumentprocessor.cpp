@@ -47,7 +47,7 @@
 #include <QLoggingCategory>
 #include <QTextBlock>
 
-static Q_LOGGING_CATEGORY(log, "qtc.cpptools.builtineditordocumentprocessor")
+static Q_LOGGING_CATEGORY(log, "qtc.cpptools.builtineditordocumentprocessor", QtWarningMsg)
 
 namespace {
 
@@ -258,6 +258,24 @@ QFuture<CursorInfo>
 BuiltinEditorDocumentProcessor::cursorInfo(const CursorInfoParams &params)
 {
     return BuiltinCursorInfo::run(params);
+}
+
+QFuture<CursorInfo> BuiltinEditorDocumentProcessor::requestLocalReferences(const QTextCursor &)
+{
+    QFutureInterface<CppTools::CursorInfo> futureInterface;
+    futureInterface.reportResult(CppTools::CursorInfo());
+    futureInterface.reportFinished();
+
+    return futureInterface.future();
+}
+
+QFuture<SymbolInfo> BuiltinEditorDocumentProcessor::requestFollowSymbol(int, int)
+{
+    QFutureInterface<CppTools::SymbolInfo> futureInterface;
+    futureInterface.reportResult(CppTools::SymbolInfo());
+    futureInterface.reportFinished();
+
+    return futureInterface.future();
 }
 
 void BuiltinEditorDocumentProcessor::onParserFinished(CPlusPlus::Document::Ptr document,

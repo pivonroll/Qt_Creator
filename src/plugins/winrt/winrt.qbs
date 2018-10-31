@@ -23,9 +23,6 @@ QtcPlugin {
         "winrtdevicefactory.h",
         "winrtpackagedeploymentstep.cpp",
         "winrtpackagedeploymentstep.h",
-        "winrtpackagedeploymentstepwidget.cpp",
-        "winrtpackagedeploymentstepwidget.h",
-        "winrtpackagedeploymentstepwidget.ui",
         "winrtphoneqtversion.cpp",
         "winrtphoneqtversion.h",
         "winrtplugin.cpp",
@@ -36,12 +33,8 @@ QtcPlugin {
         "winrtqtversionfactory.h",
         "winrtrunconfiguration.cpp",
         "winrtrunconfiguration.h",
-        "winrtrunconfigurationwidget.cpp",
-        "winrtrunconfigurationwidget.h",
         "winrtruncontrol.cpp",
         "winrtruncontrol.h",
-        "winrtrunfactories.cpp",
-        "winrtrunfactories.h",
         "winrtrunnerhelper.cpp",
         "winrtrunnerhelper.h"
     ]

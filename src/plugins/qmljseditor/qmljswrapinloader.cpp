@@ -62,7 +62,7 @@ public:
     }
 
 protected:
-    virtual bool visit(UiObjectInitializer *ast)
+    bool visit(UiObjectInitializer *ast) override
     {
         UiScriptBinding *idBinding;
         QString id = idOfObject(ast, &idBinding);
@@ -107,8 +107,8 @@ public:
         return tryName;
     }
 
-    virtual void performChanges(QmlJSRefactoringFilePtr currentFile,
-                                const QmlJSRefactoringChanges &)
+    void performChanges(QmlJSRefactoringFilePtr currentFile,
+                        const QmlJSRefactoringChanges &) override
     {
         UiScriptBinding *idBinding;
         const QString id = idOfObject(m_objDef, &idBinding);
@@ -174,7 +174,7 @@ public:
 } // end of anonymous namespace
 
 
-void WrapInLoader::match(const QmlJSQuickFixInterface &interface, QuickFixOperations &result)
+void matchWrapInLoaderQuickFix(const QmlJSQuickFixInterface &interface, QuickFixOperations &result)
 {
     const int pos = interface->currentFile()->cursor().position();
 

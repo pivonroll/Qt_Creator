@@ -131,8 +131,8 @@ TeaLeafReader::TeaLeafReader()
     connect(EditorManager::instance(), &EditorManager::aboutToSave,
             this, [this](const IDocument *document) {
         if (m_cmakeFiles.contains(document->filePath())
-                || !m_parameters.cmakeTool
-                || !m_parameters.cmakeTool->isAutoRun())
+                || !m_parameters.cmakeTool()
+                || !m_parameters.cmakeTool()->isAutoRun())
             emit dirty();
     });
 
@@ -154,9 +154,9 @@ TeaLeafReader::~TeaLeafReader()
 
 bool TeaLeafReader::isCompatible(const BuildDirParameters &p)
 {
-    if (!p.cmakeTool)
+    if (!p.cmakeTool())
         return false;
-    return !p.cmakeTool->hasServerMode();
+    return !p.cmakeTool()->hasServerMode();
 }
 
 void TeaLeafReader::resetData()
@@ -166,7 +166,6 @@ void TeaLeafReader::resetData()
 
     m_projectName.clear();
     m_buildTargets.clear();
-    qDeleteAll(m_files);
     m_files.clear();
 }
 
@@ -192,7 +191,7 @@ static QString findCbpFile(const QDir &directory)
 
 void TeaLeafReader::parse(bool forceConfiguration)
 {
-    const QString cbpFile = findCbpFile(QDir(m_parameters.buildDirectory.toString()));
+    const QString cbpFile = findCbpFile(QDir(m_parameters.workDirectory.toString()));
     const QFileInfo cbpFileFi = cbpFile.isEmpty() ? QFileInfo() : QFileInfo(cbpFile);
     if (!cbpFileFi.exists() || forceConfiguration) {
         // Initial create:
@@ -236,7 +235,7 @@ QList<CMakeBuildTarget> TeaLeafReader::takeBuildTargets()
 
 CMakeConfig TeaLeafReader::takeParsedConfiguration()
 {
-    FileName cacheFile = m_parameters.buildDirectory;
+    FileName cacheFile = m_parameters.workDirectory;
     cacheFile.appendPath(QLatin1String("CMakeCache.txt"));
 
     if (!cacheFile.exists())
@@ -265,14 +264,14 @@ CMakeConfig TeaLeafReader::takeParsedConfiguration()
 
 void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<const FileNode *> &allFiles)
 {
-    if (m_files.isEmpty())
+    if (m_files.size() == 0)
         return;
 
     root->setDisplayName(m_projectName);
 
     // Delete no longer necessary file watcher based on m_cmakeFiles:
     const QSet<FileName> currentWatched
-            = transform(m_watchedFiles, [](CMakeFile *cmf) { return cmf->filePath(); });
+            = transform(m_watchedFiles, &CMakeFile::filePath);
     const QSet<FileName> toWatch = m_cmakeFiles;
     QSet<FileName> toDelete = currentWatched;
     toDelete.subtract(toWatch);
@@ -312,18 +311,20 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<cons
     });
 
     // filter duplicates:
-    auto alreadySeen = QSet<FileName>::fromList(Utils::transform(m_files, &FileNode::filePath));
+    auto alreadySeen = Utils::transform<QSet>(m_files, &FileNode::filePath);
     const QList<const FileNode *> unseenMissingHeaders = Utils::filtered(missingHeaders, [&alreadySeen](const FileNode *fn) {
         const int count = alreadySeen.count();
         alreadySeen.insert(fn->filePath());
         return (alreadySeen.count() != count);
     });
 
-    const QList<FileNode *> fileNodes = m_files
-            + Utils::transform(unseenMissingHeaders, [](const FileNode *fn) { return fn->clone(); });
+    root->addNestedNodes(std::move(m_files), m_parameters.sourceDirectory);
 
-    root->addNestedNodes(fileNodes, m_parameters.sourceDirectory);
-    m_files.clear(); // Some of the FileNodes in files() were deleted!
+    std::vector<std::unique_ptr<FileNode>> fileNodes
+            = transform<std::vector>(unseenMissingHeaders, [](const FileNode *fn) {
+        return std::unique_ptr<FileNode>(fn->clone());
+    });
+    root->addNestedNodes(std::move(fileNodes), m_parameters.sourceDirectory);
 }
 
 static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *tc,
@@ -333,8 +334,8 @@ static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *t
     if (!tc)
         return;
 
-    foreach (const HeaderPath &hp, tc->systemHeaderPaths(flags, sysroot))
-        tcIncludes.insert(FileName::fromString(hp.path()));
+    foreach (const HeaderPath &hp, tc->builtInHeaderPaths(flags, sysroot))
+        tcIncludes.insert(FileName::fromString(hp.path));
     foreach (const FileName &i, cbt.includeFiles) {
         if (!tcIncludes.contains(i))
             includePaths.append(i.toString());
@@ -366,10 +367,10 @@ void TeaLeafReader::updateCodeModel(CppTools::RawProjectParts &rpps)
         } else {
             includePaths = transform(cbt.includeFiles, &FileName::toString);
         }
-        includePaths += m_parameters.buildDirectory.toString();
+        includePaths += m_parameters.workDirectory.toString();
         CppTools::RawProjectPart rpp;
         rpp.setProjectFileLocation(cbt.sourceDirectory.toString() + "/CMakeLists.txt");
-        rpp.setBuildSystemTarget(cbt.title);
+        rpp.setBuildSystemTarget(cbt.title + QChar('\n') + cbt.sourceDirectory.toString() + QChar('/'));
         rpp.setIncludePaths(includePaths);
 
         CppTools::RawProjectPartFlags cProjectFlags;
@@ -382,7 +383,7 @@ void TeaLeafReader::updateCodeModel(CppTools::RawProjectParts &rpps)
 
         rpp.setMacros(cbt.macros);
         rpp.setDisplayName(cbt.title);
-        rpp.setFiles(transform(cbt.files, [](const FileName &fn) { return fn.toString(); }));
+        rpp.setFiles(transform(cbt.files, &FileName::toString));
 
         const bool isExecutable = cbt.targetType == ExecutableType;
         rpp.setBuildTargetType(isExecutable ? CppTools::ProjectPart::Executable
@@ -408,16 +409,17 @@ void TeaLeafReader::cleanUpProcess()
 
 void TeaLeafReader::extractData()
 {
-    QTC_ASSERT(m_parameters.isValid() && m_parameters.cmakeTool, return);
+    CMakeTool *cmake = m_parameters.cmakeTool();
+    QTC_ASSERT(m_parameters.isValid() && cmake, return);
 
     const FileName srcDir = m_parameters.sourceDirectory;
-    const FileName bldDir = m_parameters.buildDirectory;
+    const FileName bldDir = m_parameters.workDirectory;
     const FileName topCMake = Utils::FileName(srcDir).appendPath("CMakeLists.txt");
 
     resetData();
 
     m_projectName = m_parameters.projectName;
-    m_files.append(new FileNode(topCMake, FileType::Project, false));
+    m_files.emplace_back(std::make_unique<FileNode>(topCMake, FileType::Project, false));
     // Do not insert topCMake into m_cmakeFiles: The project already watches that!
 
     // Find cbp file
@@ -427,7 +429,7 @@ void TeaLeafReader::extractData()
     m_cmakeFiles.insert(cbpFile);
 
     // Add CMakeCache.txt file:
-    FileName cacheFile = m_parameters.buildDirectory;
+    FileName cacheFile = m_parameters.workDirectory;
     cacheFile.appendPath(QLatin1String("CMakeCache.txt"));
     if (cacheFile.toFileInfo().exists())
         m_cmakeFiles.insert(cacheFile);
@@ -435,36 +437,39 @@ void TeaLeafReader::extractData()
     // setFolderName
     CMakeCbpParser cbpparser;
     // Parsing
-    if (!cbpparser.parseCbpFile(m_parameters.cmakeTool->pathMapper(), cbpFile, srcDir))
+    if (!cbpparser.parseCbpFile(cmake->pathMapper(), cbpFile, srcDir))
         return;
 
     m_projectName = cbpparser.projectName();
 
-    m_files = cbpparser.fileList();
+    m_files = cbpparser.takeFileList();
     if (cbpparser.hasCMakeFiles()) {
-        m_files.append(cbpparser.cmakeFileList());
-        foreach (const FileNode *node, cbpparser.cmakeFileList())
+        std::vector<std::unique_ptr<FileNode>> cmakeNodes = cbpparser.takeCmakeFileList();
+        for (const std::unique_ptr<FileNode> &node : cmakeNodes)
             m_cmakeFiles.insert(node->filePath());
+
+        std::move(std::begin(cmakeNodes), std::end(cmakeNodes), std::back_inserter(m_files));
     }
 
     // Make sure the top cmakelists.txt file is always listed:
-    if (!contains(m_files, [topCMake](FileNode *fn) { return fn->filePath() == topCMake; }))
-        m_files.append(new FileNode(topCMake, FileType::Project, false));
-
-    Utils::sort(m_files, &Node::sortByPath);
+    if (!contains(m_files, [topCMake](const std::unique_ptr<FileNode> &fn) {
+                      return fn->filePath() == topCMake;
+                  }))
+        m_files.emplace_back(std::make_unique<FileNode>(topCMake, FileType::Project, false));
 
     m_buildTargets = cbpparser.buildTargets();
 }
 
 void TeaLeafReader::startCMake(const QStringList &configurationArguments)
 {
-    QTC_ASSERT(m_parameters.isValid() && m_parameters.cmakeTool, return);
+    CMakeTool *cmake = m_parameters.cmakeTool();
+    QTC_ASSERT(m_parameters.isValid() && cmake, return);
 
-    const FileName buildDirectory = m_parameters.buildDirectory;
+    const FileName workDirectory = m_parameters.workDirectory;
     QTC_ASSERT(!m_cmakeProcess, return);
     QTC_ASSERT(!m_parser, return);
     QTC_ASSERT(!m_future, return);
-    QTC_ASSERT(buildDirectory.exists(), return);
+    QTC_ASSERT(workDirectory.exists(), return);
 
     const QString srcDir = m_parameters.sourceDirectory.toString();
 
@@ -485,7 +490,7 @@ void TeaLeafReader::startCMake(const QStringList &configurationArguments)
     // then we are racing against CMakeCache.txt also getting deleted.
 
     m_cmakeProcess = new QtcProcess;
-    m_cmakeProcess->setWorkingDirectory(buildDirectory.toString());
+    m_cmakeProcess->setWorkingDirectory(workDirectory.toString());
     m_cmakeProcess->setEnvironment(m_parameters.environment);
 
     connect(m_cmakeProcess, &QProcess::readyReadStandardOutput,
@@ -503,9 +508,9 @@ void TeaLeafReader::startCMake(const QStringList &configurationArguments)
     TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 
     MessageManager::write(tr("Running \"%1 %2\" in %3.")
-                          .arg(m_parameters.cmakeTool->cmakeExecutable().toUserOutput())
+                          .arg(cmake->cmakeExecutable().toUserOutput())
                           .arg(args)
-                          .arg(buildDirectory.toUserOutput()));
+                          .arg(workDirectory.toUserOutput()));
 
     m_future = new QFutureInterface<void>();
     m_future->setProgressRange(0, 1);
@@ -513,7 +518,7 @@ void TeaLeafReader::startCMake(const QStringList &configurationArguments)
                              tr("Configuring \"%1\"").arg(m_parameters.projectName),
                              "CMake.Configure");
 
-    m_cmakeProcess->setCommand(m_parameters.cmakeTool->cmakeExecutable().toString(), args);
+    m_cmakeProcess->setCommand(cmake->cmakeExecutable().toString(), args);
     emit configurationStarted();
     m_cmakeProcess->start();
 }

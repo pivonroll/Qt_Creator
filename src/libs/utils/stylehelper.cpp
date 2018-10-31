@@ -114,16 +114,10 @@ QColor StyleHelper::m_requestedBaseColor;
 
 QColor StyleHelper::baseColor(bool lightColored)
 {
+    static const QColor windowColor = QApplication::palette().color(QPalette::Window);
     static const bool windowColorAsBase = creatorTheme()->flag(Theme::WindowColorAsBase);
-    if (windowColorAsBase) {
-        static const QColor windowColor = QApplication::palette().color(QPalette::Window);
-        return windowColor;
-    }
 
-    if (!lightColored)
-        return m_baseColor;
-    else
-        return m_baseColor.lighter(230);
+    return (lightColored || windowColorAsBase) ? windowColor : m_baseColor;
 }
 
 QColor StyleHelper::highlightColor(bool lightColored)
@@ -382,7 +376,7 @@ QPixmap StyleHelper::disabledSideBarIcon(const QPixmap &enabledicon)
 {
     QImage im = enabledicon.toImage().convertToFormat(QImage::Format_ARGB32);
     for (int y=0; y<im.height(); ++y) {
-        QRgb *scanLine = reinterpret_cast<QRgb*>(im.scanLine(y));
+        auto scanLine = reinterpret_cast<QRgb*>(im.scanLine(y));
         for (int x=0; x<im.width(); ++x) {
             QRgb pixel = *scanLine;
             char intensity = char(qGray(pixel));

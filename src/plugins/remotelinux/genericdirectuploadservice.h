@@ -43,36 +43,44 @@ class REMOTELINUX_EXPORT GenericDirectUploadService : public AbstractRemoteLinux
 {
     Q_OBJECT
 public:
-    GenericDirectUploadService(QObject *parent = 0);
-    ~GenericDirectUploadService();
+    GenericDirectUploadService(QObject *parent = nullptr);
+    ~GenericDirectUploadService() override;
 
     void setDeployableFiles(const QList<ProjectExplorer::DeployableFile> &deployableFiles);
     void setIncrementalDeployment(bool incremental);
     void setIgnoreMissingFiles(bool ignoreMissingFiles);
 
   protected:
-    bool isDeploymentNecessary() const;
+    bool isDeploymentNecessary() const override;
 
-    void doDeviceSetup();
-    void stopDeviceSetup();
+    void doDeviceSetup() override;
+    void stopDeviceSetup() override;
 
-    void doDeploy();
-    void stopDeployment();
+    void doDeploy() override;
+    void stopDeployment() override;
 
 private:
     void handleSftpInitialized();
     void handleSftpChannelError(const QString &errorMessage);
-    void handleUploadFinished(QSsh::SftpJobId jobId, const QString &errorMsg);
+    void handleFileInfoAvailable(QSsh::SftpJobId jobId, const QList<QSsh::SftpFileInfo> &fileInfos);
+    void handleJobFinished(QSsh::SftpJobId jobId, const QString &errorMsg);
+    void handleUploadProcFinished(int exitStatus);
     void handleMkdirFinished(int exitStatus);
-    void handleLnFinished(int exitStatus);
-    void handleChmodFinished(int exitStatus);
     void handleStdOutData();
     void handleStdErrData();
     void handleReadChannelFinished();
 
-    void checkDeploymentNeeded(const ProjectExplorer::DeployableFile &file) const;
+    QList<ProjectExplorer::DeployableFile> collectFilesToUpload(
+            const ProjectExplorer::DeployableFile &file) const;
     void setFinished();
     void uploadNextFile();
+    void queryFiles();
+    void clearRunningProc();
+
+    void handleProcFailure();
+    void runPostQueryOnProcResult();
+
+    void tryFinish();
 
     Internal::GenericDirectUploadServicePrivate * const d;
 };

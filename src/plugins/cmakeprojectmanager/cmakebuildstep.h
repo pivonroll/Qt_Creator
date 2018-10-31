@@ -55,13 +55,11 @@ public:
     explicit CMakeBuildStep(ProjectExplorer::BuildStepList *bsl);
 
     CMakeBuildConfiguration *cmakeBuildConfiguration() const;
-    CMakeBuildConfiguration *targetsActiveBuildConfiguration() const;
 
     bool init(QList<const BuildStep *> &earlierSteps) override;
     void run(QFutureInterface<bool> &fi) override;
 
     ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
-    bool immutable() const override;
 
     QString buildTarget() const;
     bool buildsBuildTarget(const QString &target) const;
@@ -92,9 +90,6 @@ protected:
     void processStarted() override;
     void processFinished(int exitCode, QProcess::ExitStatus status) override;
 
-    CMakeBuildStep(ProjectExplorer::BuildStepList *bsl, CMakeBuildStep *bs);
-    CMakeBuildStep(ProjectExplorer::BuildStepList *bsl, Core::Id id);
-
     bool fromMap(const QVariantMap &map) override;
 
     // For parsing [ 76%]
@@ -124,8 +119,6 @@ class CMakeBuildStepConfigWidget : public ProjectExplorer::BuildStepConfigWidget
     Q_OBJECT
 public:
     CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep);
-    QString displayName() const override;
-    QString summaryText() const override;
 
 private:
     void itemChanged(QListWidgetItem*);
@@ -137,21 +130,12 @@ private:
     CMakeBuildStep *m_buildStep;
     QLineEdit *m_toolArguments;
     QListWidget *m_buildTargetsList;
-    QString m_summaryText;
 };
 
-class CMakeBuildStepFactory : public ProjectExplorer::IBuildStepFactory
+class CMakeBuildStepFactory : public ProjectExplorer::BuildStepFactory
 {
-    Q_OBJECT
-
 public:
-    explicit CMakeBuildStepFactory(QObject *parent = 0);
-
-    QList<ProjectExplorer::BuildStepInfo>
-        availableSteps(ProjectExplorer::BuildStepList *parent) const override;
-
-    ProjectExplorer::BuildStep *create(ProjectExplorer::BuildStepList *parent, Core::Id id) override;
-    ProjectExplorer::BuildStep *clone(ProjectExplorer::BuildStepList *parent, ProjectExplorer::BuildStep *source) override;
+    CMakeBuildStepFactory();
 };
 
 } // namespace Internal
