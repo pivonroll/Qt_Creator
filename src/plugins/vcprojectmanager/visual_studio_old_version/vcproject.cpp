@@ -81,6 +81,7 @@ namespace VcProjectManager {
 namespace Internal {
 
 VcProject::VcProject(const Utils::FileName &fileName)
+    : ProjectExplorer::Project(VcProjectManager::Constants::VCPROJ_MIMETYPE, fileName)
 {
     QString canonicalFilePath = fileName.toString();
     DocumentVersion docVersion = VisualStudioUtils::getProjectVersion(canonicalFilePath);
